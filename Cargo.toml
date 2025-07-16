@@ -1,0 +1,15 @@
+[package]
+name = "jailed-path"
+version = "0.0.1"
+edition = "2021"
+authors = ["David Krasnitsky <dikaveman@gmail.com>"]
+description = "Type-safe path validation ensuring file paths stay within defined jail boundaries"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/DK26/jailed-path-rs"
+homepage = "https://github.com/DK26/jailed-path-rs"
+documentation = "https://docs.rs/jailed-path"
+readme = "README.md"
+keywords = ["path", "security", "jail", "filesystem", "traversal"]
+categories = ["filesystem", "development-tools", "web-programming"]
+
+[dependencies]

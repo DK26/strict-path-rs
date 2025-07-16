@@ -1,0 +1,24 @@
+# CODEOWNERS
+# 
+# This file defines code ownership for automatic reviewer assignment.
+# Learn more: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global ownership - @DK26 owns everything by default
+* @DK26
+
+# Core library code
+/src/ @DK26
+
+# Configuration and build files  
+/Cargo.toml @DK26
+/Cargo.lock @DK26
+
+# Documentation
+/README.md @DK26
+/CHANGELOG.md @DK26
+
+# CI/CD and GitHub configuration
+/.github/ @DK26
+
+# License files
+/LICENSE-* @DK26
