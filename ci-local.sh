@@ -36,6 +36,20 @@ fi
 
 echo "✓ Using cargo: $(command -v cargo)"
 
+# Check Rust version and warn about nightly vs stable differences
+RUST_VERSION=$(rustc --version)
+echo "🦀 Rust version: $RUST_VERSION"
+
+if echo "$RUST_VERSION" | grep -q "nightly"; then
+    echo "⚠️  WARNING: You're using nightly Rust, but GitHub Actions uses stable!"
+    echo "   Some nightly-only APIs might work locally but fail in CI."
+    echo "   Consider testing with: rustup default stable"
+elif echo "$RUST_VERSION" | grep -qE "1\.(8[8-9]|9[0-9]|[0-9]{3})"; then
+    echo "⚠️  WARNING: You're using a newer Rust version than GitHub Actions stable!"
+    echo "   GitHub Actions uses the latest stable release."
+fi
+echo
+
 echo "🔧 Auto-fixing common issues before CI checks"
 echo
 
@@ -104,11 +118,31 @@ echo
 # Run all CI checks in order
 run_check "Format Check" "cargo fmt --all -- --check"
 run_check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warnings"
-run_check "Compile Check" "cargo check --verbose"
-run_check "Unit Tests" "cargo test --verbose"
-run_check "Doc Tests" "cargo test --doc"
-run_check "Documentation" "RUSTDOCFLAGS='-D warnings' cargo doc --no-deps"
+# Skip 'cargo check' since 'cargo test' compiles everything anyway
+run_check "Tests (includes compilation)" "cargo test --verbose"
+# Doc tests are included in 'cargo test --verbose', so no separate --doc run needed
+run_check "Documentation" "RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items --all-features"
 
-echo "🎉 All 6 CI checks passed!"
+# Check MSRV compatibility (same as GitHub Actions)
+echo "🔍 Checking Minimum Supported Rust Version (1.70.0)..."
+if command -v rustup &> /dev/null; then
+    if rustup toolchain list | grep -q "1.70.0"; then
+        echo "✓ Found Rust 1.70.0 toolchain, checking MSRV compatibility..."
+        run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+    else
+        echo "⚠️  Rust 1.70.0 not installed. Installing for MSRV check..."
+        if rustup toolchain install 1.70.0; then
+            run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+        else
+            echo "❌ Failed to install Rust 1.70.0. Skipping MSRV check."
+            echo "💡 To install manually: rustup toolchain install 1.70.0"
+        fi
+    fi
+else
+    echo "⚠️  rustup not found. Skipping MSRV check."
+    echo "💡 MSRV check requires rustup to install Rust 1.70.0"
+fi
+
+echo "🎉 All CI checks passed!"
 echo "💡 Remember to review and commit any auto-fixes made."
 echo "Ready to push to remote."
