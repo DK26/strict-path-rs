@@ -1,13 +1,15 @@
 use crate::jailed_path::JailedPath;
 use crate::{JailedPathError, Result};
 use std::path::{Path, PathBuf};
+use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]
-pub struct PathValidator {
+pub struct PathValidator<Marker = ()> {
     jail: PathBuf,
+    _marker: PhantomData<Marker>,
 }
 
-impl PathValidator {
+impl<Marker> PathValidator<Marker> {
     pub fn with_jail<P: AsRef<Path>>(jail: P) -> Result<Self> {
         let jail = jail.as_ref();
         let canonical_jail = jail
@@ -23,10 +25,11 @@ impl PathValidator {
 
         Ok(Self {
             jail: canonical_jail,
+            _marker: PhantomData,
         })
     }
 
-    pub fn path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath> {
+    pub fn path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
         let candidate = candidate_path.as_ref();
 
         let resolved_path = if candidate.is_absolute() {

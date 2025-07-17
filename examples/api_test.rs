@@ -9,7 +9,7 @@ fn main() -> Result<(), JailedPathError> {
     );
 
     // Create a path validator
-    let validator = PathValidator::with_jail(&current_dir)?;
+    let validator: PathValidator = PathValidator::with_jail(&current_dir)?;
 
     // Test valid path
     match validator.path("Cargo.toml") {
