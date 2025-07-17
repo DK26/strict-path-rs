@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use std::marker::PhantomData;
+use std::path::{Path, PathBuf};
 
 /// A validated path that is guaranteed to be within a defined jail boundary.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11,7 +11,7 @@ pub struct JailedPath<Marker = ()> {
 impl<Marker> JailedPath<Marker> {
     /// Creates a new JailedPath (internal use only).
     pub(crate) fn new(path: PathBuf) -> Self {
-        Self { 
+        Self {
             path,
             _marker: PhantomData,
         }

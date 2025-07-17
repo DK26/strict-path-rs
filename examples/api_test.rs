@@ -12,7 +12,7 @@ fn main() -> Result<(), JailedPathError> {
     let validator: PathValidator = PathValidator::with_jail(&current_dir)?;
 
     // Test valid path
-    match validator.path("Cargo.toml") {
+    match validator.try_path("Cargo.toml") {
         Ok(jailed_path) => {
             println!("✓ Valid path: {}", jailed_path.display());
         }
@@ -22,7 +22,7 @@ fn main() -> Result<(), JailedPathError> {
     }
 
     // Test invalid path (directory traversal)
-    match validator.path("../../../etc/passwd") {
+    match validator.try_path("../../../etc/passwd") {
         Ok(_) => {
             println!("✗ Path validation failed: traversal should have been blocked!");
         }

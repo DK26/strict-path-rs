@@ -1,7 +1,7 @@
 use crate::jailed_path::JailedPath;
 use crate::{JailedPathError, Result};
-use std::path::{Path, PathBuf};
 use std::marker::PhantomData;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct PathValidator<Marker = ()> {
@@ -11,15 +11,17 @@ pub struct PathValidator<Marker = ()> {
 
 impl<Marker> PathValidator<Marker> {
     pub fn with_jail<P: AsRef<Path>>(jail: P) -> Result<Self> {
-        let jail = jail.as_ref();
-        let canonical_jail = jail
+        let jail_path = jail.as_ref();
+        let canonical_jail = jail_path
             .canonicalize()
-            .map_err(|e| JailedPathError::from_io_error(jail.to_string_lossy().as_ref(), e))?;
+            .map_err(|e| JailedPathError::path_resolution_error(jail_path.to_path_buf(), e))?;
 
         if !canonical_jail.is_dir() {
+            let error =
+                std::io::Error::new(std::io::ErrorKind::NotFound, "path is not a directory");
             return Err(JailedPathError::invalid_jail(
-                jail.to_string_lossy().as_ref(),
-                "path is not a directory",
+                jail_path.to_path_buf(),
+                error,
             ));
         }
 
@@ -29,24 +31,26 @@ impl<Marker> PathValidator<Marker> {
         })
     }
 
-    pub fn path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
+    /// Validate a path and return detailed error information on failure
+    /// Use this when you need to know WHY a path was rejected (logging, debugging, security monitoring)
+    pub fn try_path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
         let candidate = candidate_path.as_ref();
 
         let resolved_path = if candidate.is_absolute() {
-            candidate.canonicalize().map_err(|e| {
-                JailedPathError::from_io_error(candidate.to_string_lossy().as_ref(), e)
-            })?
+            candidate
+                .canonicalize()
+                .map_err(|e| JailedPathError::path_resolution_error(candidate.to_path_buf(), e))?
         } else {
             let full_path = self.jail.join(candidate);
-            full_path.canonicalize().map_err(|e| {
-                JailedPathError::from_io_error(candidate.to_string_lossy().as_ref(), e)
-            })?
+            full_path
+                .canonicalize()
+                .map_err(|e| JailedPathError::path_resolution_error(candidate.to_path_buf(), e))?
         };
 
         if !resolved_path.starts_with(&self.jail) {
             return Err(JailedPathError::path_escapes_boundary(
-                candidate.to_string_lossy().as_ref(),
-                self.jail.to_string_lossy().as_ref(),
+                resolved_path,
+                self.jail.clone(),
             ));
         }
 

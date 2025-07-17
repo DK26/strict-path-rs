@@ -1,102 +1,105 @@
 use std::error::Error;
 use std::fmt;
+use std::path::{Path, PathBuf};
+
+/// Maximum length for paths stored in error messages to prevent memory attacks
+const MAX_ERROR_PATH_LEN: usize = 256;
 
 /// Errors that can occur during jailed path operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum JailedPathError {
-    /// The provided jail directory is invalid or inaccessible.
+    /// The jail directory is invalid or inaccessible.
     InvalidJail {
         /// The jail path that caused the error.
-        jail: String,
-        /// The underlying reason for the error.
-        reason: String,
+        jail: PathBuf,
+        /// The underlying I/O error.
+        source: std::io::Error,
     },
 
     /// The path escapes the jail boundary.
     PathEscapesBoundary {
-        /// The path that attempted to escape.
-        attempted_path: String,
+        /// The resolved path that attempted to escape.
+        attempted_path: PathBuf,
         /// The jail boundary it tried to escape from.
-        jail_boundary: String,
+        jail_boundary: PathBuf,
     },
 
-    /// The path contains invalid components or characters.
-    InvalidPath {
-        /// The invalid path.
-        path: String,
-        /// The reason the path is invalid.
-        reason: String,
+    /// An I/O error occurred during path resolution.
+    PathResolutionError {
+        /// The path being resolved when the error occurred.
+        path: PathBuf,
+        /// The underlying I/O error.
+        source: std::io::Error,
     },
+}
 
-    /// An I/O error occurred during path validation.
-    IoError {
-        /// The path being validated when the error occurred.
-        path: String,
-        /// The I/O error message.
-        message: String,
-    },
+/// Truncate a path to prevent memory exhaustion attacks (for display only)
+fn truncate_path_display(path: &Path, max_len: usize) -> String {
+    let path_str = path.to_string_lossy();
+    if path_str.len() <= max_len {
+        path_str.into_owned()
+    } else {
+        // Keep beginning and end, indicate truncation
+        let keep_len = max_len.saturating_sub(5) / 2; // Reserve 5 chars for "..."
+        format!(
+            "{}...{}",
+            &path_str[..keep_len],
+            &path_str[path_str.len().saturating_sub(keep_len)..]
+        )
+    }
 }
 
 impl JailedPathError {
     /// Creates a new `InvalidJail` error.
-    pub fn invalid_jail(jail: impl Into<String>, reason: impl Into<String>) -> Self {
-        Self::InvalidJail {
-            jail: jail.into(),
-            reason: reason.into(),
-        }
+    pub fn invalid_jail(jail: PathBuf, source: std::io::Error) -> Self {
+        Self::InvalidJail { jail, source }
     }
 
     /// Creates a new `PathEscapesBoundary` error.
-    pub fn path_escapes_boundary(
-        attempted_path: impl Into<String>,
-        jail_boundary: impl Into<String>,
-    ) -> Self {
+    pub fn path_escapes_boundary(attempted_path: PathBuf, jail_boundary: PathBuf) -> Self {
         Self::PathEscapesBoundary {
-            attempted_path: attempted_path.into(),
-            jail_boundary: jail_boundary.into(),
+            attempted_path,
+            jail_boundary,
         }
     }
 
-    /// Creates a new `InvalidPath` error.
-    pub fn invalid_path(path: impl Into<String>, reason: impl Into<String>) -> Self {
-        Self::InvalidPath {
-            path: path.into(),
-            reason: reason.into(),
-        }
-    }
-
-    /// Creates a new `IoError` from a std::io::Error.
-    pub fn from_io_error(path: impl Into<String>, io_error: std::io::Error) -> Self {
-        Self::IoError {
-            path: path.into(),
-            message: io_error.to_string(),
-        }
+    /// Creates a new `PathResolutionError` from an I/O error.
+    pub fn path_resolution_error(path: PathBuf, source: std::io::Error) -> Self {
+        Self::PathResolutionError { path, source }
     }
 }
 
 impl fmt::Display for JailedPathError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JailedPathError::InvalidJail { jail, reason } => {
-                write!(f, "Invalid jail directory '{jail}': {reason}")
+            JailedPathError::InvalidJail { jail, .. } => {
+                write!(f, "Invalid jail directory: {}", jail.display())
             }
             JailedPathError::PathEscapesBoundary {
                 attempted_path,
                 jail_boundary,
             } => {
+                // Truncate only when displaying to prevent memory attacks
+                let truncated_attempted = truncate_path_display(attempted_path, MAX_ERROR_PATH_LEN);
+                let truncated_boundary = truncate_path_display(jail_boundary, MAX_ERROR_PATH_LEN);
                 write!(
                     f,
-                    "Path '{attempted_path}' escapes jail boundary '{jail_boundary}'"
+                    "Path '{truncated_attempted}' escapes jail boundary '{truncated_boundary}'"
                 )
             }
-            JailedPathError::InvalidPath { path, reason } => {
-                write!(f, "Invalid path '{path}': {reason}")
-            }
-            JailedPathError::IoError { path, message } => {
-                write!(f, "I/O error for path '{path}': {message}")
+            JailedPathError::PathResolutionError { path, .. } => {
+                write!(f, "Cannot resolve path: {}", path.display())
             }
         }
     }
 }
 
-impl Error for JailedPathError {}
+impl Error for JailedPathError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            JailedPathError::InvalidJail { source, .. }
+            | JailedPathError::PathResolutionError { source, .. } => Some(source),
+            JailedPathError::PathEscapesBoundary { .. } => None,
+        }
+    }
+}
