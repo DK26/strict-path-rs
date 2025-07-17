@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
 /// A validated path that is guaranteed to be within a defined jail boundary.
@@ -34,7 +35,7 @@ impl<Marker> AsRef<Path> for JailedPath<Marker> {
     }
 }
 
-impl<Marker> std::ops::Deref for JailedPath<Marker> {
+impl<Marker> Deref for JailedPath<Marker> {
     type Target = Path;
 
     fn deref(&self) -> &Self::Target {

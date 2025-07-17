@@ -128,11 +128,41 @@ echo "🔍 Checking Minimum Supported Rust Version (1.70.0)..."
 if command -v rustup &> /dev/null; then
     if rustup toolchain list | grep -q "1.70.0"; then
         echo "✓ Found Rust 1.70.0 toolchain, checking MSRV compatibility..."
-        run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+        
+        # Regenerate Cargo.lock with MSRV to avoid version conflicts
+        echo "🔧 Regenerating Cargo.lock with MSRV Rust 1.70.0..."
+        if [[ -f "Cargo.lock" ]]; then
+            echo "  • Removing existing Cargo.lock"
+            rm -f Cargo.lock
+        fi
+        
+        echo "  • Generating new Cargo.lock with Rust 1.70.0"
+        if rustup run 1.70.0 cargo generate-lockfile; then
+            echo "  ✓ Cargo.lock regenerated successfully"
+            run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+        else
+            echo "  ❌ Failed to generate Cargo.lock with Rust 1.70.0"
+            echo "  💡 Trying fallback: cargo update then check"
+            run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+        fi
     else
         echo "⚠️  Rust 1.70.0 not installed. Installing for MSRV check..."
         if rustup toolchain install 1.70.0; then
-            run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+            echo "🔧 Regenerating Cargo.lock with MSRV Rust 1.70.0..."
+            if [[ -f "Cargo.lock" ]]; then
+                echo "  • Removing existing Cargo.lock"
+                rm -f Cargo.lock
+            fi
+            
+            echo "  • Generating new Cargo.lock with Rust 1.70.0"
+            if rustup run 1.70.0 cargo generate-lockfile; then
+                echo "  ✓ Cargo.lock regenerated successfully"
+                run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+            else
+                echo "  ❌ Failed to generate Cargo.lock with Rust 1.70.0"
+                echo "  💡 Trying fallback: cargo update then check"
+                run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+            fi
         else
             echo "❌ Failed to install Rust 1.70.0. Skipping MSRV check."
             echo "💡 To install manually: rustup toolchain install 1.70.0"

@@ -33,8 +33,9 @@ pub enum JailedPathError {
     },
 }
 
-/// Truncate a path to prevent memory exhaustion attacks (for display only)
-fn truncate_path_display(path: &Path, max_len: usize) -> String {
+/// Truncates a path display to prevent memory exhaustion attacks
+/// while preserving readability by showing both start and end of the path
+pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
     let path_str = path.to_string_lossy();
     if path_str.len() <= max_len {
         path_str.into_owned()

@@ -6,6 +6,9 @@ pub mod error;
 pub mod jailed_path;
 pub mod validator;
 
+#[cfg(test)]
+mod tests;
+
 pub use error::JailedPathError;
 pub use jailed_path::JailedPath;
 pub use validator::PathValidator;
