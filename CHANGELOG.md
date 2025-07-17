@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Comprehensive lexical validation to block `..` components before filesystem operations
+- Expanded test suite from basic coverage to 58 comprehensive tests covering security, edge cases, and integration scenarios
+
 ## [0.0.1] - 2025-07-16
 
 ### Added

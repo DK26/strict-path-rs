@@ -85,13 +85,22 @@ fn test_error_handling_and_reporting() {
 
     // Test different error scenarios
 
-    // 1. File doesn't exist
+    // 1. Non-existent file should now succeed with touch technique
     match validator.try_path("nonexistent.txt") {
-        Err(JailedPathError::PathResolutionError { path, source }) => {
-            assert!(path.to_string_lossy().contains("nonexistent.txt"));
-            assert_eq!(source.kind(), std::io::ErrorKind::NotFound);
+        Ok(jailed_path) => {
+            assert!(jailed_path.as_path().ends_with("nonexistent.txt"));
+            // Compare with canonical jail path for consistency
+            let canonical_public = public_dir
+                .canonicalize()
+                .expect("Public dir should be canonicalizable");
+            assert!(
+                jailed_path.as_path().starts_with(&canonical_public),
+                "Path {:?} should start with canonical jail {:?}",
+                jailed_path.as_path(),
+                canonical_public
+            );
         }
-        other => panic!("Expected PathResolutionError, got: {other:?}"),
+        other => panic!("Expected successful validation with touch technique, got: {other:?}"),
     }
 
     // 2. Directory traversal attempt
