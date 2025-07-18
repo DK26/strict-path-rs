@@ -33,7 +33,7 @@ use std::path::{Path, PathBuf};
 /// 3. Appends non-existing components to the canonicalized base
 /// 4. Validates the final path against the jail boundary
 ///
-/// This approach ensures that even complex traversal patterns like `a/b/../../../etc/passwd`
+/// This approach ensures that even complex traversal patterns like `a/b/../../../sensitive.txt`
 /// are properly resolved and validated against the jail boundary, without requiring
 /// filesystem modification or temporary file creation.
 ///
@@ -42,7 +42,7 @@ use std::path::{Path, PathBuf};
 /// ```rust
 /// # use jailed_path::PathValidator;
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let validator = PathValidator::<()>::with_jail("/safe/directory")?;
+/// let validator = PathValidator::<()>::with_jail(std::env::temp_dir())?;
 ///
 /// // Existing files work
 /// let path = validator.try_path("existing_file.txt")?;
@@ -51,7 +51,7 @@ use std::path::{Path, PathBuf};
 /// let path = validator.try_path("user123/new_document.pdf")?;
 ///
 /// // Traversal attacks are blocked
-/// assert!(validator.try_path("../../../etc/passwd").is_err());
+/// assert!(validator.try_path("../../../sensitive.txt").is_err());
 /// # Ok(())
 /// # }
 /// ```
@@ -130,9 +130,8 @@ impl<Marker> PathValidator<Marker> {
         };
 
         // SECURITY FIRST: Use soft canonicalization for safe path resolution
-        let resolved_path = soft_canonicalize(&full_path).map_err(|e| {
-            JailedPathError::path_resolution_error(candidate_path.to_path_buf(), e)
-        })?;
+        let resolved_path = soft_canonicalize(&full_path)
+            .map_err(|e| JailedPathError::path_resolution_error(candidate_path.to_path_buf(), e))?;
 
         // CRITICAL SECURITY CHECK: Must be within jail boundary
         // Both paths are canonical, so comparison should be reliable

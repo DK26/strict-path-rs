@@ -5,6 +5,27 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
+/// Creates cross-platform attack target paths for testing
+fn get_attack_target_paths() -> Vec<&'static str> {
+    #[cfg(windows)]
+    {
+        vec![
+            "C:\\Windows\\System32\\config\\SAM",
+            "C:\\Windows\\System32\\drivers\\etc\\hosts",
+            "D:\\sensitive\\data.txt",
+        ]
+    }
+    #[cfg(not(windows))]
+    {
+        vec![
+            "/etc/passwd",
+            "/usr/bin/malware",
+            "/root/.ssh/authorized_keys",
+            "/home/user/secrets.txt",
+        ]
+    }
+}
+
 fn create_test_directory() -> std::io::Result<std::path::PathBuf> {
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -167,11 +188,11 @@ fn test_try_path_with_directory_traversal_attack() {
 
     // Should block directory traversal attempts
     let traversal_attempts = vec![
-        "../../../etc/passwd",
+        "../../../sensitive.txt",
         "../../..",
         "../outside.txt",
         "subdir/../../outside.txt",
-        "subdir/../../../etc/passwd",
+        "subdir/../../../sensitive.txt",
     ];
 
     for attempt in traversal_attempts {
@@ -318,11 +339,11 @@ fn test_try_path_blocks_traversal_in_nonexistent_paths() {
 
     // Should block traversal attacks even for non-existent paths
     let traversal_attempts = vec![
-        "user/../../../etc/passwd",
-        "photos/../../../../../../bin/sh",
-        "docs/../../../home/secrets.txt",
+        "user/../../../sensitive.txt",
+        "photos/../../../../../../malware.exe",
+        "docs/../../../secrets.txt",
         "../escape/file.txt",
-        "valid/path/../../../etc/shadow",
+        "valid/path/../../../config.ini",
     ];
 
     for attempt in traversal_attempts {
@@ -357,11 +378,7 @@ fn test_try_path_with_absolute_nonexistent_path_outside_jail() {
     let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
 
     // Should block absolute paths outside jail, even if they don't exist
-    let outside_paths = vec![
-        "/etc/new_malicious_file.txt",
-        "/home/user/evil.txt",
-        "/tmp/outside_jail.txt",
-    ];
+    let outside_paths = get_attack_target_paths();
 
     for path in outside_paths {
         let result = validator.try_path(path);
@@ -495,11 +512,11 @@ fn test_try_path_with_complex_traversal_patterns() {
 
     // Complex traversal patterns that should all be blocked
     let complex_attacks = vec![
-        "../../../etc/passwd",              // Direct escape - 3 levels up
-        "../../../../etc/shadow",           // Direct escape - 4 levels up
-        "a/../../../etc/passwd",            // 1 down, 3 up = 2 net up (escapes)
-        "a/b/../../../../../../bin/sh",     // 2 down, 7 up = 5 net up (escapes)
-        "user/../../../../../../etc/hosts", // 1 down, 6 up = 5 net up (escapes)
+        "../../../sensitive.txt",             // Direct escape - 3 levels up
+        "../../../../config.ini",             // Direct escape - 4 levels up
+        "a/../../../sensitive.txt",           // 1 down, 3 up = 2 net up (escapes)
+        "a/b/../../../../../../malware.exe",  // 2 down, 7 up = 5 net up (escapes)
+        "user/../../../../../../secrets.txt", // 1 down, 6 up = 5 net up (escapes)
     ];
 
     for attack in complex_attacks {
@@ -806,13 +823,13 @@ fn test_cleanup_on_jail_escape_attempts() {
     // Test various jail escape attempts that create directories
     let escape_attempts = vec![
         // These should create directories inside jail, then fail validation
-        "legitimate_user_data/photos/../../../../../../../etc/passwd",
-        "legitimate_user_data/new_folder/../../../../../../bin/sh",
-        "existing_dir/../../../../../../../home/secrets.txt",
-        "valid/path/../../../../../../../tmp/evil.txt",
+        "legitimate_user_data/photos/../../../../../../../sensitive.txt",
+        "legitimate_user_data/new_folder/../../../../../../malware.exe",
+        "existing_dir/../../../../../../../secrets.txt",
+        "valid/path/../../../../../../../evil.txt",
         // Direct escapes that might try to create directories outside
         "../../../outside_jail/malicious.txt",
-        "../../../../etc/shadow",
+        "../../../../config.ini",
     ];
 
     for escape_attempt in &escape_attempts {
@@ -916,9 +933,9 @@ fn test_attacker_path_in_existing_directory_with_escape() {
 
     // Test the exact scenario you mentioned:
     // Existing: /import_dir/user_data/
-    // Attack: dir_created_by_attacker/another_subdir/../../../../../etc/passwd
+    // Attack: dir_created_by_attacker/another_subdir/../../../../../sensitive.txt
     let attack_path =
-        "import_dir/user_data/dir_created_by_attacker/another_subdir/../../../../../etc/passwd";
+        "import_dir/user_data/dir_created_by_attacker/another_subdir/../../../../../sensitive.txt";
 
     println!("Testing attack path: {attack_path}");
 
@@ -997,21 +1014,21 @@ fn test_lexical_validation_blocks_parent_directory_components() {
         "..",
         "../",
         "../file.txt",
-        "../../../etc/passwd",
+        "../../../sensitive.txt",
         // Mixed with normal path components
         "user/../file.txt",
-        "documents/../../../etc/passwd",
+        "documents/../../../sensitive.txt",
         "data/backup/../../..",
-        "uploads/user123/../../../system/config",
+        "uploads/user123/../../../config.ini",
         // Complex traversal patterns
-        "a/b/../c/../../../etc/passwd",
-        "safe/dir/../../../../../root",
+        "a/b/../c/../../../sensitive.txt",
+        "safe/dir/../../../../../secrets.txt",
         "nested/very/deep/../../../../..",
         // Realistic attack scenarios
-        "user_uploads/../../../etc/cron.d/backdoor",
-        "temp/extract/../../usr/bin/malware",
-        "logs/user/../../../system/auth.log",
-        "files/../../etc/shadow",
+        "user_uploads/../../../malware.exe",
+        "temp/extract/../../malware.exe",
+        "logs/user/../../../auth.log",
+        "files/../../config.ini",
     ];
 
     for malicious_path in malicious_paths {
@@ -1105,15 +1122,7 @@ fn test_absolute_path_lexical_validation() {
     let jail_str = temp_dir.to_string_lossy();
 
     // Absolute paths outside jail (should be blocked during canonicalization)
-    let outside_absolute_paths = vec![
-        "/etc/passwd",
-        "/usr/bin/malware",
-        "/root/.ssh/authorized_keys",
-        #[cfg(windows)]
-        "C:\\Windows\\System32\\config\\SAM",
-        #[cfg(windows)]
-        "D:\\sensitive\\data.txt",
-    ];
+    let outside_absolute_paths = get_attack_target_paths();
 
     for abs_path in outside_absolute_paths {
         let result = validator.try_path(abs_path);
@@ -1144,9 +1153,9 @@ fn test_absolute_path_lexical_validation() {
 
     // Absolute paths inside jail but with .. components
     let jail_with_traversal = vec![
-        format!("{}/../../../etc/passwd", jail_str),
-        format!("{}/subdir/../../../root", jail_str),
-        format!("{}/user/../../etc/shadow", jail_str),
+        format!("{}/../../../sensitive.txt", jail_str),
+        format!("{}/subdir/../../../secrets.txt", jail_str),
+        format!("{}/user/../../config.ini", jail_str),
     ];
 
     for path_with_traversal in jail_with_traversal {
@@ -1180,7 +1189,7 @@ fn test_lexical_validation_is_fast_and_secure() {
     let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
 
     // Verify that lexical validation prevents filesystem operations for malicious paths
-    let malicious_path = "../../../etc/passwd";
+    let malicious_path = "../../../sensitive.txt";
 
     // This should fail immediately without creating any files or directories
     let result = validator.try_path(malicious_path);

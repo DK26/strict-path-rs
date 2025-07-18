@@ -3,6 +3,18 @@ use std::error::Error;
 use std::fs;
 use std::io::Write;
 
+/// Creates a cross-platform non-existent absolute path for testing
+fn get_nonexistent_absolute_path() -> String {
+    #[cfg(windows)]
+    {
+        "C:\\NonExistent\\Path\\That\\Does\\Not\\Exist".to_string()
+    }
+    #[cfg(not(windows))]
+    {
+        "/nonexistent/path/that/does/not/exist".to_string()
+    }
+}
+
 /// Create a test directory structure for integration testing
 fn create_test_directory() -> std::io::Result<std::path::PathBuf> {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -116,7 +128,7 @@ fn test_error_handling_and_reporting() {
     }
 
     // 3. Test error source chaining
-    let nonexistent_jail = "/this/does/not/exist";
+    let nonexistent_jail = get_nonexistent_absolute_path();
     match PathValidator::<()>::with_jail(nonexistent_jail) {
         Err(error) => {
             // Should have proper error chaining
@@ -271,7 +283,7 @@ fn test_edge_cases_and_special_paths() {
         "..",
         "../",
         "../../",
-        "../../../etc/passwd",
+        "../../../sensitive.txt",
         "uploads/../../private/secrets.txt",
     ];
 

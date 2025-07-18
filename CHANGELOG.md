@@ -8,8 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Comprehensive lexical validation to block `..` components before filesystem operations
-- Expanded test suite from basic coverage to 58 comprehensive tests covering security, edge cases, and integration scenarios
+- **Soft canonicalization algorithm**: Pure path resolution without filesystem modification
+  - Handles non-existing paths securely by processing logical path traversal
+  - Resolves `..` components mathematically without requiring filesystem touch operations
+  - Provides security benefits of canonicalization for paths that don't exist yet
+- **Cross-platform compatibility improvements**:
+  - Conditional compilation for Windows vs Unix paths in tests and examples
+  - Platform-appropriate test attack vectors and path generation
+  - Updated all hardcoded Unix paths to use cross-platform alternatives
+- **Enhanced test coverage**: Expanded from 58 to 66 comprehensive tests
+  - Added 7 specialized tests for soft canonicalize algorithm
+  - Cross-platform test helpers for realistic attack simulation
+  - Full coverage of edge cases including deeply nested non-existing paths
+- **Improved documentation**: Updated examples to use platform-appropriate paths
+
+### Changed
+- **PathValidator**: Now uses soft canonicalize algorithm instead of touch technique
+  - Eliminates filesystem modification during validation
+  - Improves security by preventing side effects during path checking
+  - Maintains mathematical precision in path resolution
+- **Cross-platform examples**: All examples now work correctly on Windows, macOS, and Linux
+
+### Security
+- **Zero filesystem modification**: Validation no longer creates temporary filesystem entries
+- **Mathematical path security**: Pure algorithmic approach eliminates timing attacks and filesystem-based vulnerabilities
 
 ## [0.0.1] - 2025-07-16
 

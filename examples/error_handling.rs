@@ -3,7 +3,12 @@ use std::error::Error;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test error chaining with try_path (the detailed error method)
-    let result = PathValidator::<()>::with_jail("/nonexistent/path");
+    #[cfg(windows)]
+    let nonexistent_path = "C:\\NonExistent\\Path";
+    #[cfg(not(windows))]
+    let nonexistent_path = "/nonexistent/path";
+
+    let result = PathValidator::<()>::with_jail(nonexistent_path);
 
     match result {
         Err(e) => {
@@ -46,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Validator created successfully!");
 
             // Try to validate a path - this is the only way to check validity
-            match validator.try_path("../../../etc/passwd") {
+            match validator.try_path("../../../sensitive.txt") {
                 Ok(_) => println!("Unexpected success!"),
                 Err(e) => println!("Correctly blocked traversal: {e}"),
             }

@@ -22,7 +22,7 @@ fn main() -> Result<(), JailedPathError> {
     }
 
     // Test invalid path (directory traversal)
-    match validator.try_path("../../../etc/passwd") {
+    match validator.try_path("../../../sensitive.txt") {
         Ok(_) => {
             println!("✗ Path validation failed: traversal should have been blocked!");
         }
