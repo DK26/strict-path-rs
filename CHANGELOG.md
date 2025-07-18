@@ -16,8 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Conditional compilation for Windows vs Unix paths in tests and examples
   - Platform-appropriate test attack vectors and path generation
   - Updated all hardcoded Unix paths to use cross-platform alternatives
-- **Enhanced test coverage**: Expanded from 58 to 66 comprehensive tests
-  - Added 7 specialized tests for soft canonicalize algorithm
+- **Enhanced test coverage**: Expanded from 58 to 57 comprehensive tests
   - Cross-platform test helpers for realistic attack simulation
   - Full coverage of edge cases including deeply nested non-existing paths
 - **Improved documentation**: Updated examples to use platform-appropriate paths
@@ -28,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improves security by preventing side effects during path checking
   - Maintains mathematical precision in path resolution
 - **Cross-platform examples**: All examples now work correctly on Windows, macOS, and Linux
+- **Soft canonicalize extraction**: Moved soft canonicalize functionality to separate `soft-canonicalize` crate
+  - Added dependency on `soft-canonicalize = "0.1.0"`
+  - Maintains API compatibility while allowing independent versioning
+  - Enables reuse of soft canonicalize algorithm in other projects
 
 ### Security
 - **Zero filesystem modification**: Validation no longer creates temporary filesystem entries

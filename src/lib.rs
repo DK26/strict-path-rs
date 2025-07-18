@@ -4,7 +4,6 @@
 
 pub mod error;
 pub mod jailed_path;
-pub mod soft_canonicalize;
 pub mod validator;
 
 #[cfg(test)]

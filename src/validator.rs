@@ -1,6 +1,6 @@
 use crate::jailed_path::JailedPath;
-use crate::soft_canonicalize::soft_canonicalize;
 use crate::{JailedPathError, Result};
+use soft_canonicalize::soft_canonicalize;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
