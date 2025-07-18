@@ -8,80 +8,97 @@
 
 `jailed-path` prevents directory traversal attacks by validating that file paths remain within designated boundaries using Rust's type system.
 
-## Quick Start
+## Why Type Safety Beats Manual Validation
 
 ```rust
-use jailed_path::PathValidator;
+use jailed_path::{PathValidator, JailedPath};
 
-// Create validator with jail boundary
-let temp_dir = std::env::temp_dir();
-let validator: PathValidator = PathValidator::with_jail(&temp_dir)?;
+// ✅ Type-safe: Only accepts validated paths
+fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
+    std::fs::read(safe_path)
+}
 
-// Validate user-provided paths  
-let safe_path = validator.try_path("image.jpg")?;
+let validator = PathValidator::with_jail(std::env::temp_dir())?;
+let safe_path: JailedPath = validator.try_path("document.pdf")?; // Only way to create JailedPath
+```
 
-// Use with any std::fs operation
-std::fs::write(&safe_path, b"image data")?;
-# Ok::<(), Box<dyn std::error::Error>>(())
+## Adding Context with Markers (Optional)
+
+```rust
+use jailed_path::{PathValidator, JailedPath};
+
+struct UserUploads;
+
+fn process_upload(file: &JailedPath<UserUploads>) -> std::io::Result<()> {
+    let content = std::fs::read(file)?;
+    Ok(())
+}
+
+let upload_validator: PathValidator<UserUploads> = PathValidator::with_jail(std::env::temp_dir())?;
+let upload_file: JailedPath<UserUploads> = upload_validator.try_path("photo.jpg")?;
+```
+
+## Multiple Jails with Compile-Time Safety
+
+```rust
+use jailed_path::{PathValidator, JailedPath};
+
+struct ConfigFiles;
+struct UserData;
+
+fn load_config(config_path: &JailedPath<ConfigFiles>) -> Result<String, std::io::Error> {
+    std::fs::read_to_string(config_path)
+}
+
+let config_validator: PathValidator<ConfigFiles> = PathValidator::with_jail(std::env::temp_dir())?;
+let user_validator: PathValidator<UserData> = PathValidator::with_jail(std::env::temp_dir())?;
+
+let config_file: JailedPath<ConfigFiles> = config_validator.try_path("app.toml")?;
+let user_file: JailedPath<UserData> = user_validator.try_path("profile.json")?;
+
+load_config(&config_file)?; // ✅ Correct type
+// load_config(&user_file)?; // ❌ Compile error: wrong marker type!
 ```
 
 ## Key Features
 
-- **Zero Dependencies**: Only depends on our own `soft-canonicalize` crate
+- **Single Dependency**: Only depends on our own `soft-canonicalize` crate
 - **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries
 - **Security First**: Prevents `../` path traversal attacks automatically  
 - **Path Canonicalization**: Resolves symlinks and relative components safely
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 - **Performance**: Minimal allocations, efficient validation
+- **Zero-Cost Markers**: Generic markers add no runtime overhead
 
 ## API Design
 
 - `PathValidator::with_jail()` - Create validator with jail boundary
-- `PathValidator::try_path()` - Validate paths (returns `Result`)  
+- `validator.try_path()` - Validate paths (returns `Result`)  
 - `JailedPath` - Validated path type with full `Path` compatibility
 - `JailedPathError` - Detailed error information for debugging
 
-## Security Examples
+## Security Guarantees
+
+All `..` components are blocked before processing, symbolic links are resolved, and paths are
+mathematically validated against the jail boundary. Path traversal attacks
+are impossible to bypass.
 
 ```rust
 use jailed_path::PathValidator;
 
-let temp_dir = std::env::temp_dir();
-let validator: PathValidator = PathValidator::with_jail(&temp_dir)?;
+let validator: PathValidator = PathValidator::with_jail(std::env::temp_dir())?;
 
-// ✅ Valid - within jail
-let file = validator.try_path("uploads/photo.jpg")?;
+// ✅ Valid paths
+let safe = validator.try_path("file.txt")?;
+let nested = validator.try_path("dir/file.txt")?;
 
-// ❌ Blocked - directory traversal  
-let evil = validator.try_path("../../../etc/passwd"); // Returns Err
-assert!(evil.is_err());
-
-// ❌ Blocked - absolute path escape
-let bad = validator.try_path("/etc/shadow"); // Returns Err  
-assert!(bad.is_err());
-# Ok::<(), Box<dyn std::error::Error>>(())
+// ❌ Any `..` component causes validation failure
+assert!(validator.try_path("../escape.txt").is_err());
+assert!(validator.try_path("dir/../file.txt").is_err());
+assert!(validator.try_path("../../etc/passwd").is_err());
 ```
 
 ## Integration Examples
-
-### Web Server File Serving
-
-```rust
-use jailed_path::PathValidator;
-
-fn serve_static_file(validator: &PathValidator, request_path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    // Safely validate user-provided path
-    let safe_path = validator.try_path(request_path)?;
-    
-    // Read file - guaranteed to be within jail
-    Ok(std::fs::read(&safe_path).unwrap_or_default())
-}
-
-let temp_dir = std::env::temp_dir();
-let validator = PathValidator::with_jail(&temp_dir)?;
-let _content = serve_static_file(&validator, "images/logo.png")?;
-# Ok::<(), Box<dyn std::error::Error>>(())
-```
 
 ### With app-path for Portable Applications
 
@@ -89,22 +106,15 @@ let _content = serve_static_file(&validator, "images/logo.png")?;
 use app_path::app_path;
 use jailed_path::PathValidator;
 
-// Get application data directory using app-path macro  
 let app_data = app_path!("data");
 app_data.create_dir()?;
-
-// Create validator jail around app data
 let validator: PathValidator = PathValidator::with_jail(&app_data)?;
 
-// Safely handle user file requests
 let user_file = validator.try_path("document.pdf")?;
 std::fs::write(&user_file, b"pdf data")?;
-# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 ## Path Compatibility
-
-`JailedPath` is fully compatible with Rust's path ecosystem:
 
 ```rust
 use jailed_path::PathValidator;
@@ -113,26 +123,22 @@ let temp_dir = std::env::temp_dir();
 let validator = PathValidator::with_jail(&temp_dir)?;
 let jailed_path = validator.try_path("file.txt")?;
 
-// Works as &Path (via Deref)
 let _exists = jailed_path.exists();
 let _metadata = jailed_path.metadata();
-
-// Works with any function expecting AsRef<Path>
 let _content = std::fs::read_to_string(&jailed_path);
 
-// Convert to owned types  
 let path_buf = jailed_path.into_path_buf();
 assert!(path_buf.ends_with("file.txt"));
-# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-## Features
+## Installation
 
-- **Security First**: Prevents `../` path traversal attacks automatically
-- **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries
-- **Path Canonicalization**: Resolves symlinks and relative components safely
-- **Cross-Platform**: Works on Windows, macOS, and Linux
-- **Single Dependency**: Only depends on our own `soft-canonicalize` crate
+Add this to your `Cargo.toml`:
+
+```toml
+[dependencies]
+jailed-path = "0.0.1"
+```
 
 ## License
 

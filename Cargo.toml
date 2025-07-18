@@ -1,6 +1,6 @@
 [package]
 name = "jailed-path"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 authors = ["David Krasnitsky <dikaveman@gmail.com>"]
 description = "Type-safe path validation ensuring file paths stay within defined jail boundaries"
