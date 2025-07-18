@@ -4,6 +4,7 @@
 
 pub mod error;
 pub mod jailed_path;
+pub mod soft_canonicalize;
 pub mod validator;
 
 #[cfg(test)]
@@ -11,6 +12,7 @@ mod tests;
 
 pub use error::JailedPathError;
 pub use jailed_path::JailedPath;
+pub use soft_canonicalize::soft_canonicalize;
 pub use validator::PathValidator;
 
 /// Result type alias for this crate's operations.

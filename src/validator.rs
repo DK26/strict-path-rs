@@ -1,9 +1,10 @@
 use crate::jailed_path::JailedPath;
+use crate::soft_canonicalize::soft_canonicalize;
 use crate::{JailedPathError, Result};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
-/// Path Validator with Security-First Touch Technique
+/// Path Validator with Security-First Soft Canonicalization
 ///
 /// This module implements a security-first path validation system that can handle both
 /// existing and non-existent paths while providing mathematical guarantees against
@@ -11,8 +12,8 @@ use std::path::{Path, PathBuf};
 ///
 /// ## Key Features
 ///
-/// - **Security-First Design**: Always uses `fs::canonicalize()` for mathematical path resolution
-/// - **Touch Technique**: Temporarily creates non-existent paths to enable canonicalization  
+/// - **Security-First Design**: Uses soft canonicalization for mathematical path resolution
+/// - **Soft Canonicalization**: Resolves existing parts and handles non-existent paths safely
 /// - **Cross-Platform**: Works correctly on Windows, macOS, and Linux
 /// - **Zero-False-Positives**: All legitimate paths within the jail are accepted
 /// - **Zero-False-Negatives**: All escape attempts are guaranteed to be blocked
@@ -26,23 +27,15 @@ use std::path::{Path, PathBuf};
 ///
 /// ## Implementation Details
 ///
-/// For existing paths, canonicalization works directly. For non-existent paths, we:
-/// 1. Create parent directories as needed (tracking what we create)
-/// 2. Create a temporary file at the target location
-/// 3. Canonicalize the now-existing path for security validation
-/// 4. **SECURITY**: Clean up ALL temporary files and directories to prevent spam attacks
+/// Uses soft canonicalization which:
+/// 1. Finds the deepest existing ancestor directory
+/// 2. Canonicalizes the existing part (resolving symlinks, normalizing paths)
+/// 3. Appends non-existing components to the canonicalized base
+/// 4. Validates the final path against the jail boundary
 ///
 /// This approach ensures that even complex traversal patterns like `a/b/../../../etc/passwd`
-/// are properly resolved and validated against the jail boundary, while preventing
-/// attackers from spamming the filesystem with unwanted directory structures.
-///
-/// ## Anti-Spam Protection
-///
-/// The validator implements comprehensive cleanup to prevent directory spam attacks:
-/// - Tracks every directory it creates during validation
-/// - Removes all temporary directories after validation (even on errors)
-/// - Preserves only directories that existed before validation
-/// - Prioritizes security over performance optimizations
+/// are properly resolved and validated against the jail boundary, without requiring
+/// filesystem modification or temporary file creation.
 ///
 /// ## Examples
 ///
@@ -109,9 +102,9 @@ impl<Marker> PathValidator<Marker> {
 
     /// Validate a path and return detailed error information on failure
     ///
-    /// This method prioritizes security over performance by always using `fs::canonicalize()`
-    /// to resolve all symbolic links and path components. For non-existent paths, it temporarily
-    /// creates the path structure to enable canonicalization, then cleans up.
+    /// This method prioritizes security over performance by using soft canonicalization
+    /// to resolve all symbolic links and path components. This works with both existing
+    /// and non-existent paths without requiring filesystem modification.
     ///
     /// # Security Guarantees
     /// - All symbolic links are resolved to their targets
@@ -136,20 +129,10 @@ impl<Marker> PathValidator<Marker> {
             self.jail.join(candidate_path)
         };
 
-        // SECURITY FIRST: Always canonicalize for maximum security
-        let resolved_path = match full_path.canonicalize() {
-            Ok(path) => path,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                // Path doesn't exist - use touch technique to enable canonicalization
-                self.canonicalize_with_touch(candidate_path)?
-            }
-            Err(e) => {
-                return Err(JailedPathError::path_resolution_error(
-                    candidate_path.to_path_buf(),
-                    e,
-                ));
-            }
-        };
+        // SECURITY FIRST: Use soft canonicalization for safe path resolution
+        let resolved_path = soft_canonicalize(&full_path).map_err(|e| {
+            JailedPathError::path_resolution_error(candidate_path.to_path_buf(), e)
+        })?;
 
         // CRITICAL SECURITY CHECK: Must be within jail boundary
         // Both paths are canonical, so comparison should be reliable
@@ -161,60 +144,6 @@ impl<Marker> PathValidator<Marker> {
         }
 
         Ok(JailedPath::new(resolved_path))
-    }
-
-    /// Canonicalizes a non-existent path by temporarily creating it
-    ///
-    /// This method is only called when we know canonicalization failed,
-    /// so we immediately start the touch technique.
-    fn canonicalize_with_touch(&self, candidate_path: &Path) -> Result<PathBuf> {
-        let full_path = self.jail.join(candidate_path);
-
-        // Find missing parent directories (deepest first)
-        let mut missing_dirs = Vec::new();
-        let mut current = full_path.parent();
-        while let Some(dir) = current {
-            if dir.exists() || dir == self.jail {
-                break;
-            }
-            missing_dirs.push(dir);
-            current = dir.parent();
-        }
-
-        // Create directories (shallowest first)
-        for &dir in missing_dirs.iter().rev() {
-            if let Err(e) = std::fs::create_dir(dir) {
-                // Cleanup on error
-                for &cleanup_dir in &missing_dirs {
-                    let _ = std::fs::remove_dir(cleanup_dir);
-                }
-                return Err(JailedPathError::path_resolution_error(
-                    candidate_path.to_path_buf(),
-                    e,
-                ));
-            }
-        }
-
-        // Create temp file and canonicalize
-        let cleanup = || {
-            let _ = std::fs::remove_file(&full_path);
-            for &dir in &missing_dirs {
-                let _ = std::fs::remove_dir(dir);
-            }
-        };
-
-        let _temp_file = std::fs::File::create(&full_path).map_err(|e| {
-            cleanup();
-            JailedPathError::path_resolution_error(candidate_path.to_path_buf(), e)
-        })?;
-
-        let resolved = full_path.canonicalize().map_err(|e| {
-            cleanup();
-            JailedPathError::path_resolution_error(candidate_path.to_path_buf(), e)
-        })?;
-
-        cleanup();
-        Ok(resolved)
     }
 
     pub fn jail(&self) -> &Path {
