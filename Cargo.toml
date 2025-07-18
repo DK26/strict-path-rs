@@ -14,3 +14,6 @@ categories = ["filesystem", "development-tools", "web-programming"]
 
 [dependencies]
 soft-canonicalize = "0.0.2"
+
+[dev-dependencies]
+app-path = "0.2.7"

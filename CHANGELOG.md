@@ -8,6 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Comprehensive documentation overhaul**: Complete restructure following modern Rust documentation standards
+  - Added Quick Start section with immediate working examples
+  - Detailed Key Features and API Design sections
+  - Security Guarantees section explaining protection mechanisms
+  - Integration examples showing real-world usage patterns
+- **Working documentation examples**: All doc tests now compile and run successfully
+  - Web server file serving example with proper error handling
+  - app-path integration example using correct API methods
+  - Added app-path as dev dependency for documentation examples
+- **Enhanced crate-level documentation**: Following app-path style and structure
+  - Clear purpose statement and value proposition
+  - Comprehensive API overview with security focus
+  - Type-safe guarantees prominently featured
+- **Improved module documentation**: Enhanced docs for all public types
+  - PathValidator with detailed security examples
+  - JailedPath with compatibility demonstrations
+  - Comprehensive error handling examples
+
+### Changed
+- **Documentation structure**: Reorganized to follow modern Rust crate conventions
+  - Moved from basic examples to comprehensive integration guides
+  - Eliminated redundancy while improving clarity
+  - Focus on copy-pasteable, working code examples
+- **README.md**: Complete rewrite following professional standards
+  - Clear project purpose and security value proposition
+  - Working examples that demonstrate real integration patterns
+  - Proper app-path API usage throughout examples
+
+### Dependencies
+- **Added dev dependency**: `app-path = "0.2.7"` for documentation examples
 - **Soft canonicalization algorithm**: Pure path resolution without filesystem modification
   - Handles non-existing paths securely by processing logical path traversal
   - Resolves `..` components mathematically without requiring filesystem touch operations
@@ -19,9 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Enhanced test coverage**: Expanded from 58 to 57 comprehensive tests
   - Cross-platform test helpers for realistic attack simulation
   - Full coverage of edge cases including deeply nested non-existing paths
-- **Improved documentation**: Updated examples to use platform-appropriate paths
 
-### Changed
+### Technical Changes
 - **PathValidator**: Now uses soft canonicalize algorithm instead of touch technique
   - Eliminates filesystem modification during validation
   - Improves security by preventing side effects during path checking

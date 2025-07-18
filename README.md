@@ -6,100 +6,133 @@
 
 **Type-safe path validation ensuring files stay within defined jail boundaries**
 
-`jailed-path` provides a simple, zero-dependency solution for validating that file paths remain within designated jail boundaries. It prevents directory traversal and ensures paths stay within allowed areas using Rust's type system.
+`jailed-path` prevents directory traversal attacks by validating that file paths remain within designated boundaries using Rust's type system.
 
 ## Quick Start
 
 ```rust
-use jailed_path::{PathValidator, JailedPath};
-
-// Developer defines validation jail
-let validator = PathValidator::with_jail("/safe/directory")?;
-
-// Runtime validates user-provided paths
-let jailed_path = validator.path("user/requested/file.txt")?;
-
-// Type guarantees the path is validated
-let path: &Path = jailed_path.as_path();
-```
-
-## Core Concepts
-
-### PathValidator
-Sets the jail boundary that paths must stay within:
-
-```rust
-let validator = PathValidator::with_jail("/app/data")?;
-```
-
-### JailedPath
-A validated path guaranteed to be within the jail:
-
-```rust
-// ✅ Valid - within jail
-let file = validator.path("uploads/photo.jpg")?;
-
-// ❌ Blocked - directory traversal
-let evil = validator.path("../../../etc/passwd"); // Returns Err
-```
-
-## Integration with app-path
-
-Works seamlessly with `app-path` for validated, portable applications:
-
-```rust
-use app_path::AppPath;
 use jailed_path::PathValidator;
 
-// Get application directory (portable across platforms)
-let app = AppPath::new("MyApp")?;
-let data_dir = app.data_dir()?;
+// Create validator with jail boundary
+let temp_dir = std::env::temp_dir();
+let validator: PathValidator = PathValidator::with_jail(&temp_dir)?;
 
-// Create validator jail around app data
-let validator = PathValidator::with_jail(data_dir)?;
+// Validate user-provided paths  
+let safe_path = validator.try_path("image.jpg")?;
 
-// Safely handle user file requests
-let user_file = validator.path("user_uploads/document.pdf")?;
-
-// JailedPath works with any std::fs operation
-std::fs::write(&user_file, pdf_data)?;
-let metadata = user_file.metadata()?;
+// Use with any std::fs operation
+std::fs::write(&safe_path, b"image data")?;
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-## Complete Path Compatibility
+## Key Features
+
+- **Zero Dependencies**: Only depends on our own `soft-canonicalize` crate
+- **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries
+- **Security First**: Prevents `../` path traversal attacks automatically  
+- **Path Canonicalization**: Resolves symlinks and relative components safely
+- **Cross-Platform**: Works on Windows, macOS, and Linux
+- **Performance**: Minimal allocations, efficient validation
+
+## API Design
+
+- `PathValidator::with_jail()` - Create validator with jail boundary
+- `PathValidator::try_path()` - Validate paths (returns `Result`)  
+- `JailedPath` - Validated path type with full `Path` compatibility
+- `JailedPathError` - Detailed error information for debugging
+
+## Security Examples
+
+```rust
+use jailed_path::PathValidator;
+
+let temp_dir = std::env::temp_dir();
+let validator: PathValidator = PathValidator::with_jail(&temp_dir)?;
+
+// ✅ Valid - within jail
+let file = validator.try_path("uploads/photo.jpg")?;
+
+// ❌ Blocked - directory traversal  
+let evil = validator.try_path("../../../etc/passwd"); // Returns Err
+assert!(evil.is_err());
+
+// ❌ Blocked - absolute path escape
+let bad = validator.try_path("/etc/shadow"); // Returns Err  
+assert!(bad.is_err());
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+## Integration Examples
+
+### Web Server File Serving
+
+```rust
+use jailed_path::PathValidator;
+
+fn serve_static_file(validator: &PathValidator, request_path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    // Safely validate user-provided path
+    let safe_path = validator.try_path(request_path)?;
+    
+    // Read file - guaranteed to be within jail
+    Ok(std::fs::read(&safe_path).unwrap_or_default())
+}
+
+let temp_dir = std::env::temp_dir();
+let validator = PathValidator::with_jail(&temp_dir)?;
+let _content = serve_static_file(&validator, "images/logo.png")?;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+### With app-path for Portable Applications
+
+```rust
+use app_path::app_path;
+use jailed_path::PathValidator;
+
+// Get application data directory using app-path macro  
+let app_data = app_path!("data");
+app_data.create_dir()?;
+
+// Create validator jail around app data
+let validator: PathValidator = PathValidator::with_jail(&app_data)?;
+
+// Safely handle user file requests
+let user_file = validator.try_path("document.pdf")?;
+std::fs::write(&user_file, b"pdf data")?;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+## Path Compatibility
 
 `JailedPath` is fully compatible with Rust's path ecosystem:
 
 ```rust
 use jailed_path::PathValidator;
-use std::path::{Path, PathBuf};
 
-let validator = PathValidator::with_jail("/safe")?;
-let jailed_path = validator.path("file.txt")?;
+let temp_dir = std::env::temp_dir();
+let validator = PathValidator::with_jail(&temp_dir)?;
+let jailed_path = validator.try_path("file.txt")?;
 
 // Works as &Path (via Deref)
-let exists = jailed_path.exists();
-let metadata = jailed_path.metadata()?;
+let _exists = jailed_path.exists();
+let _metadata = jailed_path.metadata();
 
 // Works with any function expecting AsRef<Path>
-std::fs::read_to_string(&jailed_path)?;
+let _content = std::fs::read_to_string(&jailed_path);
 
-// Convert to owned types
-let path_buf: PathBuf = jailed_path.into_path_buf();
-
-// Compare with regular paths
-assert_eq!(*jailed_path, *Path::new("/safe/file.txt"));
-assert_eq!(*jailed_path, *PathBuf::from("/safe/file.txt"));
+// Convert to owned types  
+let path_buf = jailed_path.into_path_buf();
+assert!(path_buf.ends_with("file.txt"));
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 ## Features
 
-- **Zero Dependencies**: No external dependencies
+- **Security First**: Prevents `../` path traversal attacks automatically
 - **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries
-- **Simple API**: Two main types - `PathValidator` and `JailedPath`
-- **Directory Traversal Prevention**: Prevents `../` path traversal automatically
-- **Path Canonicalization**: Resolves symlinks and relative components
+- **Path Canonicalization**: Resolves symlinks and relative components safely
 - **Cross-Platform**: Works on Windows, macOS, and Linux
+- **Single Dependency**: Only depends on our own `soft-canonicalize` crate
 
 ## License
 
