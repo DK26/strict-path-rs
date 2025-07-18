@@ -137,7 +137,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-jailed-path = "0.0.1"
+jailed-path = "0.0.2"
 ```
 
 ## License
