@@ -13,4 +13,4 @@ keywords = ["path", "security", "jail", "filesystem", "traversal"]
 categories = ["filesystem", "development-tools", "web-programming"]
 
 [dependencies]
-soft-canonicalize = { path = "soft-canonicalize" }
+soft-canonicalize = "0.0.2"
