@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3] - 2025-07-21
+
+### Added
+- **Type-State Police™ branding**: Added humorous tagline to embrace the compile-time safety theme
+- **Enhanced documentation**: Comprehensive docs for `PathValidator::with_jail()` with clear error conditions
+
+### Changed
+- **Crate description**: Updated to "Advanced path validation: symlink-safe, multi-jail, compile-time guaranteed"
+- **Better examples**: All examples now use realistic paths ("public", "config", "uploads") instead of temp directories
+- **Improved documentation flow**: Reorganized sections for better user experience
+
+### Dependencies
+- Updated `soft-canonicalize` to `0.1.2`
+- Updated `app-path` dev dependency to `1.0.2`
+
 ## [0.0.2] - 2025-07-18
 
 ### Added

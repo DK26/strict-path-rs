@@ -42,7 +42,8 @@ use std::path::{Path, PathBuf};
 /// ```rust
 /// # use jailed_path::PathValidator;
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let validator = PathValidator::<()>::with_jail(std::env::temp_dir())?;
+/// # std::fs::create_dir_all("uploads")?;
+/// let validator = PathValidator::<()>::with_jail("uploads")?;
 ///
 /// // Existing files work
 /// let path = validator.try_path("existing_file.txt")?;
@@ -52,6 +53,7 @@ use std::path::{Path, PathBuf};
 ///
 /// // Traversal attacks are blocked
 /// assert!(validator.try_path("../../../sensitive.txt").is_err());
+/// # std::fs::remove_dir_all("uploads").ok();
 /// # Ok(())
 /// # }
 /// ```
@@ -62,6 +64,54 @@ pub struct PathValidator<Marker = ()> {
 }
 
 impl<Marker> PathValidator<Marker> {
+    /// Creates a new PathValidator with the specified jail directory.
+    ///
+    /// This constructor performs strict validation to ensure the jail is a valid, existing directory.
+    /// The jail path is canonicalized to resolve all symbolic links and normalize the path representation.
+    ///
+    /// # Arguments
+    /// * `jail` - Path to the directory that will serve as the jail boundary
+    ///
+    /// # Returns
+    /// * `Ok(PathValidator)` - If the jail is a valid, existing directory
+    /// * `Err(JailedPathError)` - If validation fails (see Errors section)
+    ///
+    /// # Errors
+    /// This method returns an error in the following cases:
+    ///
+    /// ## `JailedPathError::PathResolutionError`
+    /// - The jail path does not exist
+    /// - Permission denied when accessing the jail path
+    /// - The jail path contains invalid characters or exceeds system limits
+    /// - I/O errors during path canonicalization
+    ///
+    /// ## `JailedPathError::InvalidJail`
+    /// - The jail path exists but is not a directory (e.g., it's a file or special device)
+    ///
+    /// # Security Considerations
+    /// - The jail directory must exist before creating the validator (fail-fast principle)
+    /// - All symbolic links in the jail path are resolved to prevent confusion
+    /// - The canonicalized jail path is used for all subsequent validations
+    ///
+    /// # Examples
+    /// ```rust
+    /// # use jailed_path::PathValidator;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # std::fs::create_dir_all("valid_jail")?;
+    /// // ✅ Valid jail directory
+    /// let validator = PathValidator::<()>::with_jail("valid_jail")?;
+    ///
+    /// // ❌ Non-existent directory
+    /// assert!(PathValidator::<()>::with_jail("does_not_exist").is_err());
+    ///
+    /// # std::fs::write("not_a_dir.txt", "content")?;
+    /// // ❌ Path exists but is not a directory
+    /// assert!(PathValidator::<()>::with_jail("not_a_dir.txt").is_err());
+    /// # std::fs::remove_file("not_a_dir.txt").ok();
+    /// # std::fs::remove_dir_all("valid_jail").ok();
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_jail<P: AsRef<Path>>(jail: P) -> Result<Self> {
         let jail_path = jail.as_ref();
         let canonical_jail = jail_path

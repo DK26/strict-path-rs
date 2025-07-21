@@ -16,9 +16,11 @@
 //!     std::fs::read(safe_path)
 //! }
 //!
-//! let validator = PathValidator::with_jail(std::env::temp_dir())?;
-//! let safe_path: JailedPath = validator.try_path("document.pdf")?; // Only way to create JailedPath
-//! # std::fs::write(&safe_path, b"test")?; let content = serve_file(&safe_path)?;
+//! # std::fs::create_dir_all("public")?; std::fs::write("public/index.html", b"<html></html>")?;
+//! let validator = PathValidator::with_jail("public")?;
+//! let safe_path: JailedPath = validator.try_path("index.html")?; // Only way to create JailedPath
+//! let content = serve_file(&safe_path)?;
+//! # std::fs::remove_dir_all("public").ok();
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
@@ -34,14 +36,17 @@
 //!     std::fs::read_to_string(config_path)
 //! }
 //!
-//! let config_validator: PathValidator<ConfigFiles> = PathValidator::with_jail(std::env::temp_dir())?;
-//! let user_validator: PathValidator<UserData> = PathValidator::with_jail(std::env::temp_dir())?;
+//! # std::fs::create_dir_all("config")?; std::fs::create_dir_all("userdata")?;
+//! # std::fs::write("config/app.toml", "key=value")?;
+//! let config_validator: PathValidator<ConfigFiles> = PathValidator::with_jail("config")?;
+//! let user_validator: PathValidator<UserData> = PathValidator::with_jail("userdata")?;
 //!
 //! let config_file: JailedPath<ConfigFiles> = config_validator.try_path("app.toml")?;
 //! let user_file: JailedPath<UserData> = user_validator.try_path("profile.json")?;
 //!
-//! # std::fs::write(&config_file, "key=value")?; load_config(&config_file)?; // ✅ Correct type
+//! load_config(&config_file)?; // ✅ Correct type
 //! // load_config(&user_file)?; // ❌ Compile error: wrong marker type!
+//! # std::fs::remove_dir_all("config").ok(); std::fs::remove_dir_all("userdata").ok();
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
@@ -54,30 +59,33 @@
 //!
 //! fn process_upload(file: &JailedPath<UserUploads>) -> std::io::Result<()> {
 //!     let content = std::fs::read(file)?;
+//!     println!("Processing {} bytes", content.len());
 //!     Ok(())
 //! }
 //!
-//! let upload_validator: PathValidator<UserUploads> = PathValidator::with_jail(std::env::temp_dir())?;
+//! # std::fs::create_dir_all("uploads")?; std::fs::write("uploads/photo.jpg", b"fake image data")?;
+//! let upload_validator: PathValidator<UserUploads> = PathValidator::with_jail("uploads")?;
 //! let upload_file: JailedPath<UserUploads> = upload_validator.try_path("photo.jpg")?;
-//! # std::fs::write(&upload_file, b"data")?; process_upload(&upload_file)?;
+//! process_upload(&upload_file)?;
+//! # std::fs::remove_dir_all("uploads").ok();
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
 //! ## Key Features
 //!
-//! - **Single Dependency**: Only depends on our own `soft-canonicalize` crate
-//! - **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries  
 //! - **Security First**: Prevents `../` path traversal attacks automatically
 //! - **Path Canonicalization**: Resolves symlinks and relative components safely
+//! - **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries  
+//! - **Multi-Jail Support**: Keep different validators separate with your own optional marker types
+//! - **Single Dependency**: Only depends on our own `soft-canonicalize` crate
 //! - **Cross-Platform**: Works on Windows, macOS, and Linux
 //! - **Performance**: Minimal allocations, efficient validation
-//! - **Zero-Cost Markers**: Generic markers add no runtime overhead
 //!
 //! ## API Design
 //!
 //! - [`PathValidator::with_jail()`] - Create validator with jail boundary
-//! - [`validator.try_path()`] - Validate paths (returns `Result`)
-//! - [`JailedPath`] - Validated path type with full `Path` compatibility
+//! - [`validator.try_path()`] - Validate a single path, returns `Result<JailedPath, JailedPathError>`
+//! - [`JailedPath`] - Validated path type (can ONLY be created via `try_path()`)
 //! - [`JailedPathError`] - Detailed error information for debugging
 //!
 //! ## Security Guarantees
@@ -89,16 +97,18 @@
 //! ```rust
 //! use jailed_path::PathValidator;
 //!
-//! let validator: PathValidator = PathValidator::with_jail(std::env::temp_dir())?;
+//! # std::fs::create_dir_all("public")?;
+//! let validator: PathValidator = PathValidator::with_jail("public")?;
 //!
 //! // ✅ Valid paths
-//! let safe = validator.try_path("file.txt")?;
-//! let nested = validator.try_path("dir/file.txt")?;
+//! let safe = validator.try_path("index.html")?;
+//! let nested = validator.try_path("css/style.css")?;
 //!
 //! // ❌ Any `..` component causes validation failure
-//! assert!(validator.try_path("../escape.txt").is_err());
-//! assert!(validator.try_path("dir/../file.txt").is_err());
-//! assert!(validator.try_path("../../etc/passwd").is_err());
+//! assert!(validator.try_path("../config.toml").is_err());
+//! assert!(validator.try_path("assets/../../../etc/passwd").is_err());
+//! assert!(validator.try_path("/etc/shadow").is_err());
+//! # std::fs::remove_dir_all("public").ok();
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
