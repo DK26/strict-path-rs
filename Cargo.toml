@@ -3,7 +3,7 @@ name = "jailed-path"
 version = "0.0.2"
 edition = "2021"
 authors = ["David Krasnitsky <dikaveman@gmail.com>"]
-description = "Type-safe path validation ensuring file paths stay within defined jail boundaries"
+description = "Advanced path validation: symlink-safe, multi-jail, compile-time guaranteed"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/DK26/jailed-path-rs"
 homepage = "https://github.com/DK26/jailed-path-rs"
@@ -13,7 +13,7 @@ keywords = ["path", "security", "jail", "filesystem", "traversal"]
 categories = ["filesystem", "development-tools", "web-programming"]
 
 [dependencies]
-soft-canonicalize = "0.0.2"
+soft-canonicalize = "0.1.2"
 
 [dev-dependencies]
-app-path = "0.2.7"
+app-path = "1.0.2"
