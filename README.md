@@ -30,12 +30,14 @@ let safe_path: JailedPath = validator.try_path("index.html")?; // Only way to cr
 - **Security First**: Prevents `../` path traversal attacks automatically  
 - **Path Canonicalization**: Resolves symlinks and relative components safely
 - **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries
-- **Multi-Jail Support**: Keep different validators separate with your own optional marker types
+- **Multi-Jail Support**: You can use your own marker types to prevent accidentally mixing up paths from different jails
 - **Single Dependency**: Only depends on our own `soft-canonicalize` crate
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 - **Performance**: Minimal allocations, efficient validation
 
 ## Preventing Mix-ups with Multiple Jails
+
+When your application uses multiple jail directories, you can use your own marker types to mathematically distinguish between different jails at compile time:
 
 ```rust
 use jailed_path::{PathValidator, JailedPath};
@@ -57,7 +59,11 @@ load_config(&config_file)?; // ✅ Correct type
 // load_config(&user_file)?; // ❌ Compile error: wrong marker type!
 ```
 
-## Adding Context with Type Markers
+The type system prevents you from accidentally passing a user data path to a function expecting a config path.
+
+## Optional: Using Marker Types with Single Jails
+
+Even with just one jail, you may use marker types to add semantic context about what the path represents:
 
 ```rust
 use jailed_path::{PathValidator, JailedPath};
@@ -73,6 +79,8 @@ fn process_upload(file: &JailedPath<UserUploads>) -> std::io::Result<()> {
 let upload_validator: PathValidator<UserUploads> = PathValidator::with_jail("./uploads")?;
 let upload_file: JailedPath<UserUploads> = upload_validator.try_path("photo.jpg")?;
 ```
+
+Without markers, you can simply use `PathValidator` and `JailedPath` directly.
 
 ## API Design
 
