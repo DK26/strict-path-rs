@@ -25,23 +25,7 @@ let validator = PathValidator::with_jail(std::env::temp_dir())?;
 let safe_path: JailedPath = validator.try_path("document.pdf")?; // Only way to create JailedPath
 ```
 
-## Adding Context with Markers (Optional)
-
-```rust
-use jailed_path::{PathValidator, JailedPath};
-
-struct UserUploads;
-
-fn process_upload(file: &JailedPath<UserUploads>) -> std::io::Result<()> {
-    let content = std::fs::read(file)?;
-    Ok(())
-}
-
-let upload_validator: PathValidator<UserUploads> = PathValidator::with_jail(std::env::temp_dir())?;
-let upload_file: JailedPath<UserUploads> = upload_validator.try_path("photo.jpg")?;
-```
-
-## Multiple Jails with Compile-Time Safety
+## Preventing Mix-ups with Multiple Jails
 
 ```rust
 use jailed_path::{PathValidator, JailedPath};
@@ -61,6 +45,22 @@ let user_file: JailedPath<UserData> = user_validator.try_path("profile.json")?;
 
 load_config(&config_file)?; // ✅ Correct type
 // load_config(&user_file)?; // ❌ Compile error: wrong marker type!
+```
+
+## Optional: Adding Context with Markers
+
+```rust
+use jailed_path::{PathValidator, JailedPath};
+
+struct UserUploads;
+
+fn process_upload(file: &JailedPath<UserUploads>) -> std::io::Result<()> {
+    let content = std::fs::read(file)?;
+    Ok(())
+}
+
+let upload_validator: PathValidator<UserUploads> = PathValidator::with_jail(std::env::temp_dir())?;
+let upload_file: JailedPath<UserUploads> = upload_validator.try_path("photo.jpg")?;
 ```
 
 ## Key Features

@@ -1,9 +1,10 @@
 //! # jailed-path
 //!
-//! **Type-safe path validation ensuring files stay within defined jail boundaries**
+//! **Advanced path validation: symlink-safe, multi-jail, compile-time guaranteed**
 //!
-//! `jailed-path` prevents directory traversal attacks by validating that file paths
-//! remain within designated boundaries using Rust's type system.
+//! *Brought to you by the Type-State Police™ - because apparently YOU can't be trusted with file paths!*
+//!
+//! `jailed-path` transforms runtime path validation into mathematical compile-time guarantees using Rust's type system. Unlike other validation libraries, it safely resolves and follows symbolic links while maintaining strict boundary enforcement.
 //!
 //! ## Basic Usage: Type Safety Over Manual Validation
 //!
@@ -21,25 +22,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! ## Adding Markers for Readability (Optional)
-//!
-//! ```rust
-//! use jailed_path::{PathValidator, JailedPath};
-//!
-//! struct UserUploads;
-//!
-//! fn process_upload(file: &JailedPath<UserUploads>) -> std::io::Result<()> {
-//!     let content = std::fs::read(file)?;
-//!     Ok(())
-//! }
-//!
-//! let upload_validator: PathValidator<UserUploads> = PathValidator::with_jail(std::env::temp_dir())?;
-//! let upload_file: JailedPath<UserUploads> = upload_validator.try_path("photo.jpg")?;
-//! # std::fs::write(&upload_file, b"data")?; process_upload(&upload_file)?;
-//! # Ok::<(), Box<dyn std::error::Error>>(())
-//! ```
-//!
-//! ## Multiple Jails with Type Safety
+//! ## Preventing Mix-ups with Multiple Jails
 //!
 //! ```rust
 //! use jailed_path::{PathValidator, JailedPath};
@@ -59,6 +42,24 @@
 //!
 //! # std::fs::write(&config_file, "key=value")?; load_config(&config_file)?; // ✅ Correct type
 //! // load_config(&user_file)?; // ❌ Compile error: wrong marker type!
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! ## Optional: Adding Markers for Readability
+//!
+//! ```rust
+//! use jailed_path::{PathValidator, JailedPath};
+//!
+//! struct UserUploads;
+//!
+//! fn process_upload(file: &JailedPath<UserUploads>) -> std::io::Result<()> {
+//!     let content = std::fs::read(file)?;
+//!     Ok(())
+//! }
+//!
+//! let upload_validator: PathValidator<UserUploads> = PathValidator::with_jail(std::env::temp_dir())?;
+//! let upload_file: JailedPath<UserUploads> = upload_validator.try_path("photo.jpg")?;
+//! # std::fs::write(&upload_file, b"data")?; process_upload(&upload_file)?;
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
