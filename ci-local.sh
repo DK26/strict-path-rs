@@ -128,40 +128,52 @@ echo "🔍 Checking Minimum Supported Rust Version (1.70.0)..."
 if command -v rustup &> /dev/null; then
     if rustup toolchain list | grep -q "1.70.0"; then
         echo "✓ Found Rust 1.70.0 toolchain, checking MSRV compatibility..."
-        
+
+        # Ensure Clippy is installed for MSRV
+        if ! rustup component list --toolchain 1.70.0 | grep -q "clippy.*(installed)"; then
+            echo "🔧 Installing Clippy for Rust 1.70.0..."
+            rustup component add clippy --toolchain 1.70.0
+        fi
+
         # Regenerate Cargo.lock with MSRV to avoid version conflicts
         echo "🔧 Regenerating Cargo.lock with MSRV Rust 1.70.0..."
         if [[ -f "Cargo.lock" ]]; then
             echo "  • Removing existing Cargo.lock"
             rm -f Cargo.lock
         fi
-        
+
         echo "  • Generating new Cargo.lock with Rust 1.70.0"
         if rustup run 1.70.0 cargo generate-lockfile; then
             echo "  ✓ Cargo.lock regenerated successfully"
             run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+            run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
         else
             echo "  ❌ Failed to generate Cargo.lock with Rust 1.70.0"
             echo "  💡 Trying fallback: cargo update then check"
             run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+            run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
         fi
     else
         echo "⚠️  Rust 1.70.0 not installed. Installing for MSRV check..."
         if rustup toolchain install 1.70.0; then
+            echo "🔧 Installing Clippy for Rust 1.70.0..."
+            rustup component add clippy --toolchain 1.70.0
             echo "🔧 Regenerating Cargo.lock with MSRV Rust 1.70.0..."
             if [[ -f "Cargo.lock" ]]; then
                 echo "  • Removing existing Cargo.lock"
                 rm -f Cargo.lock
             fi
-            
+
             echo "  • Generating new Cargo.lock with Rust 1.70.0"
             if rustup run 1.70.0 cargo generate-lockfile; then
                 echo "  ✓ Cargo.lock regenerated successfully"
                 run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+                run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
             else
                 echo "  ❌ Failed to generate Cargo.lock with Rust 1.70.0"
                 echo "  💡 Trying fallback: cargo update then check"
                 run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
+                run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
             fi
         else
             echo "❌ Failed to install Rust 1.70.0. Skipping MSRV check."
