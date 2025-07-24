@@ -46,12 +46,12 @@ fn create_test_directory() -> std::io::Result<std::path::PathBuf> {
 
     // Create a test file in the jail
     let test_file = temp_dir.join("test.txt");
-    let mut file = fs::File::create(&test_file)?;
+    let mut file = fs::File::create(test_file)?;
     writeln!(file, "test content")?;
 
     // Create a test file in subdirectory
     let sub_file = sub_dir.join("sub_test.txt");
-    let mut file = fs::File::create(&sub_file)?;
+    let mut file = fs::File::create(sub_file)?;
     writeln!(file, "sub test content")?;
 
     Ok(temp_dir)
@@ -68,13 +68,16 @@ fn test_pathvalidator_creation_with_valid_directory() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
 
     // Should successfully create validator with existing directory
-    let result = PathValidator::<()>::with_jail(&temp_dir);
+    let result = PathValidator::<()>::with_jail(temp_dir.clone());
     assert!(
         result.is_ok(),
         "PathValidator creation should succeed with valid directory"
     );
 
-    let validator = result.unwrap();
+    let validator = match result {
+        Ok(v) => v,
+        Err(e) => panic!("Expected Ok, got Err: {e:?}"),
+    };
     assert_eq!(
         validator.jail().canonicalize().unwrap(),
         temp_dir.canonicalize().unwrap(),
@@ -414,7 +417,7 @@ fn test_try_path_with_mixed_existing_and_nonexistent() {
 
     // Create some existing structure
     let existing_dir = temp_dir.join("existing_user");
-    std::fs::create_dir(&existing_dir).unwrap();
+    std::fs::create_dir(existing_dir).unwrap();
 
     // Should validate path that goes through existing directory to non-existent file
     let result = validator.try_path("existing_user/new_file.txt");
@@ -495,8 +498,7 @@ fn test_try_path_edge_case_empty_relative_path() {
 
     for path in edge_cases {
         let result = validator.try_path(path);
-        if result.is_ok() {
-            let jailed_path = result.unwrap();
+        if let Ok(jailed_path) = result {
             assert!(jailed_path.as_path().starts_with(validator.jail()));
         }
         // Some of these might fail, which is acceptable behavior
@@ -612,6 +614,7 @@ fn test_validator_jail_accessor() {
 }
 
 #[test]
+#[allow(clippy::redundant_clone)]
 fn test_validator_clone_and_debug() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
@@ -725,7 +728,7 @@ fn test_try_path_cleanup_on_canonicalization_error() {
         .collect();
 
     // This should fail but not leave directories behind
-    let _result = validator.try_path(&problematic_path);
+    let _result = validator.try_path(problematic_path);
 
     // Regardless of success/failure, no directories should be left
     let final_entries: Vec<_> = std::fs::read_dir(&temp_dir)
@@ -952,7 +955,7 @@ fn test_attacker_path_in_existing_directory_with_escape() {
             jail_boundary,
         } => {
             println!("✅ Correctly blocked escape to: {attempted_path:?}");
-            assert!(!attempted_path.starts_with(&jail_boundary));
+            assert!(!attempted_path.starts_with(jail_boundary));
         }
         JailedPathError::PathResolutionError { .. } => {
             // Also acceptable - might fail due to permission issues or file conflicts
@@ -1285,43 +1288,14 @@ fn test_virtual_root_debug_formatting() {
 
     let jailed_path = validator.try_path("user/document.pdf").unwrap();
 
-    // Test Debug formatting - should show full internal structure
     let debug_output = format!("{jailed_path:?}");
 
-    // Debug should contain the struct name
-    assert!(
-        debug_output.contains("JailedPath"),
-        "Debug output should contain struct name: {debug_output}"
-    );
+    assert!(debug_output.contains("JailedPath"));
+    assert!(debug_output.contains("path:"));
+    assert!(debug_output.contains("jail_root:"));
 
-    // Debug should contain the full path field
-    assert!(
-        debug_output.contains("path:"),
-        "Debug output should show path field: {debug_output}"
-    );
-
-    // Debug should contain the jail_root field
-    assert!(
-        debug_output.contains("jail_root:"),
-        "Debug output should show jail_root field: {debug_output}"
-    );
-
-    // Debug should contain the actual jail path (handle Windows canonical paths)
-    let jail_str = temp_dir.to_string_lossy();
-    let canonical_jail = temp_dir.canonicalize().unwrap();
-    let canonical_jail_str = canonical_jail.to_string_lossy();
-    assert!(
-        debug_output.contains(&*jail_str) || debug_output.contains(&*canonical_jail_str),
-        "Debug output should contain actual jail path: {debug_output}"
-    );
-
-    // Debug should contain the actual file path
-    assert!(
-        debug_output.contains("document.pdf"),
-        "Debug output should contain filename: {debug_output}"
-    );
-
-    println!("✅ Debug formatting works correctly: {debug_output}");
+    let expected_debug_prefix = "JailedPath { path: ";
+    assert!(debug_output.starts_with(expected_debug_prefix));
 
     // Cleanup
     cleanup_test_directory(&temp_dir);

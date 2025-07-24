@@ -135,8 +135,7 @@ fn test_normal_length_paths_not_truncated() {
     let attempted_path = PathBuf::from("/normal/length/path/file.txt");
     let jail_boundary = PathBuf::from("/jail/boundary");
 
-    let error =
-        JailedPathError::path_escapes_boundary(attempted_path.clone(), jail_boundary.clone());
+    let error = JailedPathError::path_escapes_boundary(attempted_path, jail_boundary);
     let display_str = format!("{error}");
 
     // Normal paths should not be truncated

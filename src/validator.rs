@@ -181,7 +181,7 @@ impl<Marker> PathValidator<Marker> {
         };
 
         // SECURITY FIRST: Use soft canonicalization for safe path resolution
-        let resolved_path = soft_canonicalize(&full_path)
+        let resolved_path = soft_canonicalize(full_path)
             .map_err(|e| JailedPathError::path_resolution_error(candidate_path.to_path_buf(), e))?;
 
         // CRITICAL SECURITY CHECK: Must be within jail boundary

@@ -60,8 +60,19 @@ impl<Marker> Deref for JailedPath<Marker> {
 impl<Marker> fmt::Display for JailedPath<Marker> {
     /// Shows the path as if from the jail root, for clean user-facing output.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use std::path::MAIN_SEPARATOR;
         if let Ok(relative) = self.path.strip_prefix(&*self.jail_root) {
-            write!(f, "{}{}", std::path::MAIN_SEPARATOR, relative.display())
+            // Join components with platform separator
+            let components = relative
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy());
+            let mut display_path = String::from(MAIN_SEPARATOR);
+            display_path.push_str(
+                &components
+                    .collect::<Vec<_>>()
+                    .join(std::path::MAIN_SEPARATOR_STR),
+            );
+            write!(f, "{display_path}")
         } else {
             write!(f, "{}", self.path.display())
         }
@@ -70,9 +81,21 @@ impl<Marker> fmt::Display for JailedPath<Marker> {
 
 impl<Marker> fmt::Debug for JailedPath<Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use std::path::MAIN_SEPARATOR;
+        // Format path and jail_root using platform separator for consistency
+        let format_path = |p: &PathBuf| {
+            let mut s = String::new();
+            for (i, c) in p.components().enumerate() {
+                if i > 0 {
+                    s.push(MAIN_SEPARATOR);
+                }
+                s.push_str(&c.as_os_str().to_string_lossy());
+            }
+            s
+        };
         f.debug_struct("JailedPath")
-            .field("path", &self.path)
-            .field("jail_root", &*self.jail_root)
+            .field("path", &format_path(&self.path))
+            .field("jail_root", &format_path(&self.jail_root))
             .finish()
     }
 }
