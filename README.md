@@ -3,11 +3,14 @@
 [![Crates.io](https://img.shields.io/crates/v/jailed-path.svg)](https://crates.io/crates/jailed-path)
 [![Documentation](https://docs.rs/jailed-path/badge.svg)](https://docs.rs/jailed-path)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/DK26/jailed-path-rs#license)
+[![CI](https://github.com/DK26/jailed-path-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DK26/jailed-path-rs/actions/workflows/ci.yml)
 [![Type-State Police](https://img.shields.io/badge/protected%20by-Type--State%20Police-blue.svg)](https://github.com/DK26/jailed-path-rs)
 
 **Advanced path validation: symlink-safe, multi-jail, compile-time guaranteed**
 
-*Brought to you by the Type-State Police™ - because apparently YOU can't be trusted with file paths!*
+> *New from the Type-State Police Department! Putting your paths in jail!*
+
+*because apparently YOU can't be trusted with file paths!*
 
 `jailed-path` transforms runtime path validation into mathematical compile-time guarantees using Rust's type system. Unlike other validation libraries, it safely resolves and follows symbolic links while maintaining strict boundary enforcement.
 
