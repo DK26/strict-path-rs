@@ -1500,7 +1500,7 @@ fn test_virtual_root_display_windows_separators() {
         );
 
         let jailed_path = result.unwrap();
-        let display_output = format!("{}", jailed_path);
+        let display_output = format!("{jailed_path}");
 
         // On Windows, should use backslashes
         assert_eq!(
