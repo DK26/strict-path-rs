@@ -20,7 +20,7 @@ This roadmap outlines the planned evolution of the `jailed-path` crate based on 
 | Phase                                            | Feature                                           | Status | Priority     | Notes                                                  |
 | ------------------------------------------------ | ------------------------------------------------- | ------ | ------------ | ------------------------------------------------------ |
 | **Phase 1: Core UX & Web Integration (v0.1.0)**  |
-| 1.1                                              | Virtual Root Display                              | 🎯      | 1 - CRITICAL | Store jail root in JailedPath, implement Display trait |
+| 1.1                                              | Virtual Root Display                              | ✅      | 1 - CRITICAL | Store jail root in JailedPath, implement Display trait |
 | 1.1.0                                            | **Fix jail creation canonicalization**            | 🎯      | 1 - CRITICAL | Use soft_canonicalize for PathValidator::with_jail     |
 | 1.1.1                                            | Store jail root as `Arc<PathBuf>` in `JailedPath` | 🎯      | 1 - CRITICAL | Memory-efficient shared jail root for Display trait    |
 | 1.1.3                                            | Implement `Display` trait                         | 🎯      | 1 - CRITICAL | User-friendly path display                             |

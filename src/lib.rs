@@ -80,6 +80,7 @@
 //! - **Single Dependency**: Only depends on our own `soft-canonicalize` crate
 //! - **Cross-Platform**: Works on Windows, macOS, and Linux
 //! - **Performance**: Minimal allocations, efficient validation
+//! - **Virtual Root Display**: Paths are shown as if from the root of your jail, so user-facing output is always clean and intuitive. No leaking of internal or absolute paths—just what the user expects to see.
 //!
 //! ## API Design
 //!

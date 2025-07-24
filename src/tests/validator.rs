@@ -4,6 +4,7 @@ use crate::JailedPathError;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Creates cross-platform attack target paths for testing
 fn get_attack_target_paths() -> Vec<&'static str> {
@@ -585,11 +586,12 @@ fn test_marker_types_for_compile_time_safety() {
     // Paths should be the same but have different types (checked at compile time)
     assert_eq!(image_path.as_path(), user_path.as_path());
 
-    // This ensures the PhantomData marker is working
+    // This ensures the PhantomData marker is working and size is consistent
+    let expected_size = std::mem::size_of::<PathBuf>() + std::mem::size_of::<Arc<PathBuf>>();
     assert_eq!(
         std::mem::size_of::<JailedPath<ImageResource>>(),
-        std::mem::size_of::<PathBuf>(),
-        "JailedPath should be zero-cost with marker"
+        expected_size,
+        "JailedPath should have consistent size regardless of marker type"
     );
 
     // Cleanup
@@ -1208,6 +1210,456 @@ fn test_lexical_validation_is_fast_and_secure() {
     // The key point is that lexical validation blocks the path immediately
     // without any filesystem operations, which is much safer than the touch technique
     println!("✅ No malicious files created during validation");
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+fn test_virtual_root_display_functionality() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+
+    // Test various paths to ensure virtual root display works correctly
+    let separator = std::path::MAIN_SEPARATOR;
+    let test_cases = vec![
+        ("file.txt", format!("{separator}file.txt")),
+        (
+            "subdir/file.txt",
+            format!("{separator}subdir{separator}file.txt"),
+        ),
+        (
+            "users/alice/documents/report.pdf",
+            format!(
+                "{separator}users{separator}alice{separator}documents{separator}report.pdf"
+            ),
+        ),
+        (
+            "deeply/nested/path/structure/file.log",
+            format!(
+                "{separator}deeply{separator}nested{separator}path{separator}structure{separator}file.log"
+            ),
+        ),
+    ];
+
+    for (input_path, expected_display) in test_cases {
+        let result = validator.try_path(input_path);
+        assert!(
+            result.is_ok(),
+            "Path validation should succeed for: {input_path}"
+        );
+
+        let jailed_path = result.unwrap();
+
+        // Test Display trait - should show virtual root (relative to jail)
+        let display_output = format!("{jailed_path}");
+        assert_eq!(
+            display_output, expected_display,
+            "Display should show virtual root for path: {input_path}"
+        );
+
+        // Verify it's a proper relative path starting with platform separator
+        assert!(
+            display_output.starts_with(std::path::MAIN_SEPARATOR),
+            "Virtual root display should start with platform separator: {display_output}"
+        );
+
+        // Verify it doesn't contain the actual jail path
+        let jail_str = temp_dir.to_string_lossy();
+        assert!(
+            !display_output.contains(&*jail_str),
+            "Virtual root display should not contain actual jail path: {display_output}"
+        );
+
+        println!("✅ Virtual root display: {input_path} -> {display_output}");
+    }
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+fn test_virtual_root_debug_formatting() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+
+    let jailed_path = validator.try_path("user/document.pdf").unwrap();
+
+    // Test Debug formatting - should show full internal structure
+    let debug_output = format!("{jailed_path:?}");
+
+    // Debug should contain the struct name
+    assert!(
+        debug_output.contains("JailedPath"),
+        "Debug output should contain struct name: {debug_output}"
+    );
+
+    // Debug should contain the full path field
+    assert!(
+        debug_output.contains("path:"),
+        "Debug output should show path field: {debug_output}"
+    );
+
+    // Debug should contain the jail_root field
+    assert!(
+        debug_output.contains("jail_root:"),
+        "Debug output should show jail_root field: {debug_output}"
+    );
+
+    // Debug should contain the actual jail path (handle Windows canonical paths)
+    let jail_str = temp_dir.to_string_lossy();
+    let canonical_jail = temp_dir.canonicalize().unwrap();
+    let canonical_jail_str = canonical_jail.to_string_lossy();
+    assert!(
+        debug_output.contains(&*jail_str) || debug_output.contains(&*canonical_jail_str),
+        "Debug output should contain actual jail path: {debug_output}"
+    );
+
+    // Debug should contain the actual file path
+    assert!(
+        debug_output.contains("document.pdf"),
+        "Debug output should contain filename: {debug_output}"
+    );
+
+    println!("✅ Debug formatting works correctly: {debug_output}");
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+fn test_virtual_root_display_vs_debug_differences() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+
+    let jailed_path = validator.try_path("users/alice/file.txt").unwrap();
+
+    // Get both outputs
+    let display_output = format!("{jailed_path}");
+    let debug_output = format!("{jailed_path:?}");
+
+    // Display should be clean and user-friendly
+    let separator = std::path::MAIN_SEPARATOR;
+    let expected_display = format!("{separator}users{separator}alice{separator}file.txt");
+    assert_eq!(display_output, expected_display);
+
+    // Debug should be verbose and contain internal details
+    assert!(debug_output.len() > display_output.len());
+    assert!(debug_output.contains("JailedPath"));
+
+    // They should be completely different
+    assert_ne!(display_output, debug_output);
+
+    // Display should NOT contain debug formatting
+    assert!(!display_output.contains("JailedPath"));
+    assert!(!display_output.contains("path:"));
+    assert!(!display_output.contains("jail_root:"));
+
+    println!("✅ Display: {display_output}");
+    println!("✅ Debug: {debug_output}");
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+fn test_virtual_root_jail_root_accessor() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+
+    let jailed_path = validator.try_path("file.txt").unwrap();
+
+    // Test jail_root() accessor method
+    let jail_root = jailed_path.jail_root();
+
+    // Should return the same path as validator.jail()
+    assert_eq!(jail_root, validator.jail());
+
+    // Should be the canonical jail path
+    assert_eq!(jail_root, temp_dir.canonicalize().unwrap());
+
+    println!("✅ Jail root accessor works: {}", jail_root.display());
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+fn test_virtual_root_with_different_marker_types() {
+    struct UserFiles;
+    struct ConfigFiles;
+
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+
+    let user_validator: PathValidator<UserFiles> = PathValidator::with_jail(&temp_dir).unwrap();
+    let config_validator: PathValidator<ConfigFiles> = PathValidator::with_jail(&temp_dir).unwrap();
+
+    let user_path: JailedPath<UserFiles> = user_validator.try_path("user_data.json").unwrap();
+    let config_path: JailedPath<ConfigFiles> = config_validator.try_path("config.toml").unwrap();
+
+    // Both should have same virtual root display behavior regardless of marker type
+    let separator = std::path::MAIN_SEPARATOR;
+    assert_eq!(
+        format!("{user_path}"),
+        format!("{}user_data.json", separator)
+    );
+    assert_eq!(
+        format!("{config_path}"),
+        format!("{}config.toml", separator)
+    );
+
+    // Both should have access to jail_root()
+    assert_eq!(user_path.jail_root(), config_path.jail_root());
+    assert_eq!(user_path.jail_root(), temp_dir.canonicalize().unwrap());
+
+    // Debug formatting should work for both
+    let user_debug = format!("{user_path:?}");
+    let config_debug = format!("{config_path:?}");
+
+    assert!(user_debug.contains("JailedPath"));
+    assert!(config_debug.contains("JailedPath"));
+
+    println!("✅ Virtual root works with marker types");
+    println!("   User: {user_path}");
+    println!("   Config: {config_path}");
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+fn test_virtual_root_display_edge_cases() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+
+    // Test edge cases for virtual root display
+    let separator = std::path::MAIN_SEPARATOR;
+    let edge_cases = vec![
+        // Root file (no subdirectory)
+        ("root_file.txt", format!("{separator}root_file.txt")),
+        // Single character names
+        ("a", format!("{separator}a")),
+        ("a/b", format!("{separator}a{separator}b")),
+        // Files with dots
+        (".hidden", format!("{separator}.hidden")),
+        (
+            "file.with.many.dots.txt",
+            format!("{separator}file.with.many.dots.txt"),
+        ),
+    ];
+
+    for (input_path, expected_display) in edge_cases {
+        let result = validator.try_path(input_path);
+        if let Ok(jailed_path) = result {
+            let display_output = format!("{jailed_path}");
+
+            // Should start with platform separator (virtual root)
+            assert!(
+                display_output.starts_with(std::path::MAIN_SEPARATOR),
+                "Virtual root should start with platform separator for: {input_path} -> {display_output}"
+            );
+
+            // Should match expected format
+            assert_eq!(
+                display_output, expected_display,
+                "Virtual root display mismatch for: {input_path}"
+            );
+
+            println!("✅ Edge case: {input_path} -> {display_output}");
+        }
+    }
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+fn test_virtual_root_with_cross_platform_paths() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+
+    // Test that virtual root display handles cross-platform path separators
+    let jailed_path = validator
+        .try_path("users/alice/documents/file.txt")
+        .unwrap();
+    let display_output = format!("{jailed_path}");
+
+    // Virtual root should use platform-appropriate separators
+    assert!(display_output.starts_with(std::path::MAIN_SEPARATOR));
+
+    println!("✅ Cross-platform virtual root: {display_output}");
+    println!("   Underlying path: {}", jailed_path.as_path().display());
+
+    // The virtual root display should be clean and consistent
+    assert!(!display_output.is_empty());
+    assert!(display_output.contains("file.txt"));
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+#[cfg(windows)]
+fn test_virtual_root_display_windows_separators() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+
+    // On Windows, virtual root should use backslashes (Windows convention)
+    let test_cases = vec![
+        ("file.txt", "\\file.txt"),
+        ("subdir/file.txt", "\\subdir\\file.txt"),
+        (
+            "users/alice/documents/report.pdf",
+            "\\users\\alice\\documents\\report.pdf",
+        ),
+        (
+            "deeply/nested/path/structure/file.log",
+            "\\deeply\\nested\\path\\structure\\file.log",
+        ),
+    ];
+
+    for (input_path, expected_display) in test_cases {
+        let result = validator.try_path(input_path);
+        assert!(
+            result.is_ok(),
+            "Path validation should succeed for: {input_path}"
+        );
+
+        let jailed_path = result.unwrap();
+        let display_output = format!("{}", jailed_path);
+
+        // On Windows, should use backslashes
+        assert_eq!(
+            display_output, expected_display,
+            "Windows virtual root should use backslashes for: {input_path}"
+        );
+
+        // Should start with backslash (Windows virtual root)
+        assert!(
+            display_output.starts_with('\\'),
+            "Windows virtual root should start with '\\': {display_output}"
+        );
+
+        // Should contain backslashes for nested paths
+        if input_path.contains('/') {
+            assert!(
+                display_output.contains('\\'),
+                "Windows virtual root should contain backslashes: {display_output}"
+            );
+        }
+
+        println!("✅ Windows virtual root: {input_path} -> {display_output}");
+    }
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_virtual_root_display_unix_separators() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+
+    // On Unix/Linux/macOS, virtual root should use forward slashes (Unix convention)
+    let test_cases = vec![
+        ("file.txt", "/file.txt"),
+        ("subdir/file.txt", "/subdir/file.txt"),
+        (
+            "users/alice/documents/report.pdf",
+            "/users/alice/documents/report.pdf",
+        ),
+        (
+            "deeply/nested/path/structure/file.log",
+            "/deeply/nested/path/structure/file.log",
+        ),
+    ];
+
+    for (input_path, expected_display) in test_cases {
+        let result = validator.try_path(input_path);
+        assert!(
+            result.is_ok(),
+            "Path validation should succeed for: {input_path}"
+        );
+
+        let jailed_path = result.unwrap();
+        let display_output = format!("{jailed_path}");
+
+        // On Unix, should use forward slashes
+        assert_eq!(
+            display_output, expected_display,
+            "Unix virtual root should use forward slashes for: {input_path}"
+        );
+
+        // Should start with forward slash (Unix virtual root)
+        assert!(
+            display_output.starts_with('/'),
+            "Unix virtual root should start with '/': {display_output}"
+        );
+
+        // Should not contain backslashes
+        assert!(
+            !display_output.contains('\\'),
+            "Unix virtual root should not contain backslashes: {display_output}"
+        );
+
+        println!("✅ Unix virtual root: {input_path} -> {display_output}");
+    }
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+fn test_virtual_root_platform_consistency() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+
+    let jailed_path = validator.try_path("users/alice/file.txt").unwrap();
+    let display_output = format!("{jailed_path}");
+
+    // Should always start with the platform's main separator
+    let expected_start = std::path::MAIN_SEPARATOR;
+    assert!(
+        display_output.starts_with(expected_start),
+        "Virtual root should start with platform separator '{expected_start}': {display_output}"
+    );
+
+    // Verify platform-specific expectations
+    #[cfg(windows)]
+    {
+        assert!(
+            display_output.starts_with('\\'),
+            "Windows should use backslash"
+        );
+        assert!(
+            display_output.contains('\\'),
+            "Windows should contain backslashes"
+        );
+        println!("✅ Windows platform consistency verified: {display_output}");
+    }
+
+    #[cfg(unix)]
+    {
+        assert!(
+            display_output.starts_with('/'),
+            "Unix should use forward slash"
+        );
+        assert!(
+            !display_output.contains('\\'),
+            "Unix should not contain backslashes"
+        );
+        println!("✅ Unix platform consistency verified: {display_output}");
+    }
+
+    // Should match the behavior of std::path::MAIN_SEPARATOR
+    let separator_char = std::path::MAIN_SEPARATOR;
+    assert!(
+        display_output.starts_with(separator_char),
+        "Should use MAIN_SEPARATOR '{separator_char}' at start: {display_output}"
+    );
+
+    println!("✅ Platform consistency verified with MAIN_SEPARATOR: '{separator_char}'");
 
     // Cleanup
     cleanup_test_directory(&temp_dir);

@@ -3,6 +3,7 @@ use crate::{JailedPathError, Result};
 use soft_canonicalize::soft_canonicalize;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Path Validator with Security-First Soft Canonicalization
 ///
@@ -59,7 +60,7 @@ use std::path::{Path, PathBuf};
 /// ```
 #[derive(Debug, Clone)]
 pub struct PathValidator<Marker = ()> {
-    jail: PathBuf,
+    jail: Arc<PathBuf>,
     _marker: PhantomData<Marker>,
 }
 
@@ -128,7 +129,7 @@ impl<Marker> PathValidator<Marker> {
         }
 
         Ok(Self {
-            jail: canonical_jail,
+            jail: Arc::new(canonical_jail),
             _marker: PhantomData,
         })
     }
@@ -143,7 +144,7 @@ impl<Marker> PathValidator<Marker> {
             if matches!(component, std::path::Component::ParentDir) {
                 return Err(JailedPathError::path_escapes_boundary(
                     candidate_path.to_path_buf(),
-                    self.jail.clone(),
+                    self.jail.as_ref().to_path_buf(),
                 ));
             }
         }
@@ -176,7 +177,7 @@ impl<Marker> PathValidator<Marker> {
             // For absolute paths, use them directly but they'll be validated against jail later
             candidate_path.to_path_buf()
         } else {
-            self.jail.join(candidate_path)
+            self.jail.as_ref().join(candidate_path)
         };
 
         // SECURITY FIRST: Use soft canonicalization for safe path resolution
@@ -185,14 +186,14 @@ impl<Marker> PathValidator<Marker> {
 
         // CRITICAL SECURITY CHECK: Must be within jail boundary
         // Both paths are canonical, so comparison should be reliable
-        if !resolved_path.starts_with(&self.jail) {
+        if !resolved_path.starts_with(self.jail.as_ref()) {
             return Err(JailedPathError::path_escapes_boundary(
                 resolved_path,
-                self.jail.clone(),
+                self.jail.as_ref().to_path_buf(),
             ));
         }
 
-        Ok(JailedPath::new(resolved_path))
+        Ok(JailedPath::new(resolved_path, self.jail.clone()))
     }
 
     pub fn jail(&self) -> &Path {

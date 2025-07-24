@@ -1,11 +1,13 @@
 use crate::jailed_path::JailedPath;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[test]
 fn test_jailed_path_creation() {
     let test_path = PathBuf::from("/test/path");
-    let jailed_path: JailedPath = JailedPath::new(test_path.clone());
+    let jail_root = Arc::new(PathBuf::from("/test"));
+    let jailed_path: JailedPath = JailedPath::new(test_path.clone(), jail_root.clone());
 
     // Should store the path correctly
     assert_eq!(jailed_path.as_path(), test_path.as_path());
@@ -13,11 +15,11 @@ fn test_jailed_path_creation() {
 }
 
 #[test]
-fn test_jailed_path_with_marker_type() {
+fn test_jailed_path_with_marker() {
     struct TestMarker;
-
     let test_path = PathBuf::from("/test/path");
-    let jailed_path: JailedPath<TestMarker> = JailedPath::new(test_path.clone());
+    let jail_root = Arc::new(PathBuf::from("/test"));
+    let jailed_path: JailedPath<TestMarker> = JailedPath::new(test_path.clone(), jail_root.clone());
 
     // Should work the same with marker types
     assert_eq!(jailed_path.as_path(), test_path.as_path());
@@ -27,7 +29,8 @@ fn test_jailed_path_with_marker_type() {
 #[test]
 fn test_jailed_path_as_ref_implementation() {
     let test_path = PathBuf::from("/test/path");
-    let jailed_path: JailedPath = JailedPath::new(test_path.clone());
+    let jail_root = Arc::new(PathBuf::from("/test"));
+    let jailed_path: JailedPath = JailedPath::new(test_path.clone(), jail_root.clone());
 
     // Should work with AsRef<Path>
     let path_ref: &Path = jailed_path.as_ref();
@@ -37,7 +40,8 @@ fn test_jailed_path_as_ref_implementation() {
 #[test]
 fn test_jailed_path_deref_implementation() {
     let test_path = PathBuf::from("/test/path");
-    let jailed_path: JailedPath = JailedPath::new(test_path.clone());
+    let jail_root = Arc::new(PathBuf::from("/test"));
+    let jailed_path: JailedPath = JailedPath::new(test_path.clone(), jail_root.clone());
 
     // Should allow calling Path methods directly via Deref
     assert_eq!(jailed_path.file_name(), test_path.file_name());
@@ -48,13 +52,17 @@ fn test_jailed_path_deref_implementation() {
 #[test]
 fn test_jailed_path_display_formatting() {
     let test_path = PathBuf::from("/test/path/file.txt");
-    let jailed_path: JailedPath = JailedPath::new(test_path.clone());
+    let jail_root = Arc::new(PathBuf::from("/test"));
+    let jailed_path: JailedPath = JailedPath::new(test_path.clone(), jail_root.clone());
 
-    // Should display the same as the underlying path
-    assert_eq!(
-        format!("{}", jailed_path.display()),
-        format!("{}", test_path.display())
-    );
+    // Should display virtual root - path relative to jail
+    assert_eq!(format!("{jailed_path}"), "/path/file.txt");
+
+    // Debug should show the full structure
+    let debug_output = format!("{jailed_path:?}");
+    assert!(debug_output.contains("JailedPath"));
+    assert!(debug_output.contains("/test/path/file.txt"));
+    assert!(debug_output.contains("/test"));
 }
 
 #[test]
@@ -62,10 +70,11 @@ fn test_jailed_path_equality_and_hash() {
     let path1 = PathBuf::from("/test/path");
     let path2 = PathBuf::from("/test/path");
     let path3 = PathBuf::from("/different/path");
+    let jail_root = Arc::new(PathBuf::from("/test"));
 
-    let jailed1: JailedPath = JailedPath::new(path1);
-    let jailed2: JailedPath = JailedPath::new(path2);
-    let jailed3: JailedPath = JailedPath::new(path3);
+    let jailed1: JailedPath = JailedPath::new(path1, jail_root.clone());
+    let jailed2: JailedPath = JailedPath::new(path2, jail_root.clone());
+    let jailed3: JailedPath = JailedPath::new(path3, jail_root.clone());
 
     // Should implement equality correctly
     assert_eq!(jailed1, jailed2);
@@ -81,7 +90,8 @@ fn test_jailed_path_equality_and_hash() {
 #[test]
 fn test_jailed_path_clone_and_debug() {
     let test_path = PathBuf::from("/test/path");
-    let jailed_path: JailedPath = JailedPath::new(test_path.clone());
+    let jail_root = Arc::new(PathBuf::from("/test"));
+    let jailed_path: JailedPath = JailedPath::new(test_path.clone(), jail_root.clone());
 
     // Should be cloneable
     let cloned = jailed_path.clone();
@@ -104,10 +114,13 @@ fn test_marker_type_is_zero_cost() {
         "Marker types should not increase memory footprint"
     );
 
-    // Should be the same size as PathBuf since it only adds PhantomData
+    // JailedPath now contains PathBuf + Arc<PathBuf> + PhantomData
+    // Arc<PathBuf> is 8 bytes (pointer), PathBuf is 24 bytes on Windows, PhantomData is 0
+    // So total should be PathBuf + Arc size
+    let expected_size = std::mem::size_of::<PathBuf>() + std::mem::size_of::<Arc<PathBuf>>();
     assert_eq!(
         std::mem::size_of::<JailedPath<()>>(),
-        std::mem::size_of::<PathBuf>(),
+        expected_size,
         "JailedPath should not add overhead beyond the underlying PathBuf"
     );
 }
@@ -118,8 +131,10 @@ fn test_different_marker_types_are_incompatible() {
     struct UserData;
 
     let test_path = PathBuf::from("/test/path");
-    let _image_path: JailedPath<ImageResource> = JailedPath::new(test_path.clone());
-    let _user_path: JailedPath<UserData> = JailedPath::new(test_path);
+    let jail_root = Arc::new(PathBuf::from("/test"));
+    let _image_path: JailedPath<ImageResource> =
+        JailedPath::new(test_path.clone(), jail_root.clone());
+    let _user_path: JailedPath<UserData> = JailedPath::new(test_path, jail_root.clone());
 
     // This test ensures that different marker types are treated as different types
     // The fact that we can assign to different typed variables proves this works

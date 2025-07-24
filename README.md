@@ -28,15 +28,30 @@ let validator = PathValidator::with_jail("./public")?;
 let safe_path: JailedPath = validator.try_path("index.html")?; // Only way to create JailedPath
 ```
 
+
 ## Key Features
 
-- **Security First**: Prevents `../` path traversal attacks automatically  
+- **Security First**: Prevents `../` path traversal attacks automatically
 - **Path Canonicalization**: Resolves symlinks and relative components safely
 - **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries
 - **Multi-Jail Support**: You can use your own marker types to prevent accidentally mixing up paths from different jails
 - **Single Dependency**: Only depends on our own `soft-canonicalize` crate
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 - **Performance**: Minimal allocations, efficient validation
+
+
+- **Virtual Root Display**: Shows paths as if they start from the root of your jail, making user-facing output clean and intuitive. No leaking of internal or absolute paths—just what the user expects to see.
+
+### Virtual Root Display Example
+
+```rust
+use jailed_path::{PathValidator, JailedPath};
+
+let validator = PathValidator::with_jail("./public")?;
+let doc_path: JailedPath = validator.try_path("users/alice/documents/report.pdf")?;
+// Output is always shown as if from the jail root, never leaking internal paths
+println!("Document: {}", doc_path); // Output: /users/alice/documents/report.pdf
+```
 
 ## Preventing Mix-ups with Multiple Jails
 
