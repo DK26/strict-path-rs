@@ -39,7 +39,7 @@ This roadmap outlines the planned evolution of the `jailed-path` crate based on 
 | 1.4.1                                            | `to_str()` method                                 | ⏳      | 3 - MEDIUM   | UTF-8 string if possible                               |
 | 1.4.2                                            | `to_string_lossy()` method                        | ⏳      | 3 - MEDIUM   | Never fails, may be lossy                              |
 | 1.5                                              | Core Validation Functions                         | ⏳      | 1 - CRITICAL | Simple public API for path-in-jail validation          |
-| 1.5.1                                            | `try_jail<Marker=()>(jail, path)` function      | ⏳      | 1 - CRITICAL | Creates JailedPath with optional type markers           |
+| 1.5.1                                            | `try_jail<Marker=()>(jail, path)` function        | ⏳      | 1 - CRITICAL | Creates JailedPath with optional type markers          |
 | 1.1.0b                                           | **Optional TOCTOU Protection**                    | ⏳      | 4 - LOW      | Feature flag for runtime jail validation               |
 | 1.1.2                                            | ~~Add `relative_path()` method~~                  | ❌      | ~~MEDIUM~~   | Removed: Display trait is sufficient                   |
 | 1.4.3                                            | ~~`relative_str()` method~~                       | ❌      | ~~MEDIUM~~   | Removed: Display trait provides this                   |
@@ -1664,6 +1664,10 @@ impl<Marker> PathValidator<Marker> {
 - **Admin/deployment mistakes** (fix your deployment)
 - **Allowing users to extract archives** (don't do this)
 - **Filesystem write access** (bigger security problem)
+
+**Unprompted Yet**: 
+- Make `..` legal to use, but cannot escape Jail Root
+
 
 **Conclusion**: Directory traversal (`../`) protection is the primary value. Symlink protection is a valuable safety net for administrative mistakes, but proper application design (no user archive extraction) is more important than trying to secure fundamentally unsafe operations.
 
