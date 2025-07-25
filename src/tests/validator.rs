@@ -6,6 +6,8 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+// TODO: Split my module!
+
 /// Creates cross-platform attack target paths for testing
 fn get_attack_target_paths() -> Vec<&'static str> {
     #[cfg(windows)]
@@ -90,22 +92,18 @@ fn test_pathvalidator_creation_with_valid_directory() {
 
 #[test]
 fn test_pathvalidator_creation_with_nonexistent_directory() {
-    let nonexistent_path = "/this/path/does/not/exist/hopefully";
-
-    // Should fail with PathResolutionError when directory doesn't exist
-    let result = PathValidator::<()>::with_jail(nonexistent_path);
-    assert!(
-        result.is_err(),
-        "PathValidator creation should fail with nonexistent directory"
-    );
-
-    match result.unwrap_err() {
-        JailedPathError::PathResolutionError { path, source } => {
-            assert_eq!(path.to_string_lossy(), nonexistent_path);
-            assert_eq!(source.kind(), std::io::ErrorKind::NotFound);
-        }
-        other => panic!("Expected PathResolutionError, got: {other:?}"),
+    // Should succeed: jail does not need to exist
+    let temp_base = std::env::temp_dir();
+    let jail_path = temp_base.join(format!("jailed_path_nonexistent_{}", std::process::id()));
+    // Ensure it does not exist
+    if jail_path.exists() {
+        let _ = std::fs::remove_dir_all(&jail_path);
     }
+    let result = PathValidator::<()>::with_jail(&jail_path);
+    assert!(
+        result.is_ok(),
+        "PathValidator creation should succeed with non-existent jail directory"
+    );
 }
 
 #[test]
@@ -119,7 +117,6 @@ fn test_pathvalidator_creation_with_file_instead_of_directory() {
         result.is_err(),
         "PathValidator creation should fail when jail is a file"
     );
-
     match result.unwrap_err() {
         JailedPathError::InvalidJail { jail, source } => {
             assert_eq!(jail, file_path);
@@ -130,6 +127,16 @@ fn test_pathvalidator_creation_with_file_instead_of_directory() {
     }
 
     // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+fn test_pathvalidator_creation_with_existing_directory() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let result = PathValidator::<()>::with_jail(&temp_dir);
+    assert!(result.is_ok(), "Should succeed with existing directory");
+    let validator = result.unwrap();
+    assert_eq!(validator.jail(), temp_dir.canonicalize().unwrap());
     cleanup_test_directory(&temp_dir);
 }
 

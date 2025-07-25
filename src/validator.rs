@@ -115,11 +115,11 @@ impl<Marker> PathValidator<Marker> {
     /// ```
     pub fn with_jail<P: AsRef<Path>>(jail: P) -> Result<Self> {
         let jail_path = jail.as_ref();
-        let canonical_jail = jail_path
-            .canonicalize()
+        let canonical_jail = soft_canonicalize(jail_path)
             .map_err(|e| JailedPathError::path_resolution_error(jail_path.to_path_buf(), e))?;
 
-        if !canonical_jail.is_dir() {
+        // If jail exists, it must be a directory
+        if canonical_jail.exists() && !canonical_jail.is_dir() {
             let error =
                 std::io::Error::new(std::io::ErrorKind::NotFound, "path is not a directory");
             return Err(JailedPathError::invalid_jail(
@@ -171,11 +171,11 @@ impl<Marker> PathValidator<Marker> {
         let candidate_path = candidate_path.as_ref(); // Compiler optimization
 
         // SECURITY: Reject any path containing ".." components before filesystem operations
-        self.validate_no_parent_traversal(candidate_path)?;
+        self.validate_no_parent_traversal(candidate_path)?; // TODO: We should allow traversal, but if the final path is within jail parents but outside the jail itself, it should reset the path to the jail boundary.
 
         let full_path = if candidate_path.is_absolute() {
             // For absolute paths, use them directly but they'll be validated against jail later
-            candidate_path.to_path_buf()
+            candidate_path.to_path_buf() // TODO: We should treat absolute paths as if they are within the jail. In fact, let's verify that it is logical that in context of using jailed path, any provided path should be treated as if they are under the jail and are relative always to the jail as the jail is a virtual root. We need to examine if there could be realistic, real world usage where we'd have liked a different behavior. The assumption is that if we are using a jailed path, we are always using it as a virtual root and any provided path is relative to the jail. But, should we then rename our project to VirtualRootPath? Or should we keep the name JailedPath as it is more descriptive of the security aspect? Take into consideration the following use case: a. using jailed path to a resources directory, making sure that it cannot be escaped. b. using jailed path to a user upload directory, making sure that the user cannot escape the upload directory and access other parts of the filesystem. c. using jailed path to a configuration directory, making sure that the configuration files are not accessible outside the jail. d. using jailed path to a temporary directory, making sure that temporary files are not accessible outside the jail. We are trying to prevent injection of paths and need a type safe guarantee that paths did not escape their defined boundaries.
         } else {
             self.jail.as_ref().join(candidate_path)
         };

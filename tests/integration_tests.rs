@@ -1,5 +1,4 @@
 use jailed_path::{JailedPath, JailedPathError, PathValidator};
-use std::error::Error;
 use std::fs;
 use std::io::Write;
 
@@ -127,24 +126,23 @@ fn test_error_handling_and_reporting() {
         other => panic!("Expected PathEscapesBoundary, got: {other:?}"),
     }
 
-    // 3. Test error source chaining
+    // 3. Test that non-existent jail is now allowed (should succeed)
     let nonexistent_jail = get_nonexistent_absolute_path();
-    match PathValidator::<()>::with_jail(nonexistent_jail) {
-        Err(error) => {
-            // Should have proper error chaining
-            assert!(error.source().is_some(), "Should have source error");
-
-            // Should be able to downcast to io::Error
-            if let Some(io_error) = error
-                .source()
-                .and_then(|e| e.downcast_ref::<std::io::Error>())
-            {
-                assert_eq!(io_error.kind(), std::io::ErrorKind::NotFound);
-            } else {
-                panic!("Source should be io::Error");
-            }
+    match PathValidator::<()>::with_jail(&nonexistent_jail) {
+        Ok(validator) => {
+            // Should allow creation, but paths inside should still be jailed
+            let result = validator.try_path("foo.txt");
+            assert!(
+                result.is_ok(),
+                "Should allow paths inside non-existent jail"
+            );
+            let jailed_path = result.unwrap();
+            assert!(
+                jailed_path.as_path().starts_with(&nonexistent_jail),
+                "Jailed path should start with the jail boundary"
+            );
         }
-        Ok(_) => panic!("Should fail with nonexistent jail"),
+        Err(e) => panic!("Non-existent jail should be allowed, got error: {e}"),
     }
 }
 
