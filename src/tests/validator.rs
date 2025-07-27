@@ -5,6 +5,7 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tempfile::TempDir;
 
 // TODO: Split my module!
 
@@ -930,11 +931,13 @@ fn test_cleanup_on_jail_escape_attempts() {
 
 #[test]
 fn test_attacker_path_in_existing_directory_with_escape() {
-    let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    // Use tempfile for unique temp directory
+    let temp_dir = TempDir::new().expect("Failed to create unique temp dir");
+    let temp_path = temp_dir.path();
+    let validator = PathValidator::<()>::with_jail(temp_path).unwrap();
 
     // Create existing directory structure (like /home/my_user/import_dir/)
-    let import_dir = temp_dir.join("import_dir");
+    let import_dir = temp_path.join("import_dir");
     std::fs::create_dir(&import_dir).unwrap();
     let user_data = import_dir.join("user_data");
     std::fs::create_dir(&user_data).unwrap();
@@ -1012,7 +1015,7 @@ fn test_attacker_path_in_existing_directory_with_escape() {
     println!("✅ Successfully blocked escape and cleaned up attacker directories");
 
     // Cleanup
-    cleanup_test_directory(&temp_dir);
+    cleanup_test_directory(temp_dir.path());
 }
 
 #[test]

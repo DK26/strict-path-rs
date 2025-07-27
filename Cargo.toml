@@ -17,3 +17,4 @@ soft-canonicalize = "0.1.2"
 
 [dev-dependencies]
 app-path = "1.0.2"
+tempfile = "3.20.0"
