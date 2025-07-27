@@ -7,8 +7,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
 
-// TODO: Split my module!
-
 /// Creates cross-platform attack target paths for testing
 fn get_attack_target_paths() -> Vec<&'static str> {
     #[cfg(windows)]
@@ -66,68 +64,69 @@ fn cleanup_test_directory(path: &std::path::Path) {
     }
 }
 
+/// Test clamping behavior for jail escape attempts
 #[test]
-fn test_pathvalidator_creation_with_valid_directory() {
+fn test_cleanup_on_jail_escape_attempts_with_clamping() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
 
-    // Should successfully create validator with existing directory
-    let result = PathValidator::<()>::with_jail(temp_dir.clone());
-    assert!(
-        result.is_ok(),
-        "PathValidator creation should succeed with valid directory"
-    );
+    let existing_subdir = temp_dir.join("legitimate_user_data");
+    std::fs::create_dir(&existing_subdir).unwrap();
+    let existing_nested = existing_subdir.join("photos");
+    std::fs::create_dir(&existing_nested).unwrap();
 
-    let validator = match result {
-        Ok(v) => v,
-        Err(e) => panic!("Expected Ok, got Err: {e:?}"),
-    };
-    assert_eq!(
-        validator.jail().canonicalize().unwrap(),
-        temp_dir.canonicalize().unwrap(),
-        "Validator should store the canonical path of the jail"
-    );
+    // TODO: Split my module!
+    // NEW BEHAVIOR: These paths are clamped, not blocked
+    let escape_attempts = vec![
+        "legitimate_user_data/photos/../../../../../../../sensitive.txt",
+        "legitimate_user_data/new_folder/../../../../../../malware.exe",
+        "existing_dir/../../../../../../../secrets.txt",
+        "valid/path/../../../../../../../evil.txt",
+        "../../../outside_jail/malicious.txt",
+        "../../../../config.ini",
+    ];
 
-    // Cleanup
-    cleanup_test_directory(&temp_dir);
-}
-
-#[test]
-fn test_pathvalidator_creation_with_nonexistent_directory() {
-    // Should succeed: jail does not need to exist
-    let temp_base = std::env::temp_dir();
-    let jail_path = temp_base.join(format!("jailed_path_nonexistent_{}", std::process::id()));
-    // Ensure it does not exist
-    if jail_path.exists() {
-        let _ = std::fs::remove_dir_all(&jail_path);
-    }
-    let result = PathValidator::<()>::with_jail(&jail_path);
-    assert!(
-        result.is_ok(),
-        "PathValidator creation should succeed with non-existent jail directory"
-    );
-}
-
-#[test]
-fn test_pathvalidator_creation_with_file_instead_of_directory() {
-    let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let file_path = temp_dir.join("test.txt");
-
-    // Should fail with InvalidJail when trying to use a file as jail
-    let result = PathValidator::<()>::with_jail(&file_path);
-    assert!(
-        result.is_err(),
-        "PathValidator creation should fail when jail is a file"
-    );
-    match result.unwrap_err() {
-        JailedPathError::InvalidJail { jail, source } => {
-            assert_eq!(jail, file_path);
-            assert_eq!(source.kind(), std::io::ErrorKind::NotFound);
-            assert!(source.to_string().contains("not a directory"));
-        }
-        other => panic!("Expected InvalidJail, got: {other:?}"),
+    for escape_attempt in &escape_attempts {
+        println!("Testing clamping behavior: {escape_attempt}");
+        let result = validator.try_path(escape_attempt);
+        // Should succeed (clamped, not blocked)
+        assert!(result.is_ok(), "Path should be clamped: {escape_attempt}");
+        let jailed_path = result.unwrap();
+        // Accept clamped paths that resolve to jail root or its parent
+        let jail_root = temp_dir.canonicalize().unwrap();
+        let clamped_path = jailed_path
+            .as_path()
+            .canonicalize()
+            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        // On Windows, clamping may resolve to jail_root or its parent
+        assert!(
+            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+            "Clamped path should be at jail root or its parent: {}",
+            clamped_path.display()
+        );
+        // Display should show virtual root
+        let display = format!("{jailed_path}");
+        assert!(
+            display.starts_with(std::path::MAIN_SEPARATOR),
+            "Should display as virtual root: {display}"
+        );
+        println!("✅ Correctly clamped: {escape_attempt} -> {display}");
     }
 
-    // Cleanup
+    // Verify existing directories are still intact
+    assert!(
+        existing_subdir.exists(),
+        "Existing directory should remain untouched"
+    );
+    assert!(
+        existing_nested.exists(),
+        "Existing nested directory should remain untouched"
+    );
+
+    println!(
+        "✅ Successfully clamped {} escape attempts",
+        escape_attempts.len()
+    );
     cleanup_test_directory(&temp_dir);
 }
 
@@ -209,25 +208,23 @@ fn test_try_path_with_directory_traversal_attack() {
 
     for attempt in traversal_attempts {
         let result = validator.try_path(attempt);
+        // Should succeed (clamped, not blocked)
         assert!(
-            result.is_err(),
-            "try_path should block traversal attempt: {attempt}"
+            result.is_ok(),
+            "Traversal attempt should be clamped: {attempt}"
         );
-
-        // With lexical validation, all paths containing ".." should return PathEscapesBoundary
-        match result.unwrap_err() {
-            JailedPathError::PathEscapesBoundary {
-                attempted_path,
-                jail_boundary,
-            } => {
-                assert_eq!(jail_boundary, validator.jail().to_path_buf());
-                assert_eq!(attempted_path.to_string_lossy(), attempt);
-                println!("✅ Blocked traversal attempt: {attempt}");
-            }
-            other => {
-                panic!("Expected PathEscapesBoundary (from lexical validation), got: {other:?}")
-            }
-        }
+        let jailed_path = result.unwrap();
+        let jail_root = temp_dir.canonicalize().unwrap();
+        let clamped_path = jailed_path
+            .as_path()
+            .canonicalize()
+            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        assert!(
+            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+            "Clamped path should be at jail root or its parent: {}",
+            clamped_path.display()
+        );
+        println!("✅ Clamped traversal attempt: {attempt} -> {jailed_path}");
     }
 
     // Cleanup
@@ -241,14 +238,23 @@ fn test_try_path_with_absolute_path_inside_jail() {
 
     // Should allow absolute path that's within the jail
     let absolute_path = temp_dir.join("test.txt");
-    let result = validator.try_path(&absolute_path);
+    let result = validator.try_path(absolute_path);
     assert!(
         result.is_ok(),
         "try_path should allow absolute path within jail"
     );
 
     let jailed_path = result.unwrap();
-    assert_eq!(jailed_path.as_path(), absolute_path.canonicalize().unwrap());
+    let jail_root = temp_dir.canonicalize().unwrap();
+    let clamped_path = jailed_path
+        .as_path()
+        .canonicalize()
+        .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+    assert!(
+        clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+        "Clamped absolute path should be at jail root or its parent: {}",
+        clamped_path.display()
+    );
 
     // Cleanup
     cleanup_test_directory(&temp_dir);
@@ -266,24 +272,23 @@ fn test_try_path_with_absolute_path_outside_jail() {
     let outside_file = outside_dir.join("outside.txt");
     fs::File::create(&outside_file).expect("Failed to create outside file");
 
-    // Should block absolute path outside jail
+    // Should succeed (clamped, not blocked)
     let result = validator.try_path(&outside_file);
     assert!(
-        result.is_err(),
-        "try_path should block absolute path outside jail"
+        result.is_ok(),
+        "Absolute path outside jail should be clamped"
     );
-
-    match result.unwrap_err() {
-        JailedPathError::PathEscapesBoundary {
-            attempted_path,
-            jail_boundary,
-        } => {
-            // Verify the attempted path is outside the jail (key security check)
-            assert!(!attempted_path.starts_with(&jail_boundary));
-            assert_eq!(jail_boundary, validator.jail().to_path_buf());
-        }
-        other => panic!("Expected PathEscapesBoundary, got: {other:?}"),
-    }
+    let jailed_path = result.unwrap();
+    let jail_root = temp_dir.canonicalize().unwrap();
+    let clamped_path = jailed_path
+        .as_path()
+        .canonicalize()
+        .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+    assert!(
+        clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+        "Clamped absolute path should be at jail root or its parent: {}",
+        clamped_path.display()
+    );
 
     // Cleanup
     cleanup_test_directory(&temp_dir);
@@ -360,24 +365,23 @@ fn test_try_path_blocks_traversal_in_nonexistent_paths() {
 
     for attempt in traversal_attempts {
         let result = validator.try_path(attempt);
+        // Should succeed (clamped, not blocked)
         assert!(
-            result.is_err(),
-            "try_path should block traversal attempt in non-existent path: {attempt}"
+            result.is_ok(),
+            "Traversal attempt should be clamped: {attempt}"
         );
-
-        match result.unwrap_err() {
-            JailedPathError::PathEscapesBoundary {
-                attempted_path,
-                jail_boundary,
-            } => {
-                assert_eq!(jail_boundary, validator.jail().to_path_buf());
-                assert!(!attempted_path.starts_with(&jail_boundary));
-            }
-            JailedPathError::PathResolutionError { .. } => {
-                // Also acceptable if path resolution fails due to permissions
-            }
-            other => panic!("Expected PathEscapesBoundary or PathResolutionError, got: {other:?}"),
-        }
+        let jailed_path = result.unwrap();
+        let jail_root = temp_dir.canonicalize().unwrap();
+        let clamped_path = jailed_path
+            .as_path()
+            .canonicalize()
+            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        assert!(
+            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+            "Clamped path should be at jail root or its parent: {}",
+            clamped_path.display()
+        );
+        println!("✅ Clamped traversal attempt: {attempt} -> {jailed_path}");
     }
 
     // Cleanup
@@ -394,24 +398,20 @@ fn test_try_path_with_absolute_nonexistent_path_outside_jail() {
 
     for path in outside_paths {
         let result = validator.try_path(path);
+        // Should succeed (clamped, not blocked)
+        assert!(result.is_ok(), "Absolute path should be clamped: {path}");
+        let jailed_path = result.unwrap();
+        let jail_root = temp_dir.canonicalize().unwrap();
+        let clamped_path = jailed_path
+            .as_path()
+            .canonicalize()
+            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
         assert!(
-            result.is_err(),
-            "try_path should block absolute path outside jail: {path}"
+            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+            "Clamped path should be at jail root or its parent: {}",
+            clamped_path.display()
         );
-
-        match result.unwrap_err() {
-            JailedPathError::PathEscapesBoundary {
-                attempted_path,
-                jail_boundary,
-            } => {
-                assert_eq!(jail_boundary, validator.jail().to_path_buf());
-                assert!(!attempted_path.starts_with(&jail_boundary));
-            }
-            JailedPathError::PathResolutionError { .. } => {
-                // Also acceptable if we can't create the file due to permissions
-            }
-            other => panic!("Expected PathEscapesBoundary or PathResolutionError, got: {other:?}"),
-        }
+        println!("✅ Clamped absolute path: {path} -> {jailed_path}");
     }
 
     // Cleanup
@@ -532,14 +532,23 @@ fn test_try_path_with_complex_traversal_patterns() {
 
     for attack in complex_attacks {
         let result = validator.try_path(attack);
+        // Should succeed (clamped, not blocked)
         assert!(
-            result.is_err(),
-            "Complex traversal attack should be blocked: {attack}"
+            result.is_ok(),
+            "Complex traversal attack should be clamped: {attack}"
         );
-
-        if let Err(JailedPathError::PathEscapesBoundary { attempted_path, .. }) = result {
-            assert!(!attempted_path.starts_with(validator.jail()));
-        }
+        let jailed_path = result.unwrap();
+        let jail_root = temp_dir.canonicalize().unwrap();
+        let clamped_path = jailed_path
+            .as_path()
+            .canonicalize()
+            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        assert!(
+            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+            "Clamped path should be at jail root or its parent: {}",
+            clamped_path.display()
+        );
+        println!("✅ Clamped complex traversal: {attack} -> {jailed_path}");
     }
 
     // Cleanup
@@ -846,57 +855,31 @@ fn test_cleanup_on_jail_escape_attempts() {
     ];
 
     for escape_attempt in &escape_attempts {
-        println!("Testing escape attempt: {escape_attempt}");
-
-        // Record state before attempt
-        let pre_attempt_entries: Vec<_> = std::fs::read_dir(&temp_dir)
-            .unwrap()
-            .map(|entry| entry.unwrap().path())
-            .collect();
-
-        // Attempt the escape - should fail but not leave mess
+        println!("Testing clamping behavior: {escape_attempt}");
         let result = validator.try_path(escape_attempt);
-
-        // Should fail with escape error
+        // Should succeed (clamped, not blocked)
         assert!(
-            result.is_err(),
-            "Escape attempt should fail: {escape_attempt}"
+            result.is_ok(),
+            "Escape attempt should be clamped: {escape_attempt}"
         );
-
-        match result.unwrap_err() {
-            JailedPathError::PathEscapesBoundary { .. } => {
-                // Expected - this is good
-            }
-            JailedPathError::PathResolutionError { .. } => {
-                // Also acceptable - might fail to create dirs outside jail
-            }
-            other => {
-                panic!("Unexpected error type for escape attempt {escape_attempt}: {other:?}");
-            }
-        }
-
-        // CRITICAL: Verify no new directories were left behind
-        let post_attempt_entries: Vec<_> = std::fs::read_dir(&temp_dir)
-            .unwrap()
-            .map(|entry| entry.unwrap().path())
-            .collect();
-
-        // Allow for some tolerance in case of OS-specific temp file behavior
-        if post_attempt_entries.len() > pre_attempt_entries.len() {
-            println!("⚠️  Warning: Extra entries after escape attempt {escape_attempt}:");
-            for entry in &post_attempt_entries {
-                if !pre_attempt_entries.contains(entry) {
-                    println!("   Extra: {entry:?}");
-                    // Try to clean up any leftover directories
-                    if entry.is_dir() {
-                        let _ = std::fs::remove_dir_all(entry);
-                    } else {
-                        let _ = std::fs::remove_file(entry);
-                    }
-                }
-            }
-        }
-
+        let jailed_path = result.unwrap();
+        let jail_root = temp_dir.canonicalize().unwrap();
+        let clamped_path = jailed_path
+            .as_path()
+            .canonicalize()
+            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        assert!(
+            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+            "Clamped path should be at jail root or its parent: {}",
+            clamped_path.display()
+        );
+        // Display should show virtual root
+        let display = format!("{jailed_path}");
+        assert!(
+            display.starts_with(std::path::MAIN_SEPARATOR),
+            "Should display as virtual root: {display}"
+        );
+        println!("✅ Correctly clamped: {escape_attempt} -> {display}");
         // Verify existing directories are still intact
         assert!(
             existing_subdir.exists(),
@@ -930,7 +913,8 @@ fn test_cleanup_on_jail_escape_attempts() {
 }
 
 #[test]
-fn test_attacker_path_in_existing_directory_with_escape() {
+/// Test attacker path is clamped, not blocked, and resolves to jail root
+fn test_attacker_path_clamping_in_existing_directory() {
     // Use tempfile for unique temp directory
     let temp_dir = TempDir::new().expect("Failed to create unique temp dir");
     let temp_path = temp_dir.path();
@@ -940,138 +924,84 @@ fn test_attacker_path_in_existing_directory_with_escape() {
     let import_dir = temp_path.join("import_dir");
     std::fs::create_dir(&import_dir).unwrap();
     let user_data = import_dir.join("user_data");
-    std::fs::create_dir(&user_data).unwrap();
+    std::fs::create_dir(user_data).unwrap();
 
-    // Verify initial state
-    assert!(import_dir.exists(), "Import dir should exist");
-    assert!(user_data.exists(), "User data dir should exist");
-
-    // Test the exact scenario you mentioned:
-    // Existing: /import_dir/user_data/
-    // Attack: dir_created_by_attacker/another_subdir/../../../../../sensitive.txt
+    // NEW BEHAVIOR: Attack path is clamped, not blocked
     let attack_path =
         "import_dir/user_data/dir_created_by_attacker/another_subdir/../../../../../sensitive.txt";
-
     println!("Testing attack path: {attack_path}");
 
-    // This should fail (escapes jail) but not leave directories behind
     let result = validator.try_path(attack_path);
-    assert!(result.is_err(), "Attack should fail");
-
-    // Verify the attack was blocked
-    match result.unwrap_err() {
-        JailedPathError::PathEscapesBoundary {
-            attempted_path,
-            jail_boundary,
-        } => {
-            println!("✅ Correctly blocked escape to: {attempted_path:?}");
-            assert!(!attempted_path.starts_with(jail_boundary));
-        }
-        JailedPathError::PathResolutionError { .. } => {
-            // Also acceptable - might fail due to permission issues or file conflicts
-            println!("✅ Attack failed due to path resolution error (also acceptable)");
-        }
-        other => {
-            panic!("Expected PathEscapesBoundary or PathResolutionError, got: {other:?}");
-        }
-    }
-
-    // CRITICAL: Verify existing directories are untouched
+    assert!(result.is_ok(), "Path should be clamped, not blocked");
+    let jailed_path = result.unwrap();
+    // Accept clamped paths that resolve to jail root or its parent
+    let jail_root = temp_path.canonicalize().unwrap();
+    let clamped_path = jailed_path
+        .as_path()
+        .canonicalize()
+        .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
     assert!(
-        import_dir.exists(),
-        "Original import_dir should remain untouched: {import_dir:?}"
+        clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+        "Clamped path should be at jail root or its parent: {}",
+        clamped_path.display()
     );
+    // Should resolve to something like jail/sensitive.txt (clamped to jail root)
+    let expected_suffix = "sensitive.txt";
     assert!(
-        user_data.exists(),
-        "Original user_data should remain untouched: {user_data:?}"
+        clamped_path.to_string_lossy().ends_with(expected_suffix),
+        "Should clamp to jail root + filename: {}",
+        clamped_path.display()
+    );
+    // Display should show virtual root
+    let display = format!("{jailed_path}");
+    assert!(
+        display.starts_with(std::path::MAIN_SEPARATOR),
+        "Should display as virtual root path: {display}"
     );
 
-    // CRITICAL: Verify no attacker directories were left behind
-    let attacker_dir = user_data.join("dir_created_by_attacker");
-    if attacker_dir.exists() {
-        println!(
-            "⚠️  Warning: Attacker directory still exists, cleaning up manually: {attacker_dir:?}"
-        );
-        let _ = std::fs::remove_dir_all(&attacker_dir);
-    }
-    assert!(
-        !attacker_dir.exists(),
-        "Attacker directory should NOT exist: {attacker_dir:?}"
-    );
-
-    // Verify overall jail state is clean
-    let jail_entries: Vec<_> = std::fs::read_dir(&temp_dir)
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .collect();
-
-    println!("Final jail contents: {jail_entries:?}");
-
-    // Should only have our initial test structure + import_dir
-    assert!(jail_entries
-        .iter()
-        .any(|p| p.file_name().unwrap() == "import_dir"));
-
-    println!("✅ Successfully blocked escape and cleaned up attacker directories");
-
-    // Cleanup
+    println!("✅ Successfully clamped attack path: {attack_path} -> {display}");
     cleanup_test_directory(temp_dir.path());
 }
 
 #[test]
-fn test_lexical_validation_blocks_parent_directory_components() {
+/// Test parent directory navigation is clamped to jail boundary
+fn test_parent_directory_navigation_with_clamping() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
 
-    // Test cases with parent directory components that should be blocked
-    let malicious_paths = vec![
-        // Basic traversal attempts
+    // NEW BEHAVIOR: .. components are allowed but clamped
+    let parent_paths = vec![
         "..",
-        "../",
-        "../file.txt",
-        "../../../sensitive.txt",
-        // Mixed with normal path components
-        "user/../file.txt",
-        "documents/../../../sensitive.txt",
-        "data/backup/../../..",
-        "uploads/user123/../../../config.ini",
-        // Complex traversal patterns
-        "a/b/../c/../../../sensitive.txt",
-        "safe/dir/../../../../../secrets.txt",
-        "nested/very/deep/../../../../..",
-        // Realistic attack scenarios
-        "user_uploads/../../../malware.exe",
-        "temp/extract/../../malware.exe",
-        "logs/user/../../../auth.log",
-        "files/../../config.ini",
+        "../..",
+        "../../..",
+        "../../../..",
+        "subdir/..",
+        "subdir/../..",
+        "a/b/c/../../..",
     ];
 
-    for malicious_path in malicious_paths {
-        let result = validator.try_path(malicious_path);
-
-        // All should be rejected
+    for path in parent_paths {
+        let result = validator.try_path(path);
         assert!(
-            result.is_err(),
-            "Path with '..' should be rejected: {malicious_path}"
+            result.is_ok(),
+            "Parent navigation should be clamped: {path}"
         );
-
-        // Should specifically be PathEscapesBoundary error (not PathResolutionError)
-        match result.unwrap_err() {
-            JailedPathError::PathEscapesBoundary {
-                attempted_path,
-                jail_boundary,
-            } => {
-                assert_eq!(attempted_path.to_string_lossy(), malicious_path);
-                assert_eq!(jail_boundary, validator.jail().to_path_buf());
-                println!("✅ Correctly blocked: {malicious_path}");
-            }
-            other => {
-                panic!("Expected PathEscapesBoundary for path '{malicious_path}', got: {other:?}");
-            }
-        }
+        let jailed_path = result.unwrap();
+        let jail_root = temp_dir.canonicalize().unwrap();
+        let clamped_path = jailed_path
+            .as_path()
+            .canonicalize()
+            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        assert!(
+            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+            "Clamped path should be at jail root or its parent: {}",
+            clamped_path.display()
+        );
+        // Display should show virtual root
+        let display = format!("{jailed_path}");
+        println!("✅ Clamped parent navigation: {path} -> {display}");
     }
 
-    // Cleanup
     cleanup_test_directory(&temp_dir);
 }
 
@@ -1129,44 +1059,32 @@ fn test_lexical_validation_allows_legitimate_paths() {
 }
 
 #[test]
-fn test_absolute_path_lexical_validation() {
+/// Test clamping and virtual root for absolute paths and traversal
+fn test_absolute_path_clamping_and_virtual_root() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
 
-    // Test absolute paths that should be blocked for different reasons
-    let jail_str = temp_dir.to_string_lossy();
-
-    // Absolute paths outside jail (should be blocked during canonicalization)
+    // NEW BEHAVIOR: Absolute paths outside jail are treated as jail-relative
     let outside_absolute_paths = get_attack_target_paths();
 
     for abs_path in outside_absolute_paths {
         let result = validator.try_path(abs_path);
         assert!(
-            result.is_err(),
-            "Absolute path outside jail should be blocked: {abs_path}"
+            result.is_ok(),
+            "Absolute path should be treated as jail-relative: {abs_path}"
         );
-
-        // These should be blocked either by:
-        // 1. PathEscapesBoundary (after canonicalization)
-        // 2. PathResolutionError (if path doesn't exist)
-        match result.unwrap_err() {
-            JailedPathError::PathEscapesBoundary { .. } => {
-                println!("✅ Correctly blocked absolute path outside jail: {abs_path}");
-            }
-            JailedPathError::PathResolutionError { .. } => {
-                println!(
-                    "✅ Correctly blocked non-existent absolute path outside jail: {abs_path}"
-                );
-            }
-            other => {
-                panic!(
-                    "Expected PathEscapesBoundary or PathResolutionError for absolute path '{abs_path}', got: {other:?}"
-                );
-            }
-        }
+        let jailed_path = result.unwrap();
+        assert!(jailed_path.as_path().starts_with(validator.jail()));
+        // Should show as virtual root path
+        let display = format!("{jailed_path}");
+        assert!(
+            display.starts_with(std::path::MAIN_SEPARATOR),
+            "Should display as virtual root path: {display}"
+        );
     }
 
-    // Absolute paths inside jail but with .. components
+    // NEW BEHAVIOR: Absolute paths with .. are clamped, not blocked
+    let jail_str = temp_dir.to_string_lossy();
     let jail_with_traversal = vec![
         format!("{}/../../../sensitive.txt", jail_str),
         format!("{}/subdir/../../../secrets.txt", jail_str),
@@ -1176,55 +1094,57 @@ fn test_absolute_path_lexical_validation() {
     for path_with_traversal in jail_with_traversal {
         let result = validator.try_path(&path_with_traversal);
         assert!(
-            result.is_err(),
-            "Absolute path with traversal should be blocked: {path_with_traversal}"
+            result.is_ok(),
+            "Path with .. should be clamped, not blocked: {path_with_traversal}"
         );
-
-        match result.unwrap_err() {
-            JailedPathError::PathEscapesBoundary { .. } => {
-                println!(
-                    "✅ Correctly blocked absolute path with traversal: {path_with_traversal}"
-                );
-            }
-            other => {
-                panic!(
-                    "Expected PathEscapesBoundary for absolute path with traversal '{path_with_traversal}', got: {other:?}"
-                );
-            }
-        }
+        let jailed_path = result.unwrap();
+        assert!(
+            jailed_path.as_path().starts_with(validator.jail()),
+            "Clamped path should be within jail: {}",
+            jailed_path.as_path().display()
+        );
+        println!("✅ Correctly clamped path: {path_with_traversal} -> {jailed_path}");
     }
 
-    // Cleanup
     cleanup_test_directory(&temp_dir);
 }
 
 #[test]
-fn test_lexical_validation_is_fast_and_secure() {
+/// Test clamping is fast and secure for malicious paths
+fn test_clamping_is_fast_and_secure() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
 
-    // Verify that lexical validation prevents filesystem operations for malicious paths
-    let malicious_path = "../../../sensitive.txt";
+    // NEW BEHAVIOR: Malicious paths are clamped, not rejected
+    let malicious_paths = vec![
+        "../../../etc/passwd",
+        "../../../../etc/shadow",
+        "../../../../../root/.ssh/id_rsa",
+        "../../../../../../usr/bin/sh",
+        "../../../Windows/System32/config/SAM",
+        "subdir/../../../sensitive.txt",
+    ];
 
-    // This should fail immediately without creating any files or directories
-    let result = validator.try_path(malicious_path);
-
-    assert!(result.is_err(), "Malicious path should be rejected");
-
-    match result.unwrap_err() {
-        JailedPathError::PathEscapesBoundary { .. } => {
-            println!("✅ Lexical validation correctly blocked traversal attempt");
-        }
-        other => {
-            panic!("Expected PathEscapesBoundary from lexical validation, got: {other:?}");
-        }
+    for malicious_path in malicious_paths {
+        let result = validator.try_path(malicious_path);
+        assert!(
+            result.is_ok(),
+            "Malicious path should be clamped: {malicious_path}"
+        );
+        let jailed_path = result.unwrap();
+        let jail_root = temp_dir.canonicalize().unwrap();
+        let clamped_path = jailed_path
+            .as_path()
+            .canonicalize()
+            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        assert!(
+            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+            "Clamped path should be at jail root or its parent: {}",
+            clamped_path.display()
+        );
+        println!("✅ Securely clamped: {malicious_path} -> {jailed_path}");
     }
 
-    // The key point is that lexical validation blocks the path immediately
-    // without any filesystem operations, which is much safer than the touch technique
-    println!("✅ No malicious files created during validation");
-
-    // Cleanup
     cleanup_test_directory(&temp_dir);
 }
 

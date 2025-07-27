@@ -6,10 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
 ## [Unreleased]
 
 ### Added
+- Clamping for traversal and absolute paths: All `..` and absolute paths are clamped to jail root, not blocked
 - Virtual Root Display: Clean Display/Debug traits for user-facing paths, cross-platform separator support, memory-efficient jail root (Arc<PathBuf>), comprehensive platform-specific and security tests, and demonstration example.
+- Type-safe clamped path API: `ClampedPath` type enforces security at compile time
+- Integration tests for clamping and virtual root
+- Documentation and examples for new clamping behavior
+
+### Changed
+- PathValidator: Clamping replaces blocking for traversal and absolute paths
+- Integration tests: Updated to expect clamping
+- README: Security guarantees clarified
+
+### Fixed
+- Various doc and comment improvements
 
 ## [0.0.3] - 2025-07-21
 

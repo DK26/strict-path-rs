@@ -31,15 +31,13 @@ let safe_path: JailedPath = validator.try_path("index.html")?; // Only way to cr
 
 ## Key Features
 
-- **Security First**: Prevents `../` path traversal attacks automatically
+- **Security First**: Prevents `../` path traversal attacks by clamping all traversal and absolute paths to the jail root
 - **Path Canonicalization**: Resolves symlinks and relative components safely
 - **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries
-- **Multi-Jail Support**: You can use your own marker types to prevent accidentally mixing up paths from different jails
-- **Single Dependency**: Only depends on our own `soft-canonicalize` crate
-- **Cross-Platform**: Works on Windows, macOS, and Linux
-- **Performance**: Minimal allocations, efficient validation
-
-
+- **Multi-Jail Support**: You can use your own marker types to prevent accidentally mixing up paths from different jails  
+- **Single Dependency**: Only depends on our own `soft-canonicalize` crate  
+- **Cross-Platform**: Works on Windows, macOS, and Linux  
+- **Performance**: Minimal allocations, efficient validation  
 - **Virtual Root Display**: Shows paths as if they start from the root of your jail, making user-facing output clean and intuitive. No leaking of internal or absolute paths—just what the user expects to see.
 
 ### Virtual Root Display Example
@@ -109,23 +107,30 @@ Without markers, you can simply use `PathValidator` and `JailedPath` directly.
 
 ## Security Guarantees
 
-All `..` components are blocked before processing, symbolic links are resolved, and paths are
-mathematically validated against the jail boundary. Path traversal attacks
-are impossible to bypass.
+All `..` components and absolute paths are now clamped to the jail root, rather than blocked. Symbolic links are resolved, and paths are mathematically validated against the jail boundary. Path traversal attacks are impossible to bypass, but attempts to escape the jail will be clamped to the jail root or its parent, never allowed to escape.
 
 ```rust
 use jailed_path::PathValidator;
 
 let validator: PathValidator = PathValidator::with_jail("./public")?;
 
-// ✅ Valid paths
-let safe = validator.try_path("index.html")?;
-let nested = validator.try_path("css/style.css")?;
+// ✅ Valid paths,  Any `..` component or absolute path is clamped to jail root
 
-// ❌ Any `..` component causes validation failure
-assert!(validator.try_path("../config.toml").is_err());
-assert!(validator.try_path("assets/../../../etc/passwd").is_err());
-assert!(validator.try_path("/etc/shadow").is_err());
+validator.try_path("index.html")?;                  // full path: ./public/index.html
+                                                    // prints:    /index.html
+
+validator.try_path("css/style.css")?;               // full path: ./public/css/style.css
+                                                    // prints:    /css/style.css
+
+validator.try_path("/etc/shadow")?;                 // full path: ./public/etc/shadow
+                                                    // prints:    /etc/shadow
+
+validator.try_path("../config.toml")?;              // full path: ./public/
+                                                    // prints:    /
+
+validator.try_path("assets/../../../etc/passwd")?;  // full path: ./public/
+                                                    // prints:    /
+
 ```
 
 ## Integration Examples

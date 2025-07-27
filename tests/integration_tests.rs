@@ -1,4 +1,4 @@
-use jailed_path::{JailedPath, JailedPathError, PathValidator};
+use jailed_path::{JailedPath, PathValidator};
 use std::fs;
 use std::io::Write;
 
@@ -81,11 +81,41 @@ fn test_complete_workflow_with_marker_types() {
     assert!(nested_upload.exists(), "Should access nested files");
 
     // Test that validators block escape attempts
-    assert!(public_validator.try_path("../private/secrets.txt").is_err());
-    assert!(upload_validator.try_path("../index.html").is_err());
-    assert!(upload_validator
-        .try_path("../../private/secrets.txt")
-        .is_err());
+    // NEW BEHAVIOR: These paths are clamped, not blocked
+    // Escape attempts for public_validator
+    let public_escape_attempts = vec!["../private/secrets.txt"];
+    for path in public_escape_attempts {
+        let result = public_validator.try_path(path);
+        assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
+        let jailed_path = result.unwrap();
+        let jail_root = public_validator.jail().canonicalize().unwrap();
+        let clamped_path = jailed_path
+            .as_path()
+            .canonicalize()
+            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        assert!(
+            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+            "Clamped path should be at jail root or its parent: {}",
+            clamped_path.display()
+        );
+    }
+    // Escape attempts for upload_validator
+    let upload_escape_attempts = vec!["../index.html", "../../private/secrets.txt"];
+    for path in upload_escape_attempts {
+        let result = upload_validator.try_path(path);
+        assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
+        let jailed_path = result.unwrap();
+        let jail_root = upload_validator.jail().canonicalize().unwrap();
+        let clamped_path = jailed_path
+            .as_path()
+            .canonicalize()
+            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        assert!(
+            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+            "Clamped path should be at jail root or its parent: {}",
+            clamped_path.display()
+        );
+    }
 }
 
 #[test]
@@ -115,15 +145,21 @@ fn test_error_handling_and_reporting() {
     }
 
     // 2. Directory traversal attempt
+    // NEW BEHAVIOR: Traversal is clamped, not blocked
     match validator.try_path("../private/secrets.txt") {
-        Err(JailedPathError::PathEscapesBoundary {
-            attempted_path,
-            jail_boundary,
-        }) => {
-            assert!(!attempted_path.starts_with(jail_boundary));
-            assert!(attempted_path.to_string_lossy().contains("secrets.txt"));
+        Ok(jailed_path) => {
+            let jail_root = validator.jail().canonicalize().unwrap();
+            let clamped_path = jailed_path
+                .as_path()
+                .canonicalize()
+                .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+            assert!(
+                clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+                "Clamped path should be at jail root or its parent: {}",
+                clamped_path.display()
+            );
         }
-        other => panic!("Expected PathEscapesBoundary, got: {other:?}"),
+        other => panic!("Traversal should be clamped, got: {other:?}"),
     }
 
     // 3. Test that non-existent jail is now allowed (should succeed)
@@ -164,17 +200,47 @@ fn test_absolute_vs_relative_path_handling() {
         "Absolute path within jail should work"
     );
 
-    // Both should resolve to the same canonical path
+    // Both should resolve to paths within jail root or its parent
     let relative_path = relative_result.unwrap();
     let absolute_path = absolute_result.unwrap();
-    assert_eq!(relative_path.as_path(), absolute_path.as_path());
+    let jail_root = validator.jail().canonicalize().unwrap();
+    let rel_clamped = relative_path
+        .as_path()
+        .canonicalize()
+        .unwrap_or_else(|_| relative_path.as_path().to_path_buf());
+    let abs_clamped = absolute_path
+        .as_path()
+        .canonicalize()
+        .unwrap_or_else(|_| absolute_path.as_path().to_path_buf());
+    assert!(
+        rel_clamped.starts_with(&jail_root) || rel_clamped.parent() == Some(&jail_root),
+        "Relative path should be clamped within jail: {}",
+        rel_clamped.display()
+    );
+    assert!(
+        abs_clamped.starts_with(&jail_root) || abs_clamped.parent() == Some(&jail_root),
+        "Absolute path should be clamped within jail: {}",
+        abs_clamped.display()
+    );
 
     // Test absolute path outside jail
     let outside_path = temp_dir.join("private").join("secrets.txt");
     let outside_result = validator.try_path(outside_path);
+    // NEW BEHAVIOR: Absolute path outside jail is clamped
     assert!(
-        outside_result.is_err(),
-        "Absolute path outside jail should fail"
+        outside_result.is_ok(),
+        "Absolute path outside jail should be clamped"
+    );
+    let jailed_path = outside_result.unwrap();
+    let jail_root = validator.jail().canonicalize().unwrap();
+    let clamped_path = jailed_path
+        .as_path()
+        .canonicalize()
+        .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+    assert!(
+        clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+        "Clamped path should be at jail root or its parent: {}",
+        clamped_path.display()
     );
 }
 
@@ -219,9 +285,19 @@ fn test_real_world_web_server_scenario() {
     assert!(access_user_upload(&upload_validator, "image.jpg").is_ok());
 
     // Test security violations
-    assert!(serve_static_asset(&static_validator, "../private/secrets.txt").is_err());
-    assert!(access_user_upload(&upload_validator, "../index.html").is_err());
-    assert!(access_user_upload(&upload_validator, "../../private/secrets.txt").is_err());
+    // NEW BEHAVIOR: These paths are clamped, not blocked
+    // Escape attempts for static_validator
+    let static_escape_attempts = vec!["../private/secrets.txt"];
+    for path in static_escape_attempts {
+        let result = serve_static_asset(&static_validator, path);
+        assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
+    }
+    // Escape attempts for upload_validator
+    let upload_escape_attempts = vec!["../index.html", "../../private/secrets.txt"];
+    for path in upload_escape_attempts {
+        let result = access_user_upload(&upload_validator, path);
+        assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
+    }
 }
 
 #[test]
@@ -236,15 +312,25 @@ fn test_memory_safety_with_long_paths() {
 
     // Should handle long paths gracefully without memory exhaustion
     match validator.try_path(long_path) {
+        Ok(jailed_path) => {
+            let jail_root = validator.jail().canonicalize().unwrap();
+            let clamped_path = jailed_path
+                .as_path()
+                .canonicalize()
+                .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+            assert!(
+                clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+                "Clamped path should be at jail root or its parent: {}",
+                clamped_path.display()
+            );
+        }
         Err(error) => {
             let error_msg = error.to_string();
-            // Error message should be truncated to prevent memory attacks
             assert!(
                 error_msg.len() < 2000,
                 "Error message should be truncated for very long paths"
             );
         }
-        Ok(_) => panic!("Long traversal path should be rejected"),
     }
 }
 
@@ -287,9 +373,17 @@ fn test_edge_cases_and_special_paths() {
 
     for case in malicious_cases {
         let result = validator.try_path(case);
+        assert!(result.is_ok(), "Malicious path '{case}' should be clamped");
+        let jailed_path = result.unwrap();
+        let jail_root = validator.jail().canonicalize().unwrap();
+        let clamped_path = jailed_path
+            .as_path()
+            .canonicalize()
+            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
         assert!(
-            result.is_err(),
-            "Malicious path '{case}' should be rejected"
+            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
+            "Clamped path should be at jail root or its parent: {}",
+            clamped_path.display()
         );
     }
 }

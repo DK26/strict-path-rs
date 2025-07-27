@@ -1,3 +1,4 @@
+use crate::clamped_path::ClampedPath;
 use crate::jailed_path::JailedPath;
 use crate::{JailedPathError, Result};
 use soft_canonicalize::soft_canonicalize;
@@ -134,58 +135,95 @@ impl<Marker> PathValidator<Marker> {
         })
     }
 
-    /// Validates that a path contains no parent directory traversals (..)
+    /// Creates a ClampedPath from user input
     ///
-    /// This method performs lexical validation to reject any path containing ".." components
-    /// before any filesystem operations occur. This prevents directory traversal attacks
-    /// regardless of whether paths exist or not.
-    fn validate_no_parent_traversal(&self, candidate_path: &Path) -> Result<()> {
-        for component in candidate_path.components() {
-            if matches!(component, std::path::Component::ParentDir) {
-                return Err(JailedPathError::path_escapes_boundary(
-                    candidate_path.to_path_buf(),
-                    self.jail.as_ref().to_path_buf(),
-                ));
+    /// This is the ONLY way to create a ClampedPath, ensuring all paths
+    /// go through proper clamping and virtual root handling.
+    ///
+    /// # Security
+    /// - Strips leading "/" for virtual root behavior
+    /// - Clamps ".." components to prevent jail escapes  
+    /// - Handles "." and empty components
+    /// - Returns type-safe ClampedPath that cannot escape jail
+    pub(crate) fn clamp_path(&self, candidate_path: &Path) -> ClampedPath {
+        // Handle virtual root behavior
+        let jail_relative = if candidate_path.is_absolute() {
+            candidate_path.strip_prefix("/").unwrap_or(candidate_path)
+        } else {
+            candidate_path
+        };
+
+        // Clamp path components
+        let mut result_components = Vec::new();
+        for component in jail_relative.components() {
+            match component {
+                std::path::Component::Normal(name) => {
+                    result_components.push(name);
+                }
+                std::path::Component::ParentDir => {
+                    // Remove last component if present, otherwise stay at jail root
+                    result_components.pop();
+                }
+                std::path::Component::CurDir => {
+                    // Ignore "." components
+                }
+                std::path::Component::RootDir => {
+                    // Treat as jail root - clear all components
+                    result_components.clear();
+                }
+                _ => {
+                    // Handle other components conservatively
+                    if let Some(os_str) = component.as_os_str().to_str() {
+                        if !os_str.is_empty() {
+                            result_components.push(component.as_os_str());
+                        }
+                    }
+                }
             }
         }
-        Ok(())
+
+        // Build the clamped path
+        let mut clamped = PathBuf::new();
+        for component in result_components {
+            clamped.push(component);
+        }
+
+        ClampedPath::new(clamped)
     }
 
     /// Validate a path and return detailed error information on failure
     ///
-    /// This method prioritizes security over performance by using soft canonicalization
-    /// to resolve all symbolic links and path components. This works with both existing
-    /// and non-existent paths without requiring filesystem modification.
+    /// # Two-Layer Security Model
+    ///
+    /// 1. **Path Clamping**: Handles `..` directory traversal by clamping navigation to the jail boundary.
+    ///    - No error is returned for excessive `..` components; path is clamped to jail root.
+    ///    - Absolute paths are treated as jail-relative (virtual root behavior).
+    /// 2. **Canonicalization + Boundary Check**: Handles symlink escapes by resolving symlinks and verifying jail containment.
+    ///    - Symlink escapes are detected and rejected.
     ///
     /// # Security Guarantees
-    /// - All symbolic links are resolved to their targets
-    /// - All `..` and `.` components are rejected before filesystem access
-    /// - Path traversal attacks are mathematically impossible to bypass
-    /// - Cross-platform path normalization is handled by the OS
+    /// - No path can escape jail boundary through `..` navigation (clamped)
+    /// - No path can escape jail boundary through symlinks (canonicalization + boundary check)
+    /// - Virtual root behavior is cosmetic; all paths are contained within jail
     ///
     /// # Use Cases
     /// - Validating paths for file creation (supports non-existent paths)
     /// - Validating paths for file reading (existing paths)
     /// - Any security-critical path validation
     pub fn try_path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
-        let candidate_path = candidate_path.as_ref(); // Compiler optimization
+        let candidate_path = candidate_path.as_ref();
 
-        // SECURITY: Reject any path containing ".." components before filesystem operations
-        self.validate_no_parent_traversal(candidate_path)?; // TODO: We should allow traversal, but if the final path is within jail parents but outside the jail itself, it should reset the path to the jail boundary.
+        // STEP 1: Create clamped path (type system enforces this step)
+        let clamped_path: ClampedPath = self.clamp_path(candidate_path);
 
-        let full_path = if candidate_path.is_absolute() {
-            // For absolute paths, use them directly but they'll be validated against jail later
-            candidate_path.to_path_buf() // TODO: We should treat absolute paths as if they are within the jail. In fact, let's verify that it is logical that in context of using jailed path, any provided path should be treated as if they are under the jail and are relative always to the jail as the jail is a virtual root. We need to examine if there could be realistic, real world usage where we'd have liked a different behavior. The assumption is that if we are using a jailed path, we are always using it as a virtual root and any provided path is relative to the jail. But, should we then rename our project to VirtualRootPath? Or should we keep the name JailedPath as it is more descriptive of the security aspect? Take into consideration the following use case: a. using jailed path to a resources directory, making sure that it cannot be escaped. b. using jailed path to a user upload directory, making sure that the user cannot escape the upload directory and access other parts of the filesystem. c. using jailed path to a configuration directory, making sure that the configuration files are not accessible outside the jail. d. using jailed path to a temporary directory, making sure that temporary files are not accessible outside the jail. We are trying to prevent injection of paths and need a type safe guarantee that paths did not escape their defined boundaries.
-        } else {
-            self.jail.as_ref().join(candidate_path)
-        };
+        // STEP 2: Build full path using clamped path (guaranteed safe)
+        let full_path = self.jail.as_ref().join(clamped_path.as_path());
 
-        // SECURITY FIRST: Use soft canonicalization for safe path resolution
+        // STEP 3: Canonicalize for symlink resolution
         let resolved_path = soft_canonicalize(full_path)
             .map_err(|e| JailedPathError::path_resolution_error(candidate_path.to_path_buf(), e))?;
 
-        // CRITICAL SECURITY CHECK: Must be within jail boundary
-        // Both paths are canonical, so comparison should be reliable
+        // STEP 4: Boundary check (primarily detects symlink escapes)
         if !resolved_path.starts_with(self.jail.as_ref()) {
             return Err(JailedPathError::path_escapes_boundary(
                 resolved_path,
@@ -195,6 +233,8 @@ impl<Marker> PathValidator<Marker> {
 
         Ok(JailedPath::new(resolved_path, self.jail.clone()))
     }
+
+    // ...existing code...
 
     pub fn jail(&self) -> &Path {
         &self.jail

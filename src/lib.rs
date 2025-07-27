@@ -105,14 +105,18 @@
 //! let safe = validator.try_path("index.html")?;
 //! let nested = validator.try_path("css/style.css")?;
 //!
-//! // ❌ Any `..` component causes validation failure
-//! assert!(validator.try_path("../config.toml").is_err());
-//! assert!(validator.try_path("assets/../../../etc/passwd").is_err());
-//! assert!(validator.try_path("/etc/shadow").is_err());
+//! // ❌ Any `..` component or absolute path is clamped to jail root
+//! let clamped1 = validator.try_path("../config.toml")?;
+//! let clamped2 = validator.try_path("assets/../../../etc/passwd")?;
+//! let clamped3 = validator.try_path("/etc/shadow")?;
+//! assert!(clamped1.as_path().starts_with(validator.jail()));
+//! assert!(clamped2.as_path().starts_with(validator.jail()));
+//! assert!(clamped3.as_path().starts_with(validator.jail()));
 //! # std::fs::remove_dir_all("public").ok();
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+pub mod clamped_path;
 pub mod error;
 pub mod jailed_path;
 pub mod validator;
