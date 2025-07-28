@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration tests: Updated to expect clamping
 - README: Security guarantees clarified
 
+### Removed / Refactored
+- **BREAKING**: Removed `PathValidator::clamp_path`. `ClampedPath` is now constructed directly via `ClampedPath::new`, which handles clamping, normalization, and virtual root logic internally.
+- All usages and tests updated to use `ClampedPath::new` directly instead of `clamp_path`.
+- `ClampedPath` is now fully responsible for path clamping and normalization, including Windows drive prefixes and UNC paths.
+
 ### Fixed
 - Various doc and comment improvements
 

@@ -135,62 +135,6 @@ impl<Marker> PathValidator<Marker> {
         })
     }
 
-    /// Creates a ClampedPath from user input
-    ///
-    /// This is the ONLY way to create a ClampedPath, ensuring all paths
-    /// go through proper clamping and virtual root handling.
-    ///
-    /// # Security
-    /// - Strips leading "/" for virtual root behavior
-    /// - Clamps ".." components to prevent jail escapes  
-    /// - Handles "." and empty components
-    /// - Returns type-safe ClampedPath that cannot escape jail
-    pub(crate) fn clamp_path(&self, candidate_path: &Path) -> ClampedPath {
-        // Handle virtual root behavior
-        let jail_relative = if candidate_path.is_absolute() {
-            candidate_path.strip_prefix("/").unwrap_or(candidate_path)
-        } else {
-            candidate_path
-        };
-
-        // Clamp path components
-        let mut result_components = Vec::new();
-        for component in jail_relative.components() {
-            match component {
-                std::path::Component::Normal(name) => {
-                    result_components.push(name);
-                }
-                std::path::Component::ParentDir => {
-                    // Remove last component if present, otherwise stay at jail root
-                    result_components.pop();
-                }
-                std::path::Component::CurDir => {
-                    // Ignore "." components
-                }
-                std::path::Component::RootDir => {
-                    // Treat as jail root - clear all components
-                    result_components.clear();
-                }
-                _ => {
-                    // Handle other components conservatively
-                    if let Some(os_str) = component.as_os_str().to_str() {
-                        if !os_str.is_empty() {
-                            result_components.push(component.as_os_str());
-                        }
-                    }
-                }
-            }
-        }
-
-        // Build the clamped path
-        let mut clamped = PathBuf::new();
-        for component in result_components {
-            clamped.push(component);
-        }
-
-        ClampedPath::new(clamped)
-    }
-
     /// Validate a path and return detailed error information on failure
     ///
     /// # Two-Layer Security Model
@@ -214,7 +158,7 @@ impl<Marker> PathValidator<Marker> {
         let candidate_path = candidate_path.as_ref();
 
         // STEP 1: Create clamped path (type system enforces this step)
-        let clamped_path: ClampedPath = self.clamp_path(candidate_path);
+        let clamped_path: ClampedPath = ClampedPath::new(candidate_path);
 
         // STEP 2: Build full path using clamped path (guaranteed safe)
         let full_path = self.jail.as_ref().join(clamped_path.as_path());
