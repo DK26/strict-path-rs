@@ -95,9 +95,9 @@ fn test_cleanup_on_jail_escape_attempts_with_clamping() {
         // Accept clamped paths that resolve to jail root or its parent
         let jail_root = temp_dir.canonicalize().unwrap();
         let clamped_path = jailed_path
-            .as_path()
+            .real_path()
             .canonicalize()
-            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+            .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
         // On Windows, clamping may resolve to jail_root or its parent
         assert!(
             clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
@@ -107,8 +107,8 @@ fn test_cleanup_on_jail_escape_attempts_with_clamping() {
         // Display should show virtual root
         let display = format!("{jailed_path}");
         assert!(
-            display.starts_with(std::path::MAIN_SEPARATOR),
-            "Should display as virtual root: {display}"
+            display.starts_with('/'),
+            "Should display as virtual root (forward slash): {display}"
         );
         println!("✅ Correctly clamped: {escape_attempt} -> {display}");
     }
@@ -154,11 +154,11 @@ fn test_try_path_with_valid_relative_path() {
 
     let jailed_path = result.unwrap();
     assert!(
-        jailed_path.as_path().ends_with("test.txt"),
+        jailed_path.real_path().ends_with("test.txt"),
         "JailedPath should point to the correct file"
     );
     assert!(
-        jailed_path.as_path().starts_with(validator.jail()),
+        jailed_path.real_path().starts_with(validator.jail()),
         "JailedPath should be within jail boundary"
     );
 
@@ -180,11 +180,11 @@ fn test_try_path_with_valid_subdirectory_path() {
 
     let jailed_path = result.unwrap();
     assert!(
-        jailed_path.as_path().ends_with("sub_test.txt"),
+        jailed_path.real_path().ends_with("sub_test.txt"),
         "JailedPath should point to the correct file"
     );
     assert!(
-        jailed_path.as_path().starts_with(validator.jail()),
+        jailed_path.real_path().starts_with(validator.jail()),
         "JailedPath should be within jail boundary"
     );
 
@@ -216,9 +216,9 @@ fn test_try_path_with_directory_traversal_attack() {
         let jailed_path = result.unwrap();
         let jail_root = temp_dir.canonicalize().unwrap();
         let clamped_path = jailed_path
-            .as_path()
+            .real_path()
             .canonicalize()
-            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+            .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
         assert!(
             clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
             "Clamped path should be at jail root or its parent: {}",
@@ -247,9 +247,9 @@ fn test_try_path_with_absolute_path_inside_jail() {
     let jailed_path = result.unwrap();
     let jail_root = temp_dir.canonicalize().unwrap();
     let clamped_path = jailed_path
-        .as_path()
+        .real_path()
         .canonicalize()
-        .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
     assert!(
         clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
         "Clamped absolute path should be at jail root or its parent: {}",
@@ -281,9 +281,9 @@ fn test_try_path_with_absolute_path_outside_jail() {
     let jailed_path = result.unwrap();
     let jail_root = temp_dir.canonicalize().unwrap();
     let clamped_path = jailed_path
-        .as_path()
+        .real_path()
         .canonicalize()
-        .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
     assert!(
         clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
         "Clamped absolute path should be at jail root or its parent: {}",
@@ -308,8 +308,8 @@ fn test_try_path_with_nonexistent_file() {
     );
 
     let jailed_path = result.unwrap();
-    assert!(jailed_path.as_path().ends_with("new_document.pdf"));
-    assert!(jailed_path.as_path().starts_with(validator.jail()));
+    assert!(jailed_path.real_path().ends_with("new_document.pdf"));
+    assert!(jailed_path.real_path().starts_with(validator.jail()));
 
     // Cleanup
     cleanup_test_directory(&temp_dir);
@@ -328,8 +328,8 @@ fn test_try_path_with_nonexistent_nested_file() {
     );
 
     let jailed_path = result.unwrap();
-    assert!(jailed_path.as_path().ends_with("beach.jpg"));
-    assert!(jailed_path.as_path().starts_with(validator.jail()));
+    assert!(jailed_path.real_path().ends_with("beach.jpg"));
+    assert!(jailed_path.real_path().starts_with(validator.jail()));
 
     // SECURITY: Verify parent directories were cleaned up for anti-spam protection
     let parent_dir = temp_dir.join("users/john/photos/vacation");
@@ -373,9 +373,9 @@ fn test_try_path_blocks_traversal_in_nonexistent_paths() {
         let jailed_path = result.unwrap();
         let jail_root = temp_dir.canonicalize().unwrap();
         let clamped_path = jailed_path
-            .as_path()
+            .real_path()
             .canonicalize()
-            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+            .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
         assert!(
             clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
             "Clamped path should be at jail root or its parent: {}",
@@ -403,9 +403,9 @@ fn test_try_path_with_absolute_nonexistent_path_outside_jail() {
         let jailed_path = result.unwrap();
         let jail_root = temp_dir.canonicalize().unwrap();
         let clamped_path = jailed_path
-            .as_path()
+            .real_path()
             .canonicalize()
-            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+            .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
         assert!(
             clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
             "Clamped path should be at jail root or its parent: {}",
@@ -435,8 +435,8 @@ fn test_try_path_with_mixed_existing_and_nonexistent() {
     );
 
     let jailed_path = result.unwrap();
-    assert!(jailed_path.as_path().starts_with(validator.jail()));
-    assert!(jailed_path.as_path().ends_with("new_file.txt"));
+    assert!(jailed_path.real_path().starts_with(validator.jail()));
+    assert!(jailed_path.real_path().ends_with("new_file.txt"));
 
     // Cleanup
     cleanup_test_directory(&temp_dir);
@@ -482,7 +482,7 @@ fn test_try_path_handles_permission_errors_gracefully() {
     // Should either succeed or fail gracefully with a clear error
     match result {
         Ok(jailed_path) => {
-            assert!(jailed_path.as_path().starts_with(validator.jail()));
+            assert!(jailed_path.real_path().starts_with(validator.jail()));
         }
         Err(JailedPathError::PathResolutionError { .. }) => {
             // Acceptable - permission denied or other IO error
@@ -507,7 +507,7 @@ fn test_try_path_edge_case_empty_relative_path() {
     for path in edge_cases {
         let result = validator.try_path(path);
         if let Ok(jailed_path) = result {
-            assert!(jailed_path.as_path().starts_with(validator.jail()));
+            assert!(jailed_path.real_path().starts_with(validator.jail()));
         }
         // Some of these might fail, which is acceptable behavior
     }
@@ -540,9 +540,9 @@ fn test_try_path_with_complex_traversal_patterns() {
         let jailed_path = result.unwrap();
         let jail_root = temp_dir.canonicalize().unwrap();
         let clamped_path = jailed_path
-            .as_path()
+            .real_path()
             .canonicalize()
-            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+            .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
         assert!(
             clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
             "Clamped path should be at jail root or its parent: {}",
@@ -578,7 +578,7 @@ fn test_try_path_performance_with_many_validations() {
         );
 
         let jailed_path = result.unwrap();
-        assert!(jailed_path.as_path().starts_with(validator.jail()));
+        assert!(jailed_path.real_path().starts_with(validator.jail()));
     }
 
     // Cleanup
@@ -603,7 +603,7 @@ fn test_marker_types_for_compile_time_safety() {
     let user_path: JailedPath<UserData> = user_validator.try_path("test.txt").unwrap();
 
     // Paths should be the same but have different types (checked at compile time)
-    assert_eq!(image_path.as_path(), user_path.as_path());
+    assert_eq!(image_path.real_path(), user_path.real_path());
 
     // This ensures the PhantomData marker is working and size is consistent
     let expected_size = std::mem::size_of::<PathBuf>() + std::mem::size_of::<Arc<PathBuf>>();
@@ -865,9 +865,9 @@ fn test_cleanup_on_jail_escape_attempts() {
         let jailed_path = result.unwrap();
         let jail_root = temp_dir.canonicalize().unwrap();
         let clamped_path = jailed_path
-            .as_path()
+            .real_path()
             .canonicalize()
-            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+            .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
         assert!(
             clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
             "Clamped path should be at jail root or its parent: {}",
@@ -876,7 +876,7 @@ fn test_cleanup_on_jail_escape_attempts() {
         // Display should show virtual root
         let display = format!("{jailed_path}");
         assert!(
-            display.starts_with(std::path::MAIN_SEPARATOR),
+            display.starts_with('/'),
             "Should display as virtual root: {display}"
         );
         println!("✅ Correctly clamped: {escape_attempt} -> {display}");
@@ -937,9 +937,9 @@ fn test_attacker_path_clamping_in_existing_directory() {
     // Accept clamped paths that resolve to jail root or its parent
     let jail_root = temp_path.canonicalize().unwrap();
     let clamped_path = jailed_path
-        .as_path()
+        .real_path()
         .canonicalize()
-        .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+        .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
     assert!(
         clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
         "Clamped path should be at jail root or its parent: {}",
@@ -955,8 +955,8 @@ fn test_attacker_path_clamping_in_existing_directory() {
     // Display should show virtual root
     let display = format!("{jailed_path}");
     assert!(
-        display.starts_with(std::path::MAIN_SEPARATOR),
-        "Should display as virtual root path: {display}"
+        display.starts_with('/'),
+        "Should display as virtual root path (forward slash): {display}"
     );
 
     println!("✅ Successfully clamped attack path: {attack_path} -> {display}");
@@ -989,9 +989,9 @@ fn test_parent_directory_navigation_with_clamping() {
         let jailed_path = result.unwrap();
         let jail_root = temp_dir.canonicalize().unwrap();
         let clamped_path = jailed_path
-            .as_path()
+            .real_path()
             .canonicalize()
-            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+            .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
         assert!(
             clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
             "Clamped path should be at jail root or its parent: {}",
@@ -1074,11 +1074,11 @@ fn test_absolute_path_clamping_and_virtual_root() {
             "Absolute path should be treated as jail-relative: {abs_path}"
         );
         let jailed_path = result.unwrap();
-        assert!(jailed_path.as_path().starts_with(validator.jail()));
+        assert!(jailed_path.real_path().starts_with(validator.jail()));
         // Should show as virtual root path
         let display = format!("{jailed_path}");
         assert!(
-            display.starts_with(std::path::MAIN_SEPARATOR),
+            display.starts_with('/'),
             "Should display as virtual root path: {display}"
         );
     }
@@ -1099,9 +1099,9 @@ fn test_absolute_path_clamping_and_virtual_root() {
         );
         let jailed_path = result.unwrap();
         assert!(
-            jailed_path.as_path().starts_with(validator.jail()),
+            jailed_path.real_path().starts_with(validator.jail()),
             "Clamped path should be within jail: {}",
-            jailed_path.as_path().display()
+            jailed_path.real_path().display()
         );
         println!("✅ Correctly clamped path: {path_with_traversal} -> {jailed_path}");
     }
@@ -1134,9 +1134,9 @@ fn test_clamping_is_fast_and_secure() {
         let jailed_path = result.unwrap();
         let jail_root = temp_dir.canonicalize().unwrap();
         let clamped_path = jailed_path
-            .as_path()
+            .real_path()
             .canonicalize()
-            .unwrap_or_else(|_| jailed_path.as_path().to_path_buf());
+            .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
         assert!(
             clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
             "Clamped path should be at jail root or its parent: {}",
@@ -1154,24 +1154,16 @@ fn test_virtual_root_display_functionality() {
     let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
 
     // Test various paths to ensure virtual root display works correctly
-    let separator = std::path::MAIN_SEPARATOR;
     let test_cases = vec![
-        ("file.txt", format!("{separator}file.txt")),
-        (
-            "subdir/file.txt",
-            format!("{separator}subdir{separator}file.txt"),
-        ),
+        ("file.txt", "/file.txt".to_string()),
+        ("subdir/file.txt", "/subdir/file.txt".to_string()),
         (
             "users/alice/documents/report.pdf",
-            format!(
-                "{separator}users{separator}alice{separator}documents{separator}report.pdf"
-            ),
+            "/users/alice/documents/report.pdf".to_string(),
         ),
         (
             "deeply/nested/path/structure/file.log",
-            format!(
-                "{separator}deeply{separator}nested{separator}path{separator}structure{separator}file.log"
-            ),
+            "/deeply/nested/path/structure/file.log".to_string(),
         ),
     ];
 
@@ -1188,13 +1180,12 @@ fn test_virtual_root_display_functionality() {
         let display_output = format!("{jailed_path}");
         assert_eq!(
             display_output, expected_display,
-            "Display should show virtual root for path: {input_path}"
+            "Display should show virtual root for path: {input_path} (forward slashes)"
         );
-
-        // Verify it's a proper relative path starting with platform separator
+        // Should always start with forward slash
         assert!(
-            display_output.starts_with(std::path::MAIN_SEPARATOR),
-            "Virtual root display should start with platform separator: {display_output}"
+            display_output.starts_with('/'),
+            "Virtual root display should start with forward slash: {display_output}"
         );
 
         // Verify it doesn't contain the actual jail path
@@ -1243,8 +1234,7 @@ fn test_virtual_root_display_vs_debug_differences() {
     let debug_output = format!("{jailed_path:?}");
 
     // Display should be clean and user-friendly
-    let separator = std::path::MAIN_SEPARATOR;
-    let expected_display = format!("{separator}users{separator}alice{separator}file.txt");
+    let expected_display = "/users/alice/file.txt";
     assert_eq!(display_output, expected_display);
 
     // Debug should be verbose and contain internal details
@@ -1302,15 +1292,8 @@ fn test_virtual_root_with_different_marker_types() {
     let config_path: JailedPath<ConfigFiles> = config_validator.try_path("config.toml").unwrap();
 
     // Both should have same virtual root display behavior regardless of marker type
-    let separator = std::path::MAIN_SEPARATOR;
-    assert_eq!(
-        format!("{user_path}"),
-        format!("{}user_data.json", separator)
-    );
-    assert_eq!(
-        format!("{config_path}"),
-        format!("{}config.toml", separator)
-    );
+    assert_eq!(format!("{user_path}"), "/user_data.json");
+    assert_eq!(format!("{config_path}"), "/config.toml");
 
     // Both should have access to jail_root()
     assert_eq!(user_path.jail_root(), config_path.jail_root());
@@ -1337,7 +1320,7 @@ fn test_virtual_root_display_edge_cases() {
     let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
 
     // Test edge cases for virtual root display
-    let separator = std::path::MAIN_SEPARATOR;
+    let separator = "/";
     let edge_cases = vec![
         // Root file (no subdirectory)
         ("root_file.txt", format!("{separator}root_file.txt")),
@@ -1359,7 +1342,7 @@ fn test_virtual_root_display_edge_cases() {
 
             // Should start with platform separator (virtual root)
             assert!(
-                display_output.starts_with(std::path::MAIN_SEPARATOR),
+                display_output.starts_with('/'),
                 "Virtual root should start with platform separator for: {input_path} -> {display_output}"
             );
 
@@ -1389,10 +1372,10 @@ fn test_virtual_root_with_cross_platform_paths() {
     let display_output = format!("{jailed_path}");
 
     // Virtual root should use platform-appropriate separators
-    assert!(display_output.starts_with(std::path::MAIN_SEPARATOR));
+    assert!(display_output.starts_with('/'));
 
     println!("✅ Cross-platform virtual root: {display_output}");
-    println!("   Underlying path: {}", jailed_path.as_path().display());
+    println!("   Underlying path: {}", jailed_path.real_path().display());
 
     // The virtual root display should be clean and consistent
     assert!(!display_output.is_empty());
@@ -1408,17 +1391,17 @@ fn test_virtual_root_display_windows_separators() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
 
-    // On Windows, virtual root should use backslashes (Windows convention)
+    // On Windows, virtual root should use forward slashes (cross-platform contract)
     let test_cases = vec![
-        ("file.txt", "\\file.txt"),
-        ("subdir/file.txt", "\\subdir\\file.txt"),
+        ("file.txt", "/file.txt"),
+        ("subdir/file.txt", "/subdir/file.txt"),
         (
             "users/alice/documents/report.pdf",
-            "\\users\\alice\\documents\\report.pdf",
+            "/users/alice/documents/report.pdf",
         ),
         (
             "deeply/nested/path/structure/file.log",
-            "\\deeply\\nested\\path\\structure\\file.log",
+            "/deeply/nested/path/structure/file.log",
         ),
     ];
 
@@ -1432,25 +1415,21 @@ fn test_virtual_root_display_windows_separators() {
         let jailed_path = result.unwrap();
         let display_output = format!("{jailed_path}");
 
-        // On Windows, should use backslashes
+        // Should use forward slashes (cross-platform contract)
         assert_eq!(
             display_output, expected_display,
-            "Windows virtual root should use backslashes for: {input_path}"
+            "Virtual root display should use forward slashes for: {input_path}"
         );
-
-        // Should start with backslash (Windows virtual root)
+        // Should start with forward slash
         assert!(
-            display_output.starts_with('\\'),
-            "Windows virtual root should start with '\\': {display_output}"
+            display_output.starts_with('/'),
+            "Virtual root display should start with '/': {display_output}"
         );
-
-        // Should contain backslashes for nested paths
-        if input_path.contains('/') {
-            assert!(
-                display_output.contains('\\'),
-                "Windows virtual root should contain backslashes: {display_output}"
-            );
-        }
+        // Should not contain backslashes
+        assert!(
+            !display_output.contains('\\'),
+            "Virtual root display should not contain backslashes: {display_output}"
+        );
 
         println!("✅ Windows virtual root: {input_path} -> {display_output}");
     }
@@ -1522,48 +1501,17 @@ fn test_virtual_root_platform_consistency() {
     let jailed_path = validator.try_path("users/alice/file.txt").unwrap();
     let display_output = format!("{jailed_path}");
 
-    // Should always start with the platform's main separator
-    let expected_start = std::path::MAIN_SEPARATOR;
+    // Should always start with a forward slash (cross-platform contract)
     assert!(
-        display_output.starts_with(expected_start),
-        "Virtual root should start with platform separator '{expected_start}': {display_output}"
+        display_output.starts_with('/'),
+        "Virtual root should start with forward slash: {display_output}"
     );
-
-    // Verify platform-specific expectations
-    #[cfg(windows)]
-    {
-        assert!(
-            display_output.starts_with('\\'),
-            "Windows should use backslash"
-        );
-        assert!(
-            display_output.contains('\\'),
-            "Windows should contain backslashes"
-        );
-        println!("✅ Windows platform consistency verified: {display_output}");
-    }
-
-    #[cfg(unix)]
-    {
-        assert!(
-            display_output.starts_with('/'),
-            "Unix should use forward slash"
-        );
-        assert!(
-            !display_output.contains('\\'),
-            "Unix should not contain backslashes"
-        );
-        println!("✅ Unix platform consistency verified: {display_output}");
-    }
-
-    // Should match the behavior of std::path::MAIN_SEPARATOR
-    let separator_char = std::path::MAIN_SEPARATOR;
+    // Should not contain backslashes
     assert!(
-        display_output.starts_with(separator_char),
-        "Should use MAIN_SEPARATOR '{separator_char}' at start: {display_output}"
+        !display_output.contains('\\'),
+        "Virtual root display should not contain backslashes: {display_output}"
     );
-
-    println!("✅ Platform consistency verified with MAIN_SEPARATOR: '{separator_char}'");
+    println!("✅ Platform consistency verified: {display_output}");
 
     // Cleanup
     cleanup_test_directory(&temp_dir);

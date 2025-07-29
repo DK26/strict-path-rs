@@ -36,12 +36,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Path methods still work:");
     println!("  Document filename: {:?}", user_doc.file_name());
     println!("  Document extension: {:?}", user_doc.extension());
-    println!("  Document parent: {:?}", user_doc.parent());
+    println!("  Document parent: {:?}", user_doc.virtual_parent());
     println!();
 
     // Works with file operations (AsRef<Path>)
     println!("File operations work seamlessly:");
-    match std::fs::metadata(&user_doc) {
+    match user_doc.metadata() {
         Ok(metadata) => println!("  Document exists: {} bytes", metadata.len()),
         Err(_) => println!("  Document doesn't exist (that's fine for this demo)"),
     }

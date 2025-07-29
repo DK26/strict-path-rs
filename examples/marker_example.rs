@@ -10,7 +10,7 @@ fn main() -> Result<(), JailedPathError> {
     // Unmarked validator (no generics needed)
     let generic_validator: PathValidator = PathValidator::with_jail(&current_dir)?;
     match generic_validator.try_path("Cargo.toml") {
-        Ok(generic_path) => println!("Generic path: {}", generic_path.display()),
+        Ok(generic_path) => println!("Generic path: {}", generic_path.virtual_display()),
         Err(e) => println!("Error: {e}"),
     }
 
@@ -18,7 +18,7 @@ fn main() -> Result<(), JailedPathError> {
     let image_validator: PathValidator<ImageResource> = PathValidator::with_jail(&current_dir)?;
     match image_validator.try_path("Cargo.toml") {
         Ok(image_path) => {
-            println!("Image resource path: {}", image_path.display());
+            println!("Image resource path: {}", image_path.virtual_display());
             process_images(image_path); // Use the function to avoid dead code warning
         }
         Err(e) => println!("Error: {e}"),
@@ -28,7 +28,7 @@ fn main() -> Result<(), JailedPathError> {
     let user_validator: PathValidator<UserData> = PathValidator::with_jail(&current_dir)?;
     match user_validator.try_path("Cargo.toml") {
         Ok(user_path) => {
-            println!("User data path: {}", user_path.display());
+            println!("User data path: {}", user_path.virtual_display());
             process_user_data(user_path); // Use the function to avoid dead code warning
         }
         Err(e) => println!("Error: {e}"),

@@ -14,7 +14,7 @@ fn main() -> Result<(), JailedPathError> {
     // Test valid path
     match validator.try_path("Cargo.toml") {
         Ok(jailed_path) => {
-            println!("✓ Valid path: {}", jailed_path.display());
+            println!("✓ Valid path: {}", jailed_path.virtual_display());
         }
         Err(e) => {
             println!("✗ Unexpected error: {e}");

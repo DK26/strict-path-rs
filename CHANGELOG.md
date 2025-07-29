@@ -10,24 +10,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Clamping for traversal and absolute paths: All `..` and absolute paths are clamped to jail root, not blocked
-- Virtual Root Display: Clean Display/Debug traits for user-facing paths, cross-platform separator support, memory-efficient jail root (Arc<PathBuf>), comprehensive platform-specific and security tests, and demonstration example.
-- Type-safe clamped path API: `ClampedPath` type enforces security at compile time
-- Integration tests for clamping and virtual root
-- Documentation and examples for new clamping behavior
+- **Type-state path security API:** Introduced `StagedPath<State>` generic struct with marker types (`Raw`, `Clamped`, `JoinedJail`, `Canonicalized`, `BoundaryChecked`).
+  - _Note: `StagedPath<State>` is an internal-use API that powers the security guarantees of this crate. It is not required for most users, but ensures that no validation steps are ever skipped and provides a clear, type-level record of how the inner `PathBuf` was processed. This gives strong compile-time guarantees and makes the codebase auditable and extensible, without adding complexity for typical crate users._
+- **JailedPath refactor:** `JailedPath` now uses `Arc<StagedPath<(Raw, Canonicalized)>>` for jail roots, and is a drop-in replacement for `PathBuf` with enhanced security and PartialEq/Ord implementations.
+- **Clamping and canonicalization:** All clamping, normalization, and canonicalization logic is now handled by `StagedPath` and its methods (`.clamp()`, `.canonicalize()`, `.join_jail()`, `.boundary_check()`).
+- **PartialEq and Borrow:** `JailedPath` implements `PartialEq` for `Path`, `PathBuf`, and `&str`, and `Borrow<Path>` for use as map keys.
+- **Extensive tests:** New and updated tests for all type-state transitions, clamping, canonicalization, and jail boundary checks.
+- **Improved documentation:** All doc comments and examples updated for new API, including type-state explanations and migration notes.
 
 ### Changed
-- PathValidator: Clamping replaces blocking for traversal and absolute paths
-- Integration tests: Updated to expect clamping
-- README: Security guarantees clarified
+- **PathValidator:** Now uses `StagedPath` for all jail and candidate path handling. Jail existence check allows non-existent jails, but requires directories if present.
+- **Clamping logic:** Absolute paths are forcibly clamped to jail root; all root components are stripped before joining to jail.
+- **Integration and unit tests:** Updated to use new type-state API and dynamic jail roots.
+- **README and docs:** Updated to explain type-state pattern, marker types, and new security guarantees.
 
 ### Removed / Refactored
-- **BREAKING**: Removed `PathValidator::clamp_path`. `ClampedPath` is now constructed directly via `ClampedPath::new`, which handles clamping, normalization, and virtual root logic internally.
-- All usages and tests updated to use `ClampedPath::new` directly instead of `clamp_path`.
-- `ClampedPath` is now fully responsible for path clamping and normalization, including Windows drive prefixes and UNC paths.
+- **BREAKING:** Removed `ClampedPath` type and all related logic. All clamping and normalization is now performed by `StagedPath` and its `.clamp()` method.
+- **BREAKING:** Removed legacy newtypes and type aliases; all path handling now uses `StagedPath` and marker types.
+- **BREAKING:** All usages, tests, and documentation updated to use the new type-state API.
 
 ### Fixed
-- Various doc and comment improvements
+- Fixed: All Clippy lints (needless_borrow, redundant_clone) resolved. All doctests and integration tests pass. Absolute path clamping logic fixed. Documentation and examples now compile and run successfully.
 
 ## [0.0.3] - 2025-07-21
 

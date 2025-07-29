@@ -1,9 +1,185 @@
-use crate::clamped_path::ClampedPath;
+// (JailPath type alias removed; use StagedPath<Canonicalized> directly)
+///
+/// Path after boundary check against the jail root.
+pub struct BoundaryChecked;
+// --- Type-State Markers ---
+#[derive(Debug, Clone)]
+/// The original, unchecked path as provided by the user.
+pub struct Raw;
+#[derive(Debug, Clone)]
+/// Path after normalization of `.` and `..` components (clamping).
+pub struct Clamped;
+#[derive(Debug, Clone)]
+/// Path after being joined to the jail root.
+pub struct JoinedJail;
+#[derive(Debug, Clone)]
+/// Path after canonicalization (symlinks resolved, absolute).
+pub struct Canonicalized;
+
+/// # Understanding `StagedPath` Type Parameters
+///
+/// `StagedPath<State>` uses Rust’s type system to track the exact sequence of security-relevant
+/// transformations a path has undergone. The `State` parameter is a tuple of marker types,
+/// each representing a processing stage (e.g., `Raw`, `Clamped`, `JoinedJail`, `Canonicalized`, `BoundaryChecked`).
+///
+/// ## How to Read the Type
+///
+/// - The **innermost** type (leftmost in the tuple) is always `Raw`, representing the original, unchecked path.
+/// - Each additional marker (added as you call methods like `.clamp()`, `.join_jail()`, `.canonicalize()`, `.boundary_check()`)
+///   is appended to the tuple, in the order the operations were performed.
+/// - The **outermost** type (rightmost in the tuple) is the most recent operation performed.
+///
+/// ### Example
+///
+/// ```rust
+/// use jailed_path::validator::{StagedPath, Raw, Clamped, JoinedJail, Canonicalized, BoundaryChecked};
+/// // This type means: Raw -> Clamped -> JoinedJail -> Canonicalized -> BoundaryChecked
+/// type SecurePath = StagedPath<((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>;
+/// ```
+///
+/// ## Why This Matters
+///
+/// - **Security:** The type system enforces that no step is skipped or reordered.
+/// - **Auditability:** Anyone reading the type knows exactly what has been done to the path.
+/// - **Extensibility:** New security steps can be added as new marker types.
+///
+/// ## Typical Flow
+///
+/// ```rust
+/// use jailed_path::validator::{StagedPath, Raw, Clamped, JoinedJail, Canonicalized, BoundaryChecked};
+/// let jail = StagedPath::<Raw>::new("/jail").canonicalize().unwrap();
+/// let staged = StagedPath::new("user_upload.txt")
+///     .clamp()
+///     .join_jail(&jail)
+///     .canonicalize().unwrap()
+///     .boundary_check(&jail).unwrap();
+/// // staged: StagedPath<((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>
+/// ```
+///
+/// ## Type Aliases for Common States
+///
+/// For convenience, you may define type aliases for common state combinations:
+///
+/// ```rust
+/// use jailed_path::validator::{StagedPath, Raw, Clamped, JoinedJail, Canonicalized, BoundaryChecked};
+/// type FullyChecked = StagedPath<((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>;
+/// ```
+///
+/// ## Advanced Usage
+///
+/// You can branch or skip steps (if your security policy allows), and the type will always reflect the actual processing history.
+///
+/// ---
+///
+/// **In summary:**  
+/// The `StagedPath` type parameter is a type-level log of all security-relevant processing steps applied to a path.
+#[derive(Debug, Clone)]
+pub struct StagedPath<State> {
+    inner: std::path::PathBuf,
+    _marker: std::marker::PhantomData<State>,
+}
+
+impl StagedPath<Raw> {
+    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Self {
+        StagedPath {
+            inner: path.as_ref().to_path_buf(),
+            _marker: std::marker::PhantomData,
+        }
+    }
+    // Only new() is implemented for StagedPath<Raw>. All transitions are on impl<S> StagedPath<S>.
+}
+
+// join_jail now requires the jail to be a canonicalized path (no unconstrained S2)
+impl<S> StagedPath<(S, Clamped)> {
+    pub fn join_jail(
+        self,
+        jail: &StagedPath<(Raw, Canonicalized)>,
+    ) -> StagedPath<((S, Clamped), JoinedJail)> {
+        let joined = jail.inner.join(self.inner);
+        StagedPath {
+            inner: joined,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S> StagedPath<S> {
+    /// Consumes the StagedPath and returns the inner PathBuf.
+    pub fn into_inner(self) -> std::path::PathBuf {
+        self.inner
+    }
+    pub fn clamp(self) -> StagedPath<(S, Clamped)> {
+        use std::path::Component;
+        let mut stack: Vec<Component> = Vec::new();
+        let components = self.inner.components();
+        // Remove all root components (RootDir, Prefix) to force jail-relative
+        for comp in components {
+            match comp {
+                Component::RootDir | Component::Prefix(_) => continue,
+                Component::ParentDir => {
+                    if let Some(last) = stack.last() {
+                        if *last != Component::RootDir {
+                            stack.pop();
+                        }
+                    }
+                }
+                Component::CurDir => {}
+                other => stack.push(other),
+            }
+        }
+        let mut normalized = std::path::PathBuf::new();
+        for comp in stack {
+            normalized.push(comp.as_os_str());
+        }
+        StagedPath {
+            inner: normalized,
+            _marker: std::marker::PhantomData,
+        }
+    }
+    pub fn canonicalize(self) -> Result<StagedPath<(S, Canonicalized)>> {
+        // Inline soft_canonicalize logic (assume soft_canonicalize::soft_canonicalize is available)
+        let canon = soft_canonicalize::soft_canonicalize(&self.inner)
+            .map_err(|e| JailedPathError::path_resolution_error(self.inner.clone(), e))?;
+        Ok(StagedPath {
+            inner: canon,
+            _marker: std::marker::PhantomData,
+        })
+    }
+    pub fn as_path(&self) -> &std::path::Path {
+        &self.inner
+    }
+}
+
+// Boundary check for canonicalized path, adds BoundaryChecked stage
+// Only callable on StagedPath<(((S, Clamped), JoinedJail), Canonicalized)>
+#[allow(clippy::type_complexity)]
+impl<S> StagedPath<(((S, Clamped), JoinedJail), Canonicalized)> {
+    pub fn boundary_check(
+        self,
+        jail: &StagedPath<(Raw, Canonicalized)>,
+    ) -> Result<StagedPath<((((S, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>> {
+        if !self.inner.starts_with(jail.as_path()) {
+            return Err(JailedPathError::path_escapes_boundary(
+                self.inner,
+                jail.as_path().to_path_buf(),
+            ));
+        }
+        Ok(StagedPath {
+            inner: self.inner,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+// Example: Only allow JailedPath construction from a specific state
+// (Removed into_jailed_path using CanonicalizedPath; use StagedPath<Canonicalized> directly)
+// use crate::clamped_path::ClampedPath; // removed, use StagedPath type-state API
 use crate::jailed_path::JailedPath;
 use crate::{JailedPathError, Result};
-use soft_canonicalize::soft_canonicalize;
+// use soft_canonicalize::soft_canonicalize;
+// use crate::jailed_path::CanonicalizedPath;
 use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 /// Path Validator with Security-First Soft Canonicalization
@@ -42,30 +218,40 @@ use std::sync::Arc;
 /// ## Examples
 ///
 /// ```rust
-/// # use jailed_path::PathValidator;
-/// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// # std::fs::create_dir_all("uploads")?;
-/// let validator = PathValidator::<()>::with_jail("uploads")?;
+/// use jailed_path::PathValidator;
+/// use jailed_path::JailedPathError;
+/// use std::fs;
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     fs::create_dir_all("uploads")?;
+///     fs::write("uploads/existing_file.txt", "test")?;
+///     let validator = PathValidator::<()>::with_jail("uploads")?;
 ///
-/// // Existing files work
-/// let path = validator.try_path("existing_file.txt")?;
+///     // Existing files work
+///     let _path = validator.try_path("existing_file.txt")?;
 ///
-/// // Non-existent files for writing also work  
-/// let path = validator.try_path("user123/new_document.pdf")?;
+///     // Non-existent files for writing also work  
+///     let _path = validator.try_path("user123/new_document.pdf")?;
 ///
-/// // Traversal attacks are blocked
-/// assert!(validator.try_path("../../../sensitive.txt").is_err());
-/// # std::fs::remove_dir_all("uploads").ok();
-/// # Ok(())
-/// # }
+///     // Traversal attacks are clamped to the jail root (no error is returned)
+///     let _ = validator.try_path("../../../sensitive.txt")?;
+///     fs::remove_dir_all("uploads").ok();
+///     Ok(())
+/// }
 /// ```
 #[derive(Debug, Clone)]
 pub struct PathValidator<Marker = ()> {
-    jail: Arc<PathBuf>,
+    jail: Arc<StagedPath<(Raw, Canonicalized)>>,
     _marker: PhantomData<Marker>,
 }
 
 impl<Marker> PathValidator<Marker> {
+    /// Like try_path, but normalizes all backslashes to slashes before validation.
+    /// Use this for any external or untrusted string path to ensure cross-platform consistency.
+    #[inline]
+    pub fn try_path_normalized(&self, path_str: &str) -> Result<JailedPath<Marker>> {
+        let normalized = path_str.replace('\\', "/");
+        self.try_path(normalized)
+    }
     /// Creates a new PathValidator with the specified jail directory.
     ///
     /// This constructor performs strict validation to ensure the jail is a valid, existing directory.
@@ -97,30 +283,33 @@ impl<Marker> PathValidator<Marker> {
     ///
     /// # Examples
     /// ```rust
-    /// # use jailed_path::PathValidator;
-    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// # std::fs::create_dir_all("valid_jail")?;
-    /// // ✅ Valid jail directory
-    /// let validator = PathValidator::<()>::with_jail("valid_jail")?;
+    /// use jailed_path::PathValidator;
+    /// use jailed_path::JailedPathError;
+    /// use std::fs;
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     fs::create_dir_all("valid_jail")?;
+    ///     // ✅ Valid jail directory
+    ///     let _validator = PathValidator::<()>::with_jail("valid_jail")?;
     ///
-    /// // ❌ Non-existent directory
-    /// assert!(PathValidator::<()>::with_jail("does_not_exist").is_err());
+    ///     // Non-existent directory is allowed (validator is created)
+    ///     let _ = PathValidator::<()>::with_jail("does_not_exist")?;
     ///
-    /// # std::fs::write("not_a_dir.txt", "content")?;
-    /// // ❌ Path exists but is not a directory
-    /// assert!(PathValidator::<()>::with_jail("not_a_dir.txt").is_err());
-    /// # std::fs::remove_file("not_a_dir.txt").ok();
-    /// # std::fs::remove_dir_all("valid_jail").ok();
-    /// # Ok(())
-    /// # }
+    ///     fs::write("not_a_dir.txt", "content")?;
+    ///     // ❌ Path exists but is not a directory
+    ///     assert!(PathValidator::<()>::with_jail("not_a_dir.txt").is_err());
+    ///     fs::remove_file("not_a_dir.txt").ok();
+    ///     fs::remove_dir_all("valid_jail").ok();
+    ///     Ok(())
+    /// }
     /// ```
     pub fn with_jail<P: AsRef<Path>>(jail: P) -> Result<Self> {
         let jail_path = jail.as_ref();
-        let canonical_jail = soft_canonicalize(jail_path)
-            .map_err(|e| JailedPathError::path_resolution_error(jail_path.to_path_buf(), e))?;
+        // Use StagedPath and its canonicalize method for jail path processing
+        let staged = StagedPath::<Raw>::new(jail_path);
+        let canonicalized = staged.canonicalize()?;
 
-        // If jail exists, it must be a directory
-        if canonical_jail.exists() && !canonical_jail.is_dir() {
+        // If jail exists, it must be a directory; if it does not exist, allow it
+        if canonicalized.inner.exists() && !canonicalized.inner.is_dir() {
             let error =
                 std::io::Error::new(std::io::ErrorKind::NotFound, "path is not a directory");
             return Err(JailedPathError::invalid_jail(
@@ -130,7 +319,7 @@ impl<Marker> PathValidator<Marker> {
         }
 
         Ok(Self {
-            jail: Arc::new(canonical_jail),
+            jail: Arc::new(canonicalized),
             _marker: PhantomData,
         })
     }
@@ -155,32 +344,24 @@ impl<Marker> PathValidator<Marker> {
     /// - Validating paths for file reading (existing paths)
     /// - Any security-critical path validation
     pub fn try_path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
-        let candidate_path = candidate_path.as_ref();
+        // STEP 1: Clamp the candidate path
+        let clamped = StagedPath::<Raw>::new(candidate_path.as_ref()).clamp();
 
-        // STEP 1: Create clamped path (type system enforces this step)
-        let clamped_path: ClampedPath = ClampedPath::new(candidate_path);
+        // STEP 2: Join to jail root (type-state: ((Raw, Clamped), JoinedJail))
+        let joined = clamped.join_jail(&self.jail);
 
-        // STEP 2: Build full path using clamped path (guaranteed safe)
-        let full_path = self.jail.as_ref().join(clamped_path.as_path());
+        // STEP 3: Canonicalize (type-state: (((Raw, Clamped), JoinedJail), Canonicalized))
+        let canon = joined.canonicalize()?;
 
-        // STEP 3: Canonicalize for symlink resolution
-        let resolved_path = soft_canonicalize(full_path)
-            .map_err(|e| JailedPathError::path_resolution_error(candidate_path.to_path_buf(), e))?;
+        // STEP 4: Boundary check (type-state: ((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked))
+        let checked = canon.boundary_check(&self.jail)?;
 
-        // STEP 4: Boundary check (primarily detects symlink escapes)
-        if !resolved_path.starts_with(self.jail.as_ref()) {
-            return Err(JailedPathError::path_escapes_boundary(
-                resolved_path,
-                self.jail.as_ref().to_path_buf(),
-            ));
-        }
-
-        Ok(JailedPath::new(resolved_path, self.jail.clone()))
+        Ok(JailedPath::new(checked, self.jail.clone()))
     }
 
     // ...existing code...
 
     pub fn jail(&self) -> &Path {
-        &self.jail
+        self.jail.as_path()
     }
 }
