@@ -10,13 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Type-state path security API:** Introduced `StagedPath<State>` generic struct with marker types (`Raw`, `Clamped`, `JoinedJail`, `Canonicalized`, `BoundaryChecked`).
-  - _Note: `StagedPath<State>` is an internal-use API that powers the security guarantees of this crate. It is not required for most users, but ensures that no validation steps are ever skipped and provides a clear, type-level record of how the inner `PathBuf` was processed. This gives strong compile-time guarantees and makes the codebase auditable and extensible, without adding complexity for typical crate users._
-- **JailedPath refactor:** `JailedPath` now uses `Arc<StagedPath<(Raw, Canonicalized)>>` for jail roots, and is a drop-in replacement for `PathBuf` with enhanced security and PartialEq/Ord implementations.
-- **Clamping and canonicalization:** All clamping, normalization, and canonicalization logic is now handled by `StagedPath` and its methods (`.clamp()`, `.canonicalize()`, `.join_jail()`, `.boundary_check()`).
-- **PartialEq and Borrow:** `JailedPath` implements `PartialEq` for `Path`, `PathBuf`, and `&str`, and `Borrow<Path>` for use as map keys.
-- **Extensive tests:** New and updated tests for all type-state transitions, clamping, canonicalization, and jail boundary checks.
-- **Improved documentation:** All doc comments and examples updated for new API, including type-state explanations and migration notes.
+- Virtual root display: Jailed paths now always display as starting from the jail root, using forward slashes (`/`) on all platforms.
+- Internal type-state engine (`StagedPath`): All path validation now uses a type-state pipeline for strict, auditable security guarantees. This benefits crate development and advanced users, but is fully hidden from typical API usage.
+- Improved docs, roadmap, and tests for new clamping, canonicalization, and display logic.
+
+### Changed
+- All path validation now clamps traversal and absolute paths to the jail root; escapes are never allowed.
+- `JailedPath` and `PathValidator` refactored for stricter jail enforcement and cross-platform consistency.
+
+### Removed / Refactored
+- **BREAKING:** Removed legacy types and traversal rejection; all path handling now clamps to jail root.
+
+### Fixed
+- Clippy lints, cross-platform display, and documentation issues.
 
 ### Changed
 - **PathValidator:** Now uses `StagedPath` for all jail and candidate path handling. Jail existence check allows non-existent jails, but requires directories if present.
