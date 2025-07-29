@@ -6,7 +6,7 @@
 [![CI](https://github.com/DK26/jailed-path-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DK26/jailed-path-rs/actions/workflows/ci.yml)
 [![Type-State Police](https://img.shields.io/badge/protected%20by-Type--State%20Police-blue.svg)](https://github.com/DK26/jailed-path-rs)
 
-**Advanced path validation: symlink-safe, multi-jail, compile-time guaranteed**
+**Compile-time secure path validation: type-guaranteed safety with symlink protection and virtual roots**
 
 > *New from the Type-State Police Department! Putting your paths in jail!*
 
