@@ -22,75 +22,75 @@ This roadmap outlines the planned evolution of the `jailed-path` crate based on 
 
 ## 📋 Task Tracking Matrix
 
-| Phase                                            | Feature                                           | Status | Priority     | Notes                                                                                                                 |
-| ------------------------------------------------ | ------------------------------------------------- | ------ | ------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Phase                                            | Feature                                           | Status | Priority     | Notes                                                                                                          |
+| ------------------------------------------------ | ------------------------------------------------- | ------ | ------------ | -------------------------------------------------------------------------------------------------------------- |
 | **Phase 1: Core UX & Web Integration (v0.1.0)**  |
-| 1.1                                              | Virtual Root Display                              | ✅      | 1 - CRITICAL | Store jail root in JailedPath, implement Display trait                                                                |
-| 1.1.0                                            | **Fix jail creation canonicalization**            | ✅      | 1 - CRITICAL | Now uses soft_canonicalize in PathValidator::with_jail; supports non-existent jails                                   |
-| 1.1.1                                            | Store jail root as `Arc<PathBuf>` in `JailedPath` | ✅      | 1 - CRITICAL | Implemented for memory-efficient jail root                                                                            |
-| 1.1.3                                            | Implement `Display` trait                         | ✅      | 1 - CRITICAL | Implemented: virtual root display in `JailedPath`                                                                     |
-| 1.3                                              | Serde Support                                     | ⏳      | 1 - CRITICAL | Web API integration                                                                                                   |
-| 1.3.1                                            | Add `serde` feature flag                          | ⏳      | 1 - CRITICAL | Optional dependency                                                                                                   |
-| 1.3.2                                            | Implement `Serialize` for `JailedPath`            | ⏳      | 1 - CRITICAL | Serialize as relative path                                                                                            |
-| 1.1.4                                            | Add debug formatting                              | ✅      | 2 - HIGH     | Implemented: custom Debug for full path                                                                               |
-| 1.3.3                                            | Handle non-UTF-8 paths gracefully                 | ⏳      | 2 - HIGH     | Lossy conversion support                                                                                              |
-| 1.3.4                                            | Custom deserializer helpers                       | ⏳      | 2 - HIGH     | Common validation patterns                                                                                            |
-| 1.2                                              | Web Framework Integration                         | ⏳      | 2 - HIGH     | Examples and patterns                                                                                                 |
-| 1.2.1                                            | `examples/axum_file_server.rs`                    | ⏳      | 2 - HIGH     | Complete working Axum example                                                                                         |
-| 1.2.3                                            | Documentation: web framework patterns             | ⏳      | 2 - HIGH     | AppState patterns guide                                                                                               |
-| 1.2.2                                            | `examples/actix_web_integration.rs`               | ⏳      | 3 - MEDIUM   | Actix Web integration example                                                                                         |
-| 1.2.4                                            | Documentation: best practices guide               | ⏳      | 3 - MEDIUM   | Security best practices                                                                                               |
-| 1.4                                              | UTF-8 Helper Methods                              | ⏳      | 3 - MEDIUM   | Web developer convenience                                                                                             |
-| 1.4.1                                            | `to_str()` method                                 | ⏳      | 3 - MEDIUM   | UTF-8 string if possible                                                                                              |
-| 1.4.2                                            | `to_string_lossy()` method                        | ⏳      | 3 - MEDIUM   | Never fails, may be lossy                                                                                             |
-| 1.5                                              | Core Validation Functions                         | ⏳      | 1 - CRITICAL | Simple public API for path-in-jail validation                                                                         |
-| 1.5.1                                            | `try_jail<Marker=()>(jail, path)` function        | ⏳      | 1 - CRITICAL | Creates JailedPath with optional type markers                                                                         |
-| 1.1.0b                                           | **Optional TOCTOU Protection**                    | ⏳      | 4 - LOW      | Feature flag for runtime jail validation                                                                              |
-| 1.1.2                                            | ~~Add `relative_path()` method~~                  | ❌      | ~~MEDIUM~~   | Removed: Display trait is sufficient                                                                                  |
-| 1.4.3                                            | ~~`relative_str()` method~~                       | ❌      | ~~MEDIUM~~   | Removed: Display trait provides this                                                                                  |
+| 1.1                                              | Virtual Root Display                              | ✅      | 1 - CRITICAL | Store jail root in JailedPath, implement Display trait                                                         |
+| 1.1.0                                            | **Fix jail creation canonicalization**            | ✅      | 1 - CRITICAL | Now uses soft_canonicalize in PathValidator::with_jail; supports non-existent jails                            |
+| 1.1.1                                            | Store jail root as `Arc<PathBuf>` in `JailedPath` | ✅      | 1 - CRITICAL | Implemented for memory-efficient jail root                                                                     |
+| 1.1.3                                            | Implement `Display` trait                         | ✅      | 1 - CRITICAL | Implemented: virtual root display in `JailedPath`                                                              |
+| 1.3                                              | Serde Support                                     | ⏳      | 1 - CRITICAL | Web API integration                                                                                            |
+| 1.3.1                                            | Add `serde` feature flag                          | ⏳      | 1 - CRITICAL | Optional dependency                                                                                            |
+| 1.3.2                                            | Implement `Serialize` for `JailedPath`            | ⏳      | 1 - CRITICAL | Serialize as relative path                                                                                     |
+| 1.1.4                                            | Add debug formatting                              | ✅      | 2 - HIGH     | Implemented: custom Debug for full path                                                                        |
+| 1.3.3                                            | Handle non-UTF-8 paths gracefully                 | ⏳      | 2 - HIGH     | Lossy conversion support                                                                                       |
+| 1.3.4                                            | Custom deserializer helpers                       | ⏳      | 2 - HIGH     | Common validation patterns                                                                                     |
+| 1.2                                              | Web Framework Integration                         | ⏳      | 2 - HIGH     | Examples and patterns                                                                                          |
+| 1.2.1                                            | `examples/axum_file_server.rs`                    | ⏳      | 2 - HIGH     | Complete working Axum example                                                                                  |
+| 1.2.3                                            | Documentation: web framework patterns             | ⏳      | 2 - HIGH     | AppState patterns guide                                                                                        |
+| 1.2.2                                            | `examples/actix_web_integration.rs`               | ⏳      | 3 - MEDIUM   | Actix Web integration example                                                                                  |
+| 1.2.4                                            | Documentation: best practices guide               | ⏳      | 3 - MEDIUM   | Security best practices                                                                                        |
+| 1.4                                              | UTF-8 Helper Methods                              | ⏳      | 3 - MEDIUM   | Web developer convenience                                                                                      |
+| 1.4.1                                            | `to_str()` method                                 | ⏳      | 3 - MEDIUM   | UTF-8 string if possible                                                                                       |
+| 1.4.2                                            | `to_string_lossy()` method                        | ⏳      | 3 - MEDIUM   | Never fails, may be lossy                                                                                      |
+| 1.5                                              | Core Validation Functions                         | ⏳      | 1 - CRITICAL | Simple public API for path-in-jail validation                                                                  |
+| 1.5.1                                            | `try_jail<Marker=()>(jail, path)` function        | ⏳      | 1 - CRITICAL | Creates JailedPath with optional type markers                                                                  |
+| 1.1.0b                                           | **Optional TOCTOU Protection**                    | ⏳      | 4 - LOW      | Feature flag for runtime jail validation                                                                       |
+| 1.1.2                                            | ~~Add `relative_path()` method~~                  | ❌      | ~~MEDIUM~~   | Removed: Display trait is sufficient                                                                           |
+| 1.4.3                                            | ~~`relative_str()` method~~                       | ❌      | ~~MEDIUM~~   | Removed: Display trait provides this                                                                           |
 | **Phase 2: Advanced Security Features (v0.2.0)** |
-| 2.3                                              | Path-Complete API                                 | ⏳      | 1 - CRITICAL | Drop-in PathBuf replacement                                                                                           |
-| 2.3.6                                            | `Deref` to `Path` implementation                  | ✅      | 1 - CRITICAL | Zero-cost method forwarding                                                                                           |
-| 2.3.7                                            | Essential trait implementations                   | 🎯      | 1 - CRITICAL | `AsRef` and `Deref` implemented; NEXT: add `Borrow<Path>`, `PartialEq<Path>`, `PartialEq<PathBuf>`, `PartialEq<&str>` |
-| 2.3.1                                            | `join()` method returning `JailedPath`            | ⏳      | 1 - CRITICAL | Secure path joining                                                                                                   |
-| 2.3.2                                            | `parent()` method returning `JailedPath`          | ⏳      | 1 - CRITICAL | Secure parent navigation                                                                                              |
-| 2.3.5                                            | Conversion methods (`into_path_buf`, etc.)        | 🎯      | 1 - CRITICAL | `into_path_buf()` implemented; NEXT: add `into_inner()` alias                                                         |
-| 2.3.5a                                           | `into_inner()` method                             | ⏳      | 1 - CRITICAL | Alias for into_path_buf() following Rust patterns                                                                     |
-| 2.3.5b                                           | `to_bytes()` method                               | ⏳      | 2 - HIGH     | Raw bytes for specialized libraries                                                                                   |
-| 2.3.5c                                           | `into_bytes()` method                             | ⏳      | 2 - HIGH     | Owned bytes for specialized libraries                                                                                 |
-| 2.3.3                                            | `with_file_name()` method                         | ⏳      | 2 - HIGH     | File name replacement                                                                                                 |
-| 2.3.4                                            | `with_extension()` method                         | ⏳      | 2 - HIGH     | Extension replacement                                                                                                 |
-| 2.1.4                                            | Documentation: use cases & examples               | ⏳      | 3 - MEDIUM   | User/org/session patterns                                                                                             |
-| 2.2                                              | Observability & Tracing                           | ⏳      | 3 - MEDIUM   | Production monitoring                                                                                                 |
-| 2.2.1                                            | Add `tracing` feature flag                        | ⏳      | 3 - MEDIUM   | Optional dependency                                                                                                   |
-| 2.2.2                                            | `try_path_traced()` method                        | ⏳      | 3 - MEDIUM   | Structured logging                                                                                                    |
-| 2.2.3                                            | Security event classification                     | ⏳      | 4 - LOW      | Attack pattern detection                                                                                              |
-| 2.2.4                                            | Performance metrics                               | ⏳      | 4 - LOW      | Validation operation timing                                                                                           |
-| **Phase 3: Ecosystem & Performance (v0.3.0)**    |                                                   |        |              |                                                                                                                       |
-| 3.2                                              | Advanced Testing                                  | ⏳      | 2 - HIGH     | Security & compatibility                                                                                              |
-| 3.2.1                                            | Security vulnerability test suite                 | ⏳      | 2 - HIGH     | Path traversal attacks                                                                                                |
-| 3.2.2                                            | Symlink attack tests                              | ⏳      | 2 - HIGH     | Defense verification                                                                                                  |
-| 3.2.3                                            | Cross-platform edge cases                         | ⏳      | 3 - MEDIUM   | UNC paths, special files                                                                                              |
-| 3.2.4                                            | Non-UTF-8 filename tests                          | ⏳      | 3 - MEDIUM   | OS compatibility                                                                                                      |
-| 3.3                                              | Additional Framework Support                      | ⏳      | 3 - MEDIUM   | Ecosystem expansion                                                                                                   |
-| 3.3.1                                            | `examples/warp_integration.rs`                    | ⏳      | 3 - MEDIUM   | Warp framework                                                                                                        |
-| 3.3.2                                            | `examples/rocket_integration.rs`                  | ⏳      | 3 - MEDIUM   | Rocket framework                                                                                                      |
-| 3.3.3                                            | `examples/tide_integration.rs`                    | ⏳      | 3 - MEDIUM   | Tide framework                                                                                                        |
-| 3.3.4                                            | `examples/cli_tool.rs`                            | ⏳      | 3 - MEDIUM   | Command-line patterns                                                                                                 |
-| 3.1                                              | Performance Optimization                          | ⏳      | 4 - LOW      | Speed improvements                                                                                                    |
-| 3.1.1                                            | Benchmark suite vs alternatives                   | ⏳      | 4 - LOW      | path-clean, dunce, etc.                                                                                               |
-| 3.1.2                                            | Path component caching                            | ⏳      | 4 - LOW      | Repeated validations                                                                                                  |
-| 3.1.3                                            | Lazy canonicalization                             | ⏳      | 4 - LOW      | Performance-critical paths                                                                                            |
-| 3.1.4                                            | SIMD path traversal detection                     | ⏳      | 5 - RESEARCH | Experimental optimization                                                                                             |
-| **Phase 4: Research & Innovation (v0.4.0+)**     |                                                   |        |              |                                                                                                                       |
-| 4.1                                              | Advanced Security Research                        | ⏳      | 5 - RESEARCH | Future possibilities                                                                                                  |
-| 4.1.1                                            | Property-based testing with `proptest`            | ⏳      | 5 - RESEARCH | Automated testing                                                                                                     |
-| 4.1.2                                            | Automated attack pattern generation               | ⏳      | 5 - RESEARCH | Fuzzing integration                                                                                                   |
-| 4.1.3                                            | Formal verification research                      | ⏳      | 5 - RESEARCH | Mathematical proofs                                                                                                   |
-| 4.1.4                                            | OSS-Fuzz integration                              | ⏳      | 5 - RESEARCH | Continuous fuzzing                                                                                                    |
-| 4.2                                              | Architecture Research                             | ⏳      | 5 - RESEARCH | Future design                                                                                                         |
-| 4.2.1                                            | Plugin system feasibility study                   | ⏳      | 5 - RESEARCH | Custom canonicalization                                                                                               |
-| 4.2.2                                            | Performance vs security trade-offs                | ⏳      | 5 - RESEARCH | Architecture analysis                                                                                                 |
+| 2.3                                              | Path-Complete API                                 | ⏳      | 1 - CRITICAL | Drop-in PathBuf replacement                                                                                    |
+| 2.3.6                                            | `Deref` to `Path` implementation                  | ✅      | 1 - CRITICAL | Zero-cost method forwarding                                                                                    |
+| 2.3.7                                            | ~~Essential trait implementations~~               | ❌      | ~~CRITICAL~~ | ~~`AsRef`, `Borrow<Path>`, `PartialEq<Path>`, `PartialEq<PathBuf>`, `PartialEq<&str>`~~ (Cancelled: see below) |
+| 2.3.1                                            | `join()` method returning `JailedPath`            | ⏳      | 1 - CRITICAL | Secure path joining                                                                                            |
+| 2.3.2                                            | `parent()` method returning `JailedPath`          | ⏳      | 1 - CRITICAL | Secure parent navigation                                                                                       |
+| 2.3.5                                            | Conversion methods (`into_path_buf`, etc.)        | 🎯      | 1 - CRITICAL | `into_path_buf()` implemented; NEXT: add `into_inner()` alias                                                  |
+| 2.3.5a                                           | `into_inner()` method                             | ⏳      | 1 - CRITICAL | Alias for into_path_buf() following Rust patterns                                                              |
+| 2.3.5b                                           | `to_bytes()` method                               | ⏳      | 2 - HIGH     | Raw bytes for specialized libraries                                                                            |
+| 2.3.5c                                           | `into_bytes()` method                             | ⏳      | 2 - HIGH     | Owned bytes for specialized libraries                                                                          |
+| 2.3.3                                            | `with_file_name()` method                         | ⏳      | 2 - HIGH     | File name replacement                                                                                          |
+| 2.3.4                                            | `with_extension()` method                         | ⏳      | 2 - HIGH     | Extension replacement                                                                                          |
+| 2.1.4                                            | Documentation: use cases & examples               | ⏳      | 3 - MEDIUM   | User/org/session patterns                                                                                      |
+| 2.2                                              | Observability & Tracing                           | ⏳      | 3 - MEDIUM   | Production monitoring                                                                                          |
+| 2.2.1                                            | Add `tracing` feature flag                        | ⏳      | 3 - MEDIUM   | Optional dependency                                                                                            |
+| 2.2.2                                            | `try_path_traced()` method                        | ⏳      | 3 - MEDIUM   | Structured logging                                                                                             |
+| 2.2.3                                            | Security event classification                     | ⏳      | 4 - LOW      | Attack pattern detection                                                                                       |
+| 2.2.4                                            | Performance metrics                               | ⏳      | 4 - LOW      | Validation operation timing                                                                                    |
+| **Phase 3: Ecosystem & Performance (v0.3.0)**    |                                                   |        |              |                                                                                                                |
+| 3.2                                              | Advanced Testing                                  | ⏳      | 2 - HIGH     | Security & compatibility                                                                                       |
+| 3.2.1                                            | Security vulnerability test suite                 | ⏳      | 2 - HIGH     | Path traversal attacks                                                                                         |
+| 3.2.2                                            | Symlink attack tests                              | ⏳      | 2 - HIGH     | Defense verification                                                                                           |
+| 3.2.3                                            | Cross-platform edge cases                         | ⏳      | 3 - MEDIUM   | UNC paths, special files                                                                                       |
+| 3.2.4                                            | Non-UTF-8 filename tests                          | ⏳      | 3 - MEDIUM   | OS compatibility                                                                                               |
+| 3.3                                              | Additional Framework Support                      | ⏳      | 3 - MEDIUM   | Ecosystem expansion                                                                                            |
+| 3.3.1                                            | `examples/warp_integration.rs`                    | ⏳      | 3 - MEDIUM   | Warp framework                                                                                                 |
+| 3.3.2                                            | `examples/rocket_integration.rs`                  | ⏳      | 3 - MEDIUM   | Rocket framework                                                                                               |
+| 3.3.3                                            | `examples/tide_integration.rs`                    | ⏳      | 3 - MEDIUM   | Tide framework                                                                                                 |
+| 3.3.4                                            | `examples/cli_tool.rs`                            | ⏳      | 3 - MEDIUM   | Command-line patterns                                                                                          |
+| 3.1                                              | Performance Optimization                          | ⏳      | 4 - LOW      | Speed improvements                                                                                             |
+| 3.1.1                                            | Benchmark suite vs alternatives                   | ⏳      | 4 - LOW      | path-clean, dunce, etc.                                                                                        |
+| 3.1.2                                            | Path component caching                            | ⏳      | 4 - LOW      | Repeated validations                                                                                           |
+| 3.1.3                                            | Lazy canonicalization                             | ⏳      | 4 - LOW      | Performance-critical paths                                                                                     |
+| 3.1.4                                            | SIMD path traversal detection                     | ⏳      | 5 - RESEARCH | Experimental optimization                                                                                      |
+| **Phase 4: Research & Innovation (v0.4.0+)**     |                                                   |        |              |                                                                                                                |
+| 4.1                                              | Advanced Security Research                        | ⏳      | 5 - RESEARCH | Future possibilities                                                                                           |
+| 4.1.1                                            | Property-based testing with `proptest`            | ⏳      | 5 - RESEARCH | Automated testing                                                                                              |
+| 4.1.2                                            | Automated attack pattern generation               | ⏳      | 5 - RESEARCH | Fuzzing integration                                                                                            |
+| 4.1.3                                            | Formal verification research                      | ⏳      | 5 - RESEARCH | Mathematical proofs                                                                                            |
+| 4.1.4                                            | OSS-Fuzz integration                              | ⏳      | 5 - RESEARCH | Continuous fuzzing                                                                                             |
+| 4.2                                              | Architecture Research                             | ⏳      | 5 - RESEARCH | Future design                                                                                                  |
+| 4.2.1                                            | Plugin system feasibility study                   | ⏳      | 5 - RESEARCH | Custom canonicalization                                                                                        |
+| 4.2.2                                            | Performance vs security trade-offs                | ⏳      | 5 - RESEARCH | Architecture analysis                                                                                          |
 
 **Legend:**
 - ✅ **Completed** - Feature implemented and tested
@@ -121,7 +121,7 @@ This roadmap outlines the planned evolution of the `jailed-path` crate based on 
 
 **Path-Complete API (2.3):**
 - **Deref to Path (2.3.6)**: Enables zero-cost access to all Path methods - fundamental compatibility
-- **Essential traits (2.3.7)**: `AsRef`, `Borrow`, `PartialEq` needed for collections and ecosystem integration
+- **~~Essential traits (2.3.7)~~**: ~~`AsRef`, `Borrow`, `PartialEq` needed for collections and ecosystem integration~~ (❌ Cancelled, see below)
 - **Core path methods (2.3.1, 2.3.2)**: `join()` and `parent()` are essential for path manipulation
 - **Conversion methods (2.3.5, 2.3.5a)**: `into_path_buf()` and `into_inner()` needed for ecosystem compatibility
 
@@ -640,111 +640,31 @@ impl<Marker> PathValidator<Marker> {
 - Performance metrics for validation operations
 - Attack pattern detection and alerting
 
+
 ### 🔧 Path-Complete API (Like app-path's AppPath)
-**Goal**: Make JailedPath a drop-in replacement for PathBuf with security
+**Goal**: Make JailedPath a secure, ergonomic alternative to PathBuf, but not a drop-in replacement.
 
-Inspired by your `app-path` crate's `AppPath` design, implement full `Path` compliance:
+**Cancelled trait implementations:**
 
+> **Note:**
+> We decided to cancel and remove trait implementations such as `AsRef<Path>`, `Borrow<Path>`, `PartialEq<Path>`, `PartialEq<PathBuf>`, and `PartialEq<&str>`. The reason is to prevent unintentional leakage of the inner `Path`, which does not enforce safety guarantees. Relying on the inner path, mistakenly thinking you are working with the `JailedPath` object, could allow API misuse—such as using the `.join()` method of `Path`, which can accept an absolute path and override the jail. This would break our safety guarantee. Traits like `Deref`, `AsRef<Path>`, and `Borrow<Path>` make these mistakes easy. Our solution is to require users to be explicit: call `.real_path()` to access the inner path, and for joining paths, use `.virtual_join()` (and possibly `.real_join()` in the future). This ensures all path operations remain jail-safe by default.
+
+**Current API:**
+- No `Deref`, `AsRef<Path>`, or `Borrow<Path>` for `JailedPath`.
+- All path manipulations must use explicit, jail-aware methods (e.g., `.virtual_join()`).
+- To access the real path, use `.real_path()`.
+
+**Benefits:**
+- Prevents accidental API misuse that could break jail guarantees.
+- Makes safety boundaries explicit in user code.
+
+**Example:**
 ```rust
-impl<Marker> JailedPath<Marker> {
-    // Only implement methods that would return PathBuf/Path types
-    // All other methods inherited via Deref to Path
-    
-    pub fn join<P: AsRef<Path>>(&self, path: P) -> Result<JailedPath<Marker>> {
-        let joined = self.path.join(path.as_ref());
-        // Validate the joined path is still within jail
-        self.validator.validate_path(joined)
-    }
-    
-    pub fn parent(&self) -> Option<JailedPath<Marker>> {
-        self.path.parent().and_then(|p| {
-            // Only return parent if it's still within jail
-            self.validator.try_path(p).ok()
-        })
-    }
-    
-    pub fn with_file_name<S: AsRef<OsStr>>(&self, name: S) -> Result<JailedPath<Marker>> {
-        let new_path = self.path.with_file_name(name);
-        self.validator.validate_path(new_path)
-    }
-    
-    pub fn with_extension<S: AsRef<OsStr>>(&self, ext: S) -> Result<JailedPath<Marker>> {
-        let new_path = self.path.with_extension(ext);
-        self.validator.validate_path(new_path)
-    }
-    
-    // Conversion methods (like app-path)
-    pub fn into_path_buf(self) -> PathBuf { self.path }
-    pub fn into_inner(self) -> PathBuf { self.path }  // Alias following Rust patterns
-    pub fn into_os_string(self) -> OsString { self.path.into_os_string() }
-    pub fn into_boxed_path(self) -> Box<Path> { self.path.into_boxed_path() }
-    
-    // Ecosystem compatibility methods (from app-path crate)
-    pub fn to_bytes(&self) -> &[u8] { 
-        #[cfg(unix)]
-        {
-            use std::os::unix::ffi::OsStrExt;
-            self.path.as_os_str().as_bytes()
-        }
-        #[cfg(windows)]
-        {
-            // On Windows, convert to UTF-8 bytes (may be lossy)
-            self.path.to_string_lossy().as_bytes()
-        }
-    }
-    
-    pub fn into_bytes(self) -> Vec<u8> {
-        #[cfg(unix)]
-        {
-            use std::os::unix::ffi::OsStrExt;
-            self.path.into_os_string().as_bytes().to_vec()
-        }
-        #[cfg(windows)]
-        {
-            // On Windows, convert to UTF-8 bytes (may be lossy)
-            self.path.to_string_lossy().into_owned().into_bytes()
-        }
-    }
-}
+// Instead of: let joined = jailed_path.join("/etc/passwd"); // (unsafe, not allowed)
+// Use: let joined = jailed_path.virtual_join("subdir/file.txt")?; // (jail-safe)
 
-// Essential trait implementations for Path compatibility
-impl<Marker> std::ops::Deref for JailedPath<Marker> {
-    type Target = Path;
-    fn deref(&self) -> &Self::Target { &self.path }
-}
-
-// This gives us ALL Path methods for free:
-// - file_name(), file_stem(), extension()
-// - is_absolute(), is_relative(), has_root()
-// - ancestors(), components(), iter()
-// - starts_with(), ends_with(), strip_prefix()
-// - as_os_str(), to_str(), to_string_lossy()
-// - display(), and many more!
-
-impl<Marker> AsRef<Path> for JailedPath<Marker> {
-    fn as_ref(&self) -> &Path { &self.path }
-}
-
-impl<Marker> AsRef<OsStr> for JailedPath<Marker> {
-    fn as_ref(&self) -> &OsStr { self.path.as_ref() }
-}
-
-impl<Marker> std::borrow::Borrow<Path> for JailedPath<Marker> {
-    fn borrow(&self) -> &Path { &self.path }
-}
-
-// Comparison traits (essential for collections)
-impl<Marker> PartialEq<Path> for JailedPath<Marker> {
-    fn eq(&self, other: &Path) -> bool { self.path == *other }
-}
-
-impl<Marker> PartialEq<PathBuf> for JailedPath<Marker> {
-    fn eq(&self, other: &PathBuf) -> bool { self.path == *other }
-}
-
-impl<Marker> PartialEq<&str> for JailedPath<Marker> {
-    fn eq(&self, other: &&str) -> bool { self.path == Path::new(other) }
-}
+// To access the real path for I/O:
+let real: &Path = jailed_path.real_path();
 ```
 
 **Security Guarantees**:
