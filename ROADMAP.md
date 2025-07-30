@@ -6,6 +6,48 @@
 This roadmap outlines the planned evolution of the `jailed-path` crate based on ecosystem research, user needs analysis, and security-first principles.
 
 
+
+## Planned: Jail-Safe File Operations Trait
+
+**Goal:** Provide ergonomic, jail-safe file operations directly on `JailedPath` without exposing the inner `Path` or relying on `Deref`/`AsRef<Path>`.
+
+**Rationale:**
+- Avoids accidental API misuse and path leaks.
+- Keeps file operations explicit and always jail-aware.
+- Improves ergonomics for users (no need to call `.real_path()` everywhere).
+
+**Proposed Trait Example:**
+```rust
+pub trait JailedFileOps {
+    fn read_bytes(&self) -> std::io::Result<Vec<u8>>;
+    fn write_bytes(&self, data: &[u8]) -> std::io::Result<()>;
+    fn read_string(&self) -> std::io::Result<String>;
+    // ...other jail-safe methods...
+}
+
+impl<Marker> JailedFileOps for JailedPath<Marker> {
+    fn read_bytes(&self) -> std::io::Result<Vec<u8>> {
+        std::fs::read(self.real_path())
+    }
+    fn write_bytes(&self, data: &[u8]) -> std::io::Result<()> {
+        std::fs::write(self.real_path(), data)
+    }
+    fn read_string(&self) -> std::io::Result<String> {
+        std::fs::read_to_string(self.real_path())
+    }
+    // ...
+}
+```
+
+**Benefits:**
+- All file operations are jail-safe by construction.
+- No trait-based leaks or accidental bypasses.
+- API is as convenient as using `Path`/`PathBuf` with standard library, but always secure.
+
+**Status:**
+- Planned for a future release. Feedback and suggestions welcome!
+
+---
 ## Current Status (v0.0.3)
 
 ✅ **Implemented**
