@@ -34,7 +34,9 @@ impl<Marker> PartialEq<JailedPath<Marker>> for Path {
         self == other.path.as_path()
     }
 }
-use crate::validator::{BoundaryChecked, Canonicalized, Clamped, JoinedJail, Raw, StagedPath};
+use crate::validator::staged_path::{
+    BoundaryChecked, Canonicalized, Clamped, JoinedJail, Raw, StagedPath,
+};
 // --- Error Type ---
 use crate::error::JailedPathError;
 
