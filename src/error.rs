@@ -5,6 +5,23 @@ use std::path::{Path, PathBuf};
 /// Maximum length for paths stored in error messages to prevent memory attacks
 const MAX_ERROR_PATH_LEN: usize = 256;
 
+/// Truncates a path display to prevent memory exhaustion attacks
+/// while preserving readability by showing both start and end of the path
+pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
+    let path_str = path.to_string_lossy();
+    if path_str.len() <= max_len {
+        path_str.into_owned()
+    } else {
+        // Keep beginning and end, indicate truncation
+        let keep_len = max_len.saturating_sub(5) / 2; // Reserve 5 chars for "..."
+        format!(
+            "{}...{}",
+            &path_str[..keep_len],
+            &path_str[path_str.len().saturating_sub(keep_len)..]
+        )
+    }
+}
+
 /// Errors that can occur during jailed path operations.
 #[derive(Debug)]
 pub enum JailedPathError {
@@ -31,23 +48,6 @@ pub enum JailedPathError {
         /// The underlying I/O error.
         source: std::io::Error,
     },
-}
-
-/// Truncates a path display to prevent memory exhaustion attacks
-/// while preserving readability by showing both start and end of the path
-pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
-    let path_str = path.to_string_lossy();
-    if path_str.len() <= max_len {
-        path_str.into_owned()
-    } else {
-        // Keep beginning and end, indicate truncation
-        let keep_len = max_len.saturating_sub(5) / 2; // Reserve 5 chars for "..."
-        format!(
-            "{}...{}",
-            &path_str[..keep_len],
-            &path_str[path_str.len().saturating_sub(keep_len)..]
-        )
-    }
 }
 
 impl JailedPathError {

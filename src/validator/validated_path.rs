@@ -1,5 +1,7 @@
 use crate::{JailedPathError, Result};
 use soft_canonicalize::soft_canonicalize;
+use std::ops::Deref;
+use std::path::Path;
 
 // --- Type-State Markers ---
 #[derive(Debug, Clone)]
@@ -17,9 +19,9 @@ pub struct Canonicalized;
 /// Path after boundary check against the jail root.
 pub struct BoundaryChecked;
 
-/// # Understanding `StagedPath` Type Parameters
+/// # Understanding `ValidatedPath` Type Parameters
 ///
-/// `StagedPath<State>` uses Rust’s type system to track the exact sequence of security-relevant
+/// `ValidatedPath<State>` uses Rust’s type system to track the exact sequence of security-relevant
 /// transformations a path has undergone. The `State` parameter is a tuple of marker types,
 /// each representing a processing stage (e.g., `Raw`, `Clamped`, `JoinedJail`, `Canonicalized`, `BoundaryChecked`).
 ///
@@ -33,9 +35,9 @@ pub struct BoundaryChecked;
 /// ### Example
 ///
 /// ```rust
-/// use jailed_path::validator::staged_path::{StagedPath, Raw, Clamped, JoinedJail, Canonicalized, BoundaryChecked};
+/// use jailed_path::validator::validated_path::{ValidatedPath, Raw, Clamped, JoinedJail, Canonicalized, BoundaryChecked};
 /// // This type means: Raw -> Clamped -> JoinedJail -> Canonicalized -> BoundaryChecked
-/// type SecurePath = StagedPath<((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>;
+/// type SecurePath = ValidatedPath<((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>;
 /// ```
 ///
 /// ## Why This Matters
@@ -47,14 +49,14 @@ pub struct BoundaryChecked;
 /// ## Typical Flow
 ///
 /// ```rust
-/// use jailed_path::validator::staged_path::{StagedPath, Raw, Clamped, JoinedJail, Canonicalized, BoundaryChecked};
-/// let jail = StagedPath::<Raw>::new("/jail").canonicalize().unwrap();
-/// let staged = StagedPath::new("user_upload.txt")
+/// use jailed_path::validator::validated_path::{ValidatedPath, Raw, Clamped, JoinedJail, Canonicalized, BoundaryChecked};
+/// let jail = ValidatedPath::<Raw>::new("/jail").canonicalize().unwrap();
+/// let validated = ValidatedPath::new("user_upload.txt")
 ///     .clamp()
 ///     .join_jail(&jail)
 ///     .canonicalize().unwrap()
 ///     .boundary_check(&jail).unwrap();
-/// // staged: StagedPath<((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>;
+/// // validated: ValidatedPath<((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>;
 /// ```
 ///
 /// ## Type Aliases for Common States
@@ -62,8 +64,8 @@ pub struct BoundaryChecked;
 /// For convenience, you may define type aliases for common state combinations:
 ///
 /// ```rust
-/// use jailed_path::validator::staged_path::{StagedPath, Raw, Clamped, JoinedJail, Canonicalized, BoundaryChecked};
-/// type FullyChecked = StagedPath<((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>;
+/// use jailed_path::validator::validated_path::{ValidatedPath, Raw, Clamped, JoinedJail, Canonicalized, BoundaryChecked};
+/// type FullyChecked = ValidatedPath<((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>;
 /// ```
 ///
 /// ## Advanced Usage
@@ -73,49 +75,58 @@ pub struct BoundaryChecked;
 /// ---
 ///
 /// **In summary:**  
-/// The `StagedPath` type parameter is a type-level log of all security-relevant processing steps applied to a path.
+/// The `ValidatedPath` type parameter is a type-level log of all security-relevant processing steps applied to a path.
 #[derive(Debug, Clone)]
-pub struct StagedPath<State> {
+pub struct ValidatedPath<State> {
     inner: std::path::PathBuf,
     _marker: std::marker::PhantomData<State>,
 }
 
-impl StagedPath<Raw> {
+impl<S> AsRef<Path> for ValidatedPath<S> {
+    fn as_ref(&self) -> &Path {
+        &self.inner
+    }
+}
+
+impl<S> Deref for ValidatedPath<S> {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl ValidatedPath<Raw> {
     pub fn new<P: AsRef<std::path::Path>>(path: P) -> Self {
-        StagedPath {
+        ValidatedPath {
             inner: path.as_ref().to_path_buf(),
             _marker: std::marker::PhantomData,
         }
     }
-    // Only new() is implemented for StagedPath<Raw>. All transitions are on impl<S> StagedPath<S>.
+    // Only new() is implemented for ValidatedPath<Raw>. All transitions are on impl<S> ValidatedPath<S>.
 }
 
 // join_jail now requires the jail to be a canonicalized path (no unconstrained S2)
-impl<S> StagedPath<(S, Clamped)> {
+impl<S> ValidatedPath<(S, Clamped)> {
     pub fn join_jail(
         self,
-        jail: &StagedPath<(Raw, Canonicalized)>,
-    ) -> StagedPath<((S, Clamped), JoinedJail)> {
+        jail: &ValidatedPath<(Raw, Canonicalized)>,
+    ) -> ValidatedPath<((S, Clamped), JoinedJail)> {
         let joined = jail.inner.join(self.inner);
-        StagedPath {
+        ValidatedPath {
             inner: joined,
             _marker: std::marker::PhantomData,
         }
     }
 }
 
-impl<S> StagedPath<S> {
-    /// Consumes the StagedPath and returns the inner PathBuf.
+impl<S> ValidatedPath<S> {
+    /// Consumes the ValidatedPath and returns the inner PathBuf.
     pub fn into_inner(self) -> std::path::PathBuf {
         self.inner
     }
 
-    /// Returns a reference to the inner PathBuf.
-    pub fn inner(&self) -> &std::path::PathBuf {
-        &self.inner
-    }
-
-    pub fn clamp(self) -> StagedPath<(S, Clamped)> {
+    pub fn clamp(self) -> ValidatedPath<(S, Clamped)> {
         use std::path::Component;
         let mut stack: Vec<Component> = Vec::new();
         let components = self.inner.components();
@@ -138,40 +149,37 @@ impl<S> StagedPath<S> {
         for comp in stack {
             normalized.push(comp.as_os_str());
         }
-        StagedPath {
+        ValidatedPath {
             inner: normalized,
             _marker: std::marker::PhantomData,
         }
     }
-    pub fn canonicalize(self) -> Result<StagedPath<(S, Canonicalized)>> {
+    pub fn canonicalize(self) -> Result<ValidatedPath<(S, Canonicalized)>> {
         // Inline soft_canonicalize logic (assume soft_canonicalize::soft_canonicalize is available)
         let canon = soft_canonicalize(&self.inner)
             .map_err(|e| JailedPathError::path_resolution_error(self.inner.clone(), e))?;
-        Ok(StagedPath {
+        Ok(ValidatedPath {
             inner: canon,
             _marker: std::marker::PhantomData,
         })
     }
-    pub fn as_path(&self) -> &std::path::Path {
-        &self.inner
-    }
 }
 
 // Boundary check for canonicalized path, adds BoundaryChecked stage
-// Only callable on StagedPath<(((S, Clamped), JoinedJail), Canonicalized)>
+// Only callable on ValidatedPath<(((S, Clamped), JoinedJail), Canonicalized)>
 #[allow(clippy::type_complexity)]
-impl<S> StagedPath<(((S, Clamped), JoinedJail), Canonicalized)> {
+impl<S> ValidatedPath<(((S, Clamped), JoinedJail), Canonicalized)> {
     pub fn boundary_check(
         self,
-        jail: &StagedPath<(Raw, Canonicalized)>,
-    ) -> Result<StagedPath<((((S, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>> {
-        if !self.inner.starts_with(jail.as_path()) {
+        jail: &ValidatedPath<(Raw, Canonicalized)>,
+    ) -> Result<ValidatedPath<((((S, Clamped), JoinedJail), Canonicalized), BoundaryChecked)>> {
+        if !self.starts_with(jail) {
             return Err(JailedPathError::path_escapes_boundary(
-                self.inner,
-                jail.as_path().to_path_buf(),
+                self.into_inner(),
+                jail.to_path_buf(),
             ));
         }
-        Ok(StagedPath {
+        Ok(ValidatedPath {
             inner: self.inner,
             _marker: std::marker::PhantomData,
         })

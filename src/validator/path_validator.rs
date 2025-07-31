@@ -1,4 +1,4 @@
-use super::staged_path::*;
+use super::validated_path::*;
 use crate::jailed_path::JailedPath;
 use crate::{JailedPathError, Result};
 use std::marker::PhantomData;
@@ -65,7 +65,7 @@ use std::sync::Arc;
 /// ```
 #[derive(Debug, Clone)]
 pub struct PathValidator<Marker = ()> {
-    jail: Arc<StagedPath<(Raw, Canonicalized)>>,
+    jail: Arc<ValidatedPath<(Raw, Canonicalized)>>,
     _marker: PhantomData<Marker>,
 }
 
@@ -129,14 +129,14 @@ impl<Marker> PathValidator<Marker> {
     /// ```
     pub fn with_jail<P: AsRef<Path>>(jail: P) -> Result<Self> {
         let jail_path = jail.as_ref();
-        // Use StagedPath and its canonicalize method for jail path processing
-        let staged = StagedPath::<Raw>::new(jail_path);
-        let canonicalized = staged.canonicalize()?;
+        // Use ValidatedPath and its canonicalize method for jail path processing
+        let validated_path = ValidatedPath::<Raw>::new(jail_path);
+        let canonicalized = validated_path.canonicalize()?;
 
         // If jail exists, it must be a directory; if it does not exist, allow it
-        if canonicalized.inner().exists() && !canonicalized.inner().is_dir() {
+        if canonicalized.exists() && !canonicalized.is_dir() {
             let error =
-                std::io::Error::new(std::io::ErrorKind::NotFound, "path is not a directory");
+                std::io::Error::other("The specified jail path exists but is not a directory.");
             return Err(JailedPathError::invalid_jail(
                 jail_path.to_path_buf(),
                 error,
@@ -168,7 +168,7 @@ impl<Marker> PathValidator<Marker> {
     /// - Any security-critical path validation
     pub fn try_path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
         // STEP 1: Clamp the candidate path
-        let clamped = StagedPath::<Raw>::new(candidate_path.as_ref()).clamp();
+        let clamped = ValidatedPath::<Raw>::new(candidate_path.as_ref()).clamp();
 
         // STEP 2: Join to jail root (type-state: ((Raw, Clamped), JoinedJail))
         let joined = clamped.join_jail(&self.jail);
@@ -179,12 +179,13 @@ impl<Marker> PathValidator<Marker> {
         // STEP 4: Boundary check (type-state: ((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked))
         let checked = canon.boundary_check(&self.jail)?;
 
-        Ok(JailedPath::new(checked, self.jail.clone()))
+        Ok(JailedPath::new(self.jail.clone(), checked))
     }
 
     // ...existing code...
 
+    #[inline]
     pub fn jail(&self) -> &Path {
-        self.jail.as_path()
+        &self.jail
     }
 }

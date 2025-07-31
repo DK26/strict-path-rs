@@ -58,7 +58,7 @@ impl<Marker> JailedFileOps for JailedPath<Marker> {
 - Zero false positives/negatives security guarantee
 - Clamping for traversal and absolute paths: All `..` and absolute paths are clamped to jail root, not blocked
 - Virtual root display: Paths shown as jail-relative, never leaking absolute paths
-**Type-safe clamped path API: `StagedPath` type-state API with `.clamp()` enforces security at compile time** (COMPLETED)
+**Type-safe clamped path API: `ValidatedPath` type-state API with `.clamp()` enforces security at compile time** (COMPLETED)
 - Integration tests for clamping and virtual root
 - Documentation and examples for new clamping behavior
 

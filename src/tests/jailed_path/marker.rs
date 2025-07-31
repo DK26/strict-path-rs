@@ -14,15 +14,15 @@ fn test_marker_type_is_zero_cost() {
         "Marker types should not increase memory footprint"
     );
 
-    // JailedPath now contains PathBuf + Arc<StagedPath<(Raw, Canonicalized)>> + PhantomData
-    // Arc<StagedPath<...>> is 8 bytes (pointer), StagedPath is 24 bytes on Windows, PhantomData is 0
+    // JailedPath now contains PathBuf + Arc<validated_path<(Raw, Canonicalized)>> + PhantomData
+    // Arc<validated_path<...>> is 8 bytes (pointer), validated_path is 24 bytes on Windows, PhantomData is 0
     // So total should be PathBuf + Arc size
     let expected_size = std::mem::size_of::<PathBuf>()
         + std::mem::size_of::<
             Arc<
-                crate::validator::staged_path::StagedPath<(
-                    crate::validator::staged_path::Raw,
-                    crate::validator::staged_path::Canonicalized,
+                crate::validator::validated_path::ValidatedPath<(
+                    crate::validator::validated_path::Raw,
+                    crate::validator::validated_path::Canonicalized,
                 )>,
             >,
         >();
@@ -42,26 +42,27 @@ fn test_different_marker_types_are_incompatible() {
 
     let test_path = PathBuf::from("path");
     let jail_root = Arc::new(
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
+        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
             "/test",
         )
         .canonicalize()
         .unwrap(),
     );
-    let staged =
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
-            test_path.clone(),
-        )
-        .clamp()
-        .join_jail(&jail_root)
-        .canonicalize()
-        .unwrap()
-        .boundary_check(&jail_root)
-        .unwrap();
-    let _image_path: JailedPath<ImageResource> = JailedPath::new(staged, Arc::clone(&jail_root));
-    // If you need another staged for a different marker, re-create it above as needed.
+    let validated_path = crate::validator::validated_path::ValidatedPath::<
+        crate::validator::validated_path::Raw,
+    >::new(test_path.clone())
+    .clamp()
+    .join_jail(&jail_root)
+    .canonicalize()
+    .unwrap()
+    .boundary_check(&jail_root)
+    .unwrap();
+    let _image_path: JailedPath<ImageResource> =
+        JailedPath::new(Arc::clone(&jail_root), validated_path);
+    // If you need another validated_path for a different marker, re-create it above as needed.
     let _user_path: JailedPath<UserData> = JailedPath::new(
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
+        jail_root.clone(),
+        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
             test_path,
         )
         .clamp()
@@ -70,7 +71,6 @@ fn test_different_marker_types_are_incompatible() {
         .unwrap()
         .boundary_check(&jail_root)
         .unwrap(),
-        jail_root,
     );
 
     // This test ensures that different marker types are treated as different types

@@ -2,7 +2,7 @@
 //!
 //! **Advanced path validation: symlink-safe, multi-jail, compile-time guaranteed**
 //!
-//! *Brought to you by the Type-State Police™ - because apparently YOU can't be trusted with file paths!*
+//! *Brought to you by the Type-State Police™ - because apparently YOU can't be trusted with file paths!* 
 //!
 //! `jailed-path` transforms runtime path validation into mathematical compile-time guarantees using Rust's type system. Unlike other validation libraries, it safely resolves and follows symbolic links while maintaining strict boundary enforcement.
 //!
@@ -73,6 +73,7 @@
 //!
 //! ## Key Features
 //!
+//! 
 //! - **Security First**: Prevents `../` path traversal attacks automatically
 //! - **Path Canonicalization**: Resolves symlinks and relative components safely
 //! - **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries  
@@ -84,6 +85,7 @@
 //!
 //! ## API Design
 //!
+//! 
 //! - [`PathValidator::with_jail()`] - Create validator with jail boundary
 //! - [`validator.try_path()`] - Validate a single path, returns `Result<JailedPath, JailedPathError>`
 //! - [`JailedPath`] - Validated path type (can ONLY be created via `try_path()`)
@@ -91,6 +93,7 @@
 //!
 //! ## Security Guarantees
 //!
+//! 
 //! All `..` components are blocked before processing, symbolic links are resolved, and paths are
 //! mathematically validated against the jail boundary. Path traversal attacks
 //! are impossible to bypass.
@@ -128,7 +131,6 @@
 //! Ok(())
 //! # }
 //! ```
-
 pub mod error;
 pub mod jailed_path;
 pub mod validator;

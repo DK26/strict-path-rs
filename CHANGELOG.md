@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Virtual root display: Jailed paths now always display as starting from the jail root, using forward slashes (`/`) on all platforms.
-- Internal type-state engine (`StagedPath`): All path validation now uses a type-state pipeline for strict, auditable security guarantees. This benefits crate development and advanced users, but is fully hidden from typical API usage.
+- Internal type-state engine (`ValidatedPath`): All path validation now uses a type-state pipeline for strict, auditable security guarantees. This benefits crate development and advanced users, but is fully hidden from typical API usage.
 - Improved docs, roadmap, and tests for new clamping, canonicalization, and display logic.
 
 ### Changed
@@ -25,14 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clippy lints, cross-platform display, and documentation issues.
 
 ### Changed
-- **PathValidator:** Now uses `StagedPath` for all jail and candidate path handling. Jail existence check allows non-existent jails, but requires directories if present.
+- **PathValidator:** Now uses `ValidatedPath` for all jail and candidate path handling. Jail existence check allows non-existent jails, but requires directories if present.
 - **Clamping logic:** Absolute paths are forcibly clamped to jail root; all root components are stripped before joining to jail.
 - **Integration and unit tests:** Updated to use new type-state API and dynamic jail roots.
 - **README and docs:** Updated to explain type-state pattern, marker types, and new security guarantees.
 
 ### Removed / Refactored
-- **BREAKING:** Removed `ClampedPath` type and all related logic. All clamping and normalization is now performed by `StagedPath` and its `.clamp()` method.
-- **BREAKING:** Removed legacy newtypes and type aliases; all path handling now uses `StagedPath` and marker types.
+- **BREAKING:** Removed `ClampedPath` type and all related logic. All clamping and normalization is now performed by `ValidatedPath` and its `.clamp()` method.
+- **BREAKING:** Removed legacy newtypes and type aliases; all path handling now uses `ValidatedPath` and marker types.
 - **BREAKING:** All usages, tests, and documentation updated to use the new type-state API.
 
 ### Fixed

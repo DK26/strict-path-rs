@@ -8,27 +8,26 @@ fn test_jailed_path_partial_eq_and_borrow() {
 
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
+        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
         .unwrap(),
     );
     let test_path = PathBuf::from("path");
-    let staged =
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
-            test_path.clone(),
-        )
-        .clamp()
-        .join_jail(&jail_root)
-        .canonicalize()
-        .unwrap()
-        .boundary_check(&jail_root)
-        .unwrap();
-    let jailed_path: JailedPath = JailedPath::new(staged, Arc::clone(&jail_root));
-    // Type annotation for staged to ensure correct type-state
+    let validated_path = crate::validator::validated_path::ValidatedPath::<
+        crate::validator::validated_path::Raw,
+    >::new(test_path.clone())
+    .clamp()
+    .join_jail(&jail_root)
+    .canonicalize()
+    .unwrap()
+    .boundary_check(&jail_root)
+    .unwrap();
+    let jailed_path: JailedPath = JailedPath::new(Arc::clone(&jail_root), validated_path);
+    // Type annotation for validated_path to ensure correct type-state
 
-    let abs_path = jail_root.as_path().join(&test_path);
+    let abs_path = jail_root.join(&test_path);
     // PartialEq<Path>
     assert_eq!(jailed_path.real_path(), abs_path.as_path());
     // PartialEq<PathBuf>
@@ -50,26 +49,25 @@ fn test_jailed_path_as_ref_implementation() {
     let test_path = PathBuf::from("path");
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
+        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
         .unwrap(),
     );
-    let staged =
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
-            test_path.clone(),
-        )
-        .clamp()
-        .join_jail(&jail_root)
-        .canonicalize()
-        .unwrap()
-        .boundary_check(&jail_root)
-        .unwrap();
-    let jailed_path: JailedPath = JailedPath::new(staged, Arc::clone(&jail_root));
+    let validated_path = crate::validator::validated_path::ValidatedPath::<
+        crate::validator::validated_path::Raw,
+    >::new(test_path.clone())
+    .clamp()
+    .join_jail(&jail_root)
+    .canonicalize()
+    .unwrap()
+    .boundary_check(&jail_root)
+    .unwrap();
+    let jailed_path: JailedPath = JailedPath::new(Arc::clone(&jail_root), validated_path);
 
     // Should work with AsRef<Path>
-    let abs_path = jail_root.as_path().join(&test_path);
+    let abs_path = jail_root.join(&test_path);
     let path_ref: &Path = jailed_path.real_path();
     assert_eq!(path_ref, abs_path.as_path());
 }
@@ -80,23 +78,22 @@ fn test_jailed_path_deref_implementation() {
     let jail_relative = PathBuf::from("path");
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
+        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
         .unwrap(),
     );
-    let staged =
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
-            jail_relative,
-        )
-        .clamp()
-        .join_jail(&jail_root)
-        .canonicalize()
-        .unwrap()
-        .boundary_check(&jail_root)
-        .unwrap();
-    let jailed_path: JailedPath<()> = JailedPath::new(staged, Arc::clone(&jail_root));
+    let validated_path = crate::validator::validated_path::ValidatedPath::<
+        crate::validator::validated_path::Raw,
+    >::new(jail_relative)
+    .clamp()
+    .join_jail(&jail_root)
+    .canonicalize()
+    .unwrap()
+    .boundary_check(&jail_root)
+    .unwrap();
+    let jailed_path: JailedPath<()> = JailedPath::new(Arc::clone(&jail_root), validated_path);
 
     // Should allow calling Path methods directly via Deref
     assert_eq!(
@@ -107,7 +104,7 @@ fn test_jailed_path_deref_implementation() {
     let parent = jailed_path
         .virtual_parent()
         .map(|jp| jp.real_path().to_path_buf());
-    let expected_parent = Some(jail_root.as_path().to_path_buf());
+    let expected_parent = Some(jail_root.to_path_buf());
     assert_eq!(parent, expected_parent);
     assert_eq!(jailed_path.real_path().extension(), None);
 }
@@ -116,7 +113,7 @@ fn test_jailed_path_deref_implementation() {
 fn test_jailed_path_display_formatting() {
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
+        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
@@ -124,17 +121,16 @@ fn test_jailed_path_display_formatting() {
     );
     let test_path = PathBuf::from("path/file.txt");
 
-    let staged =
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
-            test_path,
-        )
-        .clamp()
-        .join_jail(&jail_root)
-        .canonicalize()
-        .unwrap()
-        .boundary_check(&jail_root)
-        .unwrap();
-    let jailed_path: JailedPath = JailedPath::new(staged, jail_root);
+    let validated_path = crate::validator::validated_path::ValidatedPath::<
+        crate::validator::validated_path::Raw,
+    >::new(test_path)
+    .clamp()
+    .join_jail(&jail_root)
+    .canonicalize()
+    .unwrap()
+    .boundary_check(&jail_root)
+    .unwrap();
+    let jailed_path: JailedPath = JailedPath::new(jail_root, validated_path);
 
     // Should display virtual root - path relative to jail, always with forward slashes
     let display_output = format!("{jailed_path}");
@@ -152,40 +148,43 @@ fn test_jailed_path_equality_and_hash() {
     let path3 = PathBuf::from("different/path");
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
+        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
         .unwrap(),
     );
 
-    let staged1 =
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(path1)
-            .clamp()
-            .join_jail(&jail_root)
-            .canonicalize()
-            .unwrap()
-            .boundary_check(&jail_root)
-            .unwrap();
-    let staged2 =
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(path2)
-            .clamp()
-            .join_jail(&jail_root)
-            .canonicalize()
-            .unwrap()
-            .boundary_check(&jail_root)
-            .unwrap();
-    let staged3 =
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(path3)
-            .clamp()
-            .join_jail(&jail_root)
-            .canonicalize()
-            .unwrap()
-            .boundary_check(&jail_root)
-            .unwrap();
-    let jailed1: JailedPath = JailedPath::new(staged1, Arc::clone(&jail_root));
-    let jailed2: JailedPath = JailedPath::new(staged2, Arc::clone(&jail_root));
-    let jailed3: JailedPath = JailedPath::new(staged3, Arc::clone(&jail_root));
+    let validated_path1 = crate::validator::validated_path::ValidatedPath::<
+        crate::validator::validated_path::Raw,
+    >::new(path1)
+    .clamp()
+    .join_jail(&jail_root)
+    .canonicalize()
+    .unwrap()
+    .boundary_check(&jail_root)
+    .unwrap();
+    let validated_path2 = crate::validator::validated_path::ValidatedPath::<
+        crate::validator::validated_path::Raw,
+    >::new(path2)
+    .clamp()
+    .join_jail(&jail_root)
+    .canonicalize()
+    .unwrap()
+    .boundary_check(&jail_root)
+    .unwrap();
+    let validated_path3 = crate::validator::validated_path::ValidatedPath::<
+        crate::validator::validated_path::Raw,
+    >::new(path3)
+    .clamp()
+    .join_jail(&jail_root)
+    .canonicalize()
+    .unwrap()
+    .boundary_check(&jail_root)
+    .unwrap();
+    let jailed1: JailedPath = JailedPath::new(Arc::clone(&jail_root), validated_path1);
+    let jailed2: JailedPath = JailedPath::new(Arc::clone(&jail_root), validated_path2);
+    let jailed3: JailedPath = JailedPath::new(Arc::clone(&jail_root), validated_path3);
 
     // Should implement equality correctly
     assert_eq!(jailed1, jailed2);

@@ -1,48 +1,11 @@
-use std::sync::Arc;
-impl<Marker> PartialOrd for JailedPath<Marker> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<Marker> Ord for JailedPath<Marker> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.path.cmp(&other.path)
-    }
-}
-
-impl<Marker> PartialEq<PathBuf> for JailedPath<Marker> {
-    fn eq(&self, other: &PathBuf) -> bool {
-        &self.path == other
-    }
-}
-
-impl<Marker> PartialEq<JailedPath<Marker>> for PathBuf {
-    fn eq(&self, other: &JailedPath<Marker>) -> bool {
-        self == &other.path
-    }
-}
-
-impl<Marker> PartialEq<Path> for JailedPath<Marker> {
-    fn eq(&self, other: &Path) -> bool {
-        self.path.as_path() == other
-    }
-}
-
-impl<Marker> PartialEq<JailedPath<Marker>> for Path {
-    fn eq(&self, other: &JailedPath<Marker>) -> bool {
-        self == other.path.as_path()
-    }
-}
-use crate::validator::staged_path::{
-    BoundaryChecked, Canonicalized, Clamped, JoinedJail, Raw, StagedPath,
-};
-// --- Error Type ---
 use crate::error::JailedPathError;
-
+use crate::validator::validated_path::{
+    BoundaryChecked, Canonicalized, Clamped, JoinedJail, Raw, ValidatedPath,
+};
 use std::fmt;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 // --- Struct Definition ---
 
@@ -55,27 +18,29 @@ use std::path::{Path, PathBuf};
 #[derive(Clone)]
 pub struct JailedPath<Marker = ()> {
     path: PathBuf,
-    jail_root: Arc<StagedPath<(Raw, Canonicalized)>>,
+    jail_root: Arc<ValidatedPath<(Raw, Canonicalized)>>,
     _marker: PhantomData<Marker>,
-}
-
-impl<Marker> PartialEq for JailedPath<Marker> {
-    fn eq(&self, other: &Self) -> bool {
-        self.path == other.path
-    }
-}
-
-impl<Marker> Eq for JailedPath<Marker> {}
-
-impl<Marker> std::hash::Hash for JailedPath<Marker> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.path.hash(state);
-    }
 }
 
 // --- Inherent Methods ---
 #[allow(clippy::type_complexity)]
 impl<Marker> JailedPath<Marker> {
+    /// Creates a new JailedPath from a fully validated ValidatedPath with the exact required type-state.
+    pub(crate) fn new(
+        jail_root: Arc<ValidatedPath<(Raw, Canonicalized)>>,
+        validated_path: ValidatedPath<(
+            (((Raw, Clamped), JoinedJail), Canonicalized),
+            BoundaryChecked,
+        )>,
+    ) -> Self {
+        // The validated_path is always fully validated and jail-relative (relative to jail root)
+        Self {
+            path: validated_path.into_inner(),
+            jail_root,
+            _marker: PhantomData,
+        }
+    }
+
     /// Returns true if the path starts with the given base.
     #[inline]
     pub fn starts_with<P: AsRef<Path>>(&self, base: P) -> bool {
@@ -87,7 +52,7 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn starts_with_virtual<P: AsRef<Path>>(&self, base: P) -> bool {
         // Use platform-specific Path comparison for virtual path
-        let jail_relative = if let Ok(relative) = self.path.strip_prefix(self.jail_root.as_path()) {
+        let jail_relative = if let Ok(relative) = self.path.strip_prefix(&*self.jail_root) {
             relative
         } else {
             Path::new("")
@@ -176,16 +141,19 @@ impl<Marker> JailedPath<Marker> {
     pub fn write(&self, data: &[u8]) -> std::io::Result<()> {
         std::fs::write(&self.path, data)
     }
-    /// Returns a reference to the jail-relative path (the real, stored path inside the jail).
+
+    /// Returns a reference to the real, absolute path on the filesystem.
     #[inline]
     pub fn real_path(&self) -> &Path {
         self.path.as_path()
     }
 
-    /// Returns a PathBuf representing the virtual path (as shown in Display, with virtual root, always using forward slashes).
+    /// Returns a `PathBuf` representing the virtual path (the path relative to the jail root).
+    /// This path uses the platform's standard path separators. For a consistent forward-slash
+    /// representation, use `virtual_display()`.
     pub fn virtual_path(&self) -> PathBuf {
         use std::path::Component;
-        if let Ok(relative) = self.path.strip_prefix(self.jail_root.as_path()) {
+        if let Ok(relative) = self.path.strip_prefix(&*self.jail_root) {
             let mut pb = PathBuf::new();
             for comp in relative.components() {
                 match comp {
@@ -205,21 +173,6 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn unjail(self) -> PathBuf {
         self.path
-    }
-    /// Creates a new JailedPath from a fully validated StagedPath with the exact required type-state.
-    pub(crate) fn new(
-        staged_path: StagedPath<(
-            (((Raw, Clamped), JoinedJail), Canonicalized),
-            BoundaryChecked,
-        )>,
-        jail_root: Arc<StagedPath<(Raw, Canonicalized)>>,
-    ) -> Self {
-        // The staged_path is always fully validated and jail-relative (relative to jail root)
-        Self {
-            path: staged_path.into_inner(),
-            jail_root,
-            _marker: PhantomData,
-        }
     }
 
     /// Returns a new JailedPath by safely joining a user-supplied path to the virtual path.
@@ -250,19 +203,6 @@ impl<Marker> JailedPath<Marker> {
     /// # Invariant
     /// - The resulting path will always be clamped to the jail root and never escape it.
     /// - This method is not for joining already jailed or canonicalized paths.
-    // Returns a new JailedPath by safely joining a user-supplied path to the virtual path, or an error if result escapes jail or canonicalization fails.
-    ///
-    /// # Usage
-    /// - This method joins paths in the virtual filesystem (user's perspective).
-    /// - The current JailedPath represents a virtual path like "/foo/bar.txt"
-    /// - Joining "baz.txt" results in "/foo/bar.txt/baz.txt" virtually
-    /// - The user operates purely in virtual space and has no knowledge of real jail paths
-    /// - If the user passes a path that happens to match the real jail path, it's treated as any other virtual path
-    /// - Any absolute path is treated as jail-relative (user sees their root as the jail root)
-    ///
-    /// # Invariant
-    /// - The resulting path will always be clamped to the jail root and never escape it.
-    /// - This operates on virtual paths, then validates the result against the real filesystem.
     pub fn try_virtual_join<P: AsRef<Path>>(&self, path: P) -> Result<Self, JailedPathError> {
         let arg = path.as_ref();
 
@@ -298,12 +238,12 @@ impl<Marker> JailedPath<Marker> {
         let virtual_joined = current_virtual.join(arg_virtual);
 
         // Now validate this virtual path through the normal pipeline
-        let staged = StagedPath::<Raw>::new(virtual_joined)
+        let validated_path = ValidatedPath::<Raw>::new(virtual_joined)
             .clamp()
             .join_jail(&self.jail_root)
             .canonicalize()?
             .boundary_check(&self.jail_root)?;
-        Ok(Self::new(staged, self.jail_root.clone()))
+        Ok(Self::new(self.jail_root.clone(), validated_path))
     }
 
     /// Returns the parent as a new JailedPath, or None if parent escapes jail (with canonicalization and boundary check).
@@ -335,12 +275,12 @@ impl<Marker> JailedPath<Marker> {
         })?;
 
         // Validate this parent virtual path through the normal pipeline
-        let staged = StagedPath::<Raw>::new(parent_virtual)
+        let validated_path = ValidatedPath::<Raw>::new(parent_virtual)
             .clamp()
             .join_jail(&self.jail_root)
             .canonicalize()?
             .boundary_check(&self.jail_root)?;
-        Ok(Self::new(staged, self.jail_root.clone()))
+        Ok(Self::new(self.jail_root.clone(), validated_path))
     }
 
     /// Returns a new JailedPath with a different file name, or None if result escapes jail (with canonicalization and boundary check).
@@ -364,12 +304,12 @@ impl<Marker> JailedPath<Marker> {
         let new_virtual = current_virtual.with_file_name(name);
 
         // Validate this new virtual path through the normal pipeline
-        let staged = StagedPath::<Raw>::new(new_virtual)
+        let validated_path = ValidatedPath::<Raw>::new(new_virtual)
             .clamp()
             .join_jail(&self.jail_root)
             .canonicalize()?
             .boundary_check(&self.jail_root)?;
-        Ok(Self::new(staged, self.jail_root.clone()))
+        Ok(Self::new(self.jail_root.clone(), validated_path))
     }
 
     /// Returns a new JailedPath with a different extension, or None if result escapes jail (with canonicalization and boundary check).
@@ -393,12 +333,12 @@ impl<Marker> JailedPath<Marker> {
         let new_virtual = current_virtual.with_extension(ext);
 
         // Validate this new virtual path through the normal pipeline
-        let staged = StagedPath::<Raw>::new(new_virtual)
+        let validated_path = ValidatedPath::<Raw>::new(new_virtual)
             .clamp()
             .join_jail(&self.jail_root)
             .canonicalize()?
             .boundary_check(&self.jail_root)?;
-        Ok(Self::new(staged, self.jail_root.clone()))
+        Ok(Self::new(self.jail_root.clone(), validated_path))
     }
 
     /// Returns the path as bytes (platform-specific).
@@ -429,7 +369,7 @@ impl<Marker> JailedPath<Marker> {
 
     /// Returns a reference to the jail root path.
     pub fn jail_root(&self) -> &Path {
-        self.jail_root.as_path()
+        &*self.jail_root
     }
 }
 
@@ -445,7 +385,7 @@ impl<Marker> fmt::Debug for JailedPath<Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use std::path::MAIN_SEPARATOR;
         // Format path and jail_root using platform separator for consistency
-        let format_path = |p: &PathBuf| {
+        let format_path = |p: &Path| {
             let mut s = String::new();
             for (i, c) in p.components().enumerate() {
                 if i > 0 {
@@ -459,8 +399,58 @@ impl<Marker> fmt::Debug for JailedPath<Marker> {
             .field("path", &format_path(&self.path))
             .field(
                 "jail_root",
-                &format_path(&self.jail_root.as_path().to_path_buf()),
+                &format_path(&*self.jail_root),
             )
             .finish()
+    }
+}
+
+impl<Marker> PartialEq for JailedPath<Marker> {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
+}
+
+impl<Marker> Eq for JailedPath<Marker> {}
+
+impl<Marker> std::hash::Hash for JailedPath<Marker> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
+    }
+}
+
+impl<Marker> PartialOrd for JailedPath<Marker> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<Marker> Ord for JailedPath<Marker> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.path.cmp(&other.path)
+    }
+}
+
+impl<Marker> PartialEq<PathBuf> for JailedPath<Marker> {
+    fn eq(&self, other: &PathBuf) -> bool {
+        &self.path == other
+    }
+}
+
+impl<Marker> PartialEq<JailedPath<Marker>> for PathBuf {
+    fn eq(&self, other: &JailedPath<Marker>) -> bool {
+        self == &other.path
+    }
+}
+
+impl<Marker> PartialEq<Path> for JailedPath<Marker> {
+    fn eq(&self, other: &Path) -> bool {
+        self.path.as_path() == other
+    }
+}
+
+impl<Marker> PartialEq<JailedPath<Marker>> for Path {
+    fn eq(&self, other: &JailedPath<Marker>) -> bool {
+        self == other.path.as_path()
     }
 }

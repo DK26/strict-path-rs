@@ -7,27 +7,26 @@ fn test_jailed_path_creation() {
     let test_path = PathBuf::from("path");
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
+        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
         .unwrap(),
     );
-    let staged =
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
-            test_path.clone(),
-        )
-        .clamp()
-        .join_jail(&jail_root)
-        .canonicalize()
-        .unwrap()
-        .boundary_check(&jail_root)
-        .unwrap();
-    let jailed_path: JailedPath = JailedPath::new(staged, Arc::clone(&jail_root));
+    let validated_path = crate::validator::validated_path::ValidatedPath::<
+        crate::validator::validated_path::Raw,
+    >::new(test_path.clone())
+    .clamp()
+    .join_jail(&jail_root)
+    .canonicalize()
+    .unwrap()
+    .boundary_check(&jail_root)
+    .unwrap();
+    let jailed_path: JailedPath = JailedPath::new(Arc::clone(&jail_root), validated_path);
 
     // Should store the path correctly
-    let abs_path = jail_root.as_path().join(&test_path);
-    assert_eq!(jailed_path.real_path(), abs_path.as_path());
+    let abs_path = &*jail_root.join(&test_path);
+    assert_eq!(jailed_path.real_path(), abs_path);
     assert_eq!(jailed_path.unjail(), abs_path);
 }
 
@@ -36,23 +35,22 @@ fn test_jailed_path_clone_and_debug() {
     let test_path = PathBuf::from("path");
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
+        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
         .unwrap(),
     );
-    let staged =
-        crate::validator::staged_path::StagedPath::<crate::validator::staged_path::Raw>::new(
-            test_path,
-        )
-        .clamp()
-        .join_jail(&jail_root)
-        .canonicalize()
-        .unwrap()
-        .boundary_check(&jail_root)
-        .unwrap();
-    let jailed_path: JailedPath = JailedPath::new(staged, jail_root);
+    let validated_path = crate::validator::validated_path::ValidatedPath::<
+        crate::validator::validated_path::Raw,
+    >::new(test_path)
+    .clamp()
+    .join_jail(&jail_root)
+    .canonicalize()
+    .unwrap()
+    .boundary_check(&jail_root)
+    .unwrap();
+    let jailed_path: JailedPath = JailedPath::new(jail_root, validated_path);
 
     // Should be cloneable
     assert_eq!(jailed_path, jailed_path.clone());
