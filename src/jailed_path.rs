@@ -159,6 +159,12 @@ impl<Marker> JailedPath<Marker> {
         self.path.to_str()
     }
 
+    /// Returns the path as a `Cow<str>`, replacing any invalid UTF-8 sequences with U+FFFD.
+    #[inline]
+    pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+        self.path.to_string_lossy()
+    }
+
     /// Reads the entire file contents into a `Vec<u8>`.
     #[inline]
     pub fn read(&self) -> std::io::Result<Vec<u8>> {
