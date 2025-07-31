@@ -8,9 +8,9 @@
 
 **Compile-time secure path validation: type-guaranteed safety with symlink protection and virtual roots**
 
-> *New from the Type-State Police Department! Putting your paths in jail!*
+> *Putting your paths in jail by the Type-State Police Department*
 
-*because apparently YOU can't be trusted with file paths!*
+*because your LLM can't be trusted with security*  
 
 `jailed-path` transforms runtime path validation into mathematical compile-time guarantees using Rust's type system. Unlike other validation libraries, it safely resolves and follows symbolic links while maintaining strict boundary enforcement.
 
