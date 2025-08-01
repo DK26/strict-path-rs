@@ -5,38 +5,29 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 
-/// Path Validator with Security-First Soft Canonicalization
+/// A secure path validator that constrains all file system operations to a specific directory (jail).
 ///
-/// This module implements a security-first path validation system that can handle both
-/// existing and non-existent paths while providing mathematical guarantees against
-/// path traversal attacks.
+/// **CRITICAL SECURITY RULE: All file paths MUST be validated through this validator before use.**
+/// Direct use of `Path`, `PathBuf`, or string paths for file operations bypasses all security guarantees.
 ///
-/// ## Key Features
+/// ## Core Purpose
 ///
-/// - **Security-First Design**: Uses soft canonicalization for mathematical path resolution
-/// - **Soft Canonicalization**: Resolves existing parts and handles non-existent paths safely
-/// - **Cross-Platform**: Works correctly on Windows, macOS, and Linux
-/// - **Zero-False-Positives**: All legitimate paths within the jail are accepted
-/// - **Zero-False-Negatives**: All escape attempts are guaranteed to be blocked
+/// This validator is the **ONLY** way to create `JailedPath` instances. It prevents directory traversal
+/// attacks by ensuring all validated paths remain within the specified jail directory boundary.
 ///
-/// ## Security Guarantees
+/// ## How It Works (Simple)
 ///
-/// 1. **Symbolic Link Resolution**: All symlinks are resolved to their canonical targets
-/// 2. **Path Component Resolution**: All `.` and `..` components are mathematically resolved
-/// 3. **Cross-Platform Normalization**: OS-specific path quirks are handled by the filesystem
-/// 4. **Escape Detection**: Any path that resolves outside the jail is guaranteed to be caught
+/// 1. **Set Jail Boundary**: Create validator with `PathValidator::with_jail("/safe/directory")`
+/// 2. **Validate Paths**: Call `validator.try_path("user/input/path")` for every path
+/// 3. **Use Safely**: Only use the returned `JailedPath` for file operations
+/// 4. **Security**: Attempts to escape (like `../../../etc/passwd`) are automatically prevented
 ///
-/// ## Implementation Details
+/// ## Security Features
 ///
-/// Uses soft canonicalization which:
-/// 1. Finds the deepest existing ancestor directory
-/// 2. Canonicalizes the existing part (resolving symlinks, normalizing paths)
-/// 3. Appends non-existing components to the canonicalized base
-/// 4. Validates the final path against the jail boundary
-///
-/// This approach ensures that even complex traversal patterns like `a/b/../../../sensitive.txt`
-/// are properly resolved and validated against the jail boundary, without requiring
-/// filesystem modification or temporary file creation.
+/// - **Path Traversal Protection**: Neutralizes `../`, `./`, and absolute paths that try to escape
+/// - **Symlink Resolution**: Resolves symbolic links and validates their targets stay within jail
+/// - **Cross-Platform**: Works consistently on Windows, macOS, and Linux
+/// - **Non-Existent Path Support**: Can validate paths for file creation (paths don't need to exist)
 ///
 /// ## Examples
 ///
@@ -79,21 +70,20 @@ impl<Marker> PathValidator<Marker> {
     }
     /// Creates a new PathValidator with the specified jail directory.
     ///
-    /// This constructor performs strict validation to ensure the jail is a valid, existing directory.
-    /// The jail path is canonicalized to resolve all symbolic links and normalize the path representation.
+    /// **This is the FIRST step in secure path validation - create your validator once and reuse it.**
     ///
     /// # Arguments
-    /// * `jail` - Path to the directory that will serve as the jail boundary
+    /// * `jail` - The directory that will serve as the security boundary. All validated paths
+    ///   must remain within this directory and its subdirectories.
     ///
     /// # Returns
-    /// * `Ok(PathValidator)` - If the jail is a valid, existing directory
+    /// * `Ok(PathValidator)` - If the jail is valid
     /// * `Err(JailedPathError)` - If validation fails (see Errors section)
     ///
     /// # Errors
     /// This method returns an error in the following cases:
     ///
     /// ## `JailedPathError::PathResolutionError`
-    /// - The jail path does not exist
     /// - Permission denied when accessing the jail path
     /// - The jail path contains invalid characters or exceeds system limits
     /// - I/O errors during path canonicalization
@@ -101,10 +91,10 @@ impl<Marker> PathValidator<Marker> {
     /// ## `JailedPathError::InvalidJail`
     /// - The jail path exists but is not a directory (e.g., it's a file or special device)
     ///
-    /// # Security Considerations
-    /// - The jail directory must exist before creating the validator (fail-fast principle)
-    /// - All symbolic links in the jail path are resolved to prevent confusion
-    /// - The canonicalized jail path is used for all subsequent validations
+    /// # Important Notes
+    /// - The jail directory does NOT need to exist when creating the validator
+    /// - Store this validator and reuse it for all path validations in your application
+    /// - Never bypass this validator - it's your only protection against path traversal attacks
     ///
     /// # Examples
     /// ```rust
@@ -135,8 +125,10 @@ impl<Marker> PathValidator<Marker> {
 
         // If jail exists, it must be a directory; if it does not exist, allow it
         if canonicalized.exists() && !canonicalized.is_dir() {
-            let error =
-                std::io::Error::other("The specified jail path exists but is not a directory.");
+            let error = std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "The specified jail path exists but is not a directory.",
+            );
             return Err(JailedPathError::invalid_jail(
                 jail_path.to_path_buf(),
                 error,
@@ -149,23 +141,48 @@ impl<Marker> PathValidator<Marker> {
         })
     }
 
-    /// Validate a path and return detailed error information on failure
+    /// Validates a user-provided path and returns a secure `JailedPath` for file operations.
     ///
-    /// # Two-Layer Security Model
+    /// **This is the SECOND step in secure path validation - call this for EVERY user path.**
     ///
-    /// 1. **Path Clamping**: Handles `..` directory traversal by clamping navigation to the jail boundary.
-    ///    - No error is returned for excessive `..` components; path is clamped to jail root.
-    ///    - Absolute paths are treated as jail-relative (virtual root behavior).
-    /// 2. **Canonicalization + Boundary Check**: Handles symlink escapes by resolving symlinks and verifying jail containment.
-    ///    - Symlink escapes are detected and rejected.
+    /// # Arguments
+    /// * `candidate_path` - The path to validate (from user input, configuration, etc.)
     ///
-    /// # Security Guarantees
-    /// - Virtual root behavior is cosmetic; all paths are contained within jail
+    /// # Returns
+    /// * `Ok(JailedPath)` - A validated path that is guaranteed safe to use for file operations
+    /// * `Err(JailedPathError)` - If the path cannot be made safe (usually symlink escapes)
     ///
-    /// # Use Cases
-    /// - Validating paths for file creation (supports non-existent paths)
-    /// - Validating paths for file reading (existing paths)
-    /// - Any security-critical path validation
+    /// # Security Process (Automatic)
+    ///
+    /// 1. **Path Traversal Protection**: Converts `../../../etc/passwd` → safely contained within jail
+    /// 2. **Symlink Resolution**: Resolves all symbolic links and verifies they stay within jail  
+    /// 3. **Boundary Enforcement**: Ensures final path is within the jail directory
+    ///
+    /// # What Gets Fixed vs Rejected
+    ///
+    /// **✅ FIXED (No Error)**: Basic traversal attempts like `../`, `./`, absolute paths
+    /// **❌ REJECTED (Error)**: Symbolic links that point outside the jail directory
+    ///
+    /// # Common Usage
+    /// - Validating file upload paths from users
+    /// - Validating configuration file paths  
+    /// - ANY path before file operations (read, write, create, delete)
+    ///
+    /// # Example
+    /// ```rust
+    /// use jailed_path::PathValidator;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let validator = PathValidator::<()>::with_jail("/safe/uploads")?;
+    ///
+    /// // ✅ Safe - creates /safe/uploads/user123/document.pdf
+    /// let safe_path = validator.try_path("user123/document.pdf")?;
+    ///
+    /// // ✅ Safe - traversal attempt blocked, becomes /safe/uploads/
+    /// let blocked = validator.try_path("../../../etc/passwd")?;
+    ///
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn try_path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
         // STEP 1: Clamp the candidate path
         let clamped = ValidatedPath::<Raw>::new(candidate_path.as_ref()).clamp();

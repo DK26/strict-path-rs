@@ -76,30 +76,6 @@ impl<Marker> JailedPath<Marker> {
         s
     }
 
-    /// Returns true if the path exists on disk.
-    #[inline]
-    pub fn exists(&self) -> bool {
-        self.path.exists()
-    }
-
-    /// Returns true if the path is a file.
-    #[inline]
-    pub fn is_file(&self) -> bool {
-        self.path.is_file()
-    }
-
-    /// Returns true if the path is a directory.
-    #[inline]
-    pub fn is_dir(&self) -> bool {
-        self.path.is_dir()
-    }
-
-    /// Returns the metadata for the path.
-    #[inline]
-    pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
-        self.path.metadata()
-    }
-
     /// Returns the file name of the path, if any.
     #[inline]
     pub fn file_name(&self) -> Option<&std::ffi::OsStr> {
@@ -118,28 +94,52 @@ impl<Marker> JailedPath<Marker> {
         self.path.as_os_str()
     }
 
-    /// Returns the path as a string slice, if valid UTF-8.
+    /// Returns the real path as a string slice, if valid UTF-8.
+    ///
+    /// This method returns a `&str` representation of the **real, absolute path** on the filesystem.
+    /// It should be used with caution, as it exposes the underlying filesystem structure.
+    /// For a user-facing, jail-relative path, use [`JailedPath::virtual_path_to_string()`]
+    /// or the `Display` trait (`format!("{}", jailed_path)`).
     #[inline]
-    pub fn to_str(&self) -> Option<&str> {
+    pub fn real_path_to_str(&self) -> Option<&str> {
         self.path.to_str()
     }
 
-    /// Returns the path as a `Cow<str>`, replacing any invalid UTF-8 sequences with U+FFFD.
+    /// Returns the real path as a `Cow<str>`, replacing any invalid UTF-8 sequences with U+FFFD.
+    ///
+    /// This method returns a string representation of the **real, absolute path** on the filesystem.
+    /// It should be used with caution, as it exposes the underlying filesystem structure.
+    /// For a user-facing, jail-relative path, use [`JailedPath::virtual_path_to_string_lossy()`]
+    /// or the `Display` trait (`format!("{}", jailed_path)`).
     #[inline]
-    pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+    pub fn real_path_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
         self.path.to_string_lossy()
     }
 
-    /// Reads the entire file contents into a `Vec<u8>`.
+    /// Returns the virtual path as an owned `String`, if valid UTF-8.
+    ///
+    /// This method returns a `String` representation of the **virtual, jail-relative path**
+    /// using the platform's standard path separators.
+    /// For a consistent forward-slash representation suitable for display, use the `Display`
+    /// trait (`format!("{jailed_path}")`) which uses [`JailedPath::virtual_display()`].
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(String)` if the path is valid UTF-8, otherwise `None`.
     #[inline]
-    pub fn read(&self) -> std::io::Result<Vec<u8>> {
-        std::fs::read(&self.path)
+    pub fn virtual_path_to_string(&self) -> Option<String> {
+        self.virtual_path().into_os_string().into_string().ok()
     }
 
-    /// Writes the given data to the file, overwriting if it exists.
+    /// Returns the virtual path as an owned `String`, replacing any invalid UTF-8 sequences with U+FFFD.
+    ///
+    /// This method returns a `String` representation of the **virtual, jail-relative path**
+    /// using the platform's standard path separators.
+    /// For a consistent forward-slash representation suitable for display, use the `Display`
+    /// trait (`format!("{}", jailed_path)`) which uses [`JailedPath::virtual_display()`].
     #[inline]
-    pub fn write(&self, data: &[u8]) -> std::io::Result<()> {
-        std::fs::write(&self.path, data)
+    pub fn virtual_path_to_string_lossy(&self) -> String {
+        self.virtual_path().to_string_lossy().into_owned()
     }
 
     /// Returns a reference to the real, absolute path on the filesystem.
@@ -369,7 +369,7 @@ impl<Marker> JailedPath<Marker> {
 
     /// Returns a reference to the jail root path.
     pub fn jail_root(&self) -> &Path {
-        &*self.jail_root
+        &self.jail_root
     }
 }
 
@@ -397,10 +397,7 @@ impl<Marker> fmt::Debug for JailedPath<Marker> {
         };
         f.debug_struct("JailedPath")
             .field("path", &format_path(&self.path))
-            .field(
-                "jail_root",
-                &format_path(&*self.jail_root),
-            )
+            .field("jail_root", &format_path(&self.jail_root))
             .finish()
     }
 }

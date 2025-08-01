@@ -67,72 +67,46 @@ impl<Marker> JailedFileOps for JailedPath<Marker> {
 | Phase                                            | Feature                                           | Status | Priority     | Notes                                                                                                          |
 | ------------------------------------------------ | ------------------------------------------------- | ------ | ------------ | -------------------------------------------------------------------------------------------------------------- |
 | **Phase 1: Core UX & Web Integration (v0.1.0)**  |
-| 1.1                                              | Virtual Root Display                              | ✅      | 1 - CRITICAL | Store jail root in JailedPath, implement Display trait                                                         |
-| 1.1.0                                            | **Fix jail creation canonicalization**            | ✅      | 1 - CRITICAL | Now uses soft_canonicalize in PathValidator::with_jail; supports non-existent jails                            |
-| 1.1.1                                            | Store jail root as `Arc<PathBuf>` in `JailedPath` | ✅      | 1 - CRITICAL | Implemented for memory-efficient jail root                                                                     |
-| 1.1.3                                            | Implement `Display` trait                         | ✅      | 1 - CRITICAL | Implemented: virtual root display in `JailedPath`                                                              |
-| 1.3                                              | Serde Support                                     | ⏳      | 1 - CRITICAL | Web API integration                                                                                            |
-| 1.3.1                                            | Add `serde` feature flag                          | ⏳      | 1 - CRITICAL | Optional dependency                                                                                            |
-| 1.3.2                                            | Implement `Serialize` for `JailedPath`            | ⏳      | 1 - CRITICAL | Serialize as relative path                                                                                     |
-| 1.1.4                                            | Add debug formatting                              | ✅      | 2 - HIGH     | Implemented: custom Debug for full path                                                                        |
-| 1.3.3                                            | Handle non-UTF-8 paths gracefully                 | ⏳      | 2 - HIGH     | Lossy conversion support                                                                                       |
-| 1.3.4                                            | Custom deserializer helpers                       | ⏳      | 2 - HIGH     | Common validation patterns                                                                                     |
-| 1.2                                              | Web Framework Integration                         | ⏳      | 2 - HIGH     | Examples and patterns                                                                                          |
-| 1.2.1                                            | `examples/axum_file_server.rs`                    | ⏳      | 2 - HIGH     | Complete working Axum example                                                                                  |
-| 1.2.3                                            | Documentation: web framework patterns             | ⏳      | 2 - HIGH     | AppState patterns guide                                                                                        |
-| 1.2.2                                            | `examples/actix_web_integration.rs`               | ⏳      | 3 - MEDIUM   | Actix Web integration example                                                                                  |
-| 1.2.4                                            | Documentation: best practices guide               | ⏳      | 3 - MEDIUM   | Security best practices                                                                                        |
-| 1.4                                              | UTF-8 Helper Methods                              | ⏳      | 3 - MEDIUM   | Web developer convenience                                                                                      |
-| 1.4.1                                            | `to_str()` method                                 | ⏳      | 3 - MEDIUM   | UTF-8 string if possible                                                                                       |
-| 1.4.2                                            | `to_string_lossy()` method                        | ⏳      | 3 - MEDIUM   | Never fails, may be lossy                                                                                      |
-| 1.5                                              | Core Validation Functions                         | ⏳      | 1 - CRITICAL | Simple public API for path-in-jail validation                                                                  |
-| 1.5.1                                            | `try_jail<Marker=()>(jail, path)` function        | ⏳      | 1 - CRITICAL | Creates JailedPath with optional type markers                                                                  |
-| 1.1.0b                                           | **Optional TOCTOU Protection**                    | ⏳      | 4 - LOW      | Feature flag for runtime jail validation                                                                       |
-| 1.1.2                                            | ~~Add `relative_path()` method~~                  | ❌      | ~~MEDIUM~~   | Removed: Display trait is sufficient                                                                           |
-| 1.4.3                                            | ~~`relative_str()` method~~                       | ❌      | ~~MEDIUM~~   | Removed: Display trait provides this                                                                           |
-| **Phase 2: Advanced Security Features (v0.2.0)** |
-| 2.3                                              | Path-Complete API                                 | ⏳      | 1 - CRITICAL | Drop-in PathBuf replacement                                                                                    |
-| 2.3.6                                            | `Deref` to `Path` implementation                  | ✅      | 1 - CRITICAL | Zero-cost method forwarding                                                                                    |
-| 2.3.7                                            | ~~Essential trait implementations~~               | ❌      | ~~CRITICAL~~ | ~~`AsRef`, `Borrow<Path>`, `PartialEq<Path>`, `PartialEq<PathBuf>`, `PartialEq<&str>`~~ (Cancelled: see below) |
-| 2.3.1                                            | `join()` method returning `JailedPath`            | ⏳      | 1 - CRITICAL | Secure path joining                                                                                            |
-| 2.3.2                                            | `parent()` method returning `JailedPath`          | ⏳      | 1 - CRITICAL | Secure parent navigation                                                                                       |
-| 2.3.5                                            | Conversion methods (`into_path_buf`, etc.)        | 🎯      | 1 - CRITICAL | `into_path_buf()` implemented; NEXT: add `into_inner()` alias                                                  |
-| 2.3.5a                                           | `into_inner()` method                             | ⏳      | 1 - CRITICAL | Alias for into_path_buf() following Rust patterns                                                              |
-| 2.3.5b                                           | `to_bytes()` method                               | ⏳      | 2 - HIGH     | Raw bytes for specialized libraries                                                                            |
-| 2.3.5c                                           | `into_bytes()` method                             | ⏳      | 2 - HIGH     | Owned bytes for specialized libraries                                                                          |
-| 2.3.3                                            | `with_file_name()` method                         | ⏳      | 2 - HIGH     | File name replacement                                                                                          |
-| 2.3.4                                            | `with_extension()` method                         | ⏳      | 2 - HIGH     | Extension replacement                                                                                          |
-| 2.1.4                                            | Documentation: use cases & examples               | ⏳      | 3 - MEDIUM   | User/org/session patterns                                                                                      |
-| 2.2                                              | Observability & Tracing                           | ⏳      | 3 - MEDIUM   | Production monitoring                                                                                          |
-| 2.2.1                                            | Add `tracing` feature flag                        | ⏳      | 3 - MEDIUM   | Optional dependency                                                                                            |
-| 2.2.2                                            | `try_path_traced()` method                        | ⏳      | 3 - MEDIUM   | Structured logging                                                                                             |
-| 2.2.3                                            | Security event classification                     | ⏳      | 4 - LOW      | Attack pattern detection                                                                                       |
-| 2.2.4                                            | Performance metrics                               | ⏳      | 4 - LOW      | Validation operation timing                                                                                    |
-| **Phase 3: Ecosystem & Performance (v0.3.0)**    |                                                   |        |              |                                                                                                                |
-| 3.2                                              | Advanced Testing                                  | ⏳      | 2 - HIGH     | Security & compatibility                                                                                       |
-| 3.2.1                                            | Security vulnerability test suite                 | ⏳      | 2 - HIGH     | Path traversal attacks                                                                                         |
-| 3.2.2                                            | Symlink attack tests                              | ⏳      | 2 - HIGH     | Defense verification                                                                                           |
-| 3.2.3                                            | Cross-platform edge cases                         | ⏳      | 3 - MEDIUM   | UNC paths, special files                                                                                       |
-| 3.2.4                                            | Non-UTF-8 filename tests                          | ⏳      | 3 - MEDIUM   | OS compatibility                                                                                               |
-| 3.3                                              | Additional Framework Support                      | ⏳      | 3 - MEDIUM   | Ecosystem expansion                                                                                            |
-| 3.3.1                                            | `examples/warp_integration.rs`                    | ⏳      | 3 - MEDIUM   | Warp framework                                                                                                 |
-| 3.3.2                                            | `examples/rocket_integration.rs`                  | ⏳      | 3 - MEDIUM   | Rocket framework                                                                                               |
-| 3.3.3                                            | `examples/tide_integration.rs`                    | ⏳      | 3 - MEDIUM   | Tide framework                                                                                                 |
-| 3.3.4                                            | `examples/cli_tool.rs`                            | ⏳      | 3 - MEDIUM   | Command-line patterns                                                                                          |
-| 3.1                                              | Performance Optimization                          | ⏳      | 4 - LOW      | Speed improvements                                                                                             |
-| 3.1.1                                            | Benchmark suite vs alternatives                   | ⏳      | 4 - LOW      | path-clean, dunce, etc.                                                                                        |
-| 3.1.2                                            | Path component caching                            | ⏳      | 4 - LOW      | Repeated validations                                                                                           |
-| 3.1.3                                            | Lazy canonicalization                             | ⏳      | 4 - LOW      | Performance-critical paths                                                                                     |
-| 3.1.4                                            | SIMD path traversal detection                     | ⏳      | 5 - RESEARCH | Experimental optimization                                                                                      |
-| **Phase 4: Research & Innovation (v0.4.0+)**     |                                                   |        |              |                                                                                                                |
-| 4.1                                              | Advanced Security Research                        | ⏳      | 5 - RESEARCH | Future possibilities                                                                                           |
-| 4.1.1                                            | Property-based testing with `proptest`            | ⏳      | 5 - RESEARCH | Automated testing                                                                                              |
-| 4.1.2                                            | Automated attack pattern generation               | ⏳      | 5 - RESEARCH | Fuzzing integration                                                                                            |
-| 4.1.3                                            | Formal verification research                      | ⏳      | 5 - RESEARCH | Mathematical proofs                                                                                            |
-| 4.1.4                                            | OSS-Fuzz integration                              | ⏳      | 5 - RESEARCH | Continuous fuzzing                                                                                             |
-| 4.2                                              | Architecture Research                             | ⏳      | 5 - RESEARCH | Future design                                                                                                  |
-| 4.2.1                                            | Plugin system feasibility study                   | ⏳      | 5 - RESEARCH | Custom canonicalization                                                                                        |
-| 4.2.2                                            | Performance vs security trade-offs                | ⏳      | 5 - RESEARCH | Architecture analysis                                                                                          |
+| 1.1                                              | Virtual Root Display                              | ✅      | 1 - CRITICAL | Implemented via `Display` trait and `virtual_path()` method.                                                   |
+| 1.1.0                                            | **Fix jail creation canonicalization**            | ✅      | 1 - CRITICAL | Now uses `soft_canonicalize` in `PathValidator::with_jail`; supports non-existent jails.                       |
+| 1.1.1                                            | Store jail root as `Arc<ValidatedPath>`           | ✅      | 1 - CRITICAL | Implemented for memory-efficient jail root sharing.                                                            |
+| 1.1.3                                            | Implement `Display` trait                         | ✅      | 1 - CRITICAL | Implemented for clean, virtual root display.                                                                   |
+| 1.1.4                                            | Add debug formatting                              | ✅      | 2 - HIGH     | Implemented custom `Debug` to show full path and jail root.                                                    |
+| 1.2                                              | Web Framework Integration                         | ⏳      | 2 - HIGH     | Examples and patterns for Axum and other frameworks.                                                           |
+| 1.2.1                                            | `examples/axum_file_server.rs`                    | 🎯      | 2 - HIGH     | **NEXT:** Create a complete, working Axum example.                                                             |
+| 1.2.2                                            | `examples/actix_web_integration.rs`               | ⏳      | 3 - MEDIUM   | Actix Web integration example.                                                                                 |
+| 1.2.3                                            | Documentation: web framework patterns             | ⏳      | 2 - HIGH     | Guide on using `JailedPath` in web app state.                                                                  |
+| 1.3                                              | Serde Support                                     | ⏳      | 1 - CRITICAL | Essential for web API integration.                                                                             |
+| 1.3.1                                            | Add `serde` feature flag                          | ⏳      | 1 - CRITICAL | Make `serde` an optional dependency.                                                                           |
+| 1.3.2                                            | Implement `Serialize` for `JailedPath`            | ⏳      | 1 - CRITICAL | Serialize as a secure, virtual path string.                                                                    |
+| 1.3.3                                            | Custom deserializer helpers                       | ⏳      | 2 - HIGH     | Provide helpers for validating paths during deserialization.                                                   |
+| 1.4                                              | Core Validation Functions                         | ⏳      | 1 - CRITICAL | Simple public API for one-off path validation.                                                                 |
+| 1.4.1                                            | `try_jail<Marker=()>(jail, path)` function        | ⏳      | 1 - CRITICAL | Create a simple, top-level function for easy validation.                                                       |
+| **Phase 2: Secure API & Ergonomics (v0.2.0)**    |
+| 2.1                                              | Secure Path Manipulation API                      | ✅      | 1 - CRITICAL | All path manipulation is done via secure `virtual_*` methods.                                                  |
+| 2.1.1                                            | `virtual_join()` method                           | ✅      | 1 - CRITICAL | Implemented for secure path joining.                                                                           |
+| 2.1.2                                            | `virtual_parent()` method                         | ✅      | 1 - CRITICAL | Implemented for secure parent navigation.                                                                      |
+| 2.1.3                                            | `virtual_with_file_name()` method                 | ✅      | 2 - HIGH     | Implemented for secure file name replacement.                                                                  |
+| 2.1.4                                            | `virtual_with_extension()` method                 | ✅      | 2 - HIGH     | Implemented for secure extension replacement.                                                                  |
+| 2.2                                              | Explicit Path Access API                          | ✅      | 1 - CRITICAL | API requires explicit calls to access the inner path, preventing misuse.                                       |
+| 2.2.1                                            | `real_path()` method                              | ✅      | 1 - CRITICAL | Provides safe, read-only access to the inner `&Path`.                                                          |
+| 2.2.2                                            | `unjail()` method                                 | ✅      | 1 - CRITICAL | Explicitly consumes `JailedPath` to return the inner `PathBuf`, removing safety guarantees.                    |
+| 2.2.3                                            | `to_bytes()` / `into_bytes()` methods             | ✅      | 2 - HIGH     | Implemented for ecosystem compatibility.                                                                       |
+| 2.3                                              | Ergonomic Trait Implementations                   | ✅      | 1 - CRITICAL | `PartialEq`, `Eq`, `Hash`, `Ord`, `PartialOrd` are implemented for seamless use in collections.                |
+| 2.4                                              | Unambiguous String Conversions                    | ✅      | 1 - CRITICAL | Renamed `to_str` to `real_path_to_str` and added virtual path variants to prevent info leaks.                |
+| 2.5                                              | Ergonomic File I/O via `JailedFileOps` Trait      | ✅      | 2 - HIGH     | Added `JailedFileOps` trait for direct, safe I/O operations.                                                   |
+| 2.6                                              | ~~`Deref` to `Path`~~                             | ❌      | ~~CRITICAL~~ | **Removed:** Intentionally omitted to prevent insecure `Path::join` usage.                                     |
+| 2.7                                              | ~~`AsRef<Path>` / `Borrow<Path>`~~                | ❌      | ~~CRITICAL~~ | **Removed:** Intentionally omitted for the same security reasons as `Deref`.                                   |
+| **Phase 3: Ecosystem & Performance (v0.3.0)**    |
+| 3.1                                              | Advanced Testing                                  | ⏳      | 2 - HIGH     | Enhance security and compatibility testing.                                                                    |
+| 3.1.1                                            | Security vulnerability test suite                 | ⏳      | 2 - HIGH     | Add dedicated tests for path traversal and symlink attacks.                                                    |
+| 3.1.2                                            | Cross-platform edge cases                         | ⏳      | 3 - MEDIUM   | Test UNC paths, special files, and case-insensitive filesystems.                                               |
+| 3.2                                              | Performance Optimization                          | ⏳      | 4 - LOW      | Benchmark and optimize path validation logic.                                                                  |
+| 3.2.1                                            | Benchmark suite vs alternatives                   | ⏳      | 4 - LOW      | Compare performance against other path validation crates.                                                      |
+| 3.3                                              | Additional Framework Support                      | ⏳      | 3 - MEDIUM   | Expand ecosystem support with more examples.                                                                   |
+| 3.3.1                                            | `examples/warp_integration.rs`                    | ⏳      | 3 - MEDIUM   | Add a Warp integration example.                                                                                |
+| 3.3.2                                            | `examples/rocket_integration.rs`                  | ⏳      | 3 - MEDIUM   | Add a Rocket integration example.                                                                              |
+| 3.3.3                                            | `examples/cli_tool.rs`                            | ⏳      | 3 - MEDIUM   | Add an example for command-line application patterns.                                                          |
 
 **Legend:**
 - ✅ **Completed** - Feature implemented and tested
@@ -585,282 +559,126 @@ let file = try_jail::<UserFiles, _, _>("/user/files", "doc.pdf")?;
 ## Phase 2: Advanced Security Features (v0.2.0)
 *Priority: MEDIUM - Differentiating capabilities*
 
-### 🌐 Web Framework Integration (Axum)
-**Goal**: Security-first web handler patterns with pre-validated paths
+### 🔧 Path-Complete API: Secure by Default
+**Goal**: Make `JailedPath` an ergonomic and secure alternative to `PathBuf` for all path-related operations.
 
-**Design Decision: JailedPath Extractors for Type Safety**
+#### Design: Explicit Path Access, No `Deref`
+A core design principle of `jailed-path` is **explicitness**. The `JailedPath` struct intentionally does **not** implement `Deref`, `AsRef<Path>`, or `Borrow<Path>`.
 
-The preferred pattern for web applications is to use custom extractors that provide handlers with pre-validated `JailedPath` objects, ensuring compile-time security guarantees.
+**Rationale:**
+Automatic dereferencing to `&Path` is dangerous because it makes it easy to accidentally use insecure methods like `Path::join()`. A user might write `jailed_path.join("../../../etc/passwd")`, thinking it's safe, but this would bypass the jail entirely. This would break the compile-time safety guarantees this crate aims to provide.
 
-```rust
-use axum::{extract::{Path, State}, response::Result, Json};
-use jailed_path::{PathValidator, JailedPath};
-use serde::Deserialize;
+By omitting these traits, we force the developer to be explicit about their intent, which makes the code safer and easier to audit.
 
-// Type-safe marker for user file operations
-struct UserFiles;
+**The Secure API:**
+- **Path Manipulation**: All path modifications (joining, getting parent, etc.) **must** be done using the provided `virtual_*` methods (`virtual_join()`, `virtual_parent()`, etc.). These methods are guaranteed to be jail-safe.
+- **Filesystem Access**: For I/O operations, you can use the convenient built-in methods (`.read()`, `.write()`) or explicitly get a reference to the real, validated path with `.real_path()`.
+- **Leaving the Jail**: If you need to convert the `JailedPath` back into a regular `PathBuf` (and thus lose the safety guarantees), you must call the explicit `.unjail()` method.
+- **Ergonomics**: Traits like `PartialEq`, `Eq`, `Ord`, and `Hash` are implemented to ensure `JailedPath` works seamlessly in collections and comparisons.
 
-#[derive(Deserialize)]
-struct FileParams {
-    user_id: String,
-    filename: String,
-}
-
-// Security-first handler - receives pre-validated JailedPath
-async fn serve_user_file(
-    Path(params): Path<FileParams>,
-    State(base_validator): State<PathValidator<UserFiles>>,
-) -> Result<Vec<u8>> {
-    // Create user-specific validator dynamically using simple path joining
-    let user_validator = PathValidator::with_jail(
-        base_validator.jail().join(&format!("users/{}", params.user_id))
-    )?;
-    
-    // Validate and get the file path
-    let file_path: JailedPath<UserFiles> = user_validator.try_path(&params.filename)?;
-    
-    // Safe file operations with validated path
-    let content = tokio::fs::read(&file_path).await?;
-    Ok(content)
-}
-
-// Application setup
-#[tokio::main]
-async fn main() {
-    let app_validator = PathValidator::with_jail("/app/storage").unwrap();
-    
-    let app = Router::new()
-        .route("/users/:user_id/files/:filename", get(serve_user_file))
-        .with_state(app_validator);
-        
-    // Server setup...
-}
-```
-
-**Security Benefits**:
-- **Pre-validation**: All path validation happens before handler execution
-- **Type Safety**: Handlers receive `JailedPath` objects, not raw strings
-- **Simple Pattern**: Dynamic validator creation via `PathValidator::with_jail(base.jail().join(subpath))`
-- **No Complex Sub-validators**: Uses straightforward path joining instead of complex borrowing patterns
-
-**Real-World Usage Pattern**:
-Most applications know their directory structure ahead of time, making simple path joining more practical than complex progressive security patterns.
-
-### 📊 Observability & Tracing
-**Goal**: Production-ready monitoring and debugging
-
-```rust
-#[cfg(feature = "tracing")]
-impl<Marker> PathValidator<Marker> {
-    pub fn try_path_traced<P: AsRef<Path>>(&self, path: P) -> Result<JailedPath<Marker>> {
-        tracing::debug!(path = ?path.as_ref(), "validating path");
-        match self.try_path(path) {
-            Ok(jailed) => {
-                tracing::info!(
-                    requested = ?candidate,
-                    resolved = ?jailed.relative_path(),
-                    "path validation succeeded"
-                );
-                Ok(jailed)
-            }
-            Err(e) => {
-                tracing::warn!(
-                    requested = ?candidate,
-                    error = %e,
-                    "path validation failed - potential security violation"
-                );
-                Err(e)
-            }
-        }
-    }
-}
-```
-
-**Features**:
-- Optional `tracing` feature flag
-- Structured logging with security event classification
-- Performance metrics for validation operations
-- Attack pattern detection and alerting
-
-
-### 🔧 Path-Complete API (Like app-path's AppPath)
-**Goal**: Make JailedPath a secure, ergonomic alternative to PathBuf, but not a drop-in replacement.
-
-**Cancelled trait implementations:**
-
-> **Note:**
-> We decided to cancel and remove trait implementations such as `AsRef<Path>`, `Borrow<Path>`, `PartialEq<Path>`, `PartialEq<PathBuf>`, and `PartialEq<&str>`. The reason is to prevent unintentional leakage of the inner `Path`, which does not enforce safety guarantees. Relying on the inner path, mistakenly thinking you are working with the `JailedPath` object, could allow API misuse—such as using the `.join()` method of `Path`, which can accept an absolute path and override the jail. This would break our safety guarantee. Traits like `Deref`, `AsRef<Path>`, and `Borrow<Path>` make these mistakes easy. Our solution is to require users to be explicit: call `.real_path()` to access the inner path, and for joining paths, use `.virtual_join()` (and possibly `.real_join()` in the future). This ensures all path operations remain jail-safe by default.
-
-**Current API:**
-- No `Deref`, `AsRef<Path>`, or `Borrow<Path>` for `JailedPath`.
-- All path manipulations must use explicit, jail-aware methods (e.g., `.virtual_join()`).
-- To access the real path, use `.real_path()`.
-
-**Benefits:**
-- Prevents accidental API misuse that could break jail guarantees.
-- Makes safety boundaries explicit in user code.
-
-**Example:**
-```rust
-// Instead of: let joined = jailed_path.join("/etc/passwd"); // (unsafe, not allowed)
-// Use: let joined = jailed_path.virtual_join("subdir/file.txt")?; // (jail-safe)
-
-// To access the real path for I/O:
-let real: &Path = jailed_path.real_path();
-```
-
-**Security Guarantees**:
-- All path-returning methods validate results are within jail
-- `Deref` to `Path` enables zero-cost method forwarding
-- Failed operations return `Result<JailedPath<Marker>>` instead of panicking
-
-**Benefits**:
-- Drop-in replacement for `PathBuf` in secure contexts
-- Familiar API for all Rust developers
-- Zero learning curve for path manipulation
-- Seamless integration with existing file I/O code
-
-**API Usage Example - Drop-in PathBuf Replacement**:
+**API Usage Example - The Secure Way:**
 ```rust
 use jailed_path::{PathValidator, JailedPath};
 use std::collections::HashMap;
 
 struct UserFiles;
 
-// Traditional PathBuf usage
-fn process_file_old(path: PathBuf) -> Result<String, std::io::Error> {
-    let content = std::fs::read_to_string(&path)?;
-    let backup_path = path.with_extension("backup");
-    std::fs::copy(&path, &backup_path)?;
-    Ok(content)
-}
-
-// JailedPath usage - nearly identical!
 fn process_file_secure(path: JailedPath<UserFiles>) -> Result<String, Box<dyn std::error::Error>> {
-    // All the same methods work via Deref
-    let content = std::fs::read_to_string(&path)?;
+    // CORRECT: Use the built-in, safe read method.
+    let content = path.read()?;
     
-    // Path manipulation methods return Results for security
-    let backup_path = path.with_extension("backup")?;  // ✅ Validated automatically
-    std::fs::copy(&path, &backup_path)?;
+    // CORRECT: Path manipulation uses jail-safe virtual methods.
+    let backup_path = path.virtual_with_extension("backup").ok_or("Backup path failed")?;
     
-    Ok(content)
+    // CORRECT: Use the explicit .real_path() for functions expecting a &Path.
+    std::fs::copy(path.real_path(), backup_path.real_path())?;
+    
+    Ok(String::from_utf8_lossy(&content).to_string())
 }
 
-// Collections work seamlessly
-let mut file_cache: HashMap<JailedPath<UserFiles>, String> = HashMap::new();
+// Collections work seamlessly due to Hash and PartialEq implementations.
+let mut file_cache: HashMap<JailedPath<UserFiles>, Vec<u8>> = HashMap::new();
 
 let validator = PathValidator::with_jail("/app/storage")?;
 let jailed = validator.try_path("users/alice/config.toml")?;
 
-// Insert works because of PartialEq implementations
-file_cache.insert(jailed.clone(), "cached content".to_string());
+file_cache.insert(jailed.clone(), b"cached content".to_vec());
 
-// Path manipulation feels natural
-let config_dir = jailed.parent().unwrap();  // Option<JailedPath<UserFiles>>
-let log_file = config_dir.join("app.log")?;  // Result<JailedPath<UserFiles>>
-let backup_config = jailed.with_file_name("config.backup.toml")?;
+// Path manipulation is explicit and safe.
+let config_dir = jailed.virtual_parent().unwrap();
+let log_file = config_dir.virtual_join("app.log").unwrap();
+let backup_config = jailed.virtual_with_file_name("config.backup.toml").unwrap();
 
-// All Path methods available via Deref
+// You can still access path components safely.
 println!("Config file: {}", jailed.file_name().unwrap().to_string_lossy());
 println!("Extension: {:?}", jailed.extension());
-println!("Is absolute: {}", jailed.is_absolute());
 
-// Seamless integration with existing functions
+// To use with external libraries, be explicit.
 fn existing_file_function(path: &Path) -> std::io::Result<u64> {
     std::fs::metadata(path).map(|m| m.len())
 }
+// CORRECT: Pass the real path explicitly.
+let file_size = existing_file_function(jailed.real_path())?;
 
-let file_size = existing_file_function(&jailed)?;  // ✅ Works via AsRef<Path>
+// To get the inner PathBuf, you must "unjail" it.
+let raw_path: PathBuf = jailed.unjail(); // Safety guarantees are now gone.
+```
 
-// Conversion methods - app-path compatibility
-let raw_path: PathBuf = jailed.clone().into_path_buf();  // Extract owned PathBuf
-let inner_path: PathBuf = jailed.clone().into_inner();   // Alias (Rust pattern)
+### 🌐 Web Framework Integration (Axum)
+**Goal**: Security-first web handler patterns with pre-validated paths.
 
-// Ecosystem compatibility for specialized libraries
-let path_bytes: &[u8] = jailed.to_bytes();               // Raw bytes (borrowed)
-let owned_bytes: Vec<u8> = jailed.clone().into_bytes();  // Owned bytes
+The recommended pattern is to use `JailedPath` throughout your application, ensuring that paths are validated at the boundary and then used safely.
 
-// Example: Integration with specialized crates that work with raw bytes
-use some_native_library;
+```rust
+use axum::{extract::{Path, State}, http::StatusCode, response::Response, routing::get, Router};
+use jailed_path::{PathValidator, JailedPath};
+use std::sync::Arc;
 
-fn process_with_native_library(jailed: JailedPath<UserFiles>) -> Result<(), Error> {
-    // Some native libraries expect raw path bytes
-    let path_bytes = jailed.to_bytes();
-    some_native_library::process_file(path_bytes)?;
-    
-    // For APIs that take ownership of bytes
-    let owned_bytes = jailed.into_bytes();
-    some_native_library::store_path(owned_bytes)?;
-    
-    Ok(())
+struct UserFiles;
+
+#[derive(Clone)]
+struct AppState {
+    user_files: PathValidator<UserFiles>,
 }
 
-// Database storage example
-use serde_json;
-
-fn store_path_in_database(jailed: JailedPath<UserFiles>) -> Result<(), DatabaseError> {
-    // Convert to bytes for efficient storage
-    let path_bytes = jailed.to_bytes();
-    database.store("user_path", path_bytes)?;
+// Security-first handler: receives user input, validates it, and then uses the
+// secure JailedPath for all subsequent operations.
+async fn serve_user_file(
+    State(state): State<AppState>,
+    Path((user_id, file_path)): Path<(String, String)>,
+) -> Result<Vec<u8>, StatusCode> {
+    // This automatically blocks ../../../etc/passwd attempts.
+    let safe_path: JailedPath<UserFiles> = state.user_files
+        .try_path(&format!("{}/{}", user_id, file_path))
+        .map_err(|_| StatusCode::FORBIDDEN)?; // Path outside jail is forbidden.
     
-    // Or as JSON-safe string (using Display trait for virtual root)
-    let path_str = format!("{}", jailed);  // "/users/alice/file.txt"
-    let json = serde_json::json!({ "path": path_str });
-    database.store_json("user_file_metadata", &json)?;
+    // CORRECT: Use the explicit .real_path() to pass to I/O functions like tokio::fs.
+    let content = tokio::fs::read(safe_path.real_path()).await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
     
-    Ok(())
+    // The Display trait provides a clean, jail-relative path for logging.
+    tracing::info!("Serving file: {}", safe_path); // e.g., "/alice/documents/file.txt"
+    
+    Ok(content)
 }
 
-// Cross-platform file operations
-fn cross_platform_example(jailed: JailedPath<UserFiles>) -> Result<(), std::io::Error> {
-    // Works consistently on both Unix and Windows
-    let path_bytes = jailed.to_bytes();
+// Application setup
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let app_state = AppState {
+        user_files: PathValidator::with_jail("/app/storage/users")?,
+    };
     
-    #[cfg(unix)]
-    {
-        // On Unix: true raw bytes from OsStr
-        println!("Unix path bytes: {:?}", path_bytes);
-    }
+    let app = Router::new()
+        .route("/users/:user_id/files/*file_path", get(serve_user_file))
+        .with_state(app_state);
     
-    #[cfg(windows)]
-    {
-        // On Windows: UTF-8 representation (may be lossy but safe)
-        println!("Windows path bytes: {:?}", path_bytes);
-    }
-    
-    Ok(())
-}
-
-// CLI tool example
-use clap::Parser;
-
-#[derive(Parser)]
-struct Args {
-    input_file: String,
-    output_dir: String,
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-    
-    // Set up secure boundaries
-    let input_validator = PathValidator::with_jail("/safe/inputs")?;
-    let output_validator = PathValidator::with_jail("/safe/outputs")?;
-    
-    // Validate inputs
-    let input_file: JailedPath<_> = input_validator.try_path(&args.input_file)?;
-    let output_dir: JailedPath<_> = output_validator.try_path(&args.output_dir)?;
-    
-    // Use like normal paths
-    let data = std::fs::read(&input_file)?;
-    let output_file = output_dir.join("processed.txt")?;
-    std::fs::write(&output_file, &processed_data)?;
-    
-    println!("Processed {} -> {}", input_file, output_file);
+    // ... server setup ...
     Ok(())
 }
 ```
+
+
 
 ## Phase 3: Ecosystem & Performance (v0.3.0)
 *Priority: LOW - Polish and optimization*

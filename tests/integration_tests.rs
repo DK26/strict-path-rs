@@ -1,4 +1,4 @@
-use jailed_path::{JailedPath, PathValidator};
+use jailed_path::{JailedFileOps, JailedPath, PathValidator};
 use std::fs;
 use std::io::Write;
 

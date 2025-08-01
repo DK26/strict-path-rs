@@ -1,4 +1,4 @@
-use jailed_path::{JailedPath, PathValidator};
+use jailed_path::{JailedFileOps, JailedPath, PathValidator};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a temporary directory for our example

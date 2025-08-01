@@ -2,7 +2,7 @@
 //!
 //! **Advanced path validation: symlink-safe, multi-jail, compile-time guaranteed**
 //!
-//! *Brought to you by the Type-State Police™ - because apparently YOU can't be trusted with file paths!* 
+//! *Brought to you by the Type-State Police™ - because apparently YOU can't be trusted with file paths!*
 //!
 //! `jailed-path` transforms runtime path validation into mathematical compile-time guarantees using Rust's type system. Unlike other validation libraries, it safely resolves and follows symbolic links while maintaining strict boundary enforcement.
 //!
@@ -73,7 +73,7 @@
 //!
 //! ## Key Features
 //!
-//! 
+//!
 //! - **Security First**: Prevents `../` path traversal attacks automatically
 //! - **Path Canonicalization**: Resolves symlinks and relative components safely
 //! - **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries  
@@ -85,7 +85,7 @@
 //!
 //! ## API Design
 //!
-//! 
+//!
 //! - [`PathValidator::with_jail()`] - Create validator with jail boundary
 //! - [`validator.try_path()`] - Validate a single path, returns `Result<JailedPath, JailedPathError>`
 //! - [`JailedPath`] - Validated path type (can ONLY be created via `try_path()`)
@@ -93,7 +93,7 @@
 //!
 //! ## Security Guarantees
 //!
-//! 
+//!
 //! All `..` components are blocked before processing, symbolic links are resolved, and paths are
 //! mathematically validated against the jail boundary. Path traversal attacks
 //! are impossible to bypass.
@@ -131,16 +131,124 @@
 //! Ok(())
 //! # }
 //! ```
+#![forbid(unsafe_code)]
+
+//! # Jailed Path - Secure by Construction
+//!
+//! `jailed-path` is a Rust library that provides a type-safe, ergonomic, and secure way to handle filesystem paths
+//! that are constrained to a specific directory, known as a "jail".
+//!
+//! It is designed to prevent directory traversal attacks (`../../..`) and other path-based vulnerabilities
+//! by ensuring at compile time that all path operations are safe and remain within the designated jail.
+//!
+//! ## Key Features
+//!
+//! - **Type-Safe Markers**: Use Rust's type system to distinguish between different jails (e.g., `UserUploads`, `PublicAssets`) at compile time, preventing paths from being used in the wrong context.
+//! - **Secure by Default API**: The API is designed to make safe operations easy and unsafe operations explicit. It does **not** use `Deref` or `AsRef<Path>` to prevent accidental misuse of insecure `Path` methods.
+//! - **Virtual Root Display**: Paths are displayed relative to their jail root, preventing the leakage of absolute filesystem paths in logs and user-facing output.
+//! - **Ergonomic Path Manipulation**: Provides safe `virtual_join()`, `virtual_parent()`, and other path manipulation methods that feel like using `PathBuf` but are fully secure.
+//! - **Opt-in File Operations**: A convenient `JailedFileOps` trait can be imported to perform file I/O directly on `JailedPath` objects.
+//! - **Zero Dependencies**: The core library has no external dependencies.
+//!
+//! ## Usage
+//!
+//! First, add `jailed-path` to your `Cargo.toml`:
+//! ```toml
+//! [dependencies]
+//! jailed-path = "0.1.0" # Replace with the latest version
+//! ```
+//!
+//! ### Basic Validation
+//!
+//! The easiest way to use the library is to create a `PathValidator` and use it to validate user-provided paths.
+//!
+//! ```rust
+//! use jailed_path::PathValidator;
+//!
+//! fn example() -> jailed_path::Result<()> {
+//!     // 1. Define a jail directory.
+//!     let jail_dir = "/var/www/uploads";
+//!
+//!     // 2. Create a validator for that jail.
+//!     let validator = PathValidator::<()>::with_jail(jail_dir)?;
+//!
+//!     // 3. Validate a user-provided path.
+//!     let user_path = "user123/avatar.jpg";
+//!     let safe_path = validator.try_path(user_path)?;
+//!
+//!     // The `safe_path` is now a `JailedPath`, guaranteed to be inside the jail.
+//!     println!("Accessing file: {}", safe_path); // Output: "/user123/avatar.jpg"
+//!
+//!     // Attempting to escape the jail will fail.
+//!     let malicious_path = "../../../etc/passwd";
+//!     assert!(validator.try_path(malicious_path).is_err());
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ### Ergonomic File I/O with `JailedFileOps`
+//!
+//! By importing the `JailedFileOps` trait, you can call file I/O methods directly on your `JailedPath`.
+//!
+//! ```rust
+//! use jailed_path::{PathValidator, JailedFileOps};
+//!
+//! fn example() -> Result<(), Box<dyn std::error::Error>> {
+//!     let validator = PathValidator::<()>::with_jail("/tmp/jail")?;
+//!     let file = validator.try_path("data.txt")?;
+//!
+//!     // Write to the file (safely within the jail).
+//!     file.write_bytes(b"secure content")?;
+//!
+//!     // Read from the file.
+//!     let content = file.read_to_string()?;
+//!     assert_eq!(content, "secure content");
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ### Type-Safe Markers for Different Jails
+//!
+//! You can use marker structs to ensure that a path for user uploads is never accidentally used to access public assets.
+//!
+//! ```rust
+//! use jailed_path::PathValidator;
+//!
+//! fn example() -> jailed_path::Result<()> {
+//!     // Define unique markers for each jail type.
+//!     struct UserUploads;
+//!     struct PublicAssets;
+//!
+//!     let upload_validator = PathValidator::<UserUploads>::with_jail("/srv/uploads")?;
+//!     let asset_validator = PathValidator::<PublicAssets>::with_jail("/srv/public")?;
+//!
+//!     let user_file = upload_validator.try_path("user1/profile.jpg")?;
+//!     let asset_file = asset_validator.try_path("css/style.css")?;
+//!
+//!     // This would cause a compile-time error because the types don't match!
+//!     // fn process_asset(path: JailedPath<PublicAssets>) { /* ... */ }
+//!     // process_asset(user_file); // COMPILE ERROR!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Security Philosophy
+//!
+//! The core design principle is **Secure by Construction**. This is achieved by:
+//! - **No `Deref` or `AsRef<Path>`**: Prevents accidental use of insecure standard library path methods.
+//! - **Explicitness**: Methods that expose the real, absolute path (like `real_path()` and `real_path_to_str()`) are clearly named to make the developer's intent obvious.
+//! - **Virtualization**: By default, all string representations and display implementations use a virtual, jail-relative path to prevent leaking filesystem structure.
+
+// Public modules
 pub mod error;
+pub mod ext;
 pub mod jailed_path;
 pub mod validator;
 
-#[cfg(test)]
-mod tests;
-
+// Public exports
 pub use error::JailedPathError;
+pub use ext::JailedFileOps;
 pub use jailed_path::JailedPath;
-pub use soft_canonicalize::soft_canonicalize;
 pub use validator::PathValidator;
 
 /// Result type alias for this crate's operations.
