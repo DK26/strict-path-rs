@@ -48,7 +48,7 @@
 //! // Both are mathematically secure by design:
 //!
 //! // Option 1: One-shot validation with try_jail()
-//! let safe_path: JailedPath = try_jail("public", "index.html")?;  // Returns JailedPath!
+//! let safe_path: JailedPath = try_jail("public", "index.html")?;  // Works!
 //!
 //! // Option 2: Reusable validator with try_path()
 //! let validator = PathValidator::with_jail("public")?;
