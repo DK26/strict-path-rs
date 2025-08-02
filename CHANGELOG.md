@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **macOS test compatibility**: Fixed platform-specific path handling in security tests to properly handle Unix vs Windows path separator differences and temp directory canonicalization on macOS
+
 ## [0.0.4] - 2025-08-03
 
 ### Added

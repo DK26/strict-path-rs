@@ -38,12 +38,23 @@ fn test_known_cve_patterns() {
 
                 // Should be clamped to jail root or within jail
                 let virtual_path = jailed_path.virtual_path();
+                let virtual_str = virtual_path.to_string_lossy();
+
                 // Note: "...." is a valid directory name, not traversal
+                // Note: "%2F" is URL-encoded and treated as literal
+                // Note: Windows backslash paths like "..\..\file" are treated as literal paths on Unix
+                //       (backslashes are not path separators on Unix)
                 if !pattern.contains("....") && !pattern.contains("%2F") {
-                    assert!(
-                        !virtual_path.to_string_lossy().contains(".."),
-                        "Attack pattern '{pattern}' not properly sanitized: {virtual_path:?}"
-                    );
+                    // Only check for traversal if this pattern could actually create traversal
+                    let is_traversal_pattern =
+                        pattern.contains("../") || (cfg!(windows) && pattern.contains("..\\"));
+
+                    if is_traversal_pattern {
+                        assert!(
+                            !virtual_str.contains(".."),
+                            "Attack pattern '{pattern}' not properly sanitized: {virtual_path:?}"
+                        );
+                    }
                 }
 
                 // Should not escape jail
@@ -154,7 +165,12 @@ fn test_long_path_handling() {
             let virtual_path = jailed_path.virtual_path();
             // The .. components should be consumed, but "etc/passwd" should be preserved
             // This matches shell behavior: excessive .. get clamped to root, remaining path is kept
-            assert_eq!(virtual_path.to_string_lossy(), "etc\\passwd");
+            let expected_path = if cfg!(windows) {
+                "etc\\passwd"
+            } else {
+                "etc/passwd"
+            };
+            assert_eq!(virtual_path.to_string_lossy(), expected_path);
         }
         Err(_) => {
             // Rejection is also fine
@@ -214,7 +230,8 @@ fn test_unix_specific_attacks() {
         match validator.try_path(pattern) {
             Ok(jailed_path) => {
                 // Should be safe and within jail
-                assert!(jailed_path.real_path().starts_with(temp.path()));
+                // Use validator.jail() which is canonicalized, not temp.path() which might not be
+                assert!(jailed_path.real_path().starts_with(validator.jail()));
                 assert!(!jailed_path
                     .virtual_path()
                     .to_string_lossy()
