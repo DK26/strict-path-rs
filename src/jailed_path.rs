@@ -14,12 +14,41 @@ use std::sync::Arc;
 
 // --- Struct Definition ---
 
-/// A validated path that is guaranteed to be within a defined jail boundary.
+/// A validated path guaranteed to be within a jail boundary.
 ///
-/// ## Virtual Root Display
+/// ## Key Concepts
+/// - **Virtual paths**: User-facing paths shown as if the jail root is the filesystem root
+/// - **Real paths**: Actual filesystem paths (use with caution - may expose system paths)
+/// - **Safety**: All operations prevent path traversal attacks and jail escapes
 ///
-/// When you print a `JailedPath` (using the `Display` trait), it shows the path as if it starts from the root of your jail.
-/// This keeps user-facing output clean and intuitive, never leaking internal or absolute paths.
+/// ## Display Behavior
+/// `Display` and `Debug` show virtual paths with forward slashes, never exposing real system paths.
+///
+/// ## API Categories
+/// - **Path queries**: `starts_with()`, `file_name()`, `extension()`
+/// - **String conversion**: `virtual_display()`, `virtual_path_to_string()`, `real_path_to_str()` ⚠️
+/// - **Path navigation**: `virtual_join()`, `virtual_parent()`, `virtual_with_file_name()`
+/// - **Raw access**: `real_path()` ⚠️, `virtual_path()` ✅, `jail_root()`
+/// - **Byte operations**: `to_bytes()`, `into_bytes()` ⚠️
+///
+/// **Legend**: ⚠️ = Exposes real filesystem paths | ✅ = Recommended for user-facing operations
+///
+/// ## Example
+/// ```rust
+/// # use jailed_path::PathValidator;
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # std::fs::create_dir_all("temp_jail/data")?;
+/// # std::fs::write("temp_jail/data/file.txt", "test")?;
+/// let validator = PathValidator::<()>::with_jail("temp_jail")?;
+/// let jailed_path = validator.try_path("data/file.txt")?;
+///
+/// // If jail_root is "temp_jail" and real path is "temp_jail/data/file.txt"
+/// // Virtual path shows: "/data/file.txt"
+/// println!("{jailed_path}"); // Always shows virtual path with forward slashes
+/// # std::fs::remove_dir_all("temp_jail").ok();
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone)]
 pub struct JailedPath<Marker = ()> {
     path: PathBuf,
@@ -28,9 +57,12 @@ pub struct JailedPath<Marker = ()> {
 }
 
 // --- Inherent Methods ---
-#[allow(clippy::type_complexity)]
+
 impl<Marker> JailedPath<Marker> {
+    // ---- Construction ----
+
     /// Creates a new JailedPath from a fully validated ValidatedPath with the exact required type-state.
+    #[allow(clippy::type_complexity)]
     pub(crate) fn new(
         jail_root: Arc<ValidatedPath<(Raw, Canonicalized)>>,
         validated_path: ValidatedPath<(
@@ -46,26 +78,27 @@ impl<Marker> JailedPath<Marker> {
         }
     }
 
-    /// Returns true if the path starts with the given base.
+    // ---- Path Queries ----
+
+    /// Checks if the real path starts with the given base.
+    ///
+    /// **⚠️ Caution**: Operates on real filesystem paths, not virtual paths.
     #[inline]
     pub fn starts_with<P: AsRef<Path>>(&self, base: P) -> bool {
         self.path.starts_with(base)
     }
 
-    /// Returns true if the virtual path (as shown to the user) starts with the given base.
-    /// This is useful for user-facing search/filter features.
+    /// Checks if the virtual path starts with the given base.
+    ///
+    /// **✅ Recommended**: Use this for user-facing features like search/filtering.
     #[inline]
     pub fn starts_with_virtual<P: AsRef<Path>>(&self, base: P) -> bool {
-        // Use platform-specific Path comparison for virtual path
-        let jail_relative = if let Ok(relative) = self.path.strip_prefix(&*self.jail_root) {
-            relative
-        } else {
-            Path::new("")
-        };
-        jail_relative.starts_with(base)
+        self.virtual_path().starts_with(base)
     }
 
-    /// Returns a displayable representation of the path (virtual root) as an owned String (always with forward slashes).
+    /// Returns virtual path as display string (always forward slashes).
+    ///
+    /// **Use case**: UI display, logging, APIs that need consistent path format.
     #[inline]
     pub fn virtual_display(&self) -> String {
         let pb = self.virtual_path();
@@ -81,81 +114,69 @@ impl<Marker> JailedPath<Marker> {
         s
     }
 
-    /// Returns the file name of the path, if any.
+    /// Returns the file name component, if any.
     #[inline]
     pub fn file_name(&self) -> Option<&OsStr> {
         self.path.file_name()
     }
 
-    /// Returns the extension of the path, if any.
+    /// Returns the file extension, if any.
     #[inline]
     pub fn extension(&self) -> Option<&OsStr> {
         self.path.extension()
     }
 
-    /// Returns the path as an OsStr.
+    /// Returns the real path as `&OsStr`.
+    ///
+    /// **⚠️ Caution**: Exposes real filesystem path.
     #[inline]
     pub fn as_os_str(&self) -> &OsStr {
         self.path.as_os_str()
     }
 
-    /// Returns the real path as a string slice, if valid UTF-8.
+    /// Returns real path as `&str` if valid UTF-8.
     ///
-    /// This method returns a `&str` representation of the **real, absolute path** on the filesystem.
-    /// It should be used with caution, as it exposes the underlying filesystem structure.
-    /// For a user-facing, jail-relative path, use [`JailedPath::virtual_path_to_string()`]
-    /// or the `Display` trait (`format!("{}", jailed_path)`).
+    /// **⚠️ Caution**: Exposes real filesystem path. For user-facing display, use `virtual_path_to_string()` or `Display`.
     #[inline]
     pub fn real_path_to_str(&self) -> Option<&str> {
         self.path.to_str()
     }
 
-    /// Returns the real path as a `Cow<str>`, replacing any invalid UTF-8 sequences with U+FFFD.
+    /// Returns real path as `Cow<str>`, replacing invalid UTF-8 with U+FFFD.
     ///
-    /// This method returns a string representation of the **real, absolute path** on the filesystem.
-    /// It should be used with caution, as it exposes the underlying filesystem structure.
-    /// For a user-facing, jail-relative path, use [`JailedPath::virtual_path_to_string_lossy()`]
-    /// or the `Display` trait (`format!("{}", jailed_path)`).
+    /// **⚠️ Caution**: Exposes real filesystem path. For user-facing display, use `virtual_path_to_string_lossy()` or `Display`.
     #[inline]
     pub fn real_path_to_string_lossy(&self) -> Cow<'_, str> {
         self.path.to_string_lossy()
     }
 
-    /// Returns the virtual path as an owned `String`, if valid UTF-8.
-    ///
-    /// This method returns a `String` representation of the **virtual, jail-relative path**
-    /// using the platform's standard path separators.
-    /// For a consistent forward-slash representation suitable for display, use the `Display`
-    /// trait (`format!("{jailed_path}")`) which uses [`JailedPath::virtual_display()`].
-    ///
-    /// # Returns
-    ///
-    /// Returns `Some(String)` if the path is valid UTF-8, otherwise `None`.
+    /// Returns virtual path as `String` if valid UTF-8 (platform separators).
+    ///  
+    /// **✅ Recommended**: For user-facing output. Use `Display` for consistent forward slashes.
     #[inline]
     pub fn virtual_path_to_string(&self) -> Option<String> {
         self.virtual_path().into_os_string().into_string().ok()
     }
 
-    /// Returns the virtual path as an owned `String`, replacing any invalid UTF-8 sequences with U+FFFD.
+    /// Returns virtual path as `String`, replacing invalid UTF-8 with U+FFFD (platform separators).
     ///
-    /// This method returns a `String` representation of the **virtual, jail-relative path**
-    /// using the platform's standard path separators.
-    /// For a consistent forward-slash representation suitable for display, use the `Display`
-    /// trait (`format!("{}", jailed_path)`) which uses [`JailedPath::virtual_display()`].
+    /// **✅ Recommended**: For user-facing output. Use `Display` for consistent forward slashes.
     #[inline]
     pub fn virtual_path_to_string_lossy(&self) -> String {
         self.virtual_path().to_string_lossy().into_owned()
     }
 
-    /// Returns a reference to the real, absolute path on the filesystem.
+    /// Returns reference to the real filesystem path.
+    ///
+    /// **⚠️ Caution**: Exposes real filesystem path.
     #[inline]
     pub fn real_path(&self) -> &Path {
         self.path.as_path()
     }
 
-    /// Returns a `PathBuf` representing the virtual path (the path relative to the jail root).
-    /// This path uses the platform's standard path separators. For a consistent forward-slash
-    /// representation, use `virtual_display()`.
+    /// Returns virtual path as `PathBuf` (jail-relative, platform separators).
+    ///
+    /// **✅ Recommended**: For user-facing path operations. Use `virtual_display()` for consistent forward slashes.
     pub fn virtual_path(&self) -> PathBuf {
         if let Ok(relative) = self.path.strip_prefix(&*self.jail_root) {
             let mut pb = PathBuf::new();
@@ -173,40 +194,29 @@ impl<Marker> JailedPath<Marker> {
         }
     }
 
-    /// Consumes the JailedPath and returns the jail-relative path as a PathBuf.
+    /// Consumes `JailedPath` and returns the real path as `PathBuf`.
+    ///
+    /// **⚠️ Caution**: Returns real filesystem path, not virtual path.
     #[inline]
     pub fn unjail(self) -> PathBuf {
         self.path
     }
 
-    /// Returns a new JailedPath by safely joining a user-supplied path to the virtual path.
+    /// Safely joins user path to current virtual path, returns `None` on error.
     ///
-    /// # Usage
-    /// - This method joins paths in the virtual filesystem (user's perspective).
-    /// - The current JailedPath represents a virtual path like "/foo/bar.txt"
-    /// - Joining "baz.txt" results in "/foo/bar.txt/baz.txt" virtually
-    /// - The argument must be a jail-relative or user-style path (e.g., "foo/bar", "../baz", or "/baz").
-    /// - Any absolute or rooted path is treated as jail-relative (the user sees their root as the jail root).
-    ///
-    /// # Invariant
-    /// - The resulting path will always be clamped to the jail root and never escape it.
-    /// - This operates on virtual paths, then validates the result against the real filesystem.
+    /// **Safety**: Path traversal attacks prevented. Input treated as jail-relative.
+    /// **Input**: `"../file.txt"`, `"dir/file.txt"`, `"/abs/path"` (treated as jail-relative)
+    /// **Never use**: Real system paths or already-jailed paths as input
     pub fn virtual_join<P: AsRef<Path>>(&self, path: P) -> Option<Self> {
         self.try_virtual_join(path).ok()
     }
 
-    /// Returns a new JailedPath by safely joining a user-supplied path (jail-relative), or an error if result escapes jail or canonicalization fails.
+    /// Safely joins user path to current virtual path, returns `Result`.
     ///
-    /// # Usage
-    /// - This method is for joining user/external input, where the user is unaware of the jail's real system path.
-    /// - The argument must be a jail-relative or user-style path (e.g., "foo/bar", "../baz", or "/baz").
-    /// - Any absolute or rooted path is treated as jail-relative (the user sees their root as the jail root).
-    /// - Never pass an already jailed or system-absolute path (e.g., jail_root.join("foo")) to this method.
-    /// - Do not use PathBuf::join or Path::join on the inner path, as it may escape the jail boundary.
-    ///
-    /// # Invariant
-    /// - The resulting path will always be clamped to the jail root and never escape it.
-    /// - This method is not for joining already jailed or canonicalized paths.
+    /// **Safety**: Path traversal attacks prevented. Input treated as jail-relative.
+    /// **Input**: `"../file.txt"`, `"dir/file.txt"`, `"/abs/path"` (treated as jail-relative)
+    /// **Never use**: Real system paths or already-jailed paths as input
+    /// **Errors**: `JailedPathError` if join fails or result escapes jail
     pub fn try_virtual_join<P: AsRef<Path>>(&self, path: P) -> Result<Self, JailedPathError> {
         let arg = path.as_ref();
 
@@ -249,12 +259,14 @@ impl<Marker> JailedPath<Marker> {
         Ok(Self::new(self.jail_root.clone(), validated_path))
     }
 
-    /// Returns the parent as a new JailedPath, or None if parent escapes jail (with canonicalization and boundary check).
+    /// Returns parent directory as new `JailedPath`, or `None` if at jail root.
     pub fn virtual_parent(&self) -> Option<Self> {
         self.try_virtual_parent().ok()
     }
 
-    /// Returns the parent as a new JailedPath, or an error if parent escapes jail or does not exist (with canonicalization and boundary check).
+    /// Returns parent directory as new `JailedPath`, or error if at jail root.
+    ///
+    /// **Errors**: `JailedPathError` if already at jail root or canonicalization fails
     pub fn try_virtual_parent(&self) -> Result<Self, JailedPathError> {
         // Work in virtual space - get current virtual path and find its parent
         let current_virtual_pb = self.virtual_path();
@@ -283,12 +295,14 @@ impl<Marker> JailedPath<Marker> {
         Ok(Self::new(self.jail_root.clone(), validated_path))
     }
 
-    /// Returns a new JailedPath with a different file name, or None if result escapes jail (with canonicalization and boundary check).
+    /// Returns new `JailedPath` with different file name, or `None` on error.
     pub fn virtual_with_file_name<S: AsRef<OsStr>>(&self, name: S) -> Option<Self> {
         self.try_virtual_with_file_name(name).ok()
     }
 
-    /// Returns a new JailedPath with a different file name, or an error if result escapes jail (with canonicalization and boundary check).
+    /// Returns new `JailedPath` with different file name, or error.
+    ///
+    /// **Errors**: `JailedPathError` if operation fails or result escapes jail
     pub fn try_virtual_with_file_name<S: AsRef<OsStr>>(
         &self,
         name: S,
@@ -312,12 +326,14 @@ impl<Marker> JailedPath<Marker> {
         Ok(Self::new(self.jail_root.clone(), validated_path))
     }
 
-    /// Returns a new JailedPath with a different extension, or None if result escapes jail (with canonicalization and boundary check).
+    /// Returns new `JailedPath` with different extension, or `None` on error.
     pub fn virtual_with_extension<S: AsRef<OsStr>>(&self, ext: S) -> Option<Self> {
         self.try_virtual_with_extension(ext).ok()
     }
 
-    /// Returns a new JailedPath with a different extension, or an error if result escapes jail (with canonicalization and boundary check).
+    /// Returns new `JailedPath` with different extension, or error.
+    ///
+    /// **Errors**: `JailedPathError` if path has no filename or operation fails
     pub fn try_virtual_with_extension<S: AsRef<OsStr>>(
         &self,
         ext: S,
@@ -330,6 +346,17 @@ impl<Marker> JailedPath<Marker> {
             current_virtual_pb
         };
 
+        // Check if the current path has a filename - if not, we can't add an extension
+        if current_virtual.file_name().is_none() {
+            return Err(JailedPathError::PathResolutionError {
+                path: current_virtual,
+                source: std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "Cannot add extension to path without filename",
+                ),
+            });
+        }
+
         let new_virtual = current_virtual.with_extension(ext);
 
         // Validate this new virtual path through the normal pipeline
@@ -341,7 +368,9 @@ impl<Marker> JailedPath<Marker> {
         Ok(Self::new(self.jail_root.clone(), validated_path))
     }
 
-    /// Returns the path as bytes (platform-specific).
+    /// Returns real path as bytes (platform-specific encoding).
+    ///
+    /// **⚠️ Caution**: Exposes real filesystem path.
     pub fn to_bytes(&self) -> Vec<u8> {
         #[cfg(unix)]
         {
@@ -354,7 +383,9 @@ impl<Marker> JailedPath<Marker> {
         }
     }
 
-    /// Consumes and returns the path as bytes (platform-specific).
+    /// Consumes path and returns real path as bytes (platform-specific encoding).
+    ///
+    /// **⚠️ Caution**: Exposes real filesystem path.
     pub fn into_bytes(self) -> Vec<u8> {
         #[cfg(unix)]
         {
@@ -367,7 +398,7 @@ impl<Marker> JailedPath<Marker> {
         }
     }
 
-    /// Returns a reference to the jail root path.
+    /// Returns reference to the jail root path.
     pub fn jail_root(&self) -> &Path {
         &self.jail_root
     }
@@ -375,7 +406,7 @@ impl<Marker> JailedPath<Marker> {
 
 // --- Trait Implementations ---
 impl<Marker> fmt::Display for JailedPath<Marker> {
-    /// Shows the path as if from the jail root, for clean user-facing output (always with forward slashes).
+    /// Displays virtual path with forward slashes (user-facing, never exposes real paths).
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.virtual_display())
     }

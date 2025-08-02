@@ -1,80 +1,101 @@
 //! # jailed-path
 //!
-//! **Advanced path validation: symlink-safe, multi-jail, compile-time guaranteed**
+//! **Prevent directory traversal with type-safe virtual path jails and safe symlinks**
 //!
-//! *Brought to you by the Type-State Police™ - because apparently YOU can't be trusted with file paths!*
+//! > *Putting your paths in jail by the Type-State Police Department*
 //!
-//! `jailed-path` transforms runtime path validation into mathematical compile-time guarantees using Rust's type system. Unlike other validation libraries, it safely resolves and follows symbolic links while maintaining strict boundary enforcement.
+//! *because your LLM can't be trusted with security*
 //!
-//! ## Basic Usage: Type Safety Over Manual Validation
+//! ## The Problem: Every Path Is a Security Risk
 //!
 //! ```rust
-//! use jailed_path::{PathValidator, JailedPath};
+//! // 🚨 DANGEROUS - This code looks innocent but has a critical vulnerability
+//! fn serve_file_unsafe(path: &str) -> std::io::Result<Vec<u8>> {
+//!     // This is just an example of what NOT to do
+//!     std::fs::read(format!("./public/{}", path))  // ← Path traversal attack possible!
+//! }
 //!
-//! // ✅ Type-safe: Only accepts validated paths
+//! // Attacker could send: "../../../etc/passwd"
+//! // Server would try to serve: ./public/../../../etc/passwd → /etc/passwd 💀
+//! // (This example doesn't actually run the dangerous code)
+//! # let _ = serve_file_unsafe; // Prevent unused warning
+//! ```
+//!
+//! ## The Solution: Mathematical Security Guarantees
+//!
+//! ```rust
+//! use jailed_path::{try_jail, PathValidator, JailedPath};
+//!
+//! // ✅ SECURE - Attack impossible by mathematical design
 //! fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
-//!     std::fs::read(safe_path.real_path())
+//!     std::fs::read(safe_path.real_path())  // ← JailedPath GUARANTEES safety
 //! }
 //!
 //! # std::fs::create_dir_all("public")?; std::fs::write("public/index.html", b"<html></html>")?;
+//! // Two ways to get a JailedPath - both mathematically secure:
+//!
+//! // Option 1: One-shot validation
+//! let safe_path: JailedPath = try_jail("public", "index.html")?;  // Works!
+//!
+//! // Option 2: Reusable validator  
 //! let validator = PathValidator::with_jail("public")?;
-//! let safe_path: JailedPath = validator.try_path("index.html")?; // Only way to create JailedPath
+//! let safe_path = validator.try_path("index.html")?;  // Works!
+//!
 //! let content = serve_file(&safe_path)?;
 //! # std::fs::remove_dir_all("public").ok();
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! ## Preventing Mix-ups with Multiple Jails
+//! **The key insight**: `JailedPath` is the ONLY type that promises security. You literally cannot create one without going through validation.
+//!
+//! ## Multi-Jail Type Safety: Preventing Mix-ups
 //!
 //! ```rust
 //! use jailed_path::{PathValidator, JailedPath};
 //!
-//! struct ConfigFiles;
-//! struct UserData;
-//!
-//! fn load_config(config_path: &JailedPath<ConfigFiles>) -> Result<String, std::io::Error> {
-//!     std::fs::read_to_string(config_path.real_path())
-//! }
-//!
-//! # std::fs::create_dir_all("config")?; std::fs::create_dir_all("userdata")?;
-//! # std::fs::write("config/app.toml", "key=value")?;
-//! let config_validator: PathValidator<ConfigFiles> = PathValidator::with_jail("config")?;
-//! let user_validator: PathValidator<UserData> = PathValidator::with_jail("userdata")?;
-//!
-//! let config_file: JailedPath<ConfigFiles> = config_validator.try_path("app.toml")?;
-//! let user_file: JailedPath<UserData> = user_validator.try_path("profile.json")?;
-//!
-//! load_config(&config_file)?; // ✅ Correct type
-//! // load_config(&user_file)?; // ❌ Compile error: wrong marker type!
-//! # std::fs::remove_dir_all("config").ok(); std::fs::remove_dir_all("userdata").ok();
-//! # Ok::<(), Box<dyn std::error::Error>>(())
-//! ```
-//!
-//! ## Optional: Adding Markers for Readability
-//!
-//! ```rust
-//! use jailed_path::{PathValidator, JailedPath};
-//!
+//! struct PublicAssets;
 //! struct UserUploads;
 //!
-//! fn process_upload(file: &JailedPath<UserUploads>) -> std::io::Result<()> {
-//!     let content = std::fs::read(file.real_path())?;
-//!     println!("Processing {} bytes", content.len());
-//!     Ok(())
+//! fn serve_asset(asset: &JailedPath<PublicAssets>) -> Result<String, std::io::Error> {
+//!     std::fs::read_to_string(asset.real_path())
 //! }
 //!
-//! # std::fs::create_dir_all("uploads")?; std::fs::write("uploads/photo.jpg", b"fake image data")?;
-//! let upload_validator: PathValidator<UserUploads> = PathValidator::with_jail("uploads")?;
-//! let upload_file: JailedPath<UserUploads> = upload_validator.try_path("photo.jpg")?;
-//! process_upload(&upload_file)?;
-//! # std::fs::remove_dir_all("uploads").ok();
+//! # std::fs::create_dir_all("assets")?; std::fs::create_dir_all("uploads")?;
+//! # std::fs::write("assets/style.css", "body{}")?;
+//! let assets: PathValidator<PublicAssets> = PathValidator::with_jail("assets")?;
+//! let uploads: PathValidator<UserUploads> = PathValidator::with_jail("uploads")?;
+//!
+//! let css_file: JailedPath<PublicAssets> = assets.try_path("style.css")?;
+//! let user_file: JailedPath<UserUploads> = uploads.try_path("avatar.jpg")?;
+//!
+//! serve_asset(&css_file)?; // ✅ Correct type
+//! // serve_asset(&user_file)?; // ❌ Compile error: wrong marker type!
+//! # std::fs::remove_dir_all("assets").ok(); std::fs::remove_dir_all("uploads").ok();
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! ## Key Features
+//! ## Built-in Safe File Operations
 //!
+//! ```rust
+//! use jailed_path::{PathValidator, JailedFileOps};
 //!
-//! - **Security First**: Prevents `../` path traversal attacks automatically
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # std::fs::create_dir_all("safe_jail")?;
+//! let validator = PathValidator::<()>::with_jail("safe_jail")?;
+//! let file = validator.try_path("data.txt")?;
+//!
+//! // ✅ SAFE - All operations stay within jail automatically
+//! file.write_string("secure content")?;
+//! let content = file.read_to_string()?;
+//! assert_eq!(content, "secure content");
+//! # std::fs::remove_dir_all("safe_jail").ok();
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Key Features: Security-First Design
+//!
+//! - **Security First**: Security is prioritized above convenience and performance - the API is designed to make unsafe operations impossible rather than just difficult. No `Deref` to `Path`, no `AsRef<Path>`, and validation cannot be bypassed
 //! - **Path Canonicalization**: Resolves symlinks and relative components safely
 //! - **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries  
 //! - **Multi-Jail Support**: Keep different validators separate with your own optional marker types
@@ -94,7 +115,7 @@
 //! ## Security Guarantees
 //!
 //!
-//! All `..` components are blocked before processing, symbolic links are resolved, and paths are
+//! All `..` components are clamped before processing, symbolic links are resolved, and paths are
 //! mathematically validated against the jail boundary. Path traversal attacks
 //! are impossible to bypass.
 //!
@@ -148,14 +169,14 @@
 //! - **Virtual Root Display**: Paths are displayed relative to their jail root, preventing the leakage of absolute filesystem paths in logs and user-facing output.
 //! - **Ergonomic Path Manipulation**: Provides safe `virtual_join()`, `virtual_parent()`, and other path manipulation methods that feel like using `PathBuf` but are fully secure.
 //! - **Opt-in File Operations**: A convenient `JailedFileOps` trait can be imported to perform file I/O directly on `JailedPath` objects.
-//! - **Zero Dependencies**: The core library has no external dependencies.
+//! - **Single Dependency**: Only depends on our own `soft-canonicalize` crate.
 //!
 //! ## Usage
 //!
 //! First, add `jailed-path` to your `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! jailed-path = "0.1.0" # Replace with the latest version
+//! jailed-path = "0.0.3" # Replace with the latest version
 //! ```
 //!
 //! ### Basic Validation
@@ -179,9 +200,10 @@
 //!     // The `safe_path` is now a `JailedPath`, guaranteed to be inside the jail.
 //!     println!("Accessing file: {}", safe_path); // Output: "/user123/avatar.jpg"
 //!
-//!     // Attempting to escape the jail will fail.
+//!     // Attempting to escape the jail will be clamped to the jail root.
 //!     let malicious_path = "../../../etc/passwd";
-//!     assert!(validator.try_path(malicious_path).is_err());
+//!     let clamped_path = validator.try_path(malicious_path)?; // This succeeds but is clamped
+//!     assert!(clamped_path.real_path().starts_with(validator.jail()));
 //!     Ok(())
 //! }
 //! ```
@@ -244,6 +266,9 @@ pub mod error;
 pub mod ext;
 pub mod jailed_path;
 pub mod validator;
+
+#[cfg(test)]
+mod tests;
 
 // Public exports
 pub use error::JailedPathError;

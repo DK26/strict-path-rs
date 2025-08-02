@@ -7,47 +7,43 @@ This roadmap outlines the planned evolution of the `jailed-path` crate based on 
 
 
 
-## Planned: Jail-Safe File Operations Trait
+## ✅ COMPLETED: Jail-Safe File Operations Trait
 
 **Goal:** Provide ergonomic, jail-safe file operations directly on `JailedPath` without exposing the inner `Path` or relying on `Deref`/`AsRef<Path>`.
 
-**Rationale:**
-- Avoids accidental API misuse and path leaks.
-- Keeps file operations explicit and always jail-aware.
-- Improves ergonomics for users (no need to call `.real_path()` everywhere).
+**Status:** ✅ **COMPLETED** - Available since version 0.0.3
 
-**Proposed Trait Example:**
+**What was implemented:**
+- The `JailedFileOps` trait provides comprehensive file I/O operations
+- Import with `use jailed_path::JailedFileOps;`
+- All operations work directly on `JailedPath` instances
+- No need to call `.real_path()` manually
+- Includes: `exists()`, `is_file()`, `is_dir()`, `metadata()`, `read_to_string()`, `read_bytes()`, `write_string()`, `write_bytes()`, `create_dir_all()`, `remove_file()`, `remove_dir()`, `remove_dir_all()`
+
+**Example Usage:**
 ```rust
-pub trait JailedFileOps {
-    fn read_bytes(&self) -> std::io::Result<Vec<u8>>;
-    fn write_bytes(&self, data: &[u8]) -> std::io::Result<()>;
-    fn read_string(&self) -> std::io::Result<String>;
-    // ...other jail-safe methods...
-}
+use jailed_path::{PathValidator, JailedFileOps};
 
-impl<Marker> JailedFileOps for JailedPath<Marker> {
-    fn read_bytes(&self) -> std::io::Result<Vec<u8>> {
-        std::fs::read(self.real_path())
-    }
-    fn write_bytes(&self, data: &[u8]) -> std::io::Result<()> {
-        std::fs::write(self.real_path(), data)
-    }
-    fn read_string(&self) -> std::io::Result<String> {
-        std::fs::read_to_string(self.real_path())
-    }
-    // ...
+let validator = PathValidator::<()>::with_jail("./uploads")?;
+let file = validator.try_path("document.txt")?;
+
+// Direct file operations (no .real_path() needed!)
+if file.exists() {
+    let content = file.read_to_string()?;
+    println!("Content: {}", content);
 }
+file.write_string("Hello, secure world!")?;
 ```
 
-**Benefits:**
-- All file operations are jail-safe by construction.
-- No trait-based leaks or accidental bypasses.
-- API is as convenient as using `Path`/`PathBuf` with standard library, but always secure.
-
-**Status:**
-- Planned for a future release. Feedback and suggestions welcome!
+**Benefits Achieved:**
+- All file operations are jail-safe by construction
+- No trait-based leaks or accidental bypasses  
+- API is as convenient as using `Path`/`PathBuf` with standard library, but always secure
+- Optional trait import keeps the core API focused
 
 ---
+
+## Planned: Enhanced Security Features
 ## Current Status (v0.0.3)
 
 ✅ **Implemented**
