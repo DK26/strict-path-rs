@@ -62,14 +62,6 @@ pub struct PathValidator<Marker = ()> {
 }
 
 impl<Marker> PathValidator<Marker> {
-    /// Like try_path, but normalizes all backslashes to slashes before validation.
-    /// Use this for any external or untrusted string path to ensure cross-platform consistency.
-    #[inline]
-    pub fn try_path_normalized(&self, path_str: &str) -> Result<JailedPath<Marker>> {
-        let normalized = path_str.replace('\\', "/");
-        self.try_path(normalized)
-    }
-
     /// Creates a new PathValidator with the specified jail directory.
     ///
     /// **This is the FIRST step in secure path validation - create your validator once and reuse it.**
@@ -197,6 +189,14 @@ impl<Marker> PathValidator<Marker> {
         let checked = canon.boundary_check(&self.jail)?;
 
         Ok(JailedPath::new(self.jail.clone(), checked))
+    }
+
+    /// Like try_path, but normalizes all backslashes to slashes before validation.
+    /// Use this for any external or untrusted string path to ensure cross-platform consistency.
+    #[inline]
+    pub fn try_path_normalized(&self, path_str: &str) -> Result<JailedPath<Marker>> {
+        let normalized = path_str.replace('\\', "/");
+        self.try_path(normalized)
     }
 
     #[inline]

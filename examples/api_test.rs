@@ -21,13 +21,17 @@ fn main() -> Result<(), JailedPathError> {
         }
     }
 
-    // Test invalid path (directory traversal)
+    // Test path with directory traversal (gets clamped to jail root)
     match validator.try_path("../../../sensitive.txt") {
-        Ok(_) => {
-            println!("✗ Path validation failed: traversal should have been blocked!");
+        Ok(clamped_path) => {
+            println!(
+                "✓ Path traversal clamped to jail root: {}",
+                clamped_path.virtual_display()
+            );
+            println!("  Real path: {}", clamped_path.real_path().display());
         }
         Err(e) => {
-            println!("✓ Correctly blocked traversal: {e}");
+            println!("✗ Unexpected error for clamped path: {e}");
         }
     }
 

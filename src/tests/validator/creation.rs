@@ -28,8 +28,8 @@ fn get_attack_target_paths() -> Vec<&'static str> {
 }
 
 fn create_test_directory() -> std::io::Result<std::path::PathBuf> {
-    use std::time::{SystemTime, UNIX_EPOCH};
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
     let thread_id = COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -39,7 +39,12 @@ fn create_test_directory() -> std::io::Result<std::path::PathBuf> {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .subsec_nanos();
-    let temp_dir = temp_base.join(format!("jailed_path_test_{}_{}_{}", std::process::id(), thread_id, nanos));
+    let temp_dir = temp_base.join(format!(
+        "jailed_path_test_{}_{}_{}",
+        std::process::id(),
+        thread_id,
+        nanos
+    ));
 
     // Create the main test directory
     fs::create_dir_all(&temp_dir)?;

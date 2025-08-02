@@ -135,11 +135,11 @@ impl<S> ValidatedPath<S> {
             match comp {
                 Component::RootDir | Component::Prefix(_) => continue,
                 Component::ParentDir => {
-                    if let Some(last) = stack.last() {
-                        if *last != Component::RootDir {
-                            stack.pop();
-                        }
+                    // Only pop if there's something to pop (clamping behavior)
+                    if !stack.is_empty() {
+                        stack.pop();
                     }
+                    // If stack is empty, ignore the .. (clamped to root)
                 }
                 Component::CurDir => {}
                 other => stack.push(other),
