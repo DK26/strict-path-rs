@@ -51,13 +51,13 @@ fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
 // Both are mathematically secure by design:
 
 // Option 1: One-shot validation with try_jail()
-let safe_path = try_jail("./public", "index.html")?;  // Works!
-let safe_path = try_jail("./public", "../../../etc/passwd")?;  // Clamped to jail root!
+let safe_path: JailedPath = try_jail("./public", "index.html")?;  // Works!
+let safe_path: JailedPath = try_jail("./public", "../../../etc/passwd")?;  // Clamped to jail root!
 
 // Option 2: Reusable validator with try_path()
 let validator = PathValidator::with_jail("./public")?;
-let safe_path = validator.try_path("index.html")?;  // Works!
-let safe_path = validator.try_path("../../../etc/passwd")?;  // Clamped to jail root!
+let safe_path: JailedPath = validator.try_path("index.html")?;  // Works!
+let safe_path: JailedPath = validator.try_path("../../../etc/passwd")?;  // Clamped to jail root!
 ```
 
 **The key insight**: `JailedPath` is the ONLY type that promises security. You literally cannot create one without going through `try_jail()` or `validator.try_path()` - there are no other constructors!

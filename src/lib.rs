@@ -48,11 +48,11 @@
 //! // Both are mathematically secure by design:
 //!
 //! // Option 1: One-shot validation with try_jail()
-//! let safe_path: JailedPath = try_jail("public", "index.html")?;  // Works!
+//! let safe_path: JailedPath = try_jail("public", "index.html")?;  // Returns JailedPath!
 //!
 //! // Option 2: Reusable validator with try_path()
 //! let validator = PathValidator::with_jail("public")?;
-//! let safe_path = validator.try_path("index.html")?;  // Works!
+//! let safe_path: JailedPath = validator.try_path("index.html")?;  // Works!
 //!
 //! let content = serve_file(&safe_path)?;
 //! # std::fs::remove_dir_all("public").ok();
