@@ -251,5 +251,52 @@ pub use ext::JailedFileOps;
 pub use jailed_path::JailedPath;
 pub use validator::PathValidator;
 
+/// Creates a `JailedPath` by jailing a `path_to_jail` within a `jail_path`.
+///
+/// This function is a convenient way to create a `JailedPath` without needing to
+/// create a `PathValidator` first. It performs the same validation steps as
+/// `PathValidator::try_path`.
+///
+/// # Arguments
+///
+/// * `jail_path` - The path to the jail directory.
+/// * `path_to_jail` - The path to jail, relative to the `jail_path`.
+///
+/// # Returns
+///
+/// A `Result` containing the `JailedPath` if successful, or a `JailedPathError`
+/// if the path is invalid or escapes the jail.
+pub fn try_jail<P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(
+    jail_path: P,
+    path_to_jail: Q,
+) -> Result<JailedPath> {
+    let jail_root =
+        validator::validated_path::ValidatedPath::<validator::validated_path::Raw>::new(
+            jail_path.as_ref(),
+        )
+        .canonicalize()?;
+
+    if jail_root.exists() && !jail_root.is_dir() {
+        let error = std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "The specified jail path exists but is not a directory.",
+        );
+        return Err(JailedPathError::invalid_jail(
+            jail_path.as_ref().to_path_buf(),
+            error,
+        ));
+    }
+
+    let checked = validator::validated_path::ValidatedPath::<validator::validated_path::Raw>::new(
+        path_to_jail.as_ref(),
+    )
+    .clamp()
+    .join_jail(&jail_root)
+    .canonicalize()?
+    .boundary_check(&jail_root)?;
+
+    Ok(JailedPath::new(std::sync::Arc::new(jail_root), checked))
+}
+
 /// Result type alias for this crate's operations.
 pub type Result<T> = std::result::Result<T, JailedPathError>;

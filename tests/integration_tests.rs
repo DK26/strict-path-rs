@@ -2,6 +2,8 @@ use jailed_path::{JailedFileOps, JailedPath, PathValidator};
 use std::fs;
 use std::io::Write;
 
+mod try_jail_test;
+
 /// Creates a cross-platform non-existent absolute path for testing
 fn get_nonexistent_absolute_path() -> String {
     #[cfg(windows)]

@@ -68,6 +68,7 @@ impl<Marker> PathValidator<Marker> {
         let normalized = path_str.replace('\\', "/");
         self.try_path(normalized)
     }
+
     /// Creates a new PathValidator with the specified jail directory.
     ///
     /// **This is the FIRST step in secure path validation - create your validator once and reuse it.**
@@ -119,11 +120,9 @@ impl<Marker> PathValidator<Marker> {
     /// ```
     pub fn with_jail<P: AsRef<Path>>(jail: P) -> Result<Self> {
         let jail_path = jail.as_ref();
-        // Use ValidatedPath and its canonicalize method for jail path processing
         let validated_path = ValidatedPath::<Raw>::new(jail_path);
         let canonicalized = validated_path.canonicalize()?;
 
-        // If jail exists, it must be a directory; if it does not exist, allow it
         if canonicalized.exists() && !canonicalized.is_dir() {
             let error = std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -198,8 +197,6 @@ impl<Marker> PathValidator<Marker> {
 
         Ok(JailedPath::new(self.jail.clone(), checked))
     }
-
-    // ...existing code...
 
     #[inline]
     pub fn jail(&self) -> &Path {
