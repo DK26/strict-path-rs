@@ -1,6 +1,7 @@
 use super::validated_path::*;
 use crate::jailed_path::JailedPath;
 use crate::{JailedPathError, Result};
+use std::io::{Error as IoError, ErrorKind};
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
@@ -124,8 +125,8 @@ impl<Marker> PathValidator<Marker> {
         let canonicalized = validated_path.canonicalize()?;
 
         if canonicalized.exists() && !canonicalized.is_dir() {
-            let error = std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
+            let error = IoError::new(
+                ErrorKind::InvalidInput,
                 "The specified jail path exists but is not a directory.",
             );
             return Err(JailedPathError::invalid_jail(

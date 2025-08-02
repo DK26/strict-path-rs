@@ -2,9 +2,14 @@ use crate::error::JailedPathError;
 use crate::validator::validated_path::{
     BoundaryChecked, Canonicalized, Clamped, JoinedJail, Raw, ValidatedPath,
 };
+use std::borrow::Cow;
+use std::cmp::Ordering;
+use std::ffi::OsStr;
 use std::fmt;
+use std::hash::{Hash, Hasher};
+use std::io::{Error as IoError, ErrorKind};
 use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 use std::sync::Arc;
 
 // --- Struct Definition ---
@@ -78,19 +83,19 @@ impl<Marker> JailedPath<Marker> {
 
     /// Returns the file name of the path, if any.
     #[inline]
-    pub fn file_name(&self) -> Option<&std::ffi::OsStr> {
+    pub fn file_name(&self) -> Option<&OsStr> {
         self.path.file_name()
     }
 
     /// Returns the extension of the path, if any.
     #[inline]
-    pub fn extension(&self) -> Option<&std::ffi::OsStr> {
+    pub fn extension(&self) -> Option<&OsStr> {
         self.path.extension()
     }
 
     /// Returns the path as an OsStr.
     #[inline]
-    pub fn as_os_str(&self) -> &std::ffi::OsStr {
+    pub fn as_os_str(&self) -> &OsStr {
         self.path.as_os_str()
     }
 
@@ -112,7 +117,7 @@ impl<Marker> JailedPath<Marker> {
     /// For a user-facing, jail-relative path, use [`JailedPath::virtual_path_to_string_lossy()`]
     /// or the `Display` trait (`format!("{}", jailed_path)`).
     #[inline]
-    pub fn real_path_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+    pub fn real_path_to_string_lossy(&self) -> Cow<'_, str> {
         self.path.to_string_lossy()
     }
 
@@ -152,7 +157,6 @@ impl<Marker> JailedPath<Marker> {
     /// This path uses the platform's standard path separators. For a consistent forward-slash
     /// representation, use `virtual_display()`.
     pub fn virtual_path(&self) -> PathBuf {
-        use std::path::Component;
         if let Ok(relative) = self.path.strip_prefix(&*self.jail_root) {
             let mut pb = PathBuf::new();
             for comp in relative.components() {
@@ -222,7 +226,6 @@ impl<Marker> JailedPath<Marker> {
             // Treat as jail-relative: strip all root components
             let mut virtual_path = PathBuf::new();
             for comp in arg.components() {
-                use std::path::Component;
                 match comp {
                     Component::RootDir | Component::Prefix(_) => continue,
                     _ => virtual_path.push(comp.as_os_str()),
@@ -259,10 +262,7 @@ impl<Marker> JailedPath<Marker> {
             // Already at root, no parent
             return Err(JailedPathError::path_resolution_error(
                 self.path.clone(),
-                std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "No parent - already at jail root",
-                ),
+                IoError::new(ErrorKind::NotFound, "No parent - already at jail root"),
             ));
         }
         let current_virtual = current_virtual_pb;
@@ -270,7 +270,7 @@ impl<Marker> JailedPath<Marker> {
         let parent_virtual = current_virtual.parent().ok_or_else(|| {
             JailedPathError::path_resolution_error(
                 self.path.clone(),
-                std::io::Error::new(std::io::ErrorKind::NotFound, "No parent"),
+                IoError::new(ErrorKind::NotFound, "No parent"),
             )
         })?;
 
@@ -284,12 +284,12 @@ impl<Marker> JailedPath<Marker> {
     }
 
     /// Returns a new JailedPath with a different file name, or None if result escapes jail (with canonicalization and boundary check).
-    pub fn virtual_with_file_name<S: AsRef<std::ffi::OsStr>>(&self, name: S) -> Option<Self> {
+    pub fn virtual_with_file_name<S: AsRef<OsStr>>(&self, name: S) -> Option<Self> {
         self.try_virtual_with_file_name(name).ok()
     }
 
     /// Returns a new JailedPath with a different file name, or an error if result escapes jail (with canonicalization and boundary check).
-    pub fn try_virtual_with_file_name<S: AsRef<std::ffi::OsStr>>(
+    pub fn try_virtual_with_file_name<S: AsRef<OsStr>>(
         &self,
         name: S,
     ) -> Result<Self, JailedPathError> {
@@ -313,12 +313,12 @@ impl<Marker> JailedPath<Marker> {
     }
 
     /// Returns a new JailedPath with a different extension, or None if result escapes jail (with canonicalization and boundary check).
-    pub fn virtual_with_extension<S: AsRef<std::ffi::OsStr>>(&self, ext: S) -> Option<Self> {
+    pub fn virtual_with_extension<S: AsRef<OsStr>>(&self, ext: S) -> Option<Self> {
         self.try_virtual_with_extension(ext).ok()
     }
 
     /// Returns a new JailedPath with a different extension, or an error if result escapes jail (with canonicalization and boundary check).
-    pub fn try_virtual_with_extension<S: AsRef<std::ffi::OsStr>>(
+    pub fn try_virtual_with_extension<S: AsRef<OsStr>>(
         &self,
         ext: S,
     ) -> Result<Self, JailedPathError> {
@@ -383,7 +383,6 @@ impl<Marker> fmt::Display for JailedPath<Marker> {
 
 impl<Marker> fmt::Debug for JailedPath<Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use std::path::MAIN_SEPARATOR;
         // Format path and jail_root using platform separator for consistency
         let format_path = |p: &Path| {
             let mut s = String::new();
@@ -410,20 +409,20 @@ impl<Marker> PartialEq for JailedPath<Marker> {
 
 impl<Marker> Eq for JailedPath<Marker> {}
 
-impl<Marker> std::hash::Hash for JailedPath<Marker> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl<Marker> Hash for JailedPath<Marker> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.path.hash(state);
     }
 }
 
 impl<Marker> PartialOrd for JailedPath<Marker> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl<Marker> Ord for JailedPath<Marker> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.path.cmp(&other.path)
     }
 }
