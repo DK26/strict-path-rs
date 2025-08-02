@@ -11,7 +11,7 @@ This roadmap outlines the planned evolution of the `jailed-path` crate based on 
 
 **Goal:** Provide ergonomic, jail-safe file operations directly on `JailedPath` without exposing the inner `Path` or relying on `Deref`/`AsRef<Path>`.
 
-**Status:** ✅ **COMPLETED** - Available since version 0.0.3
+**Status:** ✅ **COMPLETED** - Available since version 0.0.4
 
 **What was implemented:**
 - The `JailedFileOps` trait provides comprehensive file I/O operations
@@ -44,7 +44,7 @@ file.write_string("Hello, secure world!")?;
 ---
 
 ## Planned: Enhanced Security Features
-## Current Status (v0.0.3)
+## Current Status (v0.0.4)
 
 ✅ **Implemented**
 - Core path validation with soft canonicalization

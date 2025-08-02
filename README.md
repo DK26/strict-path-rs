@@ -294,7 +294,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-jailed-path = "0.0.3"
+jailed-path = "0.0.4"
 ```
 
 ## Why This Crate Is Exceptional

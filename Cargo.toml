@@ -1,6 +1,6 @@
 [package]
 name = "jailed-path"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 authors = ["David Krasnitsky <dikaveman@gmail.com>"]
 description = "Prevent directory traversal with type-safe virtual path jails and safe symlinks"

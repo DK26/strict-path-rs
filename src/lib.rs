@@ -176,7 +176,7 @@
 //! First, add `jailed-path` to your `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! jailed-path = "0.0.3" # Replace with the latest version
+//! jailed-path = "0.0.4" # Replace with the latest version
 //! ```
 //!
 //! ### Basic Validation

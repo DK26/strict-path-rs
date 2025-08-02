@@ -9,34 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4] - 2025-08-03
+
 ### Added
-- Virtual root display: Jailed paths now always display as starting from the jail root, using forward slashes (`/`) on all platforms.
-- Internal type-state engine (`ValidatedPath`): All path validation now uses a type-state pipeline for strict, auditable security guarantees. This benefits crate development and advanced users, but is fully hidden from typical API usage.
-- Improved docs, roadmap, and tests for new clamping, canonicalization, and display logic.
+
+- **Virtual root display system**: `JailedPath` now always displays as starting from the jail root using forward slashes (`/`) on all platforms, hiding internal filesystem details from users
+- **Internal type-state validation engine**: Introduced `ValidatedPath` with compile-time state tracking for strict, auditable security guarantees through marker types (`Raw`, `Clamped`, `JoinedJail`, `Canonicalized`, `BoundaryChecked`)
+- **One-shot path validation**: New `try_jail()` function for convenient single-use path validation without creating a `PathValidator`
+- **Safe file operations trait**: `JailedFileOps` trait provides jail-safe file operations (`read_to_string()`, `write_bytes()`, `exists()`, `create_dir_all()`, etc.) without exposing raw paths
+- **Enhanced examples and documentation**: Added comprehensive examples for real-world usage patterns, marker types, virtual root display, and safe file operations
 
 ### Changed
-- All path validation now clamps traversal and absolute paths to the jail root; escapes are never allowed.
-- `JailedPath` and `PathValidator` refactored for stricter jail enforcement and cross-platform consistency.
 
-### Removed / Refactored
-- **BREAKING:** Removed legacy types and traversal rejection; all path handling now clamps to jail root.
+- **BREAKING: Path validation behavior**: All path validation now clamps traversal and absolute paths to the jail root instead of rejecting them - escapes are mathematically impossible
+- **BREAKING: API restructure**: Complete refactor of `JailedPath` and `PathValidator` for stricter jail enforcement and cross-platform consistency using type-state validation
+- **Enhanced crate description**: Updated to "Prevent directory traversal with type-safe virtual path jails and safe symlinks"
+- **Non-existent jail handling**: `PathValidator` now allows creation with non-existent jail directories (validates they would be directories if they exist)
+- **Comprehensive test suite**: Updated all integration and unit tests to validate new clamping behavior and type-state API
 
-### Fixed
-- Clippy lints, cross-platform display, and documentation issues.
+### Dependencies
 
-### Changed
-- **PathValidator:** Now uses `ValidatedPath` for all jail and candidate path handling. Jail existence check allows non-existent jails, but requires directories if present.
-- **Clamping logic:** Absolute paths are forcibly clamped to jail root; all root components are stripped before joining to jail.
-- **Integration and unit tests:** Updated to use new type-state API and dynamic jail roots.
-- **README and docs:** Updated to explain type-state pattern, marker types, and new security guarantees.
+- **Added**: `tempfile = "3.20.0"` as dev dependency for robust testing
 
-### Removed / Refactored
-- **BREAKING:** Removed `ClampedPath` type and all related logic. All clamping and normalization is now performed by `ValidatedPath` and its `.clamp()` method.
-- **BREAKING:** Removed legacy newtypes and type aliases; all path handling now uses `ValidatedPath` and marker types.
-- **BREAKING:** All usages, tests, and documentation updated to use the new type-state API.
+### Technical Implementation
+
+- **Type-state pipeline**: All path validation uses `ValidatedPath<State>` where `State` tracks the exact sequence of security transformations
+- **Clamping algorithm**: Absolute paths are forcibly clamped to jail root; all root components stripped before joining to jail
+- **Virtual path abstraction**: Clean separation between user-facing virtual paths and internal real filesystem paths
 
 ### Fixed
-- Fixed: All Clippy lints (needless_borrow, redundant_clone) resolved. All doctests and integration tests pass. Absolute path clamping logic fixed. Documentation and examples now compile and run successfully.
+
+- All Clippy lints resolved (`needless_borrow`, `redundant_clone`)
+- Cross-platform display consistency across Windows, macOS, and Linux
+- All doctests and integration tests now pass with new validation behavior
+- Documentation examples compile and run successfully
 
 ## [0.0.3] - 2025-07-21
 
