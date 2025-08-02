@@ -43,7 +43,7 @@ fn test_try_jail_success() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
 
-    let jailed_path = try_jail(public_dir, "index.html").unwrap();
+    let jailed_path: jailed_path::JailedPath = try_jail(public_dir, "index.html").unwrap();
     assert!(jailed_path.real_path().ends_with("index.html"));
 }
 
@@ -52,6 +52,19 @@ fn test_try_jail_escape() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
 
-    let result = try_jail(public_dir, "../private/secrets.txt");
+    let result: Result<jailed_path::JailedPath, jailed_path::JailedPathError> =
+        try_jail(public_dir, "../private/secrets.txt");
     assert!(result.is_ok());
+}
+
+#[test]
+fn test_try_jail_with_marker() {
+    struct MyMarker;
+    let temp_dir = create_test_directory().expect("Failed to create test directory");
+    let public_dir = temp_dir.join("public");
+
+    let jailed_path: jailed_path::JailedPath<MyMarker> =
+        try_jail(public_dir, "index.html").unwrap();
+    assert!(jailed_path.real_path().ends_with("index.html"));
+    // You can add more assertions here to verify the marker type if needed, e.g., using `std::any::TypeId`
 }

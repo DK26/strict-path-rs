@@ -266,10 +266,10 @@ pub use validator::PathValidator;
 ///
 /// A `Result` containing the `JailedPath` if successful, or a `JailedPathError`
 /// if the path is invalid or escapes the jail.
-pub fn try_jail<P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(
+pub fn try_jail<Marker, P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(
     jail_path: P,
     path_to_jail: Q,
-) -> Result<JailedPath> {
+) -> Result<JailedPath<Marker>> {
     let jail_root =
         validator::validated_path::ValidatedPath::<validator::validated_path::Raw>::new(
             jail_path.as_ref(),
@@ -295,7 +295,10 @@ pub fn try_jail<P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(
     .canonicalize()?
     .boundary_check(&jail_root)?;
 
-    Ok(JailedPath::new(std::sync::Arc::new(jail_root), checked))
+    Ok(JailedPath::<Marker>::new(
+        std::sync::Arc::new(jail_root),
+        checked,
+    ))
 }
 
 /// Result type alias for this crate's operations.
