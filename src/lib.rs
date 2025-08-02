@@ -6,13 +6,25 @@
 //!
 //! *because your LLM can't be trusted with security*
 //!
+//! ## Key Features: Security-First Design
+//!
+//! 🔒 **Security First**: API makes unsafe operations impossible, not just difficult  
+//! 🏛️ **Mathematical Guarantees**: Rust's type system proves security at compile time  
+//! 🛡️ **Zero Attack Surface**: No `Deref` to `Path`, no `AsRef<Path>`, validation cannot be bypassed  
+//! 🎯 **Multi-Jail Safety**: Marker types prevent cross-jail contamination  
+//! 📁 **Built-in Safe Operations**: Direct file operations on jailed paths without exposing raw filesystem paths  
+//! 👁️ **Virtual Root Display**: Clean user-facing paths that never leak filesystem structure  
+//! 📦 **Minimal Attack Surface**: Only one dependency - our auditable `soft-canonicalize` crate (handles non-existent paths unlike `std::fs::canonicalize`)  
+//! 🌍 **Cross-Platform**: Works on Windows, macOS, and Linux  
+//! 🤖 **LLM-Friendly**: Documentation designed for both humans and AI systems to understand and use correctly  
+//!
 //! ## The Problem: Every Path Is a Security Risk
 //!
 //! ```rust
 //! // 🚨 DANGEROUS - This code looks innocent but has a critical vulnerability
 //! fn serve_file_unsafe(path: &str) -> std::io::Result<Vec<u8>> {
 //!     // This is just an example of what NOT to do
-//!     std::fs::read(format!("./public/{}", path))  // ← Path traversal attack possible!
+//!     std::fs::read(format!("./public/{path}"))  // ← Path traversal attack possible!
 //! }
 //!
 //! // Attacker could send: "../../../etc/passwd"
@@ -32,12 +44,13 @@
 //! }
 //!
 //! # std::fs::create_dir_all("public")?; std::fs::write("public/index.html", b"<html></html>")?;
-//! // Two ways to get a JailedPath - both mathematically secure:
+//! // ⚠️ CRITICAL: These are the ONLY two ways to create a JailedPath!
+//! // Both are mathematically secure by design:
 //!
-//! // Option 1: One-shot validation
+//! // Option 1: One-shot validation with try_jail()
 //! let safe_path: JailedPath = try_jail("public", "index.html")?;  // Works!
 //!
-//! // Option 2: Reusable validator  
+//! // Option 2: Reusable validator with try_path()
 //! let validator = PathValidator::with_jail("public")?;
 //! let safe_path = validator.try_path("index.html")?;  // Works!
 //!
@@ -46,7 +59,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! **The key insight**: `JailedPath` is the ONLY type that promises security. You literally cannot create one without going through validation.
+//! **The key insight**: `JailedPath` is the ONLY type that promises security. You literally cannot create one without going through `try_jail()` or `validator.try_path()` - there are no other constructors!
 //!
 //! ## Multi-Jail Type Safety: Preventing Mix-ups
 //!
@@ -93,45 +106,20 @@
 //! # }
 //! ```
 //!
-//! ## Key Features: Security-First Design
-//!
-//! - **Security First**: Security is prioritized above convenience and performance - the API is designed to make unsafe operations impossible rather than just difficult. No `Deref` to `Path`, no `AsRef<Path>`, and validation cannot be bypassed
-//! - **Path Canonicalization**: Resolves symlinks and relative components safely
-//! - **Type Safety**: Compile-time guarantees that validated paths are within jail boundaries  
-//! - **Multi-Jail Support**: Keep different validators separate with your own optional marker types
-//! - **Single Dependency**: Only depends on our own `soft-canonicalize` crate
-//! - **Cross-Platform**: Works on Windows, macOS, and Linux
-//! - **Performance**: Minimal allocations, efficient validation
-//! - **Virtual Root Display**: Paths are shown as if from the root of your jail, so user-facing output is always clean and intuitive. No leaking of internal or absolute paths—just what the user expects to see.
-//!
-//! ## API Design
-//!
-//!
-//! - [`PathValidator::with_jail()`] - Create validator with jail boundary
-//! - [`validator.try_path()`] - Validate a single path, returns `Result<JailedPath, JailedPathError>`
-//! - [`JailedPath`] - Validated path type (can ONLY be created via `try_path()`)
-//! - [`JailedPathError`] - Detailed error information for debugging
-//!
-//! ## Security Guarantees
-//!
-//!
-//! All `..` components are clamped before processing, symbolic links are resolved, and paths are
-//! mathematically validated against the jail boundary. Path traversal attacks
-//! are impossible to bypass.
+//! ## Complete Integration Example
 //!
 //! ```rust
 //! # fn doctest() -> Result<(), Box<dyn std::error::Error>> {
 //! use jailed_path::PathValidator;
 //! use std::fs;
-//! use std::io::Write;
 //!
 //! // Setup: create a unique test directory and files
 //! let test_dir = "public_doctest_example";
-//! fs::create_dir_all(format!("{}/css", test_dir))?;
-//! fs::write(format!("{}/index.html", test_dir), "<html></html>")?;
-//! fs::write(format!("{}/css/style.css", test_dir), "body{}")?;
+//! fs::create_dir_all(format!("{test_dir}/css"))?;
+//! fs::write(format!("{test_dir}/index.html"), "<html></html>")?;
+//! fs::write(format!("{test_dir}/css/style.css"), "body{}")?;
 //! // The clamped file does not need to exist for the test, but we create it for completeness
-//! fs::write(format!("{}/config.toml", test_dir), "[config]\nkey = 'value'")?;
+//! fs::write(format!("{test_dir}/config.toml"), "[config]\nkey = 'value'")?;
 //!
 //! let validator: PathValidator = PathValidator::with_jail(test_dir)?;
 //!
@@ -152,24 +140,34 @@
 //! Ok(())
 //! # }
 //! ```
-#![forbid(unsafe_code)]
-
-//! # Jailed Path - Secure by Construction
-//!
-//! `jailed-path` is a Rust library that provides a type-safe, ergonomic, and secure way to handle filesystem paths
-//! that are constrained to a specific directory, known as a "jail".
-//!
-//! It is designed to prevent directory traversal attacks (`../../..`) and other path-based vulnerabilities
-//! by ensuring at compile time that all path operations are safe and remain within the designated jail.
 //!
 //! ## Key Features
 //!
-//! - **Type-Safe Markers**: Use Rust's type system to distinguish between different jails (e.g., `UserUploads`, `PublicAssets`) at compile time, preventing paths from being used in the wrong context.
-//! - **Secure by Default API**: The API is designed to make safe operations easy and unsafe operations explicit. It does **not** use `Deref` or `AsRef<Path>` to prevent accidental misuse of insecure `Path` methods.
-//! - **Virtual Root Display**: Paths are displayed relative to their jail root, preventing the leakage of absolute filesystem paths in logs and user-facing output.
-//! - **Ergonomic Path Manipulation**: Provides safe `virtual_join()`, `virtual_parent()`, and other path manipulation methods that feel like using `PathBuf` but are fully secure.
-//! - **Opt-in File Operations**: A convenient `JailedFileOps` trait can be imported to perform file I/O directly on `JailedPath` objects.
-//! - **Single Dependency**: Only depends on our own `soft-canonicalize` crate.
+//! - **Security First**: Security is prioritized above convenience and performance - the API makes unsafe operations impossible rather than just difficult
+//! - **Mathematical Guarantees**: Rust's type system proves security properties at compile time  
+//! - **Zero Attack Surface**: No `Deref` to `Path`, no `AsRef<Path>`, validation cannot be bypassed
+//! - **Multi-Jail Safety**: Marker types prevent accidental cross-jail contamination
+//! - **Built-in Safe Operations**: Direct file operations on jailed paths without exposing raw filesystem paths
+//! - **Virtual Root Display**: Clean user-facing paths that never leak internal filesystem structure
+//! - **Minimal Attack Surface**: Only one dependency - our auditable `soft-canonicalize` crate (handles non-existent paths unlike `std::fs::canonicalize`)
+//! - **Cross-Platform**: Works on Windows, macOS, and Linux  
+//! - **LLM-Friendly**: Documentation designed for both humans and AI systems to understand and use correctly
+//!
+//! ## API Design
+//!
+//! **⚠️ CRITICAL: These are the ONLY two ways to create a JailedPath!**
+//!
+//! - [`try_jail()`] - One-shot path validation, returns `Result<JailedPath, JailedPathError>`
+//! - [`PathValidator::with_jail()`] - Create validator with jail boundary
+//! - [`validator.try_path()`] - Validate a single path, returns `Result<JailedPath, JailedPathError>`
+//! - [`JailedPath`] - Validated path type (can ONLY be created via `try_jail()` or `try_path()`)
+//! - [`JailedPathError`] - Detailed error information for debugging
+//!
+//! ## Security Guarantees
+//!
+//! All `..` components are clamped before processing, symbolic links are resolved, and paths are
+//! mathematically validated against the jail boundary. Path traversal attacks
+//! are impossible to bypass.
 //!
 //! ## Usage
 //!
@@ -198,7 +196,7 @@
 //!     let safe_path = validator.try_path(user_path)?;
 //!
 //!     // The `safe_path` is now a `JailedPath`, guaranteed to be inside the jail.
-//!     println!("Accessing file: {}", safe_path); // Output: "/user123/avatar.jpg"
+//!     println!("Accessing file: {safe_path}"); // Output: "/user123/avatar.jpg"
 //!
 //!     // Attempting to escape the jail will be clamped to the jail root.
 //!     let malicious_path = "../../../etc/passwd";
@@ -260,6 +258,8 @@
 //! - **No `Deref` or `AsRef<Path>`**: Prevents accidental use of insecure standard library path methods.
 //! - **Explicitness**: Methods that expose the real, absolute path (like `real_path()` and `real_path_to_str()`) are clearly named to make the developer's intent obvious.
 //! - **Virtualization**: By default, all string representations and display implementations use a virtual, jail-relative path to prevent leaking filesystem structure.
+
+#![forbid(unsafe_code)]
 
 // Public modules
 pub mod error;

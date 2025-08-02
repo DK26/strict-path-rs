@@ -21,9 +21,14 @@ pub struct BoundaryChecked;
 
 /// # Understanding `ValidatedPath` Type Parameters
 ///
-/// `ValidatedPath<State>` uses Rust’s type system to track the exact sequence of security-relevant
-/// transformations a path has undergone. The `State` parameter is a tuple of marker types,
-/// each representing a processing stage (e.g., `Raw`, `Clamped`, `JoinedJail`, `Canonicalized`, `BoundaryChecked`).
+/// ## Type-History Design Pattern
+///
+/// `ValidatedPath<State>` implements the "Type-History" design pattern - using Rust's type system
+/// to track the exact sequence of security-relevant transformations a path has undergone.
+/// The `State` parameter is a tuple of marker types, each representing a processing stage
+/// (e.g., `Raw`, `Clamped`, `JoinedJail`, `Canonicalized`, `BoundaryChecked`).
+///
+/// This Type-History approach ensures that every path carries mathematical proof of its validation stages.
 ///
 /// ## How to Read the Type
 ///

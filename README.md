@@ -11,12 +11,24 @@
 > *Putting your paths in jail by the Type-State Police Department*  
 > *because your LLM can't be trusted with security*
 
+## Key Features: Security-First Design
+
+🔒 **Security First**: API makes unsafe operations impossible, not just difficult  
+🏛️ **Mathematical Guarantees**: Rust's type system proves security at compile time  
+🛡️ **Zero Attack Surface**: No `Deref` to `Path`, no `AsRef<Path>`, validation cannot be bypassed  
+🎯 **Multi-Jail Safety**: Marker types prevent cross-jail contamination  
+📁 **Built-in Safe Operations**: Direct file operations on jailed paths without exposing raw filesystem paths  
+👁️ **Virtual Root Display**: Clean user-facing paths that never leak filesystem structure  
+📦 **Minimal Attack Surface**: Only one dependency - our auditable `soft-canonicalize` crate (handles non-existent paths unlike `std::fs::canonicalize`)  
+🌍 **Cross-Platform**: Works on Windows, macOS, and Linux  
+🤖 **LLM-Friendly**: Documentation designed for both humans and AI systems to understand and use correctly  
+
 ## The Problem: Every Path Is a Security Risk
 
 ```rust
 // 🚨 DANGEROUS - This code looks innocent but has a critical vulnerability
 fn serve_file(path: &str) -> std::io::Result<Vec<u8>> {
-    std::fs::read(format!("./public/{}", path))  // ← Path traversal attack possible!
+    std::fs::read(format!("./public/{path}"))  // ← Path traversal attack possible!
 }
 
 // Attacker sends: "../../../etc/passwd" 
@@ -28,26 +40,27 @@ fn serve_file(path: &str) -> std::io::Result<Vec<u8>> {
 ## The Solution: Mathematical Security Guarantees
 
 ```rust
-use jailed_path::{try_jail, JailedPath};
+use jailed_path::{try_jail, PathValidator, JailedPath};
 
 // ✅ SECURE - Attack impossible by mathematical design
 fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
     std::fs::read(safe_path.real_path())  // ← JailedPath GUARANTEES safety
 }
 
-// Two ways to get a JailedPath - both mathematically secure:
+// ⚠️ CRITICAL: These are the ONLY two ways to create a JailedPath!
+// Both are mathematically secure by design:
 
-// Option 1: One-shot validation
+// Option 1: One-shot validation with try_jail()
 let safe_path = try_jail("./public", "index.html")?;  // Works!
 let safe_path = try_jail("./public", "../../../etc/passwd")?;  // Clamped to jail root!
 
-// Option 2: Reusable validator  
+// Option 2: Reusable validator with try_path()
 let validator = PathValidator::with_jail("./public")?;
 let safe_path = validator.try_path("index.html")?;  // Works!
 let safe_path = validator.try_path("../../../etc/passwd")?;  // Clamped to jail root!
 ```
 
-**The key insight**: `JailedPath` is the ONLY type that promises security. You literally cannot create one without going through validation.
+**The key insight**: `JailedPath` is the ONLY type that promises security. You literally cannot create one without going through `try_jail()` or `validator.try_path()` - there are no other constructors!
 
 ## Understanding the Generic Marker System
 
@@ -149,7 +162,7 @@ let file = validator.try_path("document.txt")?;
 // ✅ SAFE - All operations stay within the jail automatically
 if file.exists() {
     let content = file.read_to_string()?;
-    println!("Content: {}", content);
+    println!("Content: {content}");
 }
 
 // Write operations - always safe
@@ -176,7 +189,7 @@ let validator = PathValidator::with_jail("./my_app_data/user_files")?;
 let doc = validator.try_path("reports/quarterly/2024.pdf")?;
 
 // User sees clean, intuitive paths - never internal filesystem details
-println!("Document: {}", doc);  // Output: /reports/quarterly/2024.pdf
+println!("Document: {doc}");  // Output: /reports/quarterly/2024.pdf
 
 // The real path is hidden (and you shouldn't need it anyway!)
 println!("Real path: {}", doc.real_path().display());  
@@ -196,18 +209,6 @@ This crate uses a sophisticated "Type-History" design pattern internally. Every 
 
 Our comprehensive test coverage (100%+) and LLM-friendly documentation ensure that every security property is verified mathematically, not just hoped for.
 
-## Key Features Summary
-
-- **Security First**: Security is prioritized above convenience and performance - the API makes unsafe operations impossible rather than just difficult
-- **Mathematical Guarantees**: Type-state design proves security properties at compile time  
-- **Zero Attack Surface**: No `Deref` to `Path`, no `AsRef<Path>`, validation cannot be bypassed
-- **Multi-Jail Safety**: Marker types prevent accidental cross-jail contamination
-- **Built-in Safe Operations**: `JailedFileOps` trait eliminates need for dangerous `real_path()` access
-- **Virtual Root Display**: Clean user-facing paths that never leak internal filesystem structure
-- **Single Dependency**: Only depends on our own `soft-canonicalize` crate
-- **Cross-Platform**: Works on Windows, macOS, and Linux  
-- **LLM-Friendly**: Documentation designed for both humans and AI systems
-
 ## Complete Attack Immunity Demonstration
 
 ```rust
@@ -217,20 +218,20 @@ let validator: PathValidator = PathValidator::with_jail("./public")?;
 
 // ✅ Normal paths work as expected
 let safe1 = validator.try_path("index.html")?;                  // → ./public/index.html
-println!("Safe: {}", safe1);                                   // → /index.html
+println!("Safe: {safe1}");                                     // → /index.html
 
 let safe2 = validator.try_path("css/style.css")?;              // → ./public/css/style.css  
-println!("Safe: {}", safe2);                                   // → /css/style.css
+println!("Safe: {safe2}");                                     // → /css/style.css
 
 // 🛡️ ATTACK ATTEMPTS ARE MATHEMATICALLY IMPOSSIBLE TO SUCCEED
 let neutered1 = validator.try_path("/etc/shadow")?;            // → ./public/etc/shadow (harmless!)
-println!("Neutered: {}", neutered1);                          // → /etc/shadow (in jail)
+println!("Neutered: {neutered1}");                            // → /etc/shadow (in jail)
 
 let neutered2 = validator.try_path("../config.toml")?;         // → ./public/ (jail root)
-println!("Neutered: {}", neutered2);                          // → /
+println!("Neutered: {neutered2}");                            // → /
 
 let neutered3 = validator.try_path("../../../etc/passwd")?;    // → ./public/ (jail root)  
-println!("Neutered: {}", neutered3);                          // → /
+println!("Neutered: {neutered3}");                            // → /
 
 // 🔒 The attacker CANNOT access the real /etc/passwd - it's mathematically impossible!
 ```
@@ -301,7 +302,7 @@ jailed-path = "0.0.4"
 
 1. **Mathematical Security**: Unlike libraries that hope validation works, we mathematically prove it at compile time
 2. **Zero Learning Curve**: Two simple functions (`try_jail` and `PathValidator::with_jail`) solve 99% of use cases  
-3. **Type-State Design**: Internal "Type-History" pattern ensures paths carry proof of validation stages
+3. **Type-History Design**: Internal "Type-History" pattern ensures paths carry proof of validation stages
 4. **Attack Impossibility**: Not just "hard to bypass" - actually impossible due to API design
 5. **LLM-Friendly**: Documentation and APIs designed for both human and AI consumption
 6. **Comprehensive Testing**: 100%+ test coverage with attack scenario simulation
