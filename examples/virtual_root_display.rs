@@ -1,4 +1,4 @@
-use jailed_path::{JailedPath, PathValidator};
+use jailed_path::{Jail, JailedPath};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a temporary directory for our example
@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create a validator for user files
     struct UserFiles;
-    let validator: PathValidator<UserFiles> = PathValidator::with_jail("example_storage")?;
+    let validator: Jail<UserFiles> = Jail::try_new("example_storage")?;
 
     // Validate and create jailed paths
     let user_doc: JailedPath<UserFiles> = validator.try_path("users/alice/documents/report.pdf")?;

@@ -6,20 +6,20 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 
-/// A secure path validator that constrains all file system operations to a specific directory (jail).
+/// A secure jail that constrains all file system operations to a specific directory.
 ///
-/// **CRITICAL SECURITY RULE: All file paths MUST be validated through this validator before use.**
+/// **CRITICAL SECURITY RULE: All file paths MUST be validated through this jail before use.**
 /// Direct use of `Path`, `PathBuf`, or string paths for file operations bypasses all security guarantees.
 ///
 /// ## Core Purpose
 ///
-/// This validator is the **ONLY** way to create `JailedPath` instances. It prevents directory traversal
+/// This jail is the **ONLY** way to create `JailedPath` instances. It prevents directory traversal
 /// attacks by ensuring all validated paths remain within the specified jail directory boundary.
 ///
 /// ## How It Works (Simple)
 ///
-/// 1. **Set Jail Boundary**: Create validator with `PathValidator::with_jail("/safe/directory")`
-/// 2. **Validate Paths**: Call `validator.try_path("user/input/path")` for every path
+/// 1. **Set Jail Boundary**: Create jail with `Jail::try_new("/safe/directory")`
+/// 2. **Validate Paths**: Call `jail.try_path("user/input/path")` for every path
 /// 3. **Use Safely**: Only use the returned `JailedPath` for file operations
 /// 4. **Security**: Attempts to escape (like `../../../etc/passwd`) are automatically prevented
 ///
@@ -33,7 +33,7 @@ use std::sync::Arc;
 /// ## Examples
 ///
 /// ```rust
-/// use jailed_path::PathValidator;
+/// use jailed_path::Jail;
 /// use jailed_path::JailedPathError;
 /// use std::fs;
 /// use tempfile::tempdir;
@@ -42,36 +42,36 @@ use std::sync::Arc;
 ///     let jail_path = temp_dir.path();
 ///     fs::create_dir_all(jail_path.join("uploads"))?;
 ///     fs::write(jail_path.join("uploads/existing_file.txt"), "test")?;
-///     let validator = PathValidator::<()>::with_jail(jail_path.join("uploads"))?;
+///     let jail = Jail::<()>::try_new(jail_path.join("uploads"))?;
 ///
 ///     // Existing files work
-///     let _path = validator.try_path("existing_file.txt")?;
+///     let _path = jail.try_path("existing_file.txt")?;
 ///
 ///     // Non-existent files for writing also work  
-///     let _path = validator.try_path("user123/new_document.pdf")?;
+///     let _path = jail.try_path("user123/new_document.pdf")?;
 ///
 ///     // Traversal attacks are clamped to the jail root (no error is returned)
-///     let _ = validator.try_path("../../../sensitive.txt")?;
+///     let _ = jail.try_path("../../../sensitive.txt")?;
 ///     Ok(())
 /// }
 /// ```
 #[derive(Debug, Clone)]
-pub struct PathValidator<Marker = ()> {
+pub struct Jail<Marker = ()> {
     jail: Arc<ValidatedPath<(Raw, Canonicalized)>>,
     _marker: PhantomData<Marker>,
 }
 
-impl<Marker> PathValidator<Marker> {
-    /// Creates a new PathValidator with the specified jail directory.
+impl<Marker> Jail<Marker> {
+    /// Creates a new Jail with the specified directory boundary.
     ///
-    /// **This is the FIRST step in secure path validation - create your validator once and reuse it.**
+    /// **This is the FIRST step in secure path validation - create your jail once and reuse it.**
     ///
     /// # Arguments
-    /// * `jail` - The directory that will serve as the security boundary. All validated paths
+    /// * `jail_path` - The directory that will serve as the security boundary. All validated paths
     ///   must remain within this directory and its subdirectories.
     ///
     /// # Returns
-    /// * `Ok(PathValidator)` - If the jail is valid
+    /// * `Ok(Jail)` - If the jail is valid
     /// * `Err(JailedPathError)` - If validation fails (see Errors section)
     ///
     /// # Errors
@@ -86,34 +86,34 @@ impl<Marker> PathValidator<Marker> {
     /// - The jail path exists but is not a directory (e.g., it's a file or special device)
     ///
     /// # Important Notes
-    /// - The jail directory does NOT need to exist when creating the validator
-    /// - Store this validator and reuse it for all path validations in your application
-    /// - Never bypass this validator - it's your only protection against path traversal attacks
+    /// - The jail directory does NOT need to exist when creating the jail
+    /// - Store this jail and reuse it for all path validations in your application
+    /// - Never bypass this jail - it's your only protection against path traversal attacks
     ///
     /// # Examples
     /// ```rust
-    /// use jailed_path::PathValidator;
+    /// use jailed_path::Jail;
     /// use jailed_path::JailedPathError;
     /// use std::fs;
     /// fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///     fs::create_dir_all("valid_jail")?;
     ///     // ✅ Valid jail directory
-    ///     let _validator = PathValidator::<()>::with_jail("valid_jail")?;
+    ///     let _jail = Jail::<()>::try_new("valid_jail")?;
     ///
-    ///     // Non-existent directory is allowed (validator is created)
-    ///     let _ = PathValidator::<()>::with_jail("does_not_exist")?;
+    ///     // Non-existent directory is allowed (jail is created)
+    ///     let _ = Jail::<()>::try_new("does_not_exist")?;
     ///
     ///     fs::write("not_a_dir.txt", "content")?;
     ///     // ❌ Path exists but is not a directory
-    ///     assert!(PathValidator::<()>::with_jail("not_a_dir.txt").is_err());
+    ///     assert!(Jail::<()>::try_new("not_a_dir.txt").is_err());
     ///     fs::remove_file("not_a_dir.txt").ok();
     ///     fs::remove_dir_all("valid_jail").ok();
     ///     Ok(())
     /// }
     /// ```
     #[inline]
-    pub fn with_jail<P: AsRef<Path>>(jail: P) -> Result<Self> {
-        let jail_path = jail.as_ref();
+    pub fn try_new<P: AsRef<Path>>(jail_path: P) -> Result<Self> {
+        let jail_path = jail_path.as_ref();
         let validated_path = ValidatedPath::<Raw>::new(jail_path);
         let canonicalized = validated_path.canonicalize()?;
 
@@ -163,15 +163,15 @@ impl<Marker> PathValidator<Marker> {
     ///
     /// # Example
     /// ```rust
-    /// use jailed_path::PathValidator;
+    /// use jailed_path::Jail;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let validator = PathValidator::<()>::with_jail("/safe/uploads")?;
+    /// let jail = Jail::<()>::try_new("/safe/uploads")?;
     ///
     /// // ✅ Safe - creates /safe/uploads/user123/document.pdf
-    /// let safe_path = validator.try_path("user123/document.pdf")?;
+    /// let safe_path = jail.try_path("user123/document.pdf")?;
     ///
     /// // ✅ Safe - traversal attempt blocked, becomes /safe/uploads/
-    /// let blocked = validator.try_path("../../../etc/passwd")?;
+    /// let blocked = jail.try_path("../../../etc/passwd")?;
     ///
     /// # Ok(())
     /// # }

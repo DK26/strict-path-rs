@@ -1,4 +1,4 @@
-use crate::PathValidator;
+use crate::Jail;
 use std::fs;
 
 #[test]
@@ -7,7 +7,7 @@ fn test_jail_directory_deletion() {
     let jail_path = temp.path().join("jail");
     fs::create_dir_all(&jail_path).unwrap();
 
-    let validator: PathValidator = PathValidator::with_jail(&jail_path).unwrap();
+    let validator: Jail = Jail::try_new(&jail_path).unwrap();
 
     // Create a valid path first
     let jailed_path = validator.try_path("test.txt").unwrap();
@@ -35,7 +35,7 @@ fn test_jail_directory_deletion() {
 #[test]
 fn test_network_paths() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: PathValidator = PathValidator::with_jail(temp.path()).unwrap();
+    let validator: Jail = Jail::try_new(temp.path()).unwrap();
 
     // Network path patterns that should be rejected or safely handled
     let network_paths = vec![
@@ -61,7 +61,7 @@ fn test_network_paths() {
 #[test]
 fn test_special_filesystem_entries() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: PathValidator = PathValidator::with_jail(temp.path()).unwrap();
+    let validator: Jail = Jail::try_new(temp.path()).unwrap();
 
     let special_names = vec![
         ".",

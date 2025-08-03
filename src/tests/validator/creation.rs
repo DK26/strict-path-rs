@@ -1,4 +1,4 @@
-use crate::validator::PathValidator;
+use crate::validator::Jail;
 use crate::JailedPathError;
 use std::fs;
 use std::io::Write;
@@ -73,9 +73,9 @@ fn cleanup_test_directory(path: &std::path::Path) {
 }
 
 #[test]
-fn test_pathvalidator_creation_with_existing_directory() {
+fn test_jail_creation_with_existing_directory() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let result = PathValidator::<()>::with_jail(&temp_dir);
+    let result = Jail::<()>::try_new(&temp_dir);
     assert!(result.is_ok(), "Should succeed with existing directory");
     let validator = result.unwrap();
     assert_eq!(validator.jail(), temp_dir.canonicalize().unwrap());
@@ -85,7 +85,7 @@ fn test_pathvalidator_creation_with_existing_directory() {
 #[test]
 fn test_try_path_with_valid_relative_path() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Should successfully validate existing file with relative path
     let result = validator.try_path("test.txt");
@@ -111,7 +111,7 @@ fn test_try_path_with_valid_relative_path() {
 #[test]
 fn test_try_path_with_valid_subdirectory_path() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Should successfully validate file in subdirectory
     let result = validator.try_path("subdir/sub_test.txt");
@@ -137,7 +137,7 @@ fn test_try_path_with_valid_subdirectory_path() {
 #[test]
 fn test_try_path_with_absolute_path_inside_jail() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Should allow absolute path that's within the jail
     let absolute_path = temp_dir.join("test.txt");
@@ -163,7 +163,7 @@ fn test_try_path_with_absolute_path_inside_jail() {
 #[test]
 fn test_try_path_with_nonexistent_file() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Should successfully validate non-existent file using touch technique
     let result = validator.try_path("user123/new_document.pdf");
@@ -183,7 +183,7 @@ fn test_try_path_with_nonexistent_file() {
 #[test]
 fn test_try_path_with_nonexistent_nested_file() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Should create parent directories and validate deeply nested non-existent file
     let result = validator.try_path("users/john/photos/vacation/beach.jpg");
@@ -217,7 +217,7 @@ fn test_try_path_with_nonexistent_nested_file() {
 #[test]
 fn test_try_path_with_mixed_existing_and_nonexistent() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Create some existing structure
     let existing_dir = temp_dir.join("existing_user");
@@ -241,7 +241,7 @@ fn test_try_path_with_mixed_existing_and_nonexistent() {
 #[test]
 fn test_try_path_preserves_file_after_validation() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     let test_path = "user123/document.pdf";
     let full_expected_path = temp_dir.join(test_path);
@@ -269,7 +269,7 @@ fn test_try_path_preserves_file_after_validation() {
 #[test]
 fn test_try_path_handles_permission_errors_gracefully() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Try to create file in a location that might have permission issues
     // This test behavior may vary by platform, but should not panic
@@ -295,7 +295,7 @@ fn test_try_path_handles_permission_errors_gracefully() {
 #[test]
 fn test_try_path_edge_case_empty_relative_path() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Test edge case: empty or current directory path
     let edge_cases = vec![".", "./", "./file.txt", "file.txt"];
@@ -315,7 +315,7 @@ fn test_try_path_edge_case_empty_relative_path() {
 #[test]
 fn test_try_path_performance_with_many_validations() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Test that multiple validations work correctly
     let test_paths = [
@@ -351,9 +351,8 @@ fn test_marker_types_for_compile_time_safety() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
 
     // Create validators with different marker types
-    let image_validator: PathValidator<ImageResource> =
-        PathValidator::with_jail(&temp_dir).unwrap();
-    let user_validator: PathValidator<UserData> = PathValidator::with_jail(&temp_dir).unwrap();
+    let image_validator: Jail<ImageResource> = Jail::try_new(&temp_dir).unwrap();
+    let user_validator: Jail<UserData> = Jail::try_new(&temp_dir).unwrap();
 
     // Both should work with the same file but produce different marker types
     let image_path: crate::JailedPath<ImageResource> =
@@ -382,7 +381,7 @@ fn test_marker_types_for_compile_time_safety() {
 #[test]
 fn test_validator_jail_accessor() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // jail() method should return the canonical jail path
     let jail_path = validator.jail();
@@ -396,7 +395,7 @@ fn test_validator_jail_accessor() {
 #[allow(clippy::redundant_clone)]
 fn test_validator_clone_and_debug() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Should be cloneable
     let cloned_validator = validator.clone();
@@ -404,7 +403,7 @@ fn test_validator_clone_and_debug() {
 
     // Should be debuggable (just ensure it doesn't panic)
     let debug_str = format!("{validator:?}");
-    assert!(debug_str.contains("PathValidator"));
+    assert!(debug_str.contains("Jail")); // Updated to match the new struct name
 
     // Cleanup
     cleanup_test_directory(&temp_dir);
@@ -413,7 +412,7 @@ fn test_validator_clone_and_debug() {
 #[test]
 fn test_try_path_anti_directory_spam_protection() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Test deep nested path that would create many directories
     let deep_path = "spam1/spam2/spam3/spam4/spam5/spam6/spam7/spam8/spam9/spam10/file.txt";
@@ -455,7 +454,7 @@ fn test_try_path_anti_directory_spam_protection() {
 #[test]
 fn test_try_path_preserves_existing_directories() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Create an existing directory structure
     let existing_path = temp_dir.join("existing");
@@ -491,7 +490,7 @@ fn test_try_path_preserves_existing_directories() {
 #[test]
 fn test_try_path_cleanup_on_canonicalization_error() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Try to create a path that will fail during canonicalization
     // We'll use a very long path name that might hit OS limits
@@ -528,7 +527,7 @@ fn test_try_path_cleanup_on_canonicalization_error() {
 #[test]
 fn test_massive_directory_spam_attack_prevention() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Capture initial state
     let initial_entries: Vec<_> = std::fs::read_dir(&temp_dir)
@@ -590,7 +589,7 @@ fn test_massive_directory_spam_attack_prevention() {
 #[test]
 fn test_lexical_validation_allows_legitimate_paths() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Test cases that should be allowed (no actual ".." components)
     let legitimate_paths = vec![

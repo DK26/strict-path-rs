@@ -1,4 +1,4 @@
-use jailed_path::{JailedPath, JailedPathError, PathValidator};
+use jailed_path::{Jail, JailedPath, JailedPathError};
 
 // Define marker types for different resource categories
 pub struct ImageResource;
@@ -8,14 +8,14 @@ fn main() -> Result<(), JailedPathError> {
     let current_dir = std::env::current_dir().unwrap();
 
     // Unmarked validator (no generics needed)
-    let generic_validator: PathValidator = PathValidator::with_jail(&current_dir)?;
+    let generic_validator: Jail = Jail::try_new(&current_dir)?;
     match generic_validator.try_path("Cargo.toml") {
         Ok(generic_path) => println!("Generic path: {}", generic_path.virtual_display()),
         Err(e) => println!("Error: {e}"),
     }
 
     // Marked validator for images
-    let image_validator: PathValidator<ImageResource> = PathValidator::with_jail(&current_dir)?;
+    let image_validator: Jail<ImageResource> = Jail::try_new(&current_dir)?;
     match image_validator.try_path("Cargo.toml") {
         Ok(image_path) => {
             println!("Image resource path: {}", image_path.virtual_display());
@@ -25,7 +25,7 @@ fn main() -> Result<(), JailedPathError> {
     }
 
     // Marked validator for user data
-    let user_validator: PathValidator<UserData> = PathValidator::with_jail(&current_dir)?;
+    let user_validator: Jail<UserData> = Jail::try_new(&current_dir)?;
     match user_validator.try_path("Cargo.toml") {
         Ok(user_path) => {
             println!("User data path: {}", user_path.virtual_display());

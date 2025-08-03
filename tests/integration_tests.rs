@@ -1,4 +1,4 @@
-use jailed_path::{JailedPath, PathValidator};
+use jailed_path::{Jail, JailedPath};
 use std::fs;
 use std::io::Write;
 
@@ -63,10 +63,8 @@ fn test_complete_workflow_with_marker_types() {
     let uploads_dir = public_dir.join("uploads");
 
     // Create validators for different resource types
-    let public_validator: PathValidator<PublicAsset> =
-        PathValidator::with_jail(&public_dir).unwrap();
-    let upload_validator: PathValidator<UploadedFile> =
-        PathValidator::with_jail(uploads_dir).unwrap();
+    let public_validator: Jail<PublicAsset> = Jail::try_new(&public_dir).unwrap();
+    let upload_validator: Jail<UploadedFile> = Jail::try_new(uploads_dir).unwrap();
 
     // Test public asset access
     let public_file: JailedPath<PublicAsset> = public_validator.try_path("index.html").unwrap();
@@ -114,7 +112,7 @@ fn test_complete_workflow_with_marker_types() {
 fn test_error_handling_and_reporting() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let validator = PathValidator::<()>::with_jail(public_dir).unwrap();
+    let validator = Jail::<()>::try_new(public_dir).unwrap();
 
     // Test different error scenarios
 
@@ -146,7 +144,7 @@ fn test_error_handling_and_reporting() {
 
     // 3. Test that non-existent jail is now allowed (should succeed)
     let nonexistent_jail = get_nonexistent_absolute_path();
-    match PathValidator::<()>::with_jail(&nonexistent_jail) {
+    match Jail::<()>::try_new(&nonexistent_jail) {
         Ok(validator) => {
             // Should allow creation, but paths inside should still be jailed
             let result = validator.try_path("foo.txt");
@@ -168,7 +166,7 @@ fn test_error_handling_and_reporting() {
 fn test_absolute_vs_relative_path_handling() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let validator = PathValidator::<()>::with_jail(public_dir.clone()).unwrap();
+    let validator = Jail::<()>::try_new(public_dir.clone()).unwrap();
 
     // Test relative path
     let relative_result = validator.try_path("index.html");
@@ -221,14 +219,12 @@ fn test_real_world_web_server_scenario() {
     let uploads_dir = public_dir.join("uploads");
 
     // Simulate a web server with different validators for different content types
-    let static_validator: PathValidator<StaticAsset> =
-        PathValidator::with_jail(public_dir).unwrap();
-    let upload_validator: PathValidator<UserUpload> =
-        PathValidator::with_jail(uploads_dir).unwrap();
+    let static_validator: Jail<StaticAsset> = Jail::try_new(public_dir).unwrap();
+    let upload_validator: Jail<UserUpload> = Jail::try_new(uploads_dir).unwrap();
 
     // Function that serves static assets
     fn serve_static_asset(
-        validator: &PathValidator<StaticAsset>,
+        validator: &Jail<StaticAsset>,
         requested_path: &str,
     ) -> Result<JailedPath<StaticAsset>, String> {
         validator
@@ -238,7 +234,7 @@ fn test_real_world_web_server_scenario() {
 
     // Function that handles user uploads
     fn access_user_upload(
-        validator: &PathValidator<UserUpload>,
+        validator: &Jail<UserUpload>,
         file_path: &str,
     ) -> Result<JailedPath<UserUpload>, String> {
         validator
@@ -271,7 +267,7 @@ fn test_real_world_web_server_scenario() {
 fn test_memory_safety_with_long_paths() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let validator = PathValidator::<()>::with_jail(public_dir).unwrap();
+    let validator = Jail::<()>::try_new(public_dir).unwrap();
 
     // Create a very long path that would cause memory issues in naive implementations
     let long_component = "a".repeat(1000);
@@ -300,7 +296,7 @@ fn test_memory_safety_with_long_paths() {
 fn test_edge_cases_and_special_paths() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let validator = PathValidator::<()>::with_jail(public_dir).unwrap();
+    let validator = Jail::<()>::try_new(public_dir).unwrap();
 
     // Test various edge cases that should work
     let valid_cases = vec![
@@ -349,7 +345,7 @@ fn test_edge_cases_and_special_paths() {
 fn test_validator_properties() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let validator = PathValidator::<()>::with_jail(public_dir.clone()).unwrap();
+    let validator = Jail::<()>::try_new(public_dir.clone()).unwrap();
 
     // Test jail() accessor
     assert_eq!(validator.jail(), public_dir.canonicalize().unwrap());

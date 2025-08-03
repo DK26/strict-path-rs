@@ -1,4 +1,4 @@
-use jailed_path::{JailedPath, PathValidator};
+use jailed_path::{JailedPath, Jail};
 use std::fs;
 use std::io::Write;
 
@@ -49,10 +49,10 @@ fn test_complete_workflow_with_marker_types() {
     let uploads_dir = public_dir.join("uploads");
 
     // Create validators for different resource types
-    let public_validator: PathValidator<PublicAsset> =
-        PathValidator::with_jail(&public_dir).unwrap();
-    let upload_validator: PathValidator<UploadedFile> =
-        PathValidator::with_jail(uploads_dir).unwrap();
+    let public_validator: Jail<PublicAsset> =
+        Jail::try_new(&public_dir).unwrap();
+    let upload_validator: Jail<UploadedFile> =
+        Jail::try_new(uploads_dir).unwrap();
 
     // Test public asset access
     let public_file: JailedPath<PublicAsset> = public_validator.try_path("index.html").unwrap();

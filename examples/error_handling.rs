@@ -1,4 +1,4 @@
-use jailed_path::{JailedPathError, PathValidator};
+use jailed_path::{Jail, JailedPathError};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(windows))]
     let nonexistent_path = "/nonexistent/path";
 
-    let result = PathValidator::<()>::with_jail(nonexistent_path);
+    let result = Jail::<()>::try_new(nonexistent_path);
 
     match result {
         Err(e) => {

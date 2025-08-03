@@ -1,11 +1,11 @@
-use jailed_path::PathValidator;
+use jailed_path::Jail;
 use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a temporary directory for our demonstration
     fs::create_dir_all("file_ops_demo")?;
 
-    let validator = PathValidator::<()>::with_jail("file_ops_demo")?;
+    let validator = Jail::<()>::try_new("file_ops_demo")?;
     let file_path = validator.try_path("demo.txt")?;
 
     println!("=== JailedPath Built-in File Operations Demo ===");

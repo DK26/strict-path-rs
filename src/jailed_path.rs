@@ -35,14 +35,14 @@ use std::sync::Arc;
 ///
 /// ## Example
 /// ```rust
-/// # use jailed_path::PathValidator;
+/// # use jailed_path::Jail;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// # std::fs::create_dir_all("temp_jail")?;
-/// let validator = PathValidator::<()>::with_jail("temp_jail")?;
-/// let jailed_path = validator.try_path("data/file.txt")?;
+/// let validator = Jail::<()>::try_new("temp_jail")?;
+/// let jailed_path = validator.try_path("file.txt")?;
 ///
-/// // If jail_root is "temp_jail" and path is "data/file.txt"
-/// // Virtual path shows: "/data/file.txt"
+/// // If jail_root is "temp_jail" and path is "file.txt"
+/// // Virtual path shows: "/file.txt"
 /// println!("{jailed_path}"); // Always shows virtual path with forward slashes
 /// # std::fs::remove_dir_all("temp_jail").ok();
 /// # Ok(())
@@ -211,11 +211,11 @@ impl<Marker> JailedPath<Marker> {
     /// ## ⚠️ ANTI-PATTERNS TO AVOID:
     ///
     /// ```rust
-    /// use jailed_path::PathValidator;
+    /// use jailed_path::Jail;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # std::fs::create_dir_all("/tmp/unjail_example1")?;
-    /// let validator = PathValidator::<()>::with_jail("/tmp/unjail_example1")?;
+    /// let validator = Jail::<()>::try_new("/tmp/unjail_example1")?;
     /// let jailed_path = validator.try_path("file.txt")?;
     ///
     /// // ❌ WRONG: Unjailing just to check containment
@@ -233,11 +233,11 @@ impl<Marker> JailedPath<Marker> {
     /// ```
     ///
     /// ```rust
-    /// use jailed_path::PathValidator;
+    /// use jailed_path::Jail;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # std::fs::create_dir_all("/tmp/unjail_example2")?;
-    /// let validator = PathValidator::<()>::with_jail("/tmp/unjail_example2")?;
+    /// let validator = Jail::<()>::try_new("/tmp/unjail_example2")?;
     /// let jailed_path = validator.try_path("file.txt")?;
     ///
     /// // ❌ WRONG: Unjailing just to do file operations
@@ -261,7 +261,7 @@ impl<Marker> JailedPath<Marker> {
     /// 2. **Pass to functions** that take `PathBuf` ownership and you won't store the result
     ///
     /// ```rust
-    /// use jailed_path::PathValidator;
+    /// use jailed_path::Jail;
     ///
     /// fn external_api_that_takes_pathbuf(path: std::path::PathBuf) -> String {
     ///     format!("External API processing: {}", path.display())
@@ -269,7 +269,7 @@ impl<Marker> JailedPath<Marker> {
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # std::fs::create_dir_all("/tmp/legitimate_unjail")?;
-    /// let validator = PathValidator::<()>::with_jail("/tmp/legitimate_unjail")?;
+    /// let validator = Jail::<()>::try_new("/tmp/legitimate_unjail")?;
     /// let jailed_path = validator.try_path("file.txt")?;
     ///
     /// // ✅ OK: Immediate consumption for external API
@@ -282,11 +282,11 @@ impl<Marker> JailedPath<Marker> {
     ///
     /// **For logging/debugging, use the built-in Display/Debug implementations instead:**
     /// ```rust
-    /// use jailed_path::PathValidator;
+    /// use jailed_path::Jail;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # std::fs::create_dir_all("/tmp/display_example")?;
-    /// let validator = PathValidator::<()>::with_jail("/tmp/display_example")?;
+    /// let validator = Jail::<()>::try_new("/tmp/display_example")?;
     /// let jailed_path = validator.try_path("file.txt")?;
     ///
     /// // ✅ PREFERRED: Use Display (shows virtual path)
@@ -514,55 +514,6 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn jail(&self) -> &Path {
         &self.jail_root
-    }
-
-    // ---- Path Comparison Methods ----
-
-    /// Checks if the virtual path equals the given string.
-    ///
-    /// **✅ Recommended**: Use this for user-facing path comparisons.
-    /// Compares against the virtual path (what users see), not the real filesystem path.
-    ///
-    /// # Example
-    /// ```rust
-    /// # use jailed_path::PathValidator;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # std::fs::create_dir_all("temp_jail")?;
-    /// let validator = PathValidator::<()>::with_jail("temp_jail")?;
-    /// let path = validator.try_path("file.txt")?;
-    ///
-    /// assert_eq!(path.virtual_display(), "/file.txt");
-    /// assert!(!path.virtual_path_eq("temp_jail/file.txt")); // Real path comparison would be different
-    /// # std::fs::remove_dir_all("temp_jail").ok();
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn virtual_path_eq<S: AsRef<str>>(&self, other: S) -> bool {
-        self.virtual_path_to_string_lossy() == other.as_ref()
-    }
-
-    /// Checks if the real filesystem path equals the given string.
-    ///
-    /// **⚠️ Caution**: Compares against the real filesystem path.
-    /// For user-facing comparisons, prefer `virtual_path_eq()`.
-    ///
-    /// # Example  
-    /// ```rust
-    /// # use jailed_path::PathValidator;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # std::fs::create_dir_all("temp_jail")?;
-    /// let validator = PathValidator::<()>::with_jail("temp_jail")?;
-    /// let path = validator.try_path("file.txt")?;
-    ///
-    /// // Check if real path ends with the expected suffix (platform independent)
-    /// assert!(path.ends_with("file.txt"));
-    /// assert!(!path.virtual_path_eq("/file.txt")); // Virtual path comparison would be different
-    /// # std::fs::remove_dir_all("temp_jail").ok();
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn real_path_eq<S: AsRef<str>>(&self, other: S) -> bool {
-        self.path.to_str().is_some_and(|s| s == other.as_ref())
     }
 
     // ---- File System Operations ----

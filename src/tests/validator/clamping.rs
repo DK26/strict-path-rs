@@ -1,4 +1,4 @@
-use crate::validator::PathValidator;
+use crate::validator::Jail;
 use std::fs;
 use std::io::Write;
 use tempfile::TempDir;
@@ -64,7 +64,7 @@ fn cleanup_test_directory(path: &std::path::Path) {
 #[test]
 fn test_cleanup_on_jail_escape_attempts_with_clamping() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     let existing_subdir = temp_dir.join("legitimate_user_data");
     std::fs::create_dir(&existing_subdir).unwrap();
@@ -124,7 +124,7 @@ fn test_cleanup_on_jail_escape_attempts_with_clamping() {
 #[test]
 fn test_try_path_with_directory_traversal_attack() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Should block directory traversal attempts
     let traversal_attempts = vec![
@@ -160,7 +160,7 @@ fn test_try_path_with_directory_traversal_attack() {
 #[test]
 fn test_try_path_with_absolute_path_outside_jail() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Create another temp directory outside the jail
     let outside_base = std::env::temp_dir();
@@ -192,7 +192,7 @@ fn test_try_path_with_absolute_path_outside_jail() {
 #[test]
 fn test_try_path_blocks_traversal_in_nonexistent_paths() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Should block traversal attacks even for non-existent paths
     let traversal_attempts = vec![
@@ -228,7 +228,7 @@ fn test_try_path_blocks_traversal_in_nonexistent_paths() {
 #[test]
 fn test_try_path_with_absolute_nonexistent_path_outside_jail() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Should block absolute paths outside jail, even if they don't exist
     let outside_paths = get_attack_target_paths();
@@ -255,7 +255,7 @@ fn test_try_path_with_absolute_nonexistent_path_outside_jail() {
 #[test]
 fn test_try_path_with_complex_traversal_patterns() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Complex traversal patterns that should all be blocked
     let complex_attacks = vec![
@@ -291,7 +291,7 @@ fn test_try_path_with_complex_traversal_patterns() {
 #[test]
 fn test_cleanup_on_jail_escape_attempts() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Create an existing subdirectory structure in the jail
     let existing_subdir = temp_dir.join("legitimate_user_data");
@@ -378,7 +378,7 @@ fn test_attacker_path_clamping_in_existing_directory() {
     // Use tempfile for unique temp directory
     let temp_dir = TempDir::new().expect("Failed to create unique temp dir");
     let temp_path = temp_dir.path();
-    let validator = PathValidator::<()>::with_jail(temp_path).unwrap();
+    let validator = Jail::<()>::try_new(temp_path).unwrap();
 
     // Create existing directory structure (like /home/my_user/import_dir/)
     let import_dir = temp_path.join("import_dir");
@@ -426,7 +426,7 @@ fn test_attacker_path_clamping_in_existing_directory() {
 /// Test parent directory navigation is clamped to jail boundary
 fn test_parent_directory_navigation_with_clamping() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // NEW BEHAVIOR: .. components are allowed but clamped
     let parent_paths = vec![
@@ -465,7 +465,7 @@ fn test_parent_directory_navigation_with_clamping() {
 /// Test clamping and virtual root for absolute paths and traversal
 fn test_absolute_path_clamping_and_virtual_root() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // NEW BEHAVIOR: Absolute paths outside jail are treated as jail-relative
     let outside_absolute_paths = get_attack_target_paths();
@@ -517,7 +517,7 @@ fn test_absolute_path_clamping_and_virtual_root() {
 /// Test clamping is fast and secure for malicious paths
 fn test_clamping_is_fast_and_secure() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = PathValidator::<()>::with_jail(&temp_dir).unwrap();
+    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // NEW BEHAVIOR: Malicious paths are clamped, not rejected
     let malicious_paths = vec![

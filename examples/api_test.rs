@@ -1,4 +1,4 @@
-use jailed_path::{JailedPathError, PathValidator};
+use jailed_path::{Jail, JailedPathError};
 
 fn main() -> Result<(), JailedPathError> {
     // Get the current directory as our path jail
@@ -9,7 +9,7 @@ fn main() -> Result<(), JailedPathError> {
     );
 
     // Create a path validator
-    let validator: PathValidator = PathValidator::with_jail(&current_dir)?;
+    let validator: Jail = Jail::try_new(&current_dir)?;
 
     // Test valid path
     match validator.try_path("Cargo.toml") {

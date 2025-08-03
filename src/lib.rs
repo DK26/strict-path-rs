@@ -46,7 +46,7 @@
 //! ## Basic Usage
 //!
 //! ```rust
-//! use jailed_path::{try_jail, PathValidator, JailedPath};
+//! use jailed_path::{try_jail, Jail, JailedPath};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # std::fs::create_dir_all("./web_public")?;
@@ -55,11 +55,11 @@
 //! let safe_path: JailedPath = try_jail("./web_public", "user/profile.html")?;
 //!
 //! // Reusable jail  
-//! let customer_uploads_jail: PathValidator = PathValidator::with_jail("./customer_uploads")?;
+//! let customer_uploads_jail: Jail = Jail::try_new("./customer_uploads")?;
 //! let invoice_path = customer_uploads_jail.try_path("invoices/2024-001.pdf")?;
 //!
 //! // Built-in file operations
-//! invoice_path.write_string("Invoice content updated")?;
+//! invoice_path.write_string("Invoice content created")?;
 //! let content = invoice_path.read_to_string()?;
 //! # std::fs::remove_dir_all("./web_public").ok();
 //! # std::fs::remove_dir_all("./customer_uploads").ok();
@@ -71,7 +71,7 @@
 //! ## Multi-Jail Type Safety: Preventing Mix-ups
 //!
 //! ```rust
-//! use jailed_path::{PathValidator, JailedPath};
+//! use jailed_path::{Jail, JailedPath};
 //!
 //! struct StaticAssets;
 //! struct UserUploads;
@@ -82,8 +82,8 @@
 //!
 //! # std::fs::create_dir_all("assets")?; std::fs::create_dir_all("uploads")?;
 //! # std::fs::write("assets/style.css", "body{}")?;
-//! let assets_jail: PathValidator<StaticAssets> = PathValidator::with_jail("assets")?;
-//! let uploads_jail: PathValidator<UserUploads> = PathValidator::with_jail("uploads")?;
+//! let assets_jail: Jail<StaticAssets> = Jail::try_new("assets")?;
+//! let uploads_jail: Jail<UserUploads> = Jail::try_new("uploads")?;
 //!
 //! let css_file_path: JailedPath<StaticAssets> = assets_jail.try_path("style.css")?;
 //! let user_file_path: JailedPath<UserUploads> = uploads_jail.try_path("avatar.jpg")?;
@@ -97,11 +97,11 @@
 //! ## Built-in Safe File Operations
 //!
 //! ```rust
-//! use jailed_path::PathValidator;
+//! use jailed_path::Jail;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # std::fs::create_dir_all("safe_jail")?;
-//! let document_jail = PathValidator::<()>::with_jail("safe_jail")?;
+//! let document_jail = Jail::<()>::try_new("safe_jail")?;
 //! let file_path = document_jail.try_path("data.txt")?;
 //!
 //! // ✅ SAFE - All operations stay within jail automatically
@@ -117,7 +117,7 @@
 //!
 //! ```rust
 //! # fn doctest() -> Result<(), Box<dyn std::error::Error>> {
-//! use jailed_path::PathValidator;
+//! use jailed_path::Jail;
 //! use std::fs;
 //!
 //! // Setup: create a secure web server public directory with files
@@ -128,7 +128,7 @@
 //! // Create config file outside public dir to simulate real scenario
 //! fs::write(format!("{web_public_dir}/config.toml"), "[config]\nkey = 'value'")?;
 //!
-//! let web_server_jail: PathValidator = PathValidator::with_jail(web_public_dir)?;
+//! let web_server_jail: Jail = Jail::try_new(web_public_dir)?;
 //!
 //! // ✅ Valid paths - legitimate web requests
 //! let safe_path = web_server_jail.try_path("index.html")?;
@@ -154,7 +154,7 @@
 //! **⚠️ CRITICAL: These are the ONLY two ways to create a JailedPath!**
 //!
 //! - [`try_jail()`] - One-shot path validation, returns `Result<JailedPath, JailedPathError>`
-//! - [`PathValidator::with_jail()`] - Create path jail with boundary
+//! - [`Jail::try_new()`] - Create path jail with boundary
 //! - [`jail.try_path()`] - Validate a single path, returns `Result<JailedPath, JailedPathError>`
 //! - [`JailedPath`] - Validated path type (can ONLY be created via `try_jail()` or `try_path()`)
 //! - [`JailedPathError`] - Detailed error information for debugging
@@ -175,17 +175,17 @@
 //!
 //! ### Basic Validation
 //!
-//! The easiest way to use the library is to create a `PathValidator` and use it to validate user-provided paths.
+//! The easiest way to use the library is to create a `Jail` and use it to validate user-provided paths.
 //!
 //! ```rust
-//! use jailed_path::PathValidator;
+//! use jailed_path::Jail;
 //!
 //! fn example() -> jailed_path::Result<()> {
 //!     // 1. Define a jail directory.
 //!     let jail_dir = "/var/www/uploads";
 //!
 //!     // 2. Create a path jail for that directory.
-//!     let uploads_jail = PathValidator::<()>::with_jail(jail_dir)?;
+//!     let uploads_jail = Jail::<()>::try_new(jail_dir)?;
 //!
 //!     // 3. Validate a user-provided path.
 //!     let user_path = "user123/avatar.jpg";
@@ -208,10 +208,10 @@
 //! `JailedPath` provides convenient file I/O methods built-in, no additional imports needed.
 //!
 //! ```rust
-//! use jailed_path::PathValidator;
+//! use jailed_path::Jail;
 //!
 //! fn example() -> Result<(), Box<dyn std::error::Error>> {
-//!     let temp_jail = PathValidator::<()>::with_jail("/tmp/jail")?;
+//!     let temp_jail = Jail::<()>::try_new("/tmp/jail")?;
 //!     let file_path = temp_jail.try_path("data.txt")?;
 //!
 //!     // Write to the file (safely within the jail).
@@ -229,15 +229,15 @@
 //! You can use marker structs to ensure that a path for user uploads is never accidentally used to access public assets.
 //!
 //! ```rust
-//! use jailed_path::PathValidator;
+//! use jailed_path::Jail;
 //!
 //! fn example() -> jailed_path::Result<()> {
 //!     // Define unique markers for each jail type.
 //!     struct UserUploads;
 //!     struct PublicAssets;
 //!
-//!     let uploads_jail = PathValidator::<UserUploads>::with_jail("/srv/uploads")?;
-//!     let assets_jail = PathValidator::<PublicAssets>::with_jail("/srv/public")?;
+//!     let uploads_jail = Jail::<UserUploads>::try_new("/srv/uploads")?;
+//!     let assets_jail = Jail::<PublicAssets>::try_new("/srv/public")?;
 //!
 //!     let user_file_path = uploads_jail.try_path("user1/profile.jpg")?;
 //!     let asset_file_path = assets_jail.try_path("css/style.css")?;
@@ -256,12 +256,12 @@
 //! The `unjail()` method exists for integration with external APIs, but it's commonly misused:
 //!
 //! ```rust
-//! use jailed_path::PathValidator;
+//! use jailed_path::Jail;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # std::fs::create_dir_all("/tmp/safe_example")?;
-//! let validator = PathValidator::<()>::with_jail("/tmp/safe_example")?;
-//! let jailed_path = validator.try_path("file.txt")?;
+//! let jail = Jail::<()>::try_new("/tmp/safe_example")?;
+//! let jailed_path = jail.try_path("file.txt")?;
 //!
 //! // ❌ ANTI-PATTERN: Unjailing just to check containment
 //! let real_path = jailed_path.unjail();
@@ -270,13 +270,13 @@
 //! assert!(!contains_safe, "Anti-pattern fails - real path is not '/safe/...'");
 //!
 //! // ❌ ANTI-PATTERN: Unjailing for file operations  
-//! let jailed_path2 = validator.try_path("data.txt")?;
+//! let jailed_path2 = jail.try_path("data.txt")?;
 //! let real_path2 = jailed_path2.unjail();
 //! // This exposes internal paths and defeats the security model
 //! println!("Exposed internal path: {:?}", real_path2);
 //!
 //! // ❌ ANTI-PATTERN: Unjailing for path manipulation
-//! let jailed_path3 = validator.try_path("subdir/file.txt")?;
+//! let jailed_path3 = jail.try_path("subdir/file.txt")?;
 //! let real_path3 = jailed_path3.unjail();
 //! let parent = real_path3.parent(); // Lost security guarantees!
 //! assert!(parent.is_some(), "Parent exists but security is lost");
@@ -286,12 +286,12 @@
 //! ```
 //!
 //! ```rust
-//! use jailed_path::PathValidator;
+//! use jailed_path::Jail;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # std::fs::create_dir_all("/tmp/safe_example2")?;
-//! let validator = PathValidator::<()>::with_jail("/tmp/safe_example2")?;
-//! let jailed_path = validator.try_path("file.txt")?;
+//! let jail = Jail::<()>::try_new("/tmp/safe_example2")?;
+//! let jailed_path = jail.try_path("file.txt")?;
 //!
 //! // ❌ ANTI-PATTERN: Unjailing for file operations  
 //! let real_path = jailed_path.unjail();
@@ -299,7 +299,7 @@
 //! println!("Exposed real path: {:?}", real_path); // Shows internal filesystem details
 //!
 //! // ❌ ANTI-PATTERN: Unjailing for path manipulation (create new jailed_path for demo)
-//! let jailed_path2 = validator.try_path("file2.txt")?;
+//! let jailed_path2 = jail.try_path("file2.txt")?;
 //! let real_path2 = jailed_path2.unjail();
 //! let parent = real_path2.parent().unwrap(); // Lost security guarantees!
 //! println!("Parent path: {:?}", parent); // May leak filesystem structure
@@ -313,15 +313,15 @@
 //! ### ✅ CORRECT: Use Built-in Methods
 //!
 //! ```rust
-//! use jailed_path::PathValidator;
+//! use jailed_path::Jail;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # std::fs::create_dir_all("/tmp/safe_correct")?;
-//! let validator = PathValidator::<()>::with_jail("/tmp/safe_correct")?;
-//! let jailed_path = validator.try_path("file.txt")?;
+//! let jail = Jail::<()>::try_new("/tmp/safe_correct")?;
+//! let jailed_path = jail.try_path("file.txt")?;
 //!
 //! // ✅ SECURE: Use built-in methods that preserve security
-//! assert!(jailed_path.starts_with(validator.jail())); // Secure and direct
+//! assert!(jailed_path.starts_with(jail.jail())); // Secure and direct
 //! jailed_path.write_bytes(b"test content")?; // Safe file operations
 //! let content = jailed_path.read_bytes()?; // Safe file operations
 //! let parent = jailed_path.virtual_parent(); // Safe path manipulation (returns Option)
@@ -337,7 +337,7 @@
 //! - **Integration with other crates** that don't support our types
 //!
 //! ```rust
-//! use jailed_path::PathValidator;
+//! use jailed_path::Jail;
 //!
 //! fn external_api_that_takes_pathbuf(path: std::path::PathBuf) -> String {
 //!     format!("Processing: {}", path.display())
@@ -345,8 +345,8 @@
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # std::fs::create_dir_all("/tmp/external_api_example")?;
-//! let validator = PathValidator::<()>::with_jail("/tmp/external_api_example")?;
-//! let jailed_path = validator.try_path("file.txt")?;
+//! let jail = Jail::<()>::try_new("/tmp/external_api_example")?;
+//! let jailed_path = jail.try_path("file.txt")?;
 //!
 //! // ✅ OK: Immediate consumption for external API
 //! let result = external_api_that_takes_pathbuf(jailed_path.unjail());
@@ -358,12 +358,12 @@
 //!
 //! **For logging/debugging, use the built-in Display/Debug implementations instead:**
 //! ```rust
-//! use jailed_path::PathValidator;
+//! use jailed_path::Jail;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # std::fs::create_dir_all("/tmp/logging_example")?;
-//! let validator = PathValidator::<()>::with_jail("/tmp/logging_example")?;
-//! let jailed_path = validator.try_path("file.txt")?;
+//! let jail = Jail::<()>::try_new("/tmp/logging_example")?;
+//! let jailed_path = jail.try_path("file.txt")?;
 //!
 //! // ✅ PREFERRED: Use Display (shows virtual path)
 //! println!("Processing file: {}", jailed_path);
@@ -397,13 +397,13 @@ mod tests;
 // Public exports
 pub use error::JailedPathError;
 pub use jailed_path::JailedPath;
-pub use validator::PathValidator;
+pub use validator::Jail;
 
 /// Creates a `JailedPath` by jailing a `path_to_jail` within a `jail_path`.
 ///
 /// This function is a convenient way to create a `JailedPath` without needing to
-/// create a `PathValidator` first. It performs the same validation steps as
-/// `PathValidator::try_path`.
+/// create a `Jail` first. It performs the same validation steps as
+/// `Jail::try_path`.
 ///
 /// # Arguments
 ///

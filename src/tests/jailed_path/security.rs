@@ -1,11 +1,11 @@
-use crate::PathValidator;
+use crate::Jail;
 use std::sync::Arc;
 use std::thread;
 
 #[test]
 fn test_known_cve_patterns() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: PathValidator = PathValidator::with_jail(temp.path()).unwrap();
+    let validator: Jail = Jail::try_new(temp.path()).unwrap();
 
     // Common CVE patterns that should be safely handled
     let attack_patterns = vec![
@@ -65,7 +65,7 @@ fn test_known_cve_patterns() {
 #[test]
 fn test_unicode_edge_cases() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: PathValidator = PathValidator::with_jail(temp.path()).unwrap();
+    let validator: Jail = Jail::try_new(temp.path()).unwrap();
 
     let unicode_patterns = vec![
         "файл.txt",                 // Cyrillic
@@ -95,7 +95,7 @@ fn test_unicode_edge_cases() {
 #[test]
 fn test_concurrent_validator_usage() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Arc<PathValidator> = Arc::new(PathValidator::with_jail(temp.path()).unwrap());
+    let validator: Arc<Jail> = Arc::new(Jail::try_new(temp.path()).unwrap());
     let mut handles = vec![];
 
     // Spawn multiple threads using the same validator
@@ -126,7 +126,7 @@ fn test_concurrent_validator_usage() {
 #[test]
 fn test_long_path_handling() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: PathValidator = PathValidator::with_jail(temp.path()).unwrap();
+    let validator: Jail = Jail::try_new(temp.path()).unwrap();
 
     // Very long path (approaching filesystem limits)
     let long_component = "a".repeat(255);
@@ -161,7 +161,7 @@ fn test_long_path_handling() {
 #[cfg(windows)]
 fn test_windows_specific_attacks() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: PathValidator = PathValidator::with_jail(temp.path()).unwrap();
+    let validator: Jail = Jail::try_new(temp.path()).unwrap();
 
     let windows_patterns = vec![
         "CON",
@@ -193,7 +193,7 @@ fn test_windows_specific_attacks() {
 #[cfg(unix)]
 fn test_unix_specific_attacks() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: PathValidator = PathValidator::with_jail(temp.path()).unwrap();
+    let validator: Jail = Jail::try_new(temp.path()).unwrap();
 
     let unix_patterns = vec![
         "/dev/null",
