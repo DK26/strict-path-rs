@@ -1,3 +1,3 @@
-// mod clamping; // Temporarily disabled during API refactoring
+mod clamping;
 mod creation;
 mod virtual_root;

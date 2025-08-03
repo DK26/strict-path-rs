@@ -96,13 +96,13 @@ fn test_bytes_conversion() {
     let (jailed_path, _jail_root) = create_jailed_path("foo/bar.txt");
     // to_bytes() returns the real, canonicalized path bytes
     let real_bytes = jailed_path.to_bytes();
-    let real_path_string = jailed_path.unjail().to_string_lossy().into_owned();
+    let real_path_string = jailed_path.real_path_to_string_lossy().into_owned();
     let expected_bytes = real_path_string.as_bytes().to_vec();
     assert_eq!(real_bytes, expected_bytes);
 
     // Test the other into_bytes method too
     let (jailed_path2, _) = create_jailed_path("foo/bar.txt");
-    let real_path_string2 = jailed_path2.clone().unjail().to_string_lossy().into_owned();
+    let real_path_string2 = jailed_path2.real_path_to_string_lossy().into_owned();
     let expected_bytes2 = real_path_string2.as_bytes().to_vec();
     assert_eq!(jailed_path2.into_bytes(), expected_bytes2);
 }

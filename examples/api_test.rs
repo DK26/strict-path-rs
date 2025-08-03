@@ -28,7 +28,7 @@ fn main() -> Result<(), JailedPathError> {
                 "✓ Path traversal clamped to jail root: {}",
                 clamped_path.virtual_display()
             );
-            println!("  Real path: {}", clamped_path.unjail().display());
+            println!("  Real path: {}", clamped_path.real_path_to_string_lossy());
         }
         Err(e) => {
             println!("✗ Unexpected error for clamped path: {e}");

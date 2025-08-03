@@ -220,8 +220,7 @@ fn test_unix_specific_attacks() {
         match validator.try_path(pattern) {
             Ok(jailed_path) => {
                 // Should be safe and within jail
-                // Use validator.jail() which is canonicalized, not temp.path() which might not be
-                assert!(jailed_path.real_path().starts_with(validator.jail()));
+                assert!(jailed_path.starts_with(validator.jail()));
                 assert!(!jailed_path
                     .virtual_path()
                     .to_string_lossy()
