@@ -25,10 +25,10 @@ use std::sync::Arc;
 /// `Display` and `Debug` show virtual paths with forward slashes, never exposing real system paths.
 ///
 /// ## API Categories
-/// - **Path queries**: `starts_with()`, `file_name()`, `extension()`
+/// - **Path queries**: `starts_with()`, `starts_with_virtual()`, `ends_with()`, `ends_with_virtual()`, `file_name()`, `extension()`
 /// - **String conversion**: `virtual_display()`, `virtual_path_to_string()`, `real_path_to_str()` ⚠️
 /// - **Path navigation**: `virtual_join()`, `virtual_parent()`, `virtual_with_file_name()`
-/// - **Raw access**: `real_path()` ⚠️, `virtual_path()` ✅, `jail()`
+/// - **Raw access**: `virtual_path()` ✅, `jail()`, `unjail()` ⚠️
 /// - **Byte operations**: `to_bytes()`, `into_bytes()` ⚠️
 ///
 /// **Legend**: ⚠️ = Exposes real filesystem paths | ✅ = Recommended for user-facing operations
@@ -94,6 +94,22 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn starts_with_virtual<P: AsRef<Path>>(&self, base: P) -> bool {
         self.virtual_path().starts_with(base)
+    }
+
+    /// Checks if the real path ends with the given suffix.
+    ///
+    /// **⚠️ Caution**: Operates on real filesystem paths, not virtual paths.
+    #[inline]
+    pub fn ends_with<P: AsRef<Path>>(&self, suffix: P) -> bool {
+        self.path.ends_with(suffix)
+    }
+
+    /// Checks if the virtual path ends with the given suffix.
+    ///
+    /// **✅ Recommended**: Use this for user-facing features like search/filtering.
+    #[inline]
+    pub fn ends_with_virtual<P: AsRef<Path>>(&self, suffix: P) -> bool {
+        self.virtual_path().ends_with(suffix)
     }
 
     /// Returns virtual path as display string (always forward slashes).
@@ -164,14 +180,6 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn virtual_path_to_string_lossy(&self) -> String {
         self.virtual_path().to_string_lossy().into_owned()
-    }
-
-    /// Returns reference to the real filesystem path.
-    ///
-    /// **⚠️ Caution**: Exposes real filesystem path.
-    #[inline]
-    pub fn real_path(&self) -> &Path {
-        self.path.as_path()
     }
 
     /// Returns virtual path as `PathBuf` (jail-relative, platform separators).
@@ -401,6 +409,13 @@ impl<Marker> JailedPath<Marker> {
     /// Returns reference to the jail root path.
     pub fn jail(&self) -> &Path {
         &self.jail_root
+    }
+
+    /// Internal method to get the real path for file operations.
+    /// This is used by extension traits within the same crate.
+    #[inline]
+    pub(crate) fn internal_path(&self) -> &Path {
+        &self.path
     }
 }
 

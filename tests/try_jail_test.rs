@@ -44,7 +44,7 @@ fn test_try_jail_success() {
     let public_dir = temp_dir.join("public");
 
     let jailed_path: jailed_path::JailedPath = try_jail(public_dir, "index.html").unwrap();
-    assert!(jailed_path.real_path().ends_with("index.html"));
+    assert!(jailed_path.ends_with("index.html"));
 }
 
 #[test]
@@ -65,6 +65,6 @@ fn test_try_jail_with_marker() {
 
     let jailed_path: jailed_path::JailedPath<MyMarker> =
         try_jail(public_dir, "index.html").unwrap();
-    assert!(jailed_path.real_path().ends_with("index.html"));
+    assert!(jailed_path.ends_with("index.html"));
     // You can add more assertions here to verify the marker type if needed, e.g., using `std::any::TypeId`
 }

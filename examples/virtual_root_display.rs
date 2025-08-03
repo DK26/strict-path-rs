@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // These attacks are automatically clamped to stay within jail
     let attacks = vec![
         "../../../etc/passwd",
-        "/etc/passwd", 
+        "/etc/passwd",
         "users/alice/../../../sensitive.txt",
     ];
 

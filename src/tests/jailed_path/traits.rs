@@ -29,7 +29,7 @@ fn test_jailed_path_partial_eq_and_borrow() {
 
     let abs_path = jail_root.join(&test_path);
     // PartialEq<Path>
-    assert_eq!(jailed_path.real_path(), abs_path.as_path());
+    assert_eq!(jailed_path.internal_path(), abs_path.as_path());
     // PartialEq<PathBuf>
     assert_eq!(jailed_path, abs_path);
     // PartialEq<&str> (string form of the path)
@@ -68,7 +68,7 @@ fn test_jailed_path_as_ref_implementation() {
 
     // Should work with AsRef<Path>
     let abs_path = jail_root.join(&test_path);
-    let path_ref: &Path = jailed_path.real_path();
+    let path_ref: &Path = jailed_path.internal_path();
     assert_eq!(path_ref, abs_path.as_path());
 }
 
@@ -97,16 +97,16 @@ fn test_jailed_path_deref_implementation() {
 
     // Should allow calling Path methods directly via Deref
     assert_eq!(
-        jailed_path.real_path().file_name(),
+        jailed_path.internal_path().file_name(),
         Some(std::ffi::OsStr::new("path"))
     );
     // Compare parent paths, not Option types
     let parent = jailed_path
         .virtual_parent()
-        .map(|jp| jp.real_path().to_path_buf());
+        .map(|jp| jp.internal_path().to_path_buf());
     let expected_parent = Some(jail_root.to_path_buf());
     assert_eq!(parent, expected_parent);
-    assert_eq!(jailed_path.real_path().extension(), None);
+    assert_eq!(jailed_path.internal_path().extension(), None);
 }
 
 #[test]

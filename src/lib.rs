@@ -66,17 +66,17 @@
 //!
 //! let escape_attempt = "../../../etc/passwd";
 //! let clamped_path: JailedPath = try_jail("users/alice_workspace", escape_attempt)?;
-//! 
+//!
 //! // Virtual display shows clamped path - never leaks real filesystem structure
 //! assert_eq!(format!("{clamped_path}"), "/etc/passwd");
-//! 
+//!
 //! // ✅ SAFE: Use built-in operations instead of real_path()
 //! // This demonstrates the path is safely clamped without exposing filesystem details
 //! let jail_validator: PathValidator = PathValidator::with_jail("users/alice_workspace")?;
 //! assert_eq!(clamped_path.jail(), jail_validator.jail());
 //!
 //! // Clamped - can't access bob's files!
-//! let another_attack: JailedPath = validator.try_path("../bob_workspace/secrets.txt")?; 
+//! let another_attack: JailedPath = validator.try_path("../bob_workspace/secrets.txt")?;
 //!
 //! // Virtual display shows clamped path - clean and secure
 //! assert_eq!(format!("{another_attack}"), "/bob_workspace/secrets.txt");  

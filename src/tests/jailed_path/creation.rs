@@ -26,8 +26,8 @@ fn test_jailed_path_creation() {
 
     // Should store the path correctly
     let abs_path = &*jail_root.join(&test_path);
-    assert_eq!(jailed_path.real_path(), abs_path);
-    assert_eq!(jailed_path.unjail(), abs_path);
+    assert_eq!(jailed_path, *abs_path);
+    assert_eq!(jailed_path, *abs_path);
 }
 
 #[test]

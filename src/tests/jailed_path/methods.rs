@@ -31,7 +31,7 @@ fn test_jailed_path_try_join_and_try_parent() {
     // try_virtual_join (inside jail)
     let joined = jailed.try_virtual_join("baz.txt");
     assert!(joined.is_ok(), "try_virtual_join failed: {joined:?}");
-    let actual = joined.as_ref().unwrap().real_path();
+    let actual = joined.as_ref().unwrap().internal_path();
     let expected = jail_root.join("foo/bar.txt/baz.txt");
     assert_eq!(
         actual, expected,
@@ -45,13 +45,13 @@ fn test_jailed_path_try_join_and_try_parent() {
         "Expected clamping to jail root, got error: {outside:?}"
     );
     let clamped = outside.unwrap();
-    assert!(clamped.real_path().starts_with(&*jail_root));
+    assert!(clamped.internal_path().starts_with(&*jail_root));
 
     // try_parent (inside jail)
     let parent = jailed.try_virtual_parent();
     assert!(parent.is_ok());
     let expected_parent = jail_root.join("foo");
-    let actual_parent = parent.as_ref().unwrap().real_path();
+    let actual_parent = parent.as_ref().unwrap().internal_path();
     assert_eq!(
         actual_parent, expected_parent,
         "actual: {actual_parent:?}, expected: {expected_parent:?}"
@@ -103,7 +103,7 @@ fn test_jailed_path_pathbuf_methods() {
     // Which translates to jail_root/foo/bar.txt/baz.txt in real path
     let joined = jailed.virtual_join("baz.txt");
     assert!(joined.is_some());
-    let actual = joined.as_ref().unwrap().real_path();
+    let actual = joined.as_ref().unwrap().internal_path();
 
     // The expected path should be: jail_root/foo/bar.txt/baz.txt
     // This is because we're joining "baz.txt" to the virtual path "/foo/bar.txt"
@@ -117,13 +117,13 @@ fn test_jailed_path_pathbuf_methods() {
     let clamped = outside.unwrap();
     // After clamping ../../../../etc/passwd from /foo/bar.txt, we should get /etc/passwd
     // (or possibly just /passwd depending on how many levels up we can go)
-    assert!(clamped.real_path().starts_with(&*jail_root));
+    assert!(clamped.internal_path().starts_with(&*jail_root));
 
     // parent (inside jail)
     let parent = jailed.virtual_parent();
     assert!(parent.is_some());
     let expected_parent = &*jail_root.join("foo");
-    let actual_parent = parent.as_ref().unwrap().real_path();
+    let actual_parent = parent.as_ref().unwrap().internal_path();
     assert_eq!(actual_parent, expected_parent);
 
     // parent (at jail root)
@@ -146,7 +146,7 @@ fn test_jailed_path_pathbuf_methods() {
     assert!(with_name.is_some());
     let joined_path = jail_root.join("foo/bar.txt");
     let expected_with_name = joined_path.parent().unwrap().join("newname.txt");
-    let actual_with_name = with_name.as_ref().unwrap().real_path();
+    let actual_with_name = with_name.as_ref().unwrap().internal_path();
     assert_eq!(
         actual_with_name, expected_with_name,
         "actual: {actual_with_name:?}, expected: {expected_with_name:?}"
@@ -167,7 +167,10 @@ fn test_jailed_path_pathbuf_methods() {
     let escape_attempt = root.virtual_with_file_name("../../etc/passwd");
     assert!(escape_attempt.is_some()); // Should be clamped, not rejected
                                        // The result should still be within the jail
-    assert!(escape_attempt.unwrap().real_path().starts_with(&*jail_root));
+    assert!(escape_attempt
+        .unwrap()
+        .internal_path()
+        .starts_with(&*jail_root));
 
     // with_extension (inside jail)
     let with_ext = jailed.virtual_with_extension("log");
@@ -175,7 +178,7 @@ fn test_jailed_path_pathbuf_methods() {
     let mut joined_path = jail_root.join("foo/bar.txt");
     joined_path.set_extension("log");
     let expected_with_ext = joined_path;
-    let actual_with_ext = with_ext.as_ref().unwrap().real_path();
+    let actual_with_ext = with_ext.as_ref().unwrap().internal_path();
     assert_eq!(
         actual_with_ext, expected_with_ext,
         "actual: {actual_with_ext:?}, expected: {expected_with_ext:?}"

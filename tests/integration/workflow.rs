@@ -78,9 +78,9 @@ fn test_complete_workflow_with_marker_types() {
         let jailed_path = result.unwrap();
         let jail_root = public_validator.jail().canonicalize().unwrap();
         let clamped_path = jailed_path
-            .real_path()
+            .internal_path()
             .canonicalize()
-            .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
+            .unwrap_or_else(|_| jailed_path.internal_path().to_path_buf());
         assert!(
             clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
             "Clamped path should be at jail root or its parent: {}",
@@ -95,9 +95,9 @@ fn test_complete_workflow_with_marker_types() {
         let jailed_path = result.unwrap();
         let jail_root = upload_validator.jail().canonicalize().unwrap();
         let clamped_path = jailed_path
-            .real_path()
+            .internal_path()
             .canonicalize()
-            .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
+            .unwrap_or_else(|_| jailed_path.internal_path().to_path_buf());
         assert!(
             clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
             "Clamped path should be at jail root or its parent: {}",

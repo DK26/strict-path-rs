@@ -96,11 +96,11 @@ fn test_try_path_with_valid_relative_path() {
 
     let jailed_path = result.unwrap();
     assert!(
-        jailed_path.real_path().ends_with("test.txt"),
+        jailed_path.ends_with("test.txt"),
         "JailedPath should point to the correct file"
     );
     assert!(
-        jailed_path.real_path().starts_with(validator.jail()),
+        jailed_path.starts_with(validator.jail()),
         "JailedPath should be within jail boundary"
     );
 
@@ -122,11 +122,11 @@ fn test_try_path_with_valid_subdirectory_path() {
 
     let jailed_path = result.unwrap();
     assert!(
-        jailed_path.real_path().ends_with("sub_test.txt"),
+        jailed_path.ends_with("sub_test.txt"),
         "JailedPath should point to the correct file"
     );
     assert!(
-        jailed_path.real_path().starts_with(validator.jail()),
+        jailed_path.starts_with(validator.jail()),
         "JailedPath should be within jail boundary"
     );
 
@@ -149,14 +149,11 @@ fn test_try_path_with_absolute_path_inside_jail() {
 
     let jailed_path = result.unwrap();
     let jail_root = temp_dir.canonicalize().unwrap();
-    let clamped_path = jailed_path
-        .real_path()
-        .canonicalize()
-        .unwrap_or_else(|_| jailed_path.real_path().to_path_buf());
+    // For this test, we just need to verify the path is valid - we can't easily check
+    // the exact path without accessing internals, but we can verify it's within jail
     assert!(
-        clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
-        "Clamped absolute path should be at jail root or its parent: {}",
-        clamped_path.display()
+        jailed_path.starts_with(&jail_root),
+        "Clamped absolute path should be within jail boundary"
     );
 
     // Cleanup
@@ -176,8 +173,8 @@ fn test_try_path_with_nonexistent_file() {
     );
 
     let jailed_path = result.unwrap();
-    assert!(jailed_path.real_path().ends_with("new_document.pdf"));
-    assert!(jailed_path.real_path().starts_with(validator.jail()));
+    assert!(jailed_path.ends_with("new_document.pdf"));
+    assert!(jailed_path.starts_with(validator.jail()));
 
     // Cleanup
     cleanup_test_directory(&temp_dir);
@@ -196,8 +193,8 @@ fn test_try_path_with_nonexistent_nested_file() {
     );
 
     let jailed_path = result.unwrap();
-    assert!(jailed_path.real_path().ends_with("beach.jpg"));
-    assert!(jailed_path.real_path().starts_with(validator.jail()));
+    assert!(jailed_path.ends_with("beach.jpg"));
+    assert!(jailed_path.starts_with(validator.jail()));
 
     // SECURITY: Verify parent directories were cleaned up for anti-spam protection
     let parent_dir = temp_dir.join("users/john/photos/vacation");
@@ -234,8 +231,8 @@ fn test_try_path_with_mixed_existing_and_nonexistent() {
     );
 
     let jailed_path = result.unwrap();
-    assert!(jailed_path.real_path().starts_with(validator.jail()));
-    assert!(jailed_path.real_path().ends_with("new_file.txt"));
+    assert!(jailed_path.starts_with(validator.jail()));
+    assert!(jailed_path.ends_with("new_file.txt"));
 
     // Cleanup
     cleanup_test_directory(&temp_dir);
@@ -281,7 +278,7 @@ fn test_try_path_handles_permission_errors_gracefully() {
     // Should either succeed or fail gracefully with a clear error
     match result {
         Ok(jailed_path) => {
-            assert!(jailed_path.real_path().starts_with(validator.jail()));
+            assert!(jailed_path.starts_with(validator.jail()));
         }
         Err(JailedPathError::PathResolutionError { .. }) => {
             // Acceptable - permission denied or other IO error
@@ -306,7 +303,7 @@ fn test_try_path_edge_case_empty_relative_path() {
     for path in edge_cases {
         let result = validator.try_path(path);
         if let Ok(jailed_path) = result {
-            assert!(jailed_path.real_path().starts_with(validator.jail()));
+            assert!(jailed_path.starts_with(validator.jail()));
         }
         // Some of these might fail, which is acceptable behavior
     }
@@ -338,7 +335,7 @@ fn test_try_path_performance_with_many_validations() {
         );
 
         let jailed_path = result.unwrap();
-        assert!(jailed_path.real_path().starts_with(validator.jail()));
+        assert!(jailed_path.starts_with(validator.jail()));
     }
 
     // Cleanup
@@ -363,8 +360,12 @@ fn test_marker_types_for_compile_time_safety() {
         image_validator.try_path("test.txt").unwrap();
     let user_path: crate::JailedPath<UserData> = user_validator.try_path("test.txt").unwrap();
 
-    // Paths should be the same but have different types (checked at compile time)
-    assert_eq!(image_path.real_path(), user_path.real_path());
+    // Paths have different types and cannot be compared directly (marker type safety)
+    // This is intentional - the following line should NOT compile:
+    // assert_eq!(image_path, user_path); // ← This would be a compile error
+
+    // However, they should have the same underlying paths when unjailed
+    assert_eq!(image_path.unjail(), user_path.unjail());
 
     // This ensures the PhantomData marker is working and size is consistent
     let expected_size = std::mem::size_of::<PathBuf>() + std::mem::size_of::<Arc<PathBuf>>();

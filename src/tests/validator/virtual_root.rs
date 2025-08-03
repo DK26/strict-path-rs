@@ -267,7 +267,7 @@ fn test_virtual_root_with_cross_platform_paths() {
     assert!(display_output.starts_with('/'));
 
     println!("✅ Cross-platform virtual root: {display_output}");
-    println!("   Underlying path: {}", jailed_path.real_path().display());
+    println!("   Underlying path: {}", jailed_path.unjail().display());
 
     // The virtual root display should be clean and consistent
     assert!(!display_output.is_empty());

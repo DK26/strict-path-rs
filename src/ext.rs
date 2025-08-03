@@ -39,7 +39,7 @@ use std::io;
 /// An extension trait for [`JailedPath`] that provides ergonomic, jail-safe file I/O operations.
 ///
 /// This trait allows you to perform common file operations directly on a `JailedPath`
-/// without needing to call [`JailedPath::real_path()`] and use the `std::fs` module manually.
+/// without needing to use the `std::fs` module manually.
 /// All operations are guaranteed to be safe and occur within the jail boundary.
 ///
 /// ## Design Philosophy
@@ -144,67 +144,67 @@ impl<Marker> JailedFileOps for JailedPath<Marker> {
 
     #[inline]
     fn exists(&self) -> bool {
-        self.real_path().exists()
+        self.internal_path().exists()
     }
 
     #[inline]
     fn is_file(&self) -> bool {
-        self.real_path().is_file()
+        self.internal_path().is_file()
     }
 
     #[inline]
     fn is_dir(&self) -> bool {
-        self.real_path().is_dir()
+        self.internal_path().is_dir()
     }
 
     #[inline]
     fn metadata(&self) -> io::Result<std::fs::Metadata> {
-        std::fs::metadata(self.real_path())
+        std::fs::metadata(self.internal_path())
     }
 
     // ---- Reading Operations ----
 
     #[inline]
     fn read_to_string(&self) -> io::Result<String> {
-        std::fs::read_to_string(self.real_path())
+        std::fs::read_to_string(self.internal_path())
     }
 
     #[inline]
     fn read_bytes(&self) -> io::Result<Vec<u8>> {
-        std::fs::read(self.real_path())
+        std::fs::read(self.internal_path())
     }
 
     // ---- Writing Operations ----
 
     #[inline]
     fn write_bytes(&self, data: &[u8]) -> io::Result<()> {
-        std::fs::write(self.real_path(), data)
+        std::fs::write(self.internal_path(), data)
     }
 
     #[inline]
     fn write_string(&self, data: &str) -> io::Result<()> {
-        std::fs::write(self.real_path(), data)
+        std::fs::write(self.internal_path(), data)
     }
 
     // ---- Directory Operations ----
 
     #[inline]
     fn create_dir_all(&self) -> io::Result<()> {
-        std::fs::create_dir_all(self.real_path())
+        std::fs::create_dir_all(self.internal_path())
     }
 
     #[inline]
     fn remove_file(&self) -> io::Result<()> {
-        std::fs::remove_file(self.real_path())
+        std::fs::remove_file(self.internal_path())
     }
 
     #[inline]
     fn remove_dir(&self) -> io::Result<()> {
-        std::fs::remove_dir(self.real_path())
+        std::fs::remove_dir(self.internal_path())
     }
 
     #[inline]
     fn remove_dir_all(&self) -> io::Result<()> {
-        std::fs::remove_dir_all(self.real_path())
+        std::fs::remove_dir_all(self.internal_path())
     }
 }
