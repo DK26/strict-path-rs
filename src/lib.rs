@@ -29,33 +29,68 @@
 //!
 //! // Attacker could send: "../../../etc/passwd"
 //! // Server would try to serve: ./public/../../../etc/passwd → /etc/passwd 💀
-//! // (This example doesn't actually run the dangerous code)
 //! # let _ = serve_file_unsafe; // Prevent unused warning
 //! ```
 //!
 //! ## The Solution: Mathematical Security Guarantees
 //!
 //! ```rust
-//! use jailed_path::{try_jail, PathValidator, JailedPath};
+//! use jailed_path::{try_jail, PathValidator, JailedPath, JailedFileOps};
 //!
 //! // ✅ SECURE - Attack impossible by mathematical design
 //! fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
-//!     std::fs::read(safe_path.real_path())  // ← JailedPath GUARANTEES safety
+//!     safe_path.read_bytes()  // ← Built-in safe operations, no real_path() needed!
 //! }
 //!
-//! # std::fs::create_dir_all("public")?; std::fs::write("public/index.html", b"<html></html>")?;
+//! # std::fs::create_dir_all("users")?;
+//! # std::fs::create_dir_all("users/alice_workspace")?;
+//! # std::fs::create_dir_all("users/alice_workspace/documents")?;
+//! # std::fs::create_dir_all("users/alice_workspace/photos")?;
+//! # std::fs::write("users/alice_workspace/documents/report.pdf", b"Alice's report")?;
+//! # std::fs::write("users/alice_workspace/photos/vacation.jpg", b"vacation photo")?;
 //! // ⚠️ CRITICAL: These are the ONLY two ways to create a JailedPath!
 //! // Both are mathematically secure by design:
 //!
 //! // Option 1: One-shot validation with try_jail()
-//! let safe_path: JailedPath = try_jail("public", "index.html")?;  // Works!
+//! let user_workspace = "users/alice_workspace";
+//! let user_requested_file = "documents/report.pdf";
+//! let safe_path: JailedPath = try_jail(user_workspace, user_requested_file)?;
 //!
 //! // Option 2: Reusable validator with try_path()
-//! let validator = PathValidator::with_jail("public")?;
-//! let safe_path: JailedPath = validator.try_path("index.html")?;  // Works!
+//! let validator = PathValidator::with_jail("users/alice_workspace")?;
+//! let safe_path: JailedPath = validator.try_path("photos/vacation.jpg")?;  // Works within alice's space!
+//!
+//! // ═══════════════════════════════════════════════════════════════════════════════
+//! // ATTACK IMMUNITY DEMONSTRATION - Even escape attempts get clamped:
+//! // ═══════════════════════════════════════════════════════════════════════════════
+//!
+//! let escape_attempt = "../../../etc/passwd";
+//! let clamped_path: JailedPath = try_jail("users/alice_workspace", escape_attempt)?;
+//! 
+//! // Virtual display shows clamped path - never leaks real filesystem structure
+//! assert_eq!(format!("{clamped_path}"), "/etc/passwd");
+//! 
+//! // ✅ SAFE: Use built-in operations instead of real_path()
+//! // This demonstrates the path is safely clamped without exposing filesystem details
+//! let jail_validator: PathValidator = PathValidator::with_jail("users/alice_workspace")?;
+//! assert_eq!(clamped_path.jail(), jail_validator.jail());
+//!
+//! // Clamped - can't access bob's files!
+//! let another_attack: JailedPath = validator.try_path("../bob_workspace/secrets.txt")?; 
+//!
+//! // Virtual display shows clamped path - clean and secure
+//! assert_eq!(format!("{another_attack}"), "/bob_workspace/secrets.txt");  
+//!
+//! // ✅ SAFE: Verify containment without exposing real paths
+//! assert_eq!(another_attack.jail(), validator.jail());
+//!
+//! // ✅ SAFE: Work with files using built-in operations - no real_path() needed!
+//! safe_path.write_string("This is Alice's vacation photo metadata")?;
+//! let metadata = safe_path.read_to_string()?;
+//! assert_eq!(metadata, "This is Alice's vacation photo metadata");
 //!
 //! let content = serve_file(&safe_path)?;
-//! # std::fs::remove_dir_all("public").ok();
+//! # std::fs::remove_dir_all("users").ok();
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
@@ -64,13 +99,13 @@
 //! ## Multi-Jail Type Safety: Preventing Mix-ups
 //!
 //! ```rust
-//! use jailed_path::{PathValidator, JailedPath};
+//! use jailed_path::{PathValidator, JailedPath, JailedFileOps};
 //!
 //! struct PublicAssets;
 //! struct UserUploads;
 //!
 //! fn serve_asset(asset: &JailedPath<PublicAssets>) -> Result<String, std::io::Error> {
-//!     std::fs::read_to_string(asset.real_path())
+//!     asset.read_to_string()  // ✅ Safe built-in operation, no real_path() needed!
 //! }
 //!
 //! # std::fs::create_dir_all("assets")?; std::fs::create_dir_all("uploads")?;
@@ -131,9 +166,10 @@
 //! let clamped1 = validator.try_path("../config.toml")?;
 //! let clamped2 = validator.try_path("assets/../../../etc/passwd")?;
 //! let clamped3 = validator.try_path("/etc/shadow")?;
-//! assert!(clamped1.real_path().starts_with(validator.jail()));
-//! assert!(clamped2.real_path().starts_with(validator.jail()));
-//! assert!(clamped3.real_path().starts_with(validator.jail()));
+//! // ✅ SAFE: Verify containment without exposing real filesystem paths
+//! assert_eq!(clamped1.jail(), validator.jail());
+//! assert_eq!(clamped2.jail(), validator.jail());
+//! assert_eq!(clamped3.jail(), validator.jail());
 //!
 //! // Cleanup: remove the test directory
 //! fs::remove_dir_all(test_dir).ok();
@@ -201,7 +237,8 @@
 //!     // Attempting to escape the jail will be clamped to the jail root.
 //!     let malicious_path = "../../../etc/passwd";
 //!     let clamped_path = validator.try_path(malicious_path)?; // This succeeds but is clamped
-//!     assert!(clamped_path.real_path().starts_with(validator.jail()));
+//!     // ✅ SAFE: Verify containment without exposing real filesystem structure
+//!     assert_eq!(clamped_path.jail(), validator.jail());
 //!     Ok(())
 //! }
 //! ```

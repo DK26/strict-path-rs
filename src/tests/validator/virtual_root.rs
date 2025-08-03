@@ -153,8 +153,8 @@ fn test_virtual_root_jail_root_accessor() {
 
     let jailed_path = validator.try_path("file.txt").unwrap();
 
-    // Test jail_root() accessor method
-    let jail_root = jailed_path.jail_root();
+    // Test jail() accessor method
+    let jail_root = jailed_path.jail();
 
     // Should return the same path as validator.jail()
     assert_eq!(jail_root, validator.jail());
@@ -187,9 +187,9 @@ fn test_virtual_root_with_different_marker_types() {
     assert_eq!(format!("{user_path}"), "/user_data.json");
     assert_eq!(format!("{config_path}"), "/config.toml");
 
-    // Both should have access to jail_root()
-    assert_eq!(user_path.jail_root(), config_path.jail_root());
-    assert_eq!(user_path.jail_root(), temp_dir.canonicalize().unwrap());
+    // Both should have access to jail()
+    assert_eq!(user_path.jail(), config_path.jail());
+    assert_eq!(user_path.jail(), temp_dir.canonicalize().unwrap());
 
     // Debug formatting should work for both
     let user_debug = format!("{user_path:?}");

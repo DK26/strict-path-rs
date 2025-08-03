@@ -40,24 +40,33 @@ fn serve_file(path: &str) -> std::io::Result<Vec<u8>> {
 ## The Solution: Mathematical Security Guarantees
 
 ```rust
-use jailed_path::{try_jail, PathValidator, JailedPath};
+use jailed_path::{try_jail, PathValidator, JailedPath, JailedFileOps};
 
 // ✅ SECURE - Attack impossible by mathematical design
 fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
-    std::fs::read(safe_path.real_path())  // ← JailedPath GUARANTEES safety
+    safe_path.read_bytes()  // ← Built-in safe operations, no real_path() needed!
 }
 
 // ⚠️ CRITICAL: These are the ONLY two ways to create a JailedPath!
 // Both are mathematically secure by design:
 
 // Option 1: One-shot validation with try_jail()
-let safe_path: JailedPath = try_jail("./public", "index.html")?;  // Works!
-let safe_path: JailedPath = try_jail("./public", "../../../etc/passwd")?;  // Clamped to jail root!
+let user_workspace = "./users/alice_workspace";
+let user_requested_file = "documents/report.pdf";
+let safe_path: JailedPath = try_jail(user_workspace, user_requested_file)?;
+
+// Even if user tries to escape their workspace, they're clamped to their own space
+let escape_attempt = "../../../etc/passwd";
+let safe_path: JailedPath = try_jail("./users/alice_workspace", escape_attempt)?;  // Clamped to alice's jail!
+assert_eq!(format!("{safe_path}"), "/etc/passwd");  // Virtual display shows clamped path
+assert!(safe_path.real_path().ends_with("users/alice_workspace/etc/passwd"));  // Real path is safely in jail
 
 // Option 2: Reusable validator with try_path()
-let validator = PathValidator::with_jail("./public")?;
-let safe_path: JailedPath = validator.try_path("index.html")?;  // Works!
-let safe_path: JailedPath = validator.try_path("../../../etc/passwd")?;  // Clamped to jail root!
+let validator = PathValidator::with_jail("./users/alice_workspace")?;
+let safe_path: JailedPath = validator.try_path("photos/vacation.jpg")?;  // Works within alice's space!
+let clamped_path: JailedPath = validator.try_path("../bob_workspace/secrets.txt")?;  // Clamped - can't access bob's files!
+assert_eq!(format!("{clamped_path}"), "/bob_workspace/secrets.txt");  // Virtual display shows clamped path
+assert!(clamped_path.real_path().ends_with("users/alice_workspace/bob_workspace/secrets.txt"));  // Real path is safely in jail
 ```
 
 **The key insight**: `JailedPath` is the ONLY type that promises security. You literally cannot create one without going through `try_jail()` or `validator.try_path()` - there are no other constructors!

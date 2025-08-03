@@ -28,7 +28,7 @@ use std::sync::Arc;
 /// - **Path queries**: `starts_with()`, `file_name()`, `extension()`
 /// - **String conversion**: `virtual_display()`, `virtual_path_to_string()`, `real_path_to_str()` ⚠️
 /// - **Path navigation**: `virtual_join()`, `virtual_parent()`, `virtual_with_file_name()`
-/// - **Raw access**: `real_path()` ⚠️, `virtual_path()` ✅, `jail_root()`
+/// - **Raw access**: `real_path()` ⚠️, `virtual_path()` ✅, `jail()`
 /// - **Byte operations**: `to_bytes()`, `into_bytes()` ⚠️
 ///
 /// **Legend**: ⚠️ = Exposes real filesystem paths | ✅ = Recommended for user-facing operations
@@ -399,7 +399,7 @@ impl<Marker> JailedPath<Marker> {
     }
 
     /// Returns reference to the jail root path.
-    pub fn jail_root(&self) -> &Path {
+    pub fn jail(&self) -> &Path {
         &self.jail_root
     }
 }

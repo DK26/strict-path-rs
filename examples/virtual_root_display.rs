@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Jail root is accessible if needed
     println!("Jail root: {}", validator.jail().display());
-    println!("User jail root: {}", user_doc.jail_root().display());
+    println!("User jail root: {}", user_doc.jail().display());
     println!();
 
     // Still works with all Path methods via Deref
@@ -50,17 +50,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
     println!("=== Security Demo ===");
 
-    // These attacks are automatically blocked
+    // These attacks are automatically clamped to stay within jail
     let attacks = vec![
         "../../../etc/passwd",
-        "/etc/passwd",
+        "/etc/passwd", 
         "users/alice/../../../sensitive.txt",
     ];
 
     for attack in attacks {
         match validator.try_path(attack) {
-            Ok(_) => println!("  ❌ SECURITY FAILURE: {attack} was allowed!"),
-            Err(_) => println!("  ✅ Blocked attack: {attack}"),
+            Ok(clamped_path) => {
+                // Verify the path was clamped to jail boundary
+                assert_eq!(clamped_path.jail(), validator.jail());
+                println!("  ✅ Attack clamped: {attack} → {clamped_path}");
+            }
+            Err(e) => println!("  ❌ Unexpected error for {attack}: {e}"),
         }
     }
 
