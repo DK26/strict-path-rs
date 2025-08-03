@@ -60,7 +60,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_dir_all("trait_demo")?;
 
     println!("\n🎉 All file operations completed successfully using the JailedFileOps trait!");
-    println!("   Notice: No need to call .real_path() anywhere - the trait handles it!");
 
     Ok(())
 }

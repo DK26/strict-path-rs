@@ -44,7 +44,7 @@ use jailed_path::{try_jail, PathValidator, JailedPath, JailedFileOps};
 
 // ✅ SECURE - Attack impossible by mathematical design
 fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
-    safe_path.read_bytes()  // ← Built-in safe operations, no real_path() needed!
+    safe_path.read_bytes()  // ← Built-in safe operations!
 }
 
 // ⚠️ CRITICAL: These are the ONLY two ways to create a JailedPath!
@@ -55,18 +55,30 @@ let user_workspace = "./users/alice_workspace";
 let user_requested_file = "documents/report.pdf";
 let safe_path: JailedPath = try_jail(user_workspace, user_requested_file)?;
 
-// Even if user tries to escape their workspace, they're clamped to their own space
+// ═══════════════════════════════════════════════════════════════════════════════
+// ATTACK IMMUNITY DEMONSTRATION - Even escape attempts get clamped:
+// ═══════════════════════════════════════════════════════════════════════════════
+
 let escape_attempt = "../../../etc/passwd";
-let safe_path: JailedPath = try_jail("./users/alice_workspace", escape_attempt)?;  // Clamped to alice's jail!
-assert_eq!(format!("{safe_path}"), "/etc/passwd");  // Virtual display shows clamped path
-assert!(safe_path.real_path().ends_with("users/alice_workspace/etc/passwd"));  // Real path is safely in jail
+let clamped_path: JailedPath = try_jail("users/alice_workspace", escape_attempt)?;
+
+// Virtual display shows clamped path - never leaks real filesystem structure
+assert_eq!(format!("{clamped_path}"), "/etc/passwd");
+
+// ✅ SAFE: Verify containment without exposing real filesystem paths
+let jail_validator: PathValidator = PathValidator::with_jail("users/alice_workspace")?;
+assert_eq!(clamped_path.jail(), jail_validator.jail());
 
 // Option 2: Reusable validator with try_path()
 let validator = PathValidator::with_jail("./users/alice_workspace")?;
 let safe_path: JailedPath = validator.try_path("photos/vacation.jpg")?;  // Works within alice's space!
-let clamped_path: JailedPath = validator.try_path("../bob_workspace/secrets.txt")?;  // Clamped - can't access bob's files!
-assert_eq!(format!("{clamped_path}"), "/bob_workspace/secrets.txt");  // Virtual display shows clamped path
-assert!(clamped_path.real_path().ends_with("users/alice_workspace/bob_workspace/secrets.txt"));  // Real path is safely in jail
+let another_attack: JailedPath = validator.try_path("../bob_workspace/secrets.txt")?;  // Clamped - can't access bob's files!
+
+// Virtual display shows clamped path - clean and secure
+assert_eq!(format!("{another_attack}"), "/bob_workspace/secrets.txt");
+
+// ✅ SAFE: Verify containment without exposing real paths
+assert_eq!(another_attack.jail(), validator.jail());
 ```
 
 **The key insight**: `JailedPath` is the ONLY type that promises security. You literally cannot create one without going through `try_jail()` or `validator.try_path()` - there are no other constructors!
@@ -94,31 +106,23 @@ let path: JailedPath<()> = validator.try_path("index.html")?;
 Real applications have multiple directories. Here's where the marker system shines:
 
 ```rust
-use jailed_path::{PathValidator, JailedPath};
+use jailed_path::{PathValidator, JailedPath, JailedFileOps};
 
 // Define semantic markers for different purposes
 struct PublicAssets;
-struct UserUploads; 
-struct ConfigFiles;
+struct UserUploads;
 
 // Create type-safe validators
 let assets: PathValidator<PublicAssets> = PathValidator::with_jail("./assets")?;
-let uploads: PathValidator<UserUploads> = PathValidator::with_jail("./uploads")?; 
-let config: PathValidator<ConfigFiles> = PathValidator::with_jail("./config")?;
+let uploads: PathValidator<UserUploads> = PathValidator::with_jail("./uploads")?;
 
 // Get type-safe paths
 let css_file: JailedPath<PublicAssets> = assets.try_path("style.css")?;
 let user_avatar: JailedPath<UserUploads> = uploads.try_path("avatar.jpg")?;
-let app_config: JailedPath<ConfigFiles> = config.try_path("settings.toml")?;
 
 // Functions can require specific jail types
 fn serve_public_asset(asset: &JailedPath<PublicAssets>) -> std::io::Result<Vec<u8>> {
-    std::fs::read(asset.real_path())
-}
-
-fn process_user_upload(upload: &JailedPath<UserUploads>) -> std::io::Result<()> {
-    // Process user file safely...
-    Ok(())
+    asset.read_bytes() // ✅ Safe built-in operation
 }
 
 // Type system prevents dangerous mix-ups
@@ -131,30 +135,33 @@ serve_public_asset(&css_file)?;  // ✅ Correct type
 ## Even Single Jails Benefit from Semantic Markers
 
 ```rust
+use jailed_path::{PathValidator, JailedPath, JailedFileOps};
+
 struct StaticFiles;
 
 let validator: PathValidator<StaticFiles> = PathValidator::with_jail("./static")?;
 
 fn serve_static(file: &JailedPath<StaticFiles>) -> std::io::Result<Vec<u8>> {
     // The type signature makes it crystal clear what this function expects
-    std::fs::read(file.real_path())
+    file.read_bytes() // ✅ Safe built-in operation
 }
 ```
 
 The marker adds semantic meaning and prevents accidental misuse.
 
-## Safe File Operations: Why `real_path()` Can Be Dangerous
+## Safe File Operations: Why Direct Path Access Can Be Dangerous
 
-Here's a critical security insight: even with a `JailedPath`, using `real_path()` exposes you to new risks:
+Here's a critical security insight: even with a `JailedPath`, getting a raw `&Path` can be risky if misused:
 
 ```rust
 use jailed_path::PathValidator;
+use std::path::Path;
 
 let validator = PathValidator::with_jail("./uploads")?;
 let safe_file = validator.try_path("document.txt")?;
 
-// 🚨 DANGEROUS - real_path() gives you a raw Path that can be misused!
-let raw_path = safe_file.real_path();
+// 🚨 DANGEROUS - A raw &Path can be misused!
+let raw_path: &Path = safe_file.as_ref();
 let dangerous = raw_path.join("../../../etc/passwd");  // Oops! Escaped the jail!
 ```
 
@@ -187,7 +194,7 @@ let metadata = file.metadata()?;
 println!("File size: {} bytes", metadata.len());
 ```
 
-**No `real_path()` needed!** All operations are mathematically guaranteed to stay within the jail.
+**No raw path access needed!** All operations are mathematically guaranteed to stay within the jail.
 
 ## Virtual Root Display: Clean User-Facing Paths
 
@@ -201,7 +208,7 @@ let doc = validator.try_path("reports/quarterly/2024.pdf")?;
 println!("Document: {doc}");  // Output: /reports/quarterly/2024.pdf
 
 // The real path is hidden (and you shouldn't need it anyway!)
-println!("Real path: {}", doc.real_path().display());  
+println!("Real path: {}", doc.to_string_lossy());  
 // Output: ./my_app_data/user_files/reports/quarterly/2024.pdf
 ```
 

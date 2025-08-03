@@ -39,7 +39,7 @@
 //!
 //! // ✅ SECURE - Attack impossible by mathematical design
 //! fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
-//!     safe_path.read_bytes()  // ← Built-in safe operations, no real_path() needed!
+//!     safe_path.read_bytes()  // ← Built-in safe operations
 //! }
 //!
 //! # std::fs::create_dir_all("users")?;
@@ -70,7 +70,7 @@
 //! // Virtual display shows clamped path - never leaks real filesystem structure
 //! assert_eq!(format!("{clamped_path}"), "/etc/passwd");
 //!
-//! // ✅ SAFE: Use built-in operations instead of real_path()
+//! // ✅ SAFE: Use built-in operations
 //! // This demonstrates the path is safely clamped without exposing filesystem details
 //! let jail_validator: PathValidator = PathValidator::with_jail("users/alice_workspace")?;
 //! assert_eq!(clamped_path.jail(), jail_validator.jail());
@@ -84,7 +84,7 @@
 //! // ✅ SAFE: Verify containment without exposing real paths
 //! assert_eq!(another_attack.jail(), validator.jail());
 //!
-//! // ✅ SAFE: Work with files using built-in operations - no real_path() needed!
+//! // ✅ SAFE: Work with files using built-in operations
 //! safe_path.write_string("This is Alice's vacation photo metadata")?;
 //! let metadata = safe_path.read_to_string()?;
 //! assert_eq!(metadata, "This is Alice's vacation photo metadata");
@@ -104,8 +104,8 @@
 //! struct PublicAssets;
 //! struct UserUploads;
 //!
-//! fn serve_asset(asset: &JailedPath<PublicAssets>) -> Result<String, std::io::Error> {
-//!     asset.read_to_string()  // ✅ Safe built-in operation, no real_path() needed!
+//! fn serve_asset(asset: &JailedPath<PublicAssets>) -> Result<Vec<u8>, std::io::Error> {
+//!     asset.read_bytes()  // ✅ Safe built-in operation
 //! }
 //!
 //! # std::fs::create_dir_all("assets")?; std::fs::create_dir_all("uploads")?;
@@ -293,7 +293,7 @@
 //!
 //! The core design principle is **Secure by Construction**. This is achieved by:
 //! - **No `Deref` or `AsRef<Path>`**: Prevents accidental use of insecure standard library path methods.
-//! - **Explicitness**: Methods that expose the real, absolute path (like `real_path()` and `real_path_to_str()`) are clearly named to make the developer's intent obvious.
+//! - **Explicitness**: Methods that expose the real, absolute path (like `real_path_to_str()`) are clearly named to make the developer's intent obvious.
 //! - **Virtualization**: By default, all string representations and display implementations use a virtual, jail-relative path to prevent leaking filesystem structure.
 
 #![forbid(unsafe_code)]

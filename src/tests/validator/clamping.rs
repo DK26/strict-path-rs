@@ -179,7 +179,7 @@ fn test_try_path_with_absolute_path_outside_jail() {
     let jail_root = temp_dir.canonicalize().unwrap();
     // Use starts_with directly on JailedPath instead of unjailing
     assert!(
-        jailed_path.starts_with(&jail_root),
+        jailed_path.starts_with(jail_root),
         "Clamped absolute path should be within jail: {}",
         jailed_path.real_path_to_string_lossy()
     );
@@ -398,7 +398,7 @@ fn test_attacker_path_clamping_in_existing_directory() {
     let jail_root = temp_path.canonicalize().unwrap();
     // Use starts_with directly on JailedPath instead of unjailing
     assert!(
-        jailed_path.starts_with(&jail_root),
+        jailed_path.starts_with(jail_root),
         "Clamped path should be within jail: {}",
         jailed_path.real_path_to_string_lossy()
     );

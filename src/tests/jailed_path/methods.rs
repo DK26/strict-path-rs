@@ -45,7 +45,7 @@ fn test_jailed_path_try_join_and_try_parent() {
         "Expected clamping to jail root, got error: {outside:?}"
     );
     let clamped = outside.unwrap();
-    assert!(clamped.internal_path().starts_with(&*jail_root));
+    assert!(clamped.internal_path().starts_with(jail_root.as_ref()));
 
     // try_parent (inside jail)
     let parent = jailed.try_virtual_parent();
@@ -117,7 +117,7 @@ fn test_jailed_path_pathbuf_methods() {
     let clamped = outside.unwrap();
     // After clamping ../../../../etc/passwd from /foo/bar.txt, we should get /etc/passwd
     // (or possibly just /passwd depending on how many levels up we can go)
-    assert!(clamped.internal_path().starts_with(&*jail_root));
+    assert!(clamped.internal_path().starts_with(jail_root.as_ref()));
 
     // parent (inside jail)
     let parent = jailed.virtual_parent();
@@ -170,7 +170,7 @@ fn test_jailed_path_pathbuf_methods() {
     assert!(escape_attempt
         .unwrap()
         .internal_path()
-        .starts_with(&*jail_root));
+        .starts_with(jail_root.as_ref()));
 
     // with_extension (inside jail)
     let with_ext = jailed.virtual_with_extension("log");

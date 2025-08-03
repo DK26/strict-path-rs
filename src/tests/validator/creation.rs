@@ -152,7 +152,7 @@ fn test_try_path_with_absolute_path_inside_jail() {
     // For this test, we just need to verify the path is valid - we can't easily check
     // the exact path without accessing internals, but we can verify it's within jail
     assert!(
-        jailed_path.starts_with(&jail_root),
+        jailed_path.starts_with(jail_root.as_path()),
         "Clamped absolute path should be within jail boundary"
     );
 

@@ -17,7 +17,7 @@ This roadmap outlines the planned evolution of the `jailed-path` crate based on 
 - The `JailedFileOps` trait provides comprehensive file I/O operations
 - Import with `use jailed_path::JailedFileOps;`
 - All operations work directly on `JailedPath` instances
-- No need to call `.real_path()` manually
+- All operations work directly on `JailedPath` instances
 - Includes: `exists()`, `is_file()`, `is_dir()`, `metadata()`, `read_to_string()`, `read_bytes()`, `write_string()`, `write_bytes()`, `create_dir_all()`, `remove_file()`, `remove_dir()`, `remove_dir_all()`
 
 **Example Usage:**
@@ -27,7 +27,7 @@ use jailed_path::{PathValidator, JailedFileOps};
 let validator = PathValidator::<()>::with_jail("./uploads")?;
 let file = validator.try_path("document.txt")?;
 
-// Direct file operations (no .real_path() needed!)
+// Direct file operations!
 if file.exists() {
     let content = file.read_to_string()?;
     println!("Content: {}", content);
@@ -85,11 +85,11 @@ file.write_string("Hello, secure world!")?;
 | 2.1.3                                            | `virtual_with_file_name()` method                 | ✅      | 2 - HIGH     | Implemented for secure file name replacement.                                                                  |
 | 2.1.4                                            | `virtual_with_extension()` method                 | ✅      | 2 - HIGH     | Implemented for secure extension replacement.                                                                  |
 | 2.2                                              | Explicit Path Access API                          | ✅      | 1 - CRITICAL | API requires explicit calls to access the inner path, preventing misuse.                                       |
-| 2.2.1                                            | `real_path()` method                              | ✅      | 1 - CRITICAL | Provides safe, read-only access to the inner `&Path`.                                                          |
+| 2.2.1                                            | ~~`real_path()` method~~                          | ❌      | ~~CRITICAL~~ | **Removed:** Discourages raw `&Path` use. Philosophy is to add specialized methods to `JailedPath` as needed. Forcing an escape hatch requires `to_string()` or `unjail()`, making the developer's intent explicit. |
 | 2.2.2                                            | `unjail()` method                                 | ✅      | 1 - CRITICAL | Explicitly consumes `JailedPath` to return the inner `PathBuf`, removing safety guarantees.                    |
 | 2.2.3                                            | `to_bytes()` / `into_bytes()` methods             | ✅      | 2 - HIGH     | Implemented for ecosystem compatibility.                                                                       |
 | 2.3                                              | Ergonomic Trait Implementations                   | ✅      | 1 - CRITICAL | `PartialEq`, `Eq`, `Hash`, `Ord`, `PartialOrd` are implemented for seamless use in collections.                |
-| 2.4                                              | Unambiguous String Conversions                    | ✅      | 1 - CRITICAL | Renamed `to_str` to `real_path_to_str` and added virtual path variants to prevent info leaks.                |
+
 | 2.5                                              | Ergonomic File I/O via `JailedFileOps` Trait      | ✅      | 2 - HIGH     | Added `JailedFileOps` trait for direct, safe I/O operations.                                                   |
 | 2.6                                              | ~~`Deref` to `Path`~~                             | ❌      | ~~CRITICAL~~ | **Removed:** Intentionally omitted to prevent insecure `Path::join` usage.                                     |
 | 2.7                                              | ~~`AsRef<Path>` / `Borrow<Path>`~~                | ❌      | ~~CRITICAL~~ | **Removed:** Intentionally omitted for the same security reasons as `Deref`.                                   |
@@ -568,7 +568,7 @@ By omitting these traits, we force the developer to be explicit about their inte
 
 **The Secure API:**
 - **Path Manipulation**: All path modifications (joining, getting parent, etc.) **must** be done using the provided `virtual_*` methods (`virtual_join()`, `virtual_parent()`, etc.). These methods are guaranteed to be jail-safe.
-- **Filesystem Access**: For I/O operations, you can use the convenient built-in methods (`.read()`, `.write()`) or explicitly get a reference to the real, validated path with `.real_path()`.
+- **Filesystem Access**: For I/O operations, you can use the convenient built-in methods (`.read()`, `.write()`) or explicitly get the real path as a string via `to_string_lossy()` and create a `Path` from it.
 - **Leaving the Jail**: If you need to convert the `JailedPath` back into a regular `PathBuf` (and thus lose the safety guarantees), you must call the explicit `.unjail()` method.
 - **Ergonomics**: Traits like `PartialEq`, `Eq`, `Ord`, and `Hash` are implemented to ensure `JailedPath` works seamlessly in collections and comparisons.
 
@@ -586,8 +586,8 @@ fn process_file_secure(path: JailedPath<UserFiles>) -> Result<String, Box<dyn st
     // CORRECT: Path manipulation uses jail-safe virtual methods.
     let backup_path = path.virtual_with_extension("backup").ok_or("Backup path failed")?;
     
-    // CORRECT: Use the explicit .real_path() for functions expecting a &Path.
-    std::fs::copy(path.real_path(), backup_path.real_path())?;
+    // CORRECT: Use the explicit `to_string_lossy()` for functions expecting a &Path.
+    std::fs::copy(path.to_string_lossy().as_ref(), backup_path.to_string_lossy().as_ref())?;
     
     Ok(String::from_utf8_lossy(&content).to_string())
 }
@@ -614,7 +614,7 @@ fn existing_file_function(path: &Path) -> std::io::Result<u64> {
     std::fs::metadata(path).map(|m| m.len())
 }
 // CORRECT: Pass the real path explicitly.
-let file_size = existing_file_function(jailed.real_path())?;
+let file_size = existing_file_function(Path::new(&jailed.to_string_lossy()))?;
 
 // To get the inner PathBuf, you must "unjail" it.
 let raw_path: PathBuf = jailed.unjail(); // Safety guarantees are now gone.
@@ -648,8 +648,8 @@ async fn serve_user_file(
         .try_path(&format!("{}/{}", user_id, file_path))
         .map_err(|_| StatusCode::FORBIDDEN)?; // Path outside jail is forbidden.
     
-    // CORRECT: Use the explicit .real_path() to pass to I/O functions like tokio::fs.
-    let content = tokio::fs::read(safe_path.real_path()).await
+    // CORRECT: Use the JailedFileOps trait for I/O.
+    let content = safe_path.read_bytes()
         .map_err(|_| StatusCode::NOT_FOUND)?;
     
     // The Display trait provides a clean, jail-relative path for logging.

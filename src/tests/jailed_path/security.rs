@@ -24,46 +24,43 @@ fn test_known_cve_patterns() {
     ];
 
     for pattern in attack_patterns {
-        match validator.try_path(pattern) {
-            Ok(jailed_path) => {
-                // Debug: Let's see what the actual paths are
-                let virtual_path = jailed_path.virtual_path();
-                let real_path = jailed_path.unjail();
-                println!(
-                    "Pattern: '{pattern}' -> Real: '{real_path:?}' -> Virtual: '{virtual_path:?}'"
-                );
-                println!("Jail (from temp): '{:?}'", temp.path());
-                println!("Jail (from validator): '{:?}'", validator.jail());
+        if let Ok(jailed_path) = validator.try_path(pattern) {
+            // Debug: Let's see what the actual paths are
+            let virtual_path = jailed_path.virtual_path();
+            let real_path = jailed_path.unjail();
+            println!(
+                "Pattern: '{pattern}' -> Real: '{real_path:?}' -> Virtual: '{virtual_path:?}'"
+            );
+            println!("Jail (from temp): '{:?}'", temp.path());
+            println!("Jail (from validator): '{:?}'", validator.jail());
 
-                // Should be clamped to jail root or within jail
-                let virtual_str = virtual_path.to_string_lossy();
+            // Should be clamped to jail root or within jail
+            let virtual_str = virtual_path.to_string_lossy();
 
-                // Note: "...." is a valid directory name, not traversal
-                // Note: "%2F" is URL-encoded and treated as literal
-                // Note: Windows backslash paths like "..\..\file" are treated as literal paths on Unix
-                //       (backslashes are not path separators on Unix)
-                if !pattern.contains("....") && !pattern.contains("%2F") {
-                    // Only check for traversal if this pattern could actually create traversal
-                    let is_traversal_pattern =
-                        pattern.contains("../") || (cfg!(windows) && pattern.contains("..\\"));
+            // Note: "...." is a valid directory name, not traversal
+            // Note: "%2F" is URL-encoded and treated as literal
+            // Note: Windows backslash paths like "..\\..\\file" are treated as literal paths on Unix
+            //       (backslashes are not path separators on Unix)
+            if !pattern.contains("....") && !pattern.contains("%2F") {
+                // Only check for traversal if this pattern could actually create traversal
+                let is_traversal_pattern =
+                    pattern.contains("../") || (cfg!(windows) && pattern.contains("..\\"));
 
-                    if is_traversal_pattern {
-                        assert!(
-                            !virtual_str.contains(".."),
-                            "Attack pattern '{pattern}' not properly sanitized: {virtual_path:?}"
-                        );
-                    }
+                if is_traversal_pattern {
+                    assert!(
+                        !virtual_str.contains(".."),
+                        "Attack pattern '{pattern}' not properly sanitized: {virtual_path:?}"
+                    );
                 }
+            }
 
-                // Should not escape jail
-                assert!(
-                    real_path.starts_with(validator.jail()),
-                    "Attack pattern '{pattern}' escaped jail: {real_path:?}"
-                );
-            }
-            Err(_) => {
-                // It's also acceptable to reject malicious patterns entirely
-            }
+            // Should not escape jail
+            assert!(
+                real_path.starts_with(validator.jail()),
+                "Attack pattern '{pattern}' escaped jail: {real_path:?}"
+            );
+        } else {
+            // It's also acceptable to reject malicious patterns entirely
         }
     }
 }
@@ -139,34 +136,28 @@ fn test_long_path_handling() {
     let long_component = "a".repeat(255);
     let long_path = format!("{long_component}/{long_component}/{long_component}/{long_component}");
 
-    match validator.try_path(&long_path) {
-        Ok(jailed_path) => {
-            assert!(jailed_path.starts_with(temp.path().canonicalize().unwrap()));
-        }
-        Err(_) => {
-            // Long paths might be rejected, which is acceptable
-        }
+    if let Ok(jailed_path) = validator.try_path(long_path) {
+        assert!(jailed_path.starts_with(temp.path().canonicalize().unwrap()));
+    } else {
+        // Long paths might be rejected, which is acceptable
     }
 
     // Extremely long traversal attempt
     let traversal_attack = "../".repeat(100) + "etc/passwd";
-    match validator.try_path(&traversal_attack) {
-        Ok(jailed_path) => {
-            // Should be clamped to jail root, with remaining path components preserved
-            assert!(jailed_path.starts_with(temp.path().canonicalize().unwrap()));
-            let virtual_path = jailed_path.virtual_path();
-            // The .. components should be consumed, but "etc/passwd" should be preserved
-            // This matches shell behavior: excessive .. get clamped to root, remaining path is kept
-            let expected_path = if cfg!(windows) {
-                "etc\\passwd"
-            } else {
-                "etc/passwd"
-            };
-            assert_eq!(virtual_path.to_string_lossy(), expected_path);
-        }
-        Err(_) => {
-            // Rejection is also fine
-        }
+    if let Ok(jailed_path) = validator.try_path(traversal_attack) {
+        // Should be clamped to jail root, with remaining path components preserved
+        assert!(jailed_path.starts_with(temp.path().canonicalize().unwrap()));
+        let virtual_path = jailed_path.virtual_path();
+        // The .. components should be consumed, but "etc/passwd" should be preserved
+        // This matches shell behavior: excessive .. get clamped to root, remaining path is kept
+        let expected_path = if cfg!(windows) {
+            "etc\\passwd"
+        } else {
+            "etc/passwd"
+        };
+        assert_eq!(virtual_path.to_string_lossy(), expected_path);
+    } else {
+        // Rejection is also fine
     }
 }
 
@@ -217,22 +208,17 @@ fn test_unix_specific_attacks() {
     ];
 
     for pattern in unix_patterns {
-        match validator.try_path(pattern) {
-            Ok(jailed_path) => {
-                // Should be safe and within jail
-                assert!(jailed_path.starts_with(validator.jail()));
-                assert!(!jailed_path
-                    .virtual_path()
-                    .to_string_lossy()
-                    .contains("/dev"));
-                assert!(!jailed_path
-                    .virtual_path()
-                    .to_string_lossy()
-                    .contains("/proc"));
-            }
-            Err(_) => {
-                // Unix-specific rejections are fine
-            }
+        if let Ok(jailed_path) = validator.try_path(pattern) {
+            // Should be safe and within jail
+            assert!(jailed_path.starts_with(validator.jail()));
+            assert!(!jailed_path
+                .virtual_path()
+                .to_string_lossy()
+                .contains("/dev"));
+            assert!(!jailed_path
+                .virtual_path()
+                .to_string_lossy()
+                .contains("/proc"));
         }
     }
 }
