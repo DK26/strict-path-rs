@@ -28,14 +28,19 @@ fn create_test_directory() -> std::io::Result<std::path::PathBuf> {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let temp_base = std::env::temp_dir();
-    
+
     // Try multiple times with different suffixes to avoid collisions
     for attempt in 0..100 {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .subsec_nanos();
-        let temp_dir = temp_base.join(format!("jailed_path_test_{}_{}_{}", std::process::id(), nanos, attempt));
+        let temp_dir = temp_base.join(format!(
+            "jailed_path_test_{}_{}_{}",
+            std::process::id(),
+            nanos,
+            attempt
+        ));
 
         // Try to create the directory - if it already exists, try again
         match fs::create_dir_all(&temp_dir) {
@@ -63,11 +68,11 @@ fn create_test_directory() -> std::io::Result<std::path::PathBuf> {
             Err(e) => return Err(e),
         }
     }
-    
+
     // If we couldn't create a unique directory after 100 attempts, give up
     Err(std::io::Error::new(
         std::io::ErrorKind::AlreadyExists,
-        "Could not create unique test directory after 100 attempts"
+        "Could not create unique test directory after 100 attempts",
     ))
 }
 
