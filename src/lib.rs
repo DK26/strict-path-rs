@@ -46,18 +46,25 @@
 //! ## Basic Usage
 //!
 //! ```rust
-//! use jailed_path::{try_jail, PathValidator};
+//! use jailed_path::{try_jail, PathValidator, JailedPath};
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # std::fs::create_dir_all("./web_public")?;
+//! # std::fs::create_dir_all("./customer_uploads")?;
 //! // One-shot validation
-//! let safe_path = try_jail("./web_public", "user/profile.html")?;
+//! let safe_path: JailedPath = try_jail("./web_public", "user/profile.html")?;
 //!
 //! // Reusable jail  
-//! let customer_uploads_jail = PathValidator::with_jail("./customer_uploads")?;
-//! let safe_path = customer_uploads_jail.try_path("invoices/2024-001.pdf")?;
+//! let customer_uploads_jail: PathValidator = PathValidator::with_jail("./customer_uploads")?;
+//! let invoice_path = customer_uploads_jail.try_path("invoices/2024-001.pdf")?;
 //!
 //! // Built-in file operations
-//! safe_path.write_string("Invoice content updated")?;
-//! let content = safe_path.read_to_string()?;
+//! invoice_path.write_string("Invoice content updated")?;
+//! let content = invoice_path.read_to_string()?;
+//! # std::fs::remove_dir_all("./web_public").ok();
+//! # std::fs::remove_dir_all("./customer_uploads").ok();
+//! # Ok(())
+//! # }
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
