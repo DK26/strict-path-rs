@@ -27,10 +27,7 @@ fn test_known_cve_patterns() {
         if let Ok(jailed_path) = validator.try_path(pattern) {
             // Debug: Let's see what the actual paths are
             let virtual_path = jailed_path.virtual_path();
-            let real_path = jailed_path.unjail();
-            println!(
-                "Pattern: '{pattern}' -> Real: '{real_path:?}' -> Virtual: '{virtual_path:?}'"
-            );
+            println!("Pattern: '{pattern}' -> Virtual: '{virtual_path:?}'");
             println!("Jail (from temp): '{:?}'", temp.path());
             println!("Jail (from validator): '{:?}'", validator.jail());
 
@@ -54,10 +51,10 @@ fn test_known_cve_patterns() {
                 }
             }
 
-            // Should not escape jail
+            // Should not escape jail - use built-in starts_with method
             assert!(
-                real_path.starts_with(validator.jail()),
-                "Attack pattern '{pattern}' escaped jail: {real_path:?}"
+                jailed_path.starts_with(validator.jail()),
+                "Attack pattern '{pattern}' escaped jail: {jailed_path:?}"
             );
         } else {
             // It's also acceptable to reject malicious patterns entirely
@@ -84,9 +81,8 @@ fn test_unicode_edge_cases() {
     for pattern in unicode_patterns {
         match validator.try_path(pattern) {
             Ok(jailed_path) => {
-                // Should handle Unicode gracefully
-                let canonical_temp = temp.path().canonicalize().unwrap();
-                assert!(jailed_path.starts_with(&canonical_temp));
+                // Should handle Unicode gracefully - use validator.jail() instead of canonicalizing
+                assert!(jailed_path.starts_with(validator.jail()));
             }
             Err(e) => {
                 // Some Unicode patterns might be rejected, which is fine
@@ -137,7 +133,7 @@ fn test_long_path_handling() {
     let long_path = format!("{long_component}/{long_component}/{long_component}/{long_component}");
 
     if let Ok(jailed_path) = validator.try_path(long_path) {
-        assert!(jailed_path.starts_with(temp.path().canonicalize().unwrap()));
+        assert!(jailed_path.starts_with(validator.jail()));
     } else {
         // Long paths might be rejected, which is acceptable
     }
@@ -146,7 +142,7 @@ fn test_long_path_handling() {
     let traversal_attack = "../".repeat(100) + "etc/passwd";
     if let Ok(jailed_path) = validator.try_path(traversal_attack) {
         // Should be clamped to jail root, with remaining path components preserved
-        assert!(jailed_path.starts_with(temp.path().canonicalize().unwrap()));
+        assert!(jailed_path.starts_with(validator.jail()));
         let virtual_path = jailed_path.virtual_path();
         // The .. components should be consumed, but "etc/passwd" should be preserved
         // This matches shell behavior: excessive .. get clamped to root, remaining path is kept
@@ -184,7 +180,7 @@ fn test_windows_specific_attacks() {
         match validator.try_path(pattern) {
             Ok(jailed_path) => {
                 // If accepted, should still be within jail
-                assert!(jailed_path.starts_with(temp.path().canonicalize().unwrap()));
+                assert!(jailed_path.starts_with(validator.jail()));
             }
             Err(_) => {
                 // Windows-specific rejections are expected

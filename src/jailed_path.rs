@@ -206,6 +206,103 @@ impl<Marker> JailedPath<Marker> {
 
     /// Consumes `JailedPath` and returns the real path as `PathBuf`.
     ///
+    /// **⚠️ SECURITY WARNING**: This method exposes the real filesystem path, defeating the purpose
+    /// of the jail security model. Use with extreme caution and only when absolutely necessary.
+    ///
+    /// ## ⚠️ ANTI-PATTERNS TO AVOID:
+    ///
+    /// ```rust
+    /// use jailed_path::PathValidator;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # std::fs::create_dir_all("/tmp/unjail_example1")?;
+    /// let validator = PathValidator::<()>::with_jail("/tmp/unjail_example1")?;
+    /// let jailed_path = validator.try_path("file.txt")?;
+    ///
+    /// // ❌ WRONG: Unjailing just to check containment
+    /// let real_path = jailed_path.unjail();
+    /// let contains_safe = real_path.starts_with("/safe");
+    /// // This check will fail because real path is "/tmp/unjail_example1/file.txt", not "/safe/..."
+    /// assert!(!contains_safe, "This anti-pattern produces wrong results!");
+    ///
+    /// // ✅ CORRECT: Use built-in method instead
+    /// let jailed_path2 = validator.try_path("file.txt")?;
+    /// assert!(jailed_path2.starts_with(validator.jail())); // This works correctly
+    /// # std::fs::remove_dir_all("/tmp/unjail_example1").ok();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ```rust
+    /// use jailed_path::PathValidator;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # std::fs::create_dir_all("/tmp/unjail_example2")?;
+    /// let validator = PathValidator::<()>::with_jail("/tmp/unjail_example2")?;
+    /// let jailed_path = validator.try_path("file.txt")?;
+    ///
+    /// // ❌ WRONG: Unjailing just to do file operations
+    /// let real_path = jailed_path.unjail();
+    /// // This exposes internal filesystem paths and defeats security
+    /// println!("Exposed real path: {:?}", real_path);
+    ///
+    /// // ✅ CORRECT: Use built-in safe operations (create new jailed_path for demo)
+    /// let jailed_path2 = validator.try_path("file2.txt")?;
+    /// jailed_path2.write_bytes(b"secure content")?; // Stays within security model
+    /// let content = jailed_path2.read_bytes()?; // Safe and secure
+    /// # std::fs::remove_dir_all("/tmp/unjail_example2").ok();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## ✅ LEGITIMATE USES:
+    ///
+    /// Only use `unjail()` when you need to:
+    /// 1. **Integrate with external crates/APIs** that require `PathBuf` and you consume the path immediately
+    /// 2. **Pass to functions** that take `PathBuf` ownership and you won't store the result
+    ///
+    /// ```rust
+    /// use jailed_path::PathValidator;
+    ///
+    /// fn external_api_that_takes_pathbuf(path: std::path::PathBuf) -> String {
+    ///     format!("External API processing: {}", path.display())
+    /// }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # std::fs::create_dir_all("/tmp/legitimate_unjail")?;
+    /// let validator = PathValidator::<()>::with_jail("/tmp/legitimate_unjail")?;
+    /// let jailed_path = validator.try_path("file.txt")?;
+    ///
+    /// // ✅ OK: Immediate consumption for external API
+    /// let result = external_api_that_takes_pathbuf(jailed_path.unjail());
+    /// assert!(result.contains("file.txt"));
+    /// # std::fs::remove_dir_all("/tmp/legitimate_unjail").ok();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// **For logging/debugging, use the built-in Display/Debug implementations instead:**
+    /// ```rust
+    /// use jailed_path::PathValidator;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # std::fs::create_dir_all("/tmp/display_example")?;
+    /// let validator = PathValidator::<()>::with_jail("/tmp/display_example")?;
+    /// let jailed_path = validator.try_path("file.txt")?;
+    ///
+    /// // ✅ PREFERRED: Use Display (shows virtual path)
+    /// println!("Processing file: {}", jailed_path);
+    ///
+    /// // ✅ PREFERRED: Use Debug (shows virtual path + jail info)
+    /// println!("Path details: {:?}", jailed_path);
+    /// # std::fs::remove_dir_all("/tmp/display_example").ok();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// **Remember**: Once you call `unjail()`, you lose all security guarantees. The returned
+    /// `PathBuf` can be used unsafely (e.g., joined with `..` to escape the jail).
+    ///
     /// **⚠️ Caution**: Returns real filesystem path, not virtual path.
     #[inline]
     pub fn unjail(self) -> PathBuf {
@@ -418,6 +515,54 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn jail(&self) -> &Path {
         &self.jail_root
+    }
+
+    // ---- Path Comparison Methods ----
+
+    /// Checks if the virtual path equals the given string.
+    ///
+    /// **✅ Recommended**: Use this for user-facing path comparisons.
+    /// Compares against the virtual path (what users see), not the real filesystem path.
+    ///
+    /// # Example
+    /// ```rust
+    /// # use jailed_path::PathValidator;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # std::fs::create_dir_all("temp_jail")?;
+    /// let validator = PathValidator::<()>::with_jail("temp_jail")?;
+    /// let path = validator.try_path("file.txt")?;
+    ///
+    /// assert!(path.virtual_path_eq("/file.txt"));
+    /// assert!(!path.virtual_path_eq("temp_jail/file.txt")); // Real path comparison would be different
+    /// # std::fs::remove_dir_all("temp_jail").ok();
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn virtual_path_eq<S: AsRef<str>>(&self, other: S) -> bool {
+        self.virtual_path_to_string_lossy() == other.as_ref()
+    }
+
+    /// Checks if the real filesystem path equals the given string.
+    ///
+    /// **⚠️ Caution**: Compares against the real filesystem path.
+    /// For user-facing comparisons, prefer `virtual_path_eq()`.
+    ///
+    /// # Example  
+    /// ```rust
+    /// # use jailed_path::PathValidator;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # std::fs::create_dir_all("temp_jail")?;
+    /// let validator = PathValidator::<()>::with_jail("temp_jail")?;
+    /// let path = validator.try_path("file.txt")?;
+    ///
+    /// assert!(path.real_path_eq("temp_jail/file.txt"));
+    /// assert!(!path.real_path_eq("/file.txt")); // Virtual path comparison would be different
+    /// # std::fs::remove_dir_all("temp_jail").ok();
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn real_path_eq<S: AsRef<str>>(&self, other: S) -> bool {
+        self.path.to_str().is_some_and(|s| s == other.as_ref())
     }
 
     // ---- File System Operations ----
@@ -693,5 +838,117 @@ impl<Marker, S> PartialEq<JailedPath<Marker>>
     #[inline]
     fn eq(&self, other: &JailedPath<Marker>) -> bool {
         ***self == other.path
+    }
+}
+
+// ---- String Comparisons (Real Path) ----
+
+impl<Marker> PartialEq<str> for JailedPath<Marker> {
+    /// Compares against the real filesystem path as string.
+    ///
+    /// **⚠️ Security Note**: This compares against the real path, not the virtual path.
+    /// For user-facing comparisons, consider using `virtual_path_to_string()` explicitly.
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        self.path.to_str() == Some(other)
+    }
+}
+
+impl<Marker> PartialEq<JailedPath<Marker>> for str {
+    /// Compares against the real filesystem path as string.
+    ///
+    /// **⚠️ Security Note**: This compares against the real path, not the virtual path.
+    /// For user-facing comparisons, consider using `virtual_path_to_string()` explicitly.
+    #[inline]
+    fn eq(&self, other: &JailedPath<Marker>) -> bool {
+        other.path.to_str() == Some(self)
+    }
+}
+
+impl<Marker> PartialEq<&str> for JailedPath<Marker> {
+    /// Compares against the real filesystem path as string.
+    ///
+    /// **⚠️ Security Note**: This compares against the real path, not the virtual path.
+    /// For user-facing comparisons, consider using `virtual_path_to_string()` explicitly.
+    #[inline]
+    fn eq(&self, other: &&str) -> bool {
+        self.path.to_str() == Some(*other)
+    }
+}
+
+impl<Marker> PartialEq<JailedPath<Marker>> for &str {
+    /// Compares against the real filesystem path as string.
+    ///
+    /// **⚠️ Security Note**: This compares against the real path, not the virtual path.
+    /// For user-facing comparisons, consider using `virtual_path_to_string()` explicitly.
+    #[inline]
+    fn eq(&self, other: &JailedPath<Marker>) -> bool {
+        other.path.to_str() == Some(*self)
+    }
+}
+
+impl<Marker> PartialEq<String> for JailedPath<Marker> {
+    /// Compares against the real filesystem path as string.
+    ///
+    /// **⚠️ Security Note**: This compares against the real path, not the virtual path.
+    /// For user-facing comparisons, consider using `virtual_path_to_string()` explicitly.
+    #[inline]
+    fn eq(&self, other: &String) -> bool {
+        self.path.to_str().is_some_and(|s| s == other)
+    }
+}
+
+impl<Marker> PartialEq<JailedPath<Marker>> for String {
+    /// Compares against the real filesystem path as string.
+    ///
+    /// **⚠️ Security Note**: This compares against the real path, not the virtual path.
+    /// For user-facing comparisons, consider using `virtual_path_to_string()` explicitly.
+    #[inline]
+    fn eq(&self, other: &JailedPath<Marker>) -> bool {
+        other.path.to_str().is_some_and(|s| s == self)
+    }
+}
+
+impl<Marker> PartialEq<&String> for JailedPath<Marker> {
+    /// Compares against the real filesystem path as string.
+    ///
+    /// **⚠️ Security Note**: This compares against the real path, not the virtual path.
+    /// For user-facing comparisons, consider using `virtual_path_to_string()` explicitly.
+    #[inline]
+    fn eq(&self, other: &&String) -> bool {
+        self.path.to_str().is_some_and(|s| s == *other)
+    }
+}
+
+impl<Marker> PartialEq<JailedPath<Marker>> for &String {
+    /// Compares against the real filesystem path as string.
+    ///
+    /// **⚠️ Security Note**: This compares against the real path, not the virtual path.
+    /// For user-facing comparisons, consider using `virtual_path_to_string()` explicitly.
+    #[inline]
+    fn eq(&self, other: &JailedPath<Marker>) -> bool {
+        other.path.to_str().is_some_and(|s| s == *self)
+    }
+}
+
+impl<Marker> PartialEq<String> for &JailedPath<Marker> {
+    /// Compares against the real filesystem path as string.
+    ///
+    /// **⚠️ Security Note**: This compares against the real path, not the virtual path.
+    /// For user-facing comparisons, consider using `virtual_path_to_string()` explicitly.
+    #[inline]
+    fn eq(&self, other: &String) -> bool {
+        self.path.to_str().is_some_and(|s| s == other)
+    }
+}
+
+impl<Marker> PartialEq<&JailedPath<Marker>> for String {
+    /// Compares against the real filesystem path as string.
+    ///
+    /// **⚠️ Security Note**: This compares against the real path, not the virtual path.
+    /// For user-facing comparisons, consider using `virtual_path_to_string()` explicitly.
+    #[inline]
+    fn eq(&self, other: &&JailedPath<Marker>) -> bool {
+        other.path.to_str().is_some_and(|s| s == self)
     }
 }

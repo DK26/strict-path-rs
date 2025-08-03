@@ -90,15 +90,10 @@ fn test_complete_workflow_with_marker_types() {
         let result = public_validator.try_path(path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
-        let jail_root = public_validator.jail().canonicalize().unwrap();
-        let jailed_path_for_canon = jailed_path.unjail();
-        let clamped_path = jailed_path_for_canon
-            .canonicalize()
-            .unwrap_or_else(|_| jailed_path_for_canon.to_path_buf());
+        // Use built-in starts_with method instead of unjailing
         assert!(
-            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
-            "Clamped path should be at jail root or its parent: {}",
-            clamped_path.display()
+            jailed_path.starts_with(public_validator.jail()),
+            "Clamped path should be within jail: {jailed_path:?}"
         );
     }
     // Escape attempts for upload_validator
@@ -107,15 +102,10 @@ fn test_complete_workflow_with_marker_types() {
         let result = upload_validator.try_path(path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
-        let jail_root = upload_validator.jail().canonicalize().unwrap();
-        let jailed_path_for_canon = jailed_path.unjail();
-        let clamped_path = jailed_path_for_canon
-            .canonicalize()
-            .unwrap_or_else(|_| jailed_path_for_canon.to_path_buf());
+        // Use built-in starts_with method instead of unjailing
         assert!(
-            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
-            "Clamped path should be at jail root or its parent: {}",
-            clamped_path.display()
+            jailed_path.starts_with(upload_validator.jail()),
+            "Clamped path should be within jail: {jailed_path:?}"
         );
     }
 }
@@ -124,7 +114,7 @@ fn test_complete_workflow_with_marker_types() {
 fn test_error_handling_and_reporting() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let validator = PathValidator::<()>::with_jail(public_dir.clone()).unwrap();
+    let validator = PathValidator::<()>::with_jail(public_dir).unwrap();
 
     // Test different error scenarios
 
@@ -132,15 +122,10 @@ fn test_error_handling_and_reporting() {
     match validator.try_path("nonexistent.txt") {
         Ok(jailed_path) => {
             assert!(jailed_path.ends_with("nonexistent.txt"));
-            // Compare with canonical jail path for consistency
-            let canonical_public = public_dir
-                .canonicalize()
-                .expect("Public dir should be canonicalizable");
+            // Use built-in starts_with method instead of unjailing
             assert!(
-                jailed_path.starts_with(&canonical_public),
-                "Path {:?} should start with canonical jail {:?}",
-                jailed_path.unjail(),
-                &canonical_public
+                jailed_path.starts_with(validator.jail()),
+                "Path should be within jail: {jailed_path:?}"
             );
         }
         other => panic!("Expected successful validation with touch technique, got: {other:?}"),
@@ -150,15 +135,10 @@ fn test_error_handling_and_reporting() {
     // NEW BEHAVIOR: Traversal is clamped, not blocked
     match validator.try_path("../private/secrets.txt") {
         Ok(jailed_path) => {
-            let jail_root = validator.jail().canonicalize().unwrap();
-            let jailed_path_for_canon = jailed_path.unjail();
-            let clamped_path = jailed_path_for_canon
-                .canonicalize()
-                .unwrap_or_else(|_| jailed_path_for_canon.to_path_buf());
+            // Use built-in starts_with method instead of unjailing
             assert!(
-                clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
-                "Clamped path should be at jail root or its parent: {}",
-                clamped_path.display()
+                jailed_path.starts_with(validator.jail()),
+                "Clamped path should be within jail: {jailed_path:?}"
             );
         }
         other => panic!("Traversal should be clamped, got: {other:?}"),
@@ -202,27 +182,17 @@ fn test_absolute_vs_relative_path_handling() {
         "Absolute path within jail should work"
     );
 
-    // Both should resolve to paths within jail root or its parent
+    // Both should resolve to paths within jail
     let relative_path = relative_result.unwrap();
     let absolute_path = absolute_result.unwrap();
-    let jail_root = validator.jail().canonicalize().unwrap();
-    let rel_path_for_canon = relative_path.unjail();
-    let rel_clamped = rel_path_for_canon
-        .canonicalize()
-        .unwrap_or_else(|_| rel_path_for_canon.to_path_buf());
-    let abs_path_for_canon = absolute_path.unjail();
-    let abs_clamped = abs_path_for_canon
-        .canonicalize()
-        .unwrap_or_else(|_| abs_path_for_canon.to_path_buf());
+    // Use built-in starts_with method instead of unjailing
     assert!(
-        rel_clamped.starts_with(&jail_root) || rel_clamped.parent() == Some(&jail_root),
-        "Relative path should be clamped within jail: {}",
-        rel_clamped.display()
+        relative_path.starts_with(validator.jail()),
+        "Relative path should be within jail: {relative_path:?}"
     );
     assert!(
-        abs_clamped.starts_with(&jail_root) || abs_clamped.parent() == Some(&jail_root),
-        "Absolute path should be clamped within jail: {}",
-        abs_clamped.display()
+        absolute_path.starts_with(validator.jail()),
+        "Absolute path should be within jail: {absolute_path:?}"
     );
 
     // Test absolute path outside jail
@@ -234,15 +204,10 @@ fn test_absolute_vs_relative_path_handling() {
         "Absolute path outside jail should be clamped"
     );
     let jailed_path = outside_result.unwrap();
-    let jail_root = validator.jail().canonicalize().unwrap();
-    let jailed_path_for_canon = jailed_path.unjail();
-    let clamped_path = jailed_path_for_canon
-        .canonicalize()
-        .unwrap_or_else(|_| jailed_path_for_canon.to_path_buf());
+    // Use built-in starts_with method instead of unjailing
     assert!(
-        clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
-        "Clamped path should be at jail root or its parent: {}",
-        clamped_path.display()
+        jailed_path.starts_with(validator.jail()),
+        "Clamped path should be within jail: {jailed_path:?}"
     );
 }
 
@@ -315,15 +280,10 @@ fn test_memory_safety_with_long_paths() {
     // Should handle long paths gracefully without memory exhaustion
     match validator.try_path(long_path) {
         Ok(jailed_path) => {
-            let jail_root = validator.jail().canonicalize().unwrap();
-            let jailed_path_for_canon = jailed_path.unjail();
-            let clamped_path = jailed_path_for_canon
-                .canonicalize()
-                .unwrap_or_else(|_| jailed_path_for_canon.to_path_buf());
+            // Use built-in starts_with method instead of unjailing
             assert!(
-                clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
-                "Clamped path should be at jail root or its parent: {}",
-                clamped_path.display()
+                jailed_path.starts_with(validator.jail()),
+                "Clamped path should be within jail: {jailed_path:?}"
             );
         }
         Err(error) => {
@@ -377,15 +337,10 @@ fn test_edge_cases_and_special_paths() {
         let result = validator.try_path(case);
         assert!(result.is_ok(), "Malicious path '{case}' should be clamped");
         let jailed_path = result.unwrap();
-        let jail_root = validator.jail().canonicalize().unwrap();
-        let jailed_path_for_canon = jailed_path.unjail();
-        let clamped_path = jailed_path_for_canon
-            .canonicalize()
-            .unwrap_or_else(|_| jailed_path_for_canon.to_path_buf());
+        // Use built-in starts_with method instead of unjailing
         assert!(
-            clamped_path.starts_with(&jail_root) || clamped_path.parent() == Some(&jail_root),
-            "Clamped path should be at jail root or its parent: {}",
-            clamped_path.display()
+            jailed_path.starts_with(validator.jail()),
+            "Clamped path should be within jail: {jailed_path:?}"
         );
     }
 }

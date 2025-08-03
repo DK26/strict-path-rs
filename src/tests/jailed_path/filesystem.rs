@@ -48,12 +48,11 @@ fn test_network_paths() {
 
     for net_path in network_paths {
         if let Ok(jailed_path) = validator.try_path(net_path) {
-            // If accepted, must still be within local jail
+            // If accepted, must still be within local jail - use built-in starts_with
             let canonical_temp = temp.path().canonicalize().unwrap();
-            let unjailed_path = jailed_path.unjail();
             assert!(
-                unjailed_path.starts_with(canonical_temp),
-                "Network path not properly contained: {net_path} -> {unjailed_path:?}"
+                jailed_path.starts_with(canonical_temp),
+                "Network path not properly contained: {net_path} -> {jailed_path:?}"
             );
         }
     }
@@ -79,8 +78,7 @@ fn test_special_filesystem_entries() {
 
     for name in special_names {
         if let Ok(jailed_path) = validator.try_path(name) {
-            let canonical_temp = temp.path().canonicalize().unwrap();
-            assert!(jailed_path.starts_with(canonical_temp));
+            assert!(jailed_path.starts_with(validator.jail()));
             // Special names should be handled safely
         }
     }
