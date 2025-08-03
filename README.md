@@ -40,7 +40,7 @@ fn serve_file(path: &str) -> std::io::Result<Vec<u8>> {
 ## The Solution: Mathematical Security Guarantees
 
 ```rust
-use jailed_path::{try_jail, PathValidator, JailedPath, JailedFileOps};
+use jailed_path::{try_jail, PathValidator, JailedPath};
 
 // ✅ SECURE - Attack impossible by mathematical design
 fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
@@ -106,7 +106,7 @@ let path: JailedPath<()> = validator.try_path("index.html")?;
 Real applications have multiple directories. Here's where the marker system shines:
 
 ```rust
-use jailed_path::{PathValidator, JailedPath, JailedFileOps};
+use jailed_path::{PathValidator, JailedPath};
 
 // Define semantic markers for different purposes
 struct PublicAssets;

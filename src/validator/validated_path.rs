@@ -88,6 +88,7 @@ pub struct ValidatedPath<State> {
 }
 
 impl<S> AsRef<Path> for ValidatedPath<S> {
+    #[inline]
     fn as_ref(&self) -> &Path {
         &self.inner
     }
@@ -96,12 +97,14 @@ impl<S> AsRef<Path> for ValidatedPath<S> {
 impl<S> Deref for ValidatedPath<S> {
     type Target = Path;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
 impl ValidatedPath<Raw> {
+    #[inline]
     pub fn new<P: AsRef<std::path::Path>>(path: P) -> Self {
         ValidatedPath {
             inner: path.as_ref().to_path_buf(),
@@ -127,6 +130,7 @@ impl<S> ValidatedPath<(S, Clamped)> {
 
 impl<S> ValidatedPath<S> {
     /// Consumes the ValidatedPath and returns the inner PathBuf.
+    #[inline]
     pub fn into_inner(self) -> std::path::PathBuf {
         self.inner
     }

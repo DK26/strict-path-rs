@@ -111,6 +111,7 @@ impl<Marker> PathValidator<Marker> {
     ///     Ok(())
     /// }
     /// ```
+    #[inline]
     pub fn with_jail<P: AsRef<Path>>(jail: P) -> Result<Self> {
         let jail_path = jail.as_ref();
         let validated_path = ValidatedPath::<Raw>::new(jail_path);

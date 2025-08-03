@@ -117,17 +117,26 @@ impl<Marker> JailedPath<Marker> {
     /// **Use case**: UI display, logging, APIs that need consistent path format.
     #[inline]
     pub fn virtual_display(&self) -> String {
-        let pb = self.virtual_path();
-        // Always produce forward slashes, even on Windows
-        let mut s = String::from("");
-        for comp in pb.components() {
-            s.push('/');
-            s.push_str(&comp.as_os_str().to_string_lossy());
+        let virtual_path = self.virtual_path();
+        // Optimize: use Vec for better performance than String
+        let components: Vec<&std::ffi::OsStr> =
+            virtual_path.components().map(|c| c.as_os_str()).collect();
+
+        if components.is_empty() {
+            return "/".to_string();
         }
-        if s.is_empty() {
-            s.push('/');
+
+        let total_len = components
+            .iter()
+            .map(|c| c.len() + 1) // +1 for the slash
+            .sum::<usize>();
+
+        let mut result = String::with_capacity(total_len);
+        for component in components {
+            result.push('/');
+            result.push_str(&component.to_string_lossy());
         }
-        s
+        result
     }
 
     /// Returns the file name component, if any.
@@ -185,20 +194,13 @@ impl<Marker> JailedPath<Marker> {
     /// Returns virtual path as `PathBuf` (jail-relative, platform separators).
     ///
     /// **✅ Recommended**: For user-facing path operations. Use `virtual_display()` for consistent forward slashes.
+    #[inline]
     pub fn virtual_path(&self) -> PathBuf {
         if let Ok(relative) = self.path.strip_prefix(&*self.jail_root) {
-            let mut pb = PathBuf::new();
-            for comp in relative.components() {
-                match comp {
-                    Component::Normal(os) => pb.push(os),
-                    Component::CurDir => {}
-                    Component::ParentDir => pb.push(".."),
-                    _ => {}
-                }
-            }
-            pb
+            // Optimize: directly clone the relative path instead of rebuilding component by component
+            relative.to_path_buf()
         } else {
-            PathBuf::from("")
+            PathBuf::new()
         }
     }
 
@@ -215,6 +217,7 @@ impl<Marker> JailedPath<Marker> {
     /// **Safety**: Path traversal attacks prevented. Input treated as jail-relative.
     /// **Input**: `"../file.txt"`, `"dir/file.txt"`, `"/abs/path"` (treated as jail-relative)
     /// **Never use**: Real system paths or already-jailed paths as input
+    #[inline]
     pub fn virtual_join<P: AsRef<Path>>(&self, path: P) -> Option<Self> {
         self.try_virtual_join(path).ok()
     }
@@ -268,6 +271,7 @@ impl<Marker> JailedPath<Marker> {
     }
 
     /// Returns parent directory as new `JailedPath`, or `None` if at jail root.
+    #[inline]
     pub fn virtual_parent(&self) -> Option<Self> {
         self.try_virtual_parent().ok()
     }
@@ -304,6 +308,7 @@ impl<Marker> JailedPath<Marker> {
     }
 
     /// Returns new `JailedPath` with different file name, or `None` on error.
+    #[inline]
     pub fn virtual_with_file_name<S: AsRef<OsStr>>(&self, name: S) -> Option<Self> {
         self.try_virtual_with_file_name(name).ok()
     }
@@ -335,6 +340,7 @@ impl<Marker> JailedPath<Marker> {
     }
 
     /// Returns new `JailedPath` with different extension, or `None` on error.
+    #[inline]
     pub fn virtual_with_extension<S: AsRef<OsStr>>(&self, ext: S) -> Option<Self> {
         self.try_virtual_with_extension(ext).ok()
     }
@@ -379,6 +385,7 @@ impl<Marker> JailedPath<Marker> {
     /// Returns real path as bytes (platform-specific encoding).
     ///
     /// **⚠️ Caution**: Exposes real filesystem path.
+    #[inline]
     pub fn to_bytes(&self) -> Vec<u8> {
         #[cfg(unix)]
         {
@@ -394,6 +401,7 @@ impl<Marker> JailedPath<Marker> {
     /// Consumes path and returns real path as bytes (platform-specific encoding).
     ///
     /// **⚠️ Caution**: Exposes real filesystem path.
+    #[inline]
     pub fn into_bytes(self) -> Vec<u8> {
         #[cfg(unix)]
         {
@@ -407,15 +415,124 @@ impl<Marker> JailedPath<Marker> {
     }
 
     /// Returns reference to the jail root path.
+    #[inline]
     pub fn jail(&self) -> &Path {
         &self.jail_root
     }
 
-    /// Internal method to get the real path for file operations.
-    /// This is used by extension traits within the same crate.
+    // ---- File System Operations ----
+
+    /// Returns true if the path exists on disk.
     #[inline]
-    pub(crate) fn internal_path(&self) -> &Path {
-        &self.path
+    pub fn exists(&self) -> bool {
+        self.path.exists()
+    }
+
+    /// Returns true if the path is a file.
+    #[inline]
+    pub fn is_file(&self) -> bool {
+        self.path.is_file()
+    }
+
+    /// Returns true if the path is a directory.
+    #[inline]
+    pub fn is_dir(&self) -> bool {
+        self.path.is_dir()
+    }
+
+    /// Returns the metadata for the path.
+    #[inline]
+    pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
+        std::fs::metadata(&self.path)
+    }
+
+    /// Reads the entire contents of a file into a string.
+    ///
+    /// This is a convenience method that wraps `std::fs::read_to_string`.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if `path` does not exist, is not a file,
+    /// or if the contents are not valid UTF-8.
+    #[inline]
+    pub fn read_to_string(&self) -> std::io::Result<String> {
+        std::fs::read_to_string(&self.path)
+    }
+
+    /// Reads the entire contents of a file into a bytes vector.
+    ///
+    /// This is a convenience method that wraps `std::fs::read`.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if `path` does not exist or is not a file.
+    #[inline]
+    pub fn read_bytes(&self) -> std::io::Result<Vec<u8>> {
+        std::fs::read(&self.path)
+    }
+
+    /// Write a slice of bytes as the entire content of a file.
+    ///
+    /// This function will create a file if it does not exist, and will entirely
+    /// replace its contents if it does.
+    ///
+    /// This is a convenience method that wraps `std::fs::write`.
+    #[inline]
+    pub fn write_bytes(&self, data: &[u8]) -> std::io::Result<()> {
+        std::fs::write(&self.path, data)
+    }
+
+    /// Write a string as the entire content of a file.
+    ///
+    /// This function will create a file if it does not exist, and will entirely
+    /// replace its contents if it does.
+    #[inline]
+    pub fn write_string(&self, data: &str) -> std::io::Result<()> {
+        std::fs::write(&self.path, data)
+    }
+
+    /// Creates a directory at this path, including any parent directories.
+    ///
+    /// This is a convenience method that wraps `std::fs::create_dir_all`.
+    #[inline]
+    pub fn create_dir_all(&self) -> std::io::Result<()> {
+        std::fs::create_dir_all(&self.path)
+    }
+
+    /// Removes a file from the filesystem.
+    ///
+    /// This is a convenience method that wraps `std::fs::remove_file`.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the file does not exist or if the user lacks permissions to remove it.
+    #[inline]
+    pub fn remove_file(&self) -> std::io::Result<()> {
+        std::fs::remove_file(&self.path)
+    }
+
+    /// Removes an empty directory.
+    ///
+    /// This is a convenience method that wraps `std::fs::remove_dir`.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the directory does not exist, is not empty, or if the user lacks permissions.
+    #[inline]
+    pub fn remove_dir(&self) -> std::io::Result<()> {
+        std::fs::remove_dir(&self.path)
+    }
+
+    /// Removes a directory and all its contents recursively.
+    ///
+    /// This is a convenience method that wraps `std::fs::remove_dir_all`.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the directory does not exist or if the user lacks permissions.
+    #[inline]
+    pub fn remove_dir_all(&self) -> std::io::Result<()> {
+        std::fs::remove_dir_all(&self.path)
     }
 }
 
@@ -448,6 +565,7 @@ impl<Marker> fmt::Debug for JailedPath<Marker> {
 }
 
 impl<Marker> PartialEq for JailedPath<Marker> {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path
     }
@@ -456,43 +574,124 @@ impl<Marker> PartialEq for JailedPath<Marker> {
 impl<Marker> Eq for JailedPath<Marker> {}
 
 impl<Marker> Hash for JailedPath<Marker> {
+    #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.path.hash(state);
     }
 }
 
 impl<Marker> PartialOrd for JailedPath<Marker> {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl<Marker> Ord for JailedPath<Marker> {
+    #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.path.cmp(&other.path)
     }
 }
 
 impl<Marker> PartialEq<PathBuf> for JailedPath<Marker> {
+    #[inline]
     fn eq(&self, other: &PathBuf) -> bool {
-        &self.path == other
+        self.path == *other
     }
 }
 
 impl<Marker> PartialEq<JailedPath<Marker>> for PathBuf {
+    #[inline]
     fn eq(&self, other: &JailedPath<Marker>) -> bool {
-        self == &other.path
+        *self == other.path
+    }
+}
+
+impl<Marker> PartialEq<&PathBuf> for JailedPath<Marker> {
+    #[inline]
+    fn eq(&self, other: &&PathBuf) -> bool {
+        self.path == **other
+    }
+}
+
+impl<Marker> PartialEq<JailedPath<Marker>> for &PathBuf {
+    #[inline]
+    fn eq(&self, other: &JailedPath<Marker>) -> bool {
+        **self == other.path
+    }
+}
+
+impl<Marker> PartialEq<PathBuf> for &JailedPath<Marker> {
+    #[inline]
+    fn eq(&self, other: &PathBuf) -> bool {
+        self.path == *other
+    }
+}
+
+impl<Marker> PartialEq<&JailedPath<Marker>> for PathBuf {
+    #[inline]
+    fn eq(&self, other: &&JailedPath<Marker>) -> bool {
+        *self == other.path
     }
 }
 
 impl<Marker> PartialEq<Path> for JailedPath<Marker> {
+    #[inline]
     fn eq(&self, other: &Path) -> bool {
-        self.path.as_path() == other
+        self.path == *other
     }
 }
 
 impl<Marker> PartialEq<JailedPath<Marker>> for Path {
+    #[inline]
     fn eq(&self, other: &JailedPath<Marker>) -> bool {
-        self == other.path.as_path()
+        *self == other.path
+    }
+}
+
+impl<Marker> PartialEq<&Path> for JailedPath<Marker> {
+    #[inline]
+    fn eq(&self, other: &&Path) -> bool {
+        self.path == **other
+    }
+}
+
+impl<Marker> PartialEq<JailedPath<Marker>> for &Path {
+    #[inline]
+    fn eq(&self, other: &JailedPath<Marker>) -> bool {
+        **self == other.path
+    }
+}
+
+impl<Marker> PartialEq<Path> for &JailedPath<Marker> {
+    #[inline]
+    fn eq(&self, other: &Path) -> bool {
+        self.path == *other
+    }
+}
+
+impl<Marker> PartialEq<&JailedPath<Marker>> for Path {
+    #[inline]
+    fn eq(&self, other: &&JailedPath<Marker>) -> bool {
+        *self == other.path
+    }
+}
+
+impl<Marker, S> PartialEq<Arc<crate::validator::validated_path::ValidatedPath<S>>>
+    for JailedPath<Marker>
+{
+    #[inline]
+    fn eq(&self, other: &Arc<crate::validator::validated_path::ValidatedPath<S>>) -> bool {
+        self.path == ***other
+    }
+}
+
+impl<Marker, S> PartialEq<JailedPath<Marker>>
+    for Arc<crate::validator::validated_path::ValidatedPath<S>>
+{
+    #[inline]
+    fn eq(&self, other: &JailedPath<Marker>) -> bool {
+        ***self == other.path
     }
 }

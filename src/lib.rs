@@ -35,7 +35,7 @@
 //! ## The Solution: Mathematical Security Guarantees
 //!
 //! ```rust
-//! use jailed_path::{try_jail, PathValidator, JailedPath, JailedFileOps};
+//! use jailed_path::{try_jail, PathValidator, JailedPath};
 //!
 //! // ✅ SECURE - Attack impossible by mathematical design
 //! fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
@@ -99,7 +99,7 @@
 //! ## Multi-Jail Type Safety: Preventing Mix-ups
 //!
 //! ```rust
-//! use jailed_path::{PathValidator, JailedPath, JailedFileOps};
+//! use jailed_path::{PathValidator, JailedPath};
 //!
 //! struct PublicAssets;
 //! struct UserUploads;
@@ -125,7 +125,7 @@
 //! ## Built-in Safe File Operations
 //!
 //! ```rust
-//! use jailed_path::{PathValidator, JailedFileOps};
+//! use jailed_path::PathValidator;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # std::fs::create_dir_all("safe_jail")?;
@@ -243,12 +243,12 @@
 //! }
 //! ```
 //!
-//! ### Ergonomic File I/O with `JailedFileOps`
+//! ### Built-in File I/O Operations
 //!
-//! By importing the `JailedFileOps` trait, you can call file I/O methods directly on your `JailedPath`.
+//! `JailedPath` provides convenient file I/O methods built-in, no additional imports needed.
 //!
 //! ```rust
-//! use jailed_path::{PathValidator, JailedFileOps};
+//! use jailed_path::PathValidator;
 //!
 //! fn example() -> Result<(), Box<dyn std::error::Error>> {
 //!     let validator = PathValidator::<()>::with_jail("/tmp/jail")?;
@@ -300,7 +300,6 @@
 
 // Public modules
 pub mod error;
-pub mod ext;
 pub mod jailed_path;
 pub mod validator;
 
@@ -309,7 +308,6 @@ mod tests;
 
 // Public exports
 pub use error::JailedPathError;
-pub use ext::JailedFileOps;
 pub use jailed_path::JailedPath;
 pub use validator::PathValidator;
 

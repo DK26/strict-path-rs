@@ -14,15 +14,14 @@ This roadmap outlines the planned evolution of the `jailed-path` crate based on 
 **Status:** ✅ **COMPLETED** - Available since version 0.0.4
 
 **What was implemented:**
-- The `JailedFileOps` trait provides comprehensive file I/O operations
-- Import with `use jailed_path::JailedFileOps;`
-- All operations work directly on `JailedPath` instances
+- Built-in file I/O operations directly on `JailedPath`
+- No additional imports needed
 - All operations work directly on `JailedPath` instances
 - Includes: `exists()`, `is_file()`, `is_dir()`, `metadata()`, `read_to_string()`, `read_bytes()`, `write_string()`, `write_bytes()`, `create_dir_all()`, `remove_file()`, `remove_dir()`, `remove_dir_all()`
 
 **Example Usage:**
 ```rust
-use jailed_path::{PathValidator, JailedFileOps};
+use jailed_path::PathValidator;
 
 let validator = PathValidator::<()>::with_jail("./uploads")?;
 let file = validator.try_path("document.txt")?;
@@ -90,7 +89,7 @@ file.write_string("Hello, secure world!")?;
 | 2.2.3                                            | `to_bytes()` / `into_bytes()` methods             | ✅      | 2 - HIGH     | Implemented for ecosystem compatibility.                                                                       |
 | 2.3                                              | Ergonomic Trait Implementations                   | ✅      | 1 - CRITICAL | `PartialEq`, `Eq`, `Hash`, `Ord`, `PartialOrd` are implemented for seamless use in collections.                |
 
-| 2.5                                              | Ergonomic File I/O via `JailedFileOps` Trait      | ✅      | 2 - HIGH     | Added `JailedFileOps` trait for direct, safe I/O operations.                                                   |
+| 2.5                                              | Built-in File I/O Operations                      | ✅      | 2 - HIGH     | Added built-in file I/O methods directly on `JailedPath` for direct, safe operations.                         |
 | 2.6                                              | ~~`Deref` to `Path`~~                             | ❌      | ~~CRITICAL~~ | **Removed:** Intentionally omitted to prevent insecure `Path::join` usage.                                     |
 | 2.7                                              | ~~`AsRef<Path>` / `Borrow<Path>`~~                | ❌      | ~~CRITICAL~~ | **Removed:** Intentionally omitted for the same security reasons as `Deref`.                                   |
 | **Phase 3: Ecosystem & Performance (v0.3.0)**    |
@@ -648,7 +647,7 @@ async fn serve_user_file(
         .try_path(&format!("{}/{}", user_id, file_path))
         .map_err(|_| StatusCode::FORBIDDEN)?; // Path outside jail is forbidden.
     
-    // CORRECT: Use the JailedFileOps trait for I/O.
+    // CORRECT: Use built-in methods for I/O.
     let content = safe_path.read_bytes()
         .map_err(|_| StatusCode::NOT_FOUND)?;
     
