@@ -45,14 +45,14 @@ assert!(attack_path.ends_with("users/alice_workspace"));  // Attack contained!
 🔒 **Security First**: API makes unsafe operations impossible, not just difficult  
 🏛️ **Mathematical Guarantees**: Rust's type system proves security at compile time  
 🛡️ **Zero Attack Surface**: No `Deref` to `Path`, no `AsRef<Path>`, validation cannot be bypassed  
-🎯 **Multi-Jail Safety**: Marker types prevent cross-jail contamination  
 📁 **Built-in Safe Operations**: Direct file operations on jailed paths without exposing raw filesystem paths  
 👁️ **Virtual Root Display**: Clean user-facing paths that never leak filesystem structure  
-� **Type-History Design**: Internal pattern ensures paths carry proof of validation stages  
-�📦 **Minimal Attack Surface**: Only one dependency - our auditable `soft-canonicalize` crate (handles non-existent paths unlike `std::fs::canonicalize`)  
+🎯 **Multi-Jail Safety**: Marker types prevent cross-jail contamination  
+📦 **Minimal Attack Surface**: Only one dependency - our auditable `soft-canonicalize` crate (handles non-existent paths unlike `std::fs::canonicalize`)  
+🔗 **Type-History Design**: Internal pattern ensures paths carry proof of validation stages  
+🧪 **Comprehensive Testing**: 100%+ test coverage with attack scenario simulation  
 🌍 **Cross-Platform**: Works on Windows, macOS, and Linux  
 🤖 **LLM-Friendly**: Documentation and APIs designed for both humans and AI systems to understand and use correctly  
-🧪 **Comprehensive Testing**: 100%+ test coverage with attack scenario simulation  
 
 ## The Problem: Every Path Is a Security Risk
 
