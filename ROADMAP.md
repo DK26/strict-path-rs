@@ -21,10 +21,10 @@ This roadmap outlines the planned evolution of the `jailed-path` crate based on 
 
 **Example Usage:**
 ```rust
-use jailed_path::PathValidator;
+use jailed_path::Jail;
 
-let validator = PathValidator::<()>::with_jail("./uploads")?;
-let file = validator.try_path("document.txt")?;
+let jail = Jail::<()>::try_new("./uploads")?;
+let file = jail.try_path("document.txt")?;
 
 // Direct file operations!
 if file.exists() {

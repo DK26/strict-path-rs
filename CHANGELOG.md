@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING: API Rename**: Renamed `PathValidator` to `Jail` throughout the codebase for improved clarity and ergonomics
+- **BREAKING: Constructor Rename**: `PathValidator::with_jail()` is now `Jail::try_new()` for consistency with Rust naming conventions
+- Updated all examples, documentation, and tests to use the new `Jail` API
+- Added `examples/new_api.rs` to demonstrate the updated API usage
+
 ### Fixed
 
 - **macOS test compatibility**: Fixed platform-specific path handling in security tests to properly handle Unix vs Windows path separator differences and temp directory canonicalization on macOS

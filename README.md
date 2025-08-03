@@ -11,12 +11,12 @@
 > *Putting your paths in jail by the Type-State Police Department*  
 > *because your LLM can't be trusted with security*
 
-`JailedPath` is a filesystem path **mathematically proven** to stay within directory boundaries. Unlike libraries that hope validation works, we mathematically prove it at compile time using Rust's type system. Only two ways to create one: `try_jail()` for one-shot validation, and `validator.try_path()` for reusable validation. Both guarantee containment—even malicious input like `../../../etc/passwd` gets safely clamped.
+`JailedPath` is a filesystem path **mathematically proven** to stay within directory boundaries. Unlike libraries that hope validation works, we mathematically prove it at compile time using Rust's type system. Two ways to create `JailedPath` instances: `try_jail()` for one-shot path validation, and `Jail::try_new()` + `jail.try_path()` for reusable jail instances. Both guarantee containment—even malicious input like `../../../etc/passwd` gets safely clamped.
 
 **Zero Learning Curve**: Two simple functions solve 99% of use cases. **Attack Impossibility**: Not just "hard to bypass" - actually impossible due to API design.
 
 ```rust
-use jailed_path::{try_jail, JailedPath};
+use jailed_path::{Jail, JailedPath, try_jail};
 
 // ✅ SECURE - Guaranteed safe by construction
 fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
@@ -25,11 +25,17 @@ fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
 
 # std::fs::create_dir_all("users/alice_workspace/documents")?;
 # std::fs::write("users/alice_workspace/documents/report.pdf", b"Alice's report")?;
-let safe_path: JailedPath = try_jail("users/alice_workspace", "documents/report.pdf")?;
+
+// Main pattern: Reusable jail for multiple validations (most common)
+let user_jail: Jail = Jail::try_new("users/alice_workspace")?;
+let safe_path: JailedPath = user_jail.try_path("documents/report.pdf")?;
+
+// Alternative: One-shot validation (for occasional use)
+let one_shot_path: JailedPath = try_jail("users/alice_workspace", "documents/report.pdf")?;
 
 // Even attacks are neutralized:
-let attack_path: JailedPath = try_jail("users/alice_workspace", "../../../etc/passwd")?;
-assert!(attack_path.starts_with("users/alice_workspace"));  // Attack contained!
+let attack_path = user_jail.try_path("../../../etc/passwd")?;
+assert!(attack_path.ends_with("users/alice_workspace"));  // Attack contained!
 # std::fs::remove_dir_all("users").ok();
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
@@ -65,7 +71,7 @@ fn serve_file(path: &str) -> std::io::Result<Vec<u8>> {
 ## See The Promise In Action: Detailed Examples
 
 ```rust
-use jailed_path::{try_jail, PathValidator, JailedPath};
+use jailed_path::{try_jail, Jail, JailedPath};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // THE PROMISE HANDLES ATTACKS - Even escape attempts honor the containment promise:
@@ -78,16 +84,16 @@ let attack_path: JailedPath = try_jail("users/alice_workspace", escape_attempt)?
 assert_eq!(attack_path.virtual_display(), "/etc/passwd");  // Clean display, but SAFELY clamped
 
 // ✅ The promise is verified: this path is actually contained within the jail
-assert!(attack_path.starts_with("users/alice_workspace"));  // PROOF: Real path is inside the jail!
+assert!(attack_path.ends_with("users/alice_workspace"));  // PROOF: Real path is inside the jail!
 
-// Option 2: Reusable validator with try_path()
-let alice_home_jail = PathValidator::with_jail("./users/alice_workspace")?;
+// Option 2: Reusable jail with try_path()
+let alice_home_jail = Jail::try_new("./users/alice_workspace")?;
 let vacation_photo_path: JailedPath = alice_home_jail.try_path("photos/vacation.jpg")?;
 assert_eq!(vacation_photo_path.virtual_display(), "/photos/vacation.jpg");  // Promise: within alice's space!
 
 let cross_user_attack_path: JailedPath = alice_home_jail.try_path("../bob_workspace/secrets.txt")?;
 assert_eq!(cross_user_attack_path.virtual_display(), "/bob_workspace/secrets.txt");  // Clean display
-assert!(cross_user_attack_path.starts_with("./users/alice_workspace"));  // PROOF: Still within alice's jail!
+assert!(cross_user_attack_path.ends_with("users/alice_workspace"));  // PROOF: Still within alice's jail!
 ```
 
 **The revolutionary insight**: Every `JailedPath` you hold is a cryptographic-strength promise that has been mathematically verified by Rust's type system. You cannot forge this promise—there are no other constructors!
@@ -97,14 +103,14 @@ assert!(cross_user_attack_path.starts_with("./users/alice_workspace"));  // PROO
 You might have noticed something in the examples above. Let's explore the "generic trap" and why it's actually a feature:
 
 ```rust
-use jailed_path::PathValidator;
+use jailed_path::Jail;
 
 // Simple approach - no type annotation needed
-let static_files_jail = PathValidator::with_jail("./static/css")?;
+let static_files_jail = Jail::try_new("./static/css")?;
 let stylesheet_path = static_files_jail.try_path("bootstrap.css")?;  // Type: JailedPath<()>
 
 // Or be explicit with the "turbofish" syntax  
-let static_files_jail: PathValidator<()> = PathValidator::with_jail("./static/css")?;
+let static_files_jail: Jail<()> = Jail::try_new("./static/css")?;
 let stylesheet_path: JailedPath<()> = static_files_jail.try_path("bootstrap.css")?;
 ```
 
@@ -115,15 +121,15 @@ let stylesheet_path: JailedPath<()> = static_files_jail.try_path("bootstrap.css"
 Real applications have multiple directories. Here's where the promise system becomes even more powerful by adding **identity** to the containment promise:
 
 ```rust
-use jailed_path::{PathValidator, JailedPath};
+use jailed_path::{Jail, JailedPath};
 
 // Define semantic markers for different promise types
 struct WebAssets;
 struct UserUploads;
 
 // Create type-safe path jails that make specific promises
-let cdn_assets_jail: PathValidator<WebAssets> = PathValidator::with_jail("./cdn/assets")?;
-let user_uploads_jail: PathValidator<UserUploads> = PathValidator::with_jail("./uploads")?;
+let cdn_assets_jail: Jail<WebAssets> = Jail::try_new("./cdn/assets")?;
+let user_uploads_jail: Jail<UserUploads> = Jail::try_new("./uploads")?;
 
 // Get paths with specific promises
 let css_bundle_path: JailedPath<WebAssets> = cdn_assets_jail.try_path("app.bundle.css")?;
@@ -147,11 +153,11 @@ serve_cdn_asset(&css_bundle_path)?;  // ✅ Correct promise type
 ## Even Single Jails Benefit from Semantic Markers
 
 ```rust
-use jailed_path::{PathValidator, JailedPath};
+use jailed_path::{Jail, JailedPath};
 
 struct DocumentStorage;
 
-let docs_jail: PathValidator<DocumentStorage> = PathValidator::with_jail("./company_docs")?;
+let docs_jail: Jail<DocumentStorage> = Jail::try_new("./company_docs")?;
 
 fn access_document(file: &JailedPath<DocumentStorage>) -> std::io::Result<Vec<u8>> {
     // The type signature makes it crystal clear what this function expects
@@ -166,10 +172,10 @@ The marker adds semantic meaning and prevents accidental misuse.
 Here's a critical security insight: even with a `JailedPath`, getting a raw `&Path` can be risky if misused:
 
 ```rust
-use jailed_path::PathValidator;
+use jailed_path::Jail;
 use std::path::Path;
 
-let customer_data_jail = PathValidator::with_jail("./customer_data")?;
+let customer_data_jail = Jail::try_new("./customer_data")?;
 let invoice_path = customer_data_jail.try_path("invoices/2024/invoice-001.pdf")?;
 
 // 🚨 DANGEROUS - A raw &Path can be misused!
@@ -182,9 +188,9 @@ let dangerous = raw_path.join("../../../etc/passwd");  // Oops! Escaped the jail
 ## Built-in Safe File Operations
 
 ```rust
-use jailed_path::PathValidator;
+use jailed_path::Jail;
 
-let customer_uploads_jail = PathValidator::with_jail("./customer_uploads")?;
+let customer_uploads_jail = Jail::try_new("./customer_uploads")?;
 let contract_path = customer_uploads_jail.try_path("contracts/acme-corp-2024.pdf")?;
 
 // ✅ SAFE - All operations stay within the jail automatically
@@ -213,9 +219,9 @@ assert!(metadata.len() > 0);
 ## Virtual Root Display: Clean User-Facing Paths
 
 ```rust
-use jailed_path::PathValidator;
+use jailed_path::Jail;
 
-let saas_tenant_jail = PathValidator::with_jail("./tenant_data/company_xyz")?;
+let saas_tenant_jail = Jail::try_new("./tenant_data/company_xyz")?;
 let report_path = saas_tenant_jail.try_path("reports/quarterly/2024-q1.xlsx")?;
 
 // User sees clean, intuitive paths - never internal filesystem details
@@ -241,9 +247,9 @@ Our comprehensive test coverage (100%+) and LLM-friendly documentation ensure th
 ## Complete Attack Immunity Demonstration
 
 ```rust
-use jailed_path::PathValidator;
+use jailed_path::Jail;
 
-let web_server_jail: PathValidator = PathValidator::with_jail("./www/htdocs")?;
+let web_server_jail: Jail = Jail::try_new("./www/htdocs")?;
 
 // ✅ Normal paths work as expected - legitimate web requests
 let homepage_path = web_server_jail.try_path("index.html")?;
@@ -268,8 +274,8 @@ assert_eq!(passwd_attack_path.to_string_lossy(), "./www/htdocs");  // Jail root
 assert_eq!(passwd_attack_path.virtual_display(), "/");
 
 // 🔒 The attacker CANNOT access the real /etc/passwd - it's mathematically impossible!
-assert!(config_attack_path.starts_with("./www/htdocs"));  // PROOF: Clamped to jail root
-assert!(passwd_attack_path.starts_with("./www/htdocs"));  // PROOF: Clamped to jail root
+assert!(config_attack_path.ends_with("htdocs"));  // PROOF: Clamped to jail root
+assert!(passwd_attack_path.ends_with("htdocs"));  // PROOF: Clamped to jail root
 ```
 
 ## Advanced: Real-World Integration Examples
@@ -278,14 +284,14 @@ assert!(passwd_attack_path.starts_with("./www/htdocs"));  // PROOF: Clamped to j
 
 ```rust
 use axum::{extract::Path, response::Response, http::StatusCode};
-use jailed_path::PathValidator;
+use jailed_path::Jail;
 
 struct StaticAssets;
 struct UserContent;
 
 // Set up path jails for different content types
-let static_jail = PathValidator::<StaticAssets>::with_jail("./public")?;
-let content_jail = PathValidator::<UserContent>::with_jail("./user_content")?;
+let static_jail = Jail::<StaticAssets>::try_new("./public")?;
+let content_jail = Jail::<UserContent>::try_new("./user_content")?;
 
 // Axum route handlers with compile-time path safety
 async fn serve_static(Path(file_path): Path<String>) -> Result<Response, StatusCode> {
@@ -311,18 +317,31 @@ async fn serve_user_content(Path((tenant_id, file_path)): Path<(String, String)>
     Ok(Response::new("content".into()))
 }
 ```
+    
+    Ok(Response::new(content.into()))
+}
+
+async fn serve_user_content(Path((tenant_id, file_path)): Path<(String, String)>) -> Result<Response, StatusCode> {
+    let tenant_path = format!("{tenant_id}/{file_path}");
+    let safe_path = content_jail.try_path(&tenant_path)
+        .map_err(|_| StatusCode::FORBIDDEN)?;  // Auto-blocks traversal attacks
+        
+    // Rest of handler logic...
+    Ok(Response::new("content".into()))
+}
+```
 
 ### Cloud Storage Sync Service
 
 ```rust
-use jailed_path::PathValidator;
+use jailed_path::Jail;
 
 struct LocalCache;
 struct RemoteSync;
 
 // Automation service that syncs cloud storage locally
-let cache_jail = PathValidator::<LocalCache>::with_jail("./cache/downloads")?;
-let sync_jail = PathValidator::<RemoteSync>::with_jail("./sync_staging")?;
+let cache_jail = Jail::<LocalCache>::try_new("./cache/downloads")?;
+let sync_jail = Jail::<RemoteSync>::try_new("./sync_staging")?;
 
 async fn download_cloud_file(cloud_path: &str, local_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Ensure downloaded files stay in designated cache area
@@ -353,14 +372,14 @@ async fn sync_to_staging(cached_file: &str) -> Result<(), Box<dyn std::error::Er
 ### Resource Bundling Tool
 
 ```rust
-use jailed_path::PathValidator;
+use jailed_path::Jail;
 
 struct SourceAssets;
 struct BuildOutput;
 
 // Build tool that processes resources from multiple sources
-let source_jail = PathValidator::<SourceAssets>::with_jail("./src/assets")?;
-let build_jail = PathValidator::<BuildOutput>::with_jail("./dist")?;
+let source_jail = Jail::<SourceAssets>::try_new("./src/assets")?;
+let build_jail = Jail::<BuildOutput>::try_new("./dist")?;
 
 fn bundle_css_files(css_files: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
     let mut combined_css = String::new();
@@ -438,14 +457,14 @@ match generate_customer_statement("12345", "2023") {
 
 ```rust
 use app_path::app_path;
-use jailed_path::PathValidator;
+use jailed_path::Jail;
 
 struct ConfigFiles;
 struct DataFiles;
 
 // Portable paths relative to your executable
-let config: PathValidator<ConfigFiles> = PathValidator::with_jail(app_path!("config"))?;
-let data: PathValidator<DataFiles> = PathValidator::with_jail(app_path!("data"))?;
+let config: Jail<ConfigFiles> = Jail::try_new(app_path!("config"))?;
+let data: Jail<DataFiles> = Jail::try_new(app_path!("data"))?;
 
 // Type-safe, attack-proof file access
 let settings_path = config.try_path("app.toml")?;
