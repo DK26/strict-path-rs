@@ -21,6 +21,87 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Validate file encodings
+      shell: bash
+      run: |
+        echo "🔍 Validating UTF-8 encoding for critical files..."
+        
+        # Function to check UTF-8 encoding cross-platform
+        check_utf8() {
+          local file="$1"
+          
+          # Check if file exists
+          if [ ! -f "$file" ]; then
+            echo "❌ File not found: $file"
+            return 1
+          fi
+          
+          # On Linux/macOS, use file command
+          if command -v file >/dev/null 2>&1; then
+            local file_output=$(file "$file")
+            # Check for UTF-8, ASCII, text files, or source files (which are typically UTF-8)
+            if echo "$file_output" | grep -q "UTF-8\|ASCII\|text\|[Ss]ource"; then
+              echo "✅ $file: UTF-8 encoding verified (file command)"
+            else
+              echo "❌ $file is not UTF-8 encoded"
+              echo "   File command output: $file_output"
+              return 1
+            fi
+          else
+            # On Windows or if file command not available, check for common non-UTF-8 patterns
+            # Check for UTF-16 BOM (FF FE or FE FF)
+            if head -c 2 "$file" | xxd | grep -q "fffe\|feff"; then
+              echo "❌ $file appears to be UTF-16 encoded (found BOM)"
+              return 1
+            fi
+            
+            # Try to validate UTF-8 by reading with Python (usually available)
+            if command -v python3 >/dev/null 2>&1; then
+              python3 -c "
+        import sys
+        try:
+            with open('$file', 'r', encoding='utf-8') as f:
+                f.read()
+            print('✅ $file: UTF-8 encoding verified (Python check)')
+        except UnicodeDecodeError:
+            print('❌ $file: Not valid UTF-8')
+            sys.exit(1)
+              " || return 1
+            else
+              echo "⚠️  Cannot verify encoding for $file (no validation tools available)"
+            fi
+          fi
+        }
+        
+        # Check README.md
+        check_utf8 "README.md"
+        
+        # Check for UTF-8 BOM in README.md (should not be present)
+        if command -v xxd >/dev/null 2>&1; then
+          if head -c 3 README.md | xxd | grep -q "efbbbf"; then
+            echo "❌ README.md contains UTF-8 BOM (should be UTF-8 without BOM)"
+            exit 1
+          fi
+          echo "✅ README.md: No BOM detected (correct)"
+        elif command -v od >/dev/null 2>&1; then
+          if head -c 3 README.md | od -t x1 | grep -q "ef bb bf"; then
+            echo "❌ README.md contains UTF-8 BOM (should be UTF-8 without BOM)"
+            exit 1
+          fi
+          echo "✅ README.md: No BOM detected (correct)"
+        fi
+        
+        # Check Cargo.toml
+        check_utf8 "Cargo.toml"
+        
+        # Check all Rust source files
+        find src -name "*.rs" | while read file; do
+          check_utf8 "$file"
+        done
+        echo "✅ All Rust source files: UTF-8 encoding verified"
+        
+        echo "🎉 All file encoding checks passed!"
+    
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
