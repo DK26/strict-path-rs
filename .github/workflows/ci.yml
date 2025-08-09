@@ -175,6 +175,10 @@ jobs:
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: 1.70.0
+        components: clippy
     
     - name: Check with MSRV
       run: cargo check --verbose
+    
+    - name: Run clippy with MSRV
+      run: cargo clippy --all-targets --all-features -- -D warnings

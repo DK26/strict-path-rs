@@ -1,0 +1,61 @@
+name: Security Audit
+
+on:
+  # Run on pushes to main/dev branches
+  push:
+    branches: [ main, dev ]
+  
+  # Run on pull requests to main
+  pull_request:
+    branches: [ main ]
+  
+  # Schedule to run daily at 2 AM UTC to catch new advisories
+  schedule:
+    - cron: '0 2 * * *'
+  
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  security_audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # Fetch full history for accurate dependency analysis
+        fetch-depth: 0
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+    
+    - name: Install cargo-audit
+      run: cargo install cargo-audit --locked
+    
+    - name: Run security audit
+      run: cargo audit
+    
+    - name: Run security audit with JSON output
+      run: cargo audit --format json --output audit-results.json
+      continue-on-error: true
+    
+    - name: Upload audit results as artifact
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-audit-results
+        path: audit-results.json
+        retention-days: 30
