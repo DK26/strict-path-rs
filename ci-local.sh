@@ -178,7 +178,7 @@ check_no_bom() {
     
     # Check for UTF-8 BOM (EF BB BF) which should not be present
     if command -v xxd >/dev/null 2>&1; then
-        if head -c 3 "$file" | xxd | grep -q "efbbbf"; then
+        if head -c 3 "$file" | xxd | grep -qE "ef[ ]?bb[ ]?bf"; then
             echo "❌ $file contains UTF-8 BOM (should be UTF-8 without BOM)"
             echo "   This can cause issues with Cargo publish and GitHub Actions"
             echo "   Fix with: tail -c +4 '$file' > temp && mv temp '$file'"
@@ -186,7 +186,7 @@ check_no_bom() {
         fi
         echo "✅ $file: No BOM detected (correct)"
     elif command -v od >/dev/null 2>&1; then
-        if head -c 3 "$file" | od -t x1 | grep -q "ef bb bf"; then
+        if head -c 3 "$file" | od -t x1 | grep -qE "ef[ ]?bb[ ]?bf"; then
             echo "❌ $file contains UTF-8 BOM (should be UTF-8 without BOM)"
             echo "   This can cause issues with Cargo publish and GitHub Actions"
             echo "   Fix with: tail -c +4 '$file' > temp && mv temp '$file'"

@@ -1,4 +1,5 @@
 use jailed_path::{Jail, JailedPath};
+use soft_canonicalize::soft_canonicalize;
 use std::fs;
 use std::io::Write;
 
@@ -153,8 +154,11 @@ fn test_error_handling_and_reporting() {
                 "Should allow paths inside non-existent jail"
             );
             let jailed_path = result.unwrap();
+
+            let canonicalized_nonexistent_jail = soft_canonicalize(nonexistent_jail).unwrap();
+
             assert!(
-                jailed_path.starts_with(&nonexistent_jail),
+                jailed_path.starts_with(canonicalized_nonexistent_jail),
                 "Jailed path should start with the jail boundary"
             );
         }
