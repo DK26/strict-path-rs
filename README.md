@@ -3,45 +3,6 @@
 [![Crates.io](https://img.shields.io/crates/v/jailed-path.svg)](https://crates.io/crates/jailed-path)
 [![Documentation](https://docs.rs/jailed-path/badge.svg)](https://docs.rs/jailed-path)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/DK26/jailed-path-rs#license)
-## Windows-specific hardening: 8.3 short names (PROGRA~1)
-
-On Windows, DOS 8.3 short filenames (like `PROGRA~1`) are alternate aliases for long names. They can create surprising bypasses if validated differently than their long-name counterparts.
-
-This crate uses a hybrid defense on Windows:
-
-- Early precheck rejects any non-existent path component that looks like an 8.3 short name (contains `~` followed by a digit), returning a dedicated error so the caller can decide how to recover.
-- If the component already exists inside the jail, it is allowed to pass and is validated normally (clamping, canonicalization, boundary checks).
-
-Recovery example (Windows only):
-
-```rust,no_run
-use jailed_path::{Jail, JailedPathError};
-
-let jail = Jail::<()>::try_new("C:/safe/uploads")?;
-match jail.try_path("users/PROGRA~1/report.txt") {
-    Ok(safe) => { /* use safe */ }
-    Err(JailedPathError::WindowsShortName { component, original, checked_at }) => {
-        eprintln!(
-            "Rejected DOS 8.3 short name '{}' at '{}' for original '{}'",
-            component.to_string_lossy(),
-            checked_at.display(),
-            original.display(),
-        );
-        // Recovery options:
-        // - Ask user for the full long name
-        // - Map to a known-safe long name
-        // - Reject/log according to your threat model
-    }
-    Err(e) => return Err(e.into()),
-}
-# Ok::<(), Box<dyn std::error::Error>>(())
-```
-
-Notes:
-
-- Legitimate names containing `~` without a digit after it (e.g., `my~file.txt`) are not treated as short names by this precheck.
-- This behavior is Windows-only and does not affect Unix-like systems.
-
 [![CI](https://github.com/DK26/jailed-path-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DK26/jailed-path-rs/actions/workflows/ci.yml)
 [![Security Audit](https://github.com/DK26/jailed-path-rs/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/DK26/jailed-path-rs/actions/workflows/audit.yml)
 [![Type-State Police](https://img.shields.io/badge/protected%20by-Type--State%20Police-blue.svg)](https://github.com/DK26/jailed-path-rs)
@@ -320,6 +281,45 @@ assert!(config_attack_path.ends_with("htdocs"));  // PROOF: Clamped to jail root
 assert!(passwd_attack_path.ends_with("htdocs"));  // PROOF: Clamped to jail root
 ```
 
+## Windows-specific hardening: 8.3 short names (PROGRA~1)
+
+On Windows, DOS 8.3 short filenames (like `PROGRA~1`) are alternate aliases for long names. They can create surprising bypasses if validated differently than their long-name counterparts.
+
+This crate uses a hybrid defense on Windows:
+
+- Early precheck rejects any non-existent path component that looks like an 8.3 short name (contains `~` followed by a digit), returning a dedicated error so the caller can decide how to recover.
+- If the component already exists inside the jail, it is allowed to pass and is validated normally (clamping, canonicalization, boundary checks).
+
+Recovery example (Windows only):
+
+```rust,no_run
+use jailed_path::{Jail, JailedPathError};
+
+let jail = Jail::<()>::try_new("C:/safe/uploads")?;
+match jail.try_path("users/PROGRA~1/report.txt") {
+    Ok(safe) => { /* use safe */ }
+    Err(JailedPathError::WindowsShortName { component, original, checked_at }) => {
+        eprintln!(
+            "Rejected DOS 8.3 short name '{}' at '{}' for original '{}'",
+            component.to_string_lossy(),
+            checked_at.display(),
+            original.display(),
+        );
+        // Recovery options:
+        // - Ask user for the full long name
+        // - Map to a known-safe long name
+        // - Reject/log according to your threat model
+    }
+    Err(e) => return Err(e.into()),
+}
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Notes:
+
+- Legitimate names containing `~` without a digit after it (e.g., `my~file.txt`) are not treated as short names by this precheck.
+- This behavior is Windows-only and does not affect Unix-like systems.
+
 ## Advanced: Real-World Integration Examples
 
 ### Axum Web Server with Multi-Tenant File Serving
@@ -335,7 +335,6 @@ struct UserContent;
 let static_jail = Jail::<StaticAssets>::try_new("./public")?;
 let content_jail = Jail::<UserContent>::try_new("./user_content")?;
 
-// Axum route handlers with compile-time path safety
 async fn serve_static(Path(file_path): Path<String>) -> Result<Response, StatusCode> {
     let safe_path = static_jail.try_path(&file_path)
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -346,19 +345,6 @@ async fn serve_static(Path(file_path): Path<String>) -> Result<Response, StatusC
     
     let content = safe_path.read_bytes()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    Ok(Response::new(content.into()))
-}
-
-async fn serve_user_content(Path((tenant_id, file_path)): Path<(String, String)>) -> Result<Response, StatusCode> {
-    let tenant_path = format!("{tenant_id}/{file_path}");
-    let safe_path = content_jail.try_path(&tenant_path)
-        .map_err(|_| StatusCode::FORBIDDEN)?;  // Auto-blocks traversal attacks
-        
-    // Rest of handler logic...
-    Ok(Response::new("content".into()))
-}
-```
     
     Ok(Response::new(content.into()))
 }
