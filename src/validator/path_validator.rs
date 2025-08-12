@@ -183,8 +183,6 @@ impl<Marker> Jail<Marker> {
     /// # }
     /// ```
     pub fn try_path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
-        // Keep the original user path for error reporting
-        let original_user_path = candidate_path.as_ref().to_path_buf();
         // STEP 1: Clamp the candidate path
         let clamped = ValidatedPath::<Raw>::new(candidate_path.as_ref()).clamp();
 
@@ -196,11 +194,17 @@ impl<Marker> Jail<Marker> {
             use std::ffi::OsStr;
             use std::path::Component;
 
+            // Keep the original user path for error reporting (Windows only)
+            let original_user_path = candidate_path.as_ref().to_path_buf();
+
             fn is_potential_83_short_name(os: &OsStr) -> bool {
                 let s = os.to_string_lossy();
                 // Heuristic: presence of '~' followed by at least one ASCII digit
                 if let Some(pos) = s.find('~') {
-                    s[pos + 1..].chars().next().map_or(false, |ch| ch.is_ascii_digit())
+                    s[pos + 1..]
+                        .chars()
+                        .next()
+                        .is_some_and(|ch| ch.is_ascii_digit())
                 } else {
                     false
                 }
@@ -215,22 +219,20 @@ impl<Marker> Jail<Marker> {
                     Component::RootDir | Component::Prefix(_) => continue, // clamped removed these
                     Component::Normal(name) => {
                         probe.push(name);
-                        if !probe.exists() {
-                            if is_potential_83_short_name(name) {
-                                // Emit specialized error so callers can decide recovery
-                                // checked_at is the parent directory where this component would live
-                                let mut checked_at = probe.clone();
-                                let _ = checked_at.pop();
-                                return Err(JailedPathError::windows_short_name(
-                                    name.to_os_string(),
-                                    original_user_path.clone(),
-                                    checked_at,
-                                ));
-                            }
-                            // Once a non-existent component is found, all following components are also non-existent.
-                            // We still scan remaining components to catch additional tilde segments, but we do not need
-                            // to touch the filesystem for them.
+                        if !probe.exists() && is_potential_83_short_name(name) {
+                            // Emit specialized error so callers can decide recovery
+                            // checked_at is the parent directory where this component would live
+                            let mut checked_at = probe.clone();
+                            let _ = checked_at.pop();
+                            return Err(JailedPathError::windows_short_name(
+                                name.to_os_string(),
+                                original_user_path,
+                                checked_at,
+                            ));
                         }
+                        // Once a non-existent component is found, all following components are also non-existent.
+                        // We still scan remaining components to catch additional tilde segments, but we do not need
+                        // to touch the filesystem for them.
                     }
                 }
             }

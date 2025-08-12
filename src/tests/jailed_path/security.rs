@@ -1,4 +1,4 @@
-use crate::{Jail, JailedPathError};
+use crate::Jail;
 use std::sync::Arc;
 use std::thread;
 
@@ -142,7 +142,11 @@ fn test_long_path_handling() {
         let virtual_path = jailed_path.virtual_path();
         // The .. components should be consumed, but "etc/passwd" should be preserved
         // This matches shell behavior: excessive .. get clamped to root, remaining path is kept
-        let expected_path = if cfg!(windows) { "etc\\passwd" } else { "etc/passwd" };
+        let expected_path = if cfg!(windows) {
+            "etc\\passwd"
+        } else {
+            "etc/passwd"
+        };
         assert_eq!(virtual_path.to_string_lossy(), expected_path);
     } else {
         // Rejection is also fine
@@ -195,13 +199,17 @@ fn test_windows_83_short_names_rejected_for_nonexistent() {
     let candidate = PathBuf::from("users/PROGRA~1/test.txt");
     let res = validator.try_path(candidate.clone());
     match res {
-        Err(JailedPathError::WindowsShortName { component, original, checked_at }) => {
+        Err(JailedPathError::WindowsShortName {
+            component,
+            original,
+            checked_at,
+        }) => {
             assert_eq!(component.to_string_lossy(), "PROGRA~1");
             assert_eq!(original, candidate);
             assert!(checked_at.ends_with("users"));
             assert!(checked_at.exists());
         }
-        other => panic!("Expected WindowsShortName error, got: {:?}", other),
+        other => panic!("Expected WindowsShortName error, got: {other:?}"),
     }
 }
 
@@ -215,7 +223,7 @@ fn test_windows_83_short_names_allowed_if_exists() {
 
     // Explicitly create the tilde-named entry inside the jail
     let tilde_dir = jail_root.join("users").join("PROGRA~1");
-    fs::create_dir_all(&tilde_dir).unwrap();
+    fs::create_dir_all(tilde_dir).unwrap();
 
     // Now the same component should be accepted because it exists inside the jail
     let candidate = "users/PROGRA~1/file.txt";
@@ -284,7 +292,7 @@ fn test_absolute_path_outside_is_clamped_or_rejected() {
 
     // Construct an absolute path outside the jail
     let outside_abs = jail_root.parent().unwrap().join("outside.txt");
-    let res = validator.try_path(&outside_abs);
+    let res = validator.try_path(outside_abs);
     if let Ok(jailed_path) = res {
         assert!(jailed_path.starts_with(validator.jail()));
     } else {
@@ -293,7 +301,7 @@ fn test_absolute_path_outside_is_clamped_or_rejected() {
 
     // Absolute path inside the jail should pass and remain inside
     let inside_abs = jail_root.join("inside.txt");
-    let res2 = validator.try_path(&inside_abs);
+    let res2 = validator.try_path(inside_abs);
     if let Ok(jailed_path) = res2 {
         assert!(jailed_path.starts_with(validator.jail()));
     }
@@ -367,7 +375,10 @@ fn test_backslash_is_literal_on_unix() {
     let jailed = validator.try_path(p).unwrap();
     let vp = jailed.virtual_path();
     let v = vp.to_string_lossy();
-    assert!(v.contains(r"dir\file.txt"), "Backslash should be literal on Unix");
+    assert!(
+        v.contains(r"dir\file.txt"),
+        "Backslash should be literal on Unix"
+    );
 }
 
 #[test]
@@ -391,14 +402,9 @@ fn test_symlink_outside_is_rejected_or_clamped() {
 
     // Try to validate the symlink path
     let res = validator.try_path("public/link.out");
-    match res {
-        Ok(jailed_path) => {
-            // If accepted, it must still resolve within jail boundary
-            assert!(jailed_path.starts_with(validator.jail()));
-        }
-        Err(_) => {
-            // Rejection is acceptable
-        }
+    if let Ok(jailed_path) = res {
+        // If accepted, it must still resolve within jail boundary
+        assert!(jailed_path.starts_with(validator.jail()));
     }
 }
 
@@ -415,12 +421,7 @@ fn test_symlink_loop_handling() {
 
     let validator: Jail = Jail::try_new(jail_root).unwrap();
     let res = validator.try_path("loop");
-    match res {
-        Ok(jailed_path) => {
-            assert!(jailed_path.starts_with(validator.jail()));
-        }
-        Err(_) => {
-            // Rejection due to loop is acceptable
-        }
+    if let Ok(jailed_path) = res {
+        assert!(jailed_path.starts_with(validator.jail()));
     }
 }

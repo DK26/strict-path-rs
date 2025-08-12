@@ -174,7 +174,7 @@
 //! semantics, this crate uses a hybrid approach:
 //!
 //! - Non-existent components that look like 8.3 short names are rejected early with a dedicated
-//!   error variant: [`JailedPathError::WindowsShortName`].
+//!   error variant: `JailedPathError::WindowsShortName`.
 //! - Existing short-name components inside the jail are allowed and validated as usual.
 //!
 //! This allows application code to implement custom recovery (e.g., prompt for the full long name).
