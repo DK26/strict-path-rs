@@ -4,6 +4,7 @@
 [![Documentation](https://docs.rs/jailed-path/badge.svg)](https://docs.rs/jailed-path)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/DK26/jailed-path-rs#license)
 [![CI](https://github.com/DK26/jailed-path-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DK26/jailed-path-rs/actions/workflows/ci.yml)
+[![Security Audit](https://github.com/DK26/jailed-path-rs/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/DK26/jailed-path-rs/actions/workflows/audit.yml)
 [![Type-State Police](https://img.shields.io/badge/protected%20by-Type--State%20Police-blue.svg)](https://github.com/DK26/jailed-path-rs)
 
 **Prevent directory traversal with type-safe virtual path jails and safe symlinks**
@@ -11,12 +12,12 @@
 > *Putting your paths in jail by the Type-State Police Department*  
 > *because your LLM can't be trusted with security*
 
-`JailedPath` is a filesystem path **mathematically proven** to stay within directory boundaries. Unlike libraries that hope validation works, we mathematically prove it at compile time using Rust's type system. Two ways to create `JailedPath` instances: `try_jail()` for one-shot path validation, and `Jail::try_new()` + `jail.try_path()` for reusable jail instances. Both guarantee containment—even malicious input like `../../../etc/passwd` gets safely clamped.
+`JailedPath` is a filesystem path **mathematically proven** to stay within directory boundaries. Unlike libraries that hope validation works, we mathematically prove it at compile time using Rust's type system. Create `JailedPath` instances by building a jail with `Jail::try_new()` and validating paths via `jail.try_path()`. This guarantees containment—even malicious input like `../../../etc/passwd` gets safely clamped.
 
 **Zero Learning Curve**: Two simple functions solve 99% of use cases. **Attack Impossibility**: Not just "hard to bypass" - actually impossible due to API design.
 
 ```rust
-use jailed_path::{Jail, JailedPath, try_jail};
+use jailed_path::{Jail, JailedPath};
 
 // ✅ SECURE - Guaranteed safe by construction
 fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
@@ -30,8 +31,9 @@ fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
 let user_jail: Jail = Jail::try_new("users/alice_workspace")?;
 let safe_path: JailedPath = user_jail.try_path("documents/report.pdf")?;
 
-// Alternative: One-shot validation (for occasional use)
-let one_shot_path: JailedPath = try_jail("users/alice_workspace", "documents/report.pdf")?;
+// Alternative: One-shot style (inline) without storing the jail
+let one_shot_path: JailedPath = Jail::try_new("users/alice_workspace")?
+    .try_path("documents/report.pdf")?;
 
 // Even attacks are neutralized:
 let attack_path = user_jail.try_path("../../../etc/passwd")?;
@@ -71,14 +73,15 @@ fn serve_file(path: &str) -> std::io::Result<Vec<u8>> {
 ## See The Promise In Action: Detailed Examples
 
 ```rust
-use jailed_path::{try_jail, Jail, JailedPath};
+use jailed_path::{Jail, JailedPath};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // THE PROMISE HANDLES ATTACKS - Even escape attempts honor the containment promise:
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let escape_attempt = "../../../etc/passwd";
-let attack_path: JailedPath = try_jail("users/alice_workspace", escape_attempt)?;
+let alice_jail = Jail::try_new("users/alice_workspace")?;
+let attack_path: JailedPath = alice_jail.try_path(escape_attempt)?;
 
 // Virtual display shows clamped path - the promise includes hiding real filesystem structure
 assert_eq!(attack_path.virtual_display(), "/etc/passwd");  // Clean display, but SAFELY clamped
@@ -86,7 +89,7 @@ assert_eq!(attack_path.virtual_display(), "/etc/passwd");  // Clean display, but
 // ✅ The promise is verified: this path is actually contained within the jail
 assert!(attack_path.ends_with("users/alice_workspace"));  // PROOF: Real path is inside the jail!
 
-// Option 2: Reusable jail with try_path()
+// Reusable jail with try_path()
 let alice_home_jail = Jail::try_new("./users/alice_workspace")?;
 let vacation_photo_path: JailedPath = alice_home_jail.try_path("photos/vacation.jpg")?;
 assert_eq!(vacation_photo_path.virtual_display(), "/photos/vacation.jpg");  // Promise: within alice's space!
@@ -423,22 +426,23 @@ fn process_image_assets(image_dir: &str) -> Result<(), Box<dyn std::error::Error
 }
 ```
 
-## For One-Shot Validation: Banking Application
+## For Inline Validation: Banking Application
 
-Sometimes you need quick path validation without the overhead of creating a validator:
+Sometimes you need quick path validation inline without storing the jail:
 
 ```rust
-use jailed_path::try_jail;
+use jailed_path::Jail;
 
 // Banking application handling customer statements
 fn generate_customer_statement(customer_id: &str, year: &str) -> Result<String, Box<dyn std::error::Error>> {
     // Quick validation: keep customer statements within their secure directory
-    let statement_path = try_jail("./bank_statements", format!("customer_{}/statements/{}.pdf", customer_id, year))?;
-    
+    let jail = Jail::try_new("./bank_statements")?;
+    let statement_path = jail.try_path(format!("customer_{}/statements/{}.pdf", customer_id, year))?;
+
     if !statement_path.exists() {
         return Err("Statement not found".into());
     }
-    
+
     Ok(format!("Statement available at: {}", statement_path.display()))
 }
 

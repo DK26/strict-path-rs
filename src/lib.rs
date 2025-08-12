@@ -6,11 +6,11 @@
 //! > *because your LLM can't be trusted with security*
 //!
 //! `JailedPath` is a filesystem path **mathematically proven** to stay within directory boundaries.
-//! Only two ways to create one: `try_jail()` for one-shot validation, and `jail.try_path()`
-//! for reusable validation. Both guarantee containment—even malicious input like `../../../etc/passwd` gets safely clamped.
+//! Create one by building a jail with `Jail::try_new()` and validating a path with `jail.try_path()`.
+//! This guarantees containment—even malicious input like `../../../etc/passwd` gets safely clamped.
 //!
 //! ```rust
-//! use jailed_path::{try_jail, JailedPath};
+//! use jailed_path::{Jail, JailedPath};
 //!
 //! // ✅ SECURE - Guaranteed safe by construction
 //! fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
@@ -19,10 +19,11 @@
 //!
 //! # std::fs::create_dir_all("customer_uploads/documents")?;
 //! # std::fs::write("customer_uploads/documents/invoice-2024.pdf", b"Customer invoice")?;
-//! let safe_path: JailedPath = try_jail("customer_uploads", "documents/invoice-2024.pdf")?;
+//! let jail = Jail::<()>::try_new("customer_uploads")?;
+//! let safe_path: JailedPath = jail.try_path("documents/invoice-2024.pdf")?;
 //!
 //! // Even attacks are neutralized:
-//! let attack_path: JailedPath = try_jail("customer_uploads", "../../../etc/passwd")?;
+//! let attack_path: JailedPath = jail.try_path("../../../etc/passwd")?;
 //! // ✅ Virtual path shows clean, predictable output - no filesystem leakage!
 //! assert_eq!(attack_path.virtual_display(), "/etc/passwd");  // Virtual path display
 //! // ✅ But the real path is safely clamped within the jail
@@ -48,13 +49,14 @@
 //! ## Basic Usage
 //!
 //! ```rust
-//! use jailed_path::{try_jail, Jail, JailedPath};
+//! use jailed_path::{Jail, JailedPath};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # std::fs::create_dir_all("./web_public")?;
 //! # std::fs::create_dir_all("./customer_uploads")?;
-//! // One-shot validation
-//! let safe_path: JailedPath = try_jail("./web_public", "user/profile.html")?;
+//! // One-off validation via jail
+//! let web_jail = Jail::<()>::try_new("./web_public")?;
+//! let safe_path: JailedPath = web_jail.try_path("user/profile.html")?;
 //!
 //! // Reusable jail  
 //! let customer_uploads_jail: Jail = Jail::try_new("./customer_uploads")?;
@@ -153,12 +155,11 @@
 //!
 //! ## API Design
 //!
-//! **⚠️ CRITICAL: These are the ONLY two ways to create a JailedPath!**
+//! **⚠️ CRITICAL: Creation of a JailedPath is only via the Jail API!**
 //!
-//! - [`try_jail()`] - One-shot path validation, returns `Result<JailedPath, JailedPathError>`
 //! - [`Jail::try_new()`] - Create path jail with boundary
 //! - [`jail.try_path()`] - Validate a single path, returns `Result<JailedPath, JailedPathError>`
-//! - [`JailedPath`] - Validated path type (can ONLY be created via `try_jail()` or `try_path()`)
+//! - [`JailedPath`] - Validated path type (can ONLY be created via `try_path()`)
 //! - [`JailedPathError`] - Detailed error information for debugging
 //!
 //! ## Security Guarantees
@@ -401,55 +402,7 @@ pub use error::JailedPathError;
 pub use jailed_path::JailedPath;
 pub use validator::Jail;
 
-/// Creates a `JailedPath` by jailing a `path_to_jail` within a `jail_path`.
-///
-/// This function is a convenient way to create a `JailedPath` without needing to
-/// create a `Jail` first. It performs the same validation steps as
-/// `Jail::try_path`.
-///
-/// # Arguments
-///
-/// * `jail_path` - The path to the jail directory.
-/// * `path_to_jail` - The path to jail, relative to the `jail_path`.
-///
-/// # Returns
-///
-/// A `Result` containing the `JailedPath` if successful, or a `JailedPathError`
-/// if the path is invalid or escapes the jail.
-pub fn try_jail<Marker, P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(
-    jail_path: P,
-    path_to_jail: Q,
-) -> Result<JailedPath<Marker>> {
-    let jail_root =
-        validator::validated_path::ValidatedPath::<validator::validated_path::Raw>::new(
-            jail_path.as_ref(),
-        )
-        .canonicalize()?;
-
-    if jail_root.exists() && !jail_root.is_dir() {
-        let error = std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "The specified jail path exists but is not a directory.",
-        );
-        return Err(JailedPathError::invalid_jail(
-            jail_path.as_ref().to_path_buf(),
-            error,
-        ));
-    }
-
-    let checked = validator::validated_path::ValidatedPath::<validator::validated_path::Raw>::new(
-        path_to_jail.as_ref(),
-    )
-    .clamp()
-    .join_jail(&jail_root)
-    .canonicalize()?
-    .boundary_check(&jail_root)?;
-
-    Ok(JailedPath::<Marker>::new(
-        std::sync::Arc::new(jail_root),
-        checked,
-    ))
-}
+// try_jail was removed in favor of explicit Jail::try_new(...).try_path(...)
 
 /// Result type alias for this crate's operations.
 pub type Result<T> = std::result::Result<T, JailedPathError>;

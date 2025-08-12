@@ -177,15 +177,11 @@ fn test_windows_specific_attacks() {
     ];
 
     for pattern in windows_patterns {
-        match validator.try_path(pattern) {
-            Ok(jailed_path) => {
-                // If accepted, should still be within jail
-                assert!(jailed_path.starts_with(validator.jail()));
-            }
-            Err(_) => {
-                // Windows-specific rejections are expected
-            }
+        if let Ok(jailed_path) = validator.try_path(pattern) {
+            // If accepted, should still be within jail
+            assert!(jailed_path.starts_with(validator.jail()));
         }
+        // Windows-specific rejections are expected
     }
 }
 

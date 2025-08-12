@@ -76,7 +76,7 @@ file.write_string("Hello, secure world!")?;
 | 1.3.2                                            | Implement `Serialize` for `JailedPath`            | ⏳      | 1 - CRITICAL | Serialize as a secure, virtual path string.                                                                    |
 | 1.3.3                                            | Custom deserializer helpers                       | ⏳      | 2 - HIGH     | Provide helpers for validating paths during deserialization.                                                   |
 | 1.4                                              | Core Validation Functions                         | ⏳      | 1 - CRITICAL | Simple public API for one-off path validation.                                                                 |
-| 1.4.1                                            | `try_jail<Marker=()>(jail, path)` function        | ✅      | 1 - CRITICAL | Create a simple, top-level function for easy validation.                                                       |
+| 1.4.1                                            | `try_jail<Marker=()>(jail, path)` function        | ✅ (removed) | 1 - CRITICAL | Was a simple, top-level function for easy validation; replaced by explicit `Jail::try_new().try_path()`.       |
 | **Phase 2: Secure API & Ergonomics (v0.2.0)**    |
 | 2.1                                              | Secure Path Manipulation API                      | ✅      | 1 - CRITICAL | All path manipulation is done via secure `virtual_*` methods.                                                  |
 | 2.1.1                                            | `virtual_join()` method                           | ✅      | 1 - CRITICAL | Implemented for secure path joining.                                                                           |
@@ -462,13 +462,13 @@ tokio::fs::read(&jailed).await?;  // Works with async file I/O
 /// # Examples
 /// ```rust
 /// // Simple usage (no marker)
-/// let file = try_jail("/user/files", "documents/report.pdf")?;
+/// let file = Jail::try_new("/user/files")?.try_path("documents/report.pdf")?;
 /// 
 /// // With type marker for compile-time safety
 /// struct UserFiles;
-/// let file: JailedPath<UserFiles> = try_jail("/user/files", "documents/report.pdf")?;
+/// let file: JailedPath<UserFiles> = Jail::try_new("/user/files")?.try_path("documents/report.pdf")?;
 /// ```
-pub fn try_jail<Marker = (), P1, P2>(jail: P1, path: P2) -> Result<JailedPath<Marker>, JailedPathError>
+// try_jail removed; use: Jail::<Marker>::try_new(jail).and_then(|j| j.try_path(path))
 where 
     P1: AsRef<Path>,
     P2: AsRef<Path>,
@@ -479,30 +479,30 @@ where
 
 **Usage Examples**:
 ```rust
-use jailed_path::try_jail;
+use jailed_path::Jail;
 
 // Simple usage - defaults to JailedPath<()>
-let file = try_jail("/user/files", "documents/report.pdf")?;
+let file = Jail::try_new("/user/files")?.try_path("documents/report.pdf")?;
 println!("File: {}", file); // "/documents/report.pdf"
 
 // Direct use with file operations
-let config = try_jail("/app/config", "app.toml")?;
+let config = Jail::try_new("/app/config")?.try_path("app.toml")?;
 let settings: AppSettings = toml::from_str(&std::fs::read_to_string(&config)?)?;
 
 // Type-safe validation with explicit marker type
 struct UserFiles;
-let file: JailedPath<UserFiles> = try_jail("/user/files", "documents/report.pdf")?;
+let file: JailedPath<UserFiles> = Jail::try_new("/user/files")?.try_path("documents/report.pdf")?;
 
 // Or use turbofish syntax for explicit typing
-let file = try_jail::<UserFiles, _, _>("/user/files", "documents/report.pdf")?;
+let file = Jail::<UserFiles>::try_new("/user/files")?.try_path("documents/report.pdf")?;
 
 // Attack prevention examples - these will return Err()
-assert!(try_jail("/jail", "../../../etc/passwd").is_err()); // blocked!
-assert!(try_jail("/jail", "/etc/passwd").is_err());          // absolute path blocked
-assert!(try_jail("/jail", "safe/file.txt").is_ok());         // allowed
+assert!(Jail::try_new("/jail").and_then(|j| j.try_path("../../../etc/passwd")).is_ok()); // clamped
+assert!(Jail::try_new("/jail").and_then(|j| j.try_path("/etc/passwd")).is_ok());          // clamped
+assert!(Jail::try_new("/jail").and_then(|j| j.try_path("safe/file.txt")).is_ok());        // allowed
 
 // Error handling for security
-match try_jail("/app/public", &user_input) {
+match Jail::try_new("/app/public").and_then(|j| j.try_path(&user_input)) {
     Ok(safe_path) => {
         // Safe to proceed with file operations
         let content = tokio::fs::read(&safe_path).await?;
@@ -512,12 +512,12 @@ match try_jail("/app/public", &user_input) {
 }
 
 // One-line file operations
-let config = try_jail("/app/config", "app.toml")?;
+let config = Jail::try_new("/app/config")?.try_path("app.toml")?;
 let settings: AppSettings = toml::from_str(&std::fs::read_to_string(&config)?)?;
 
 // Database path validation
 fn store_user_file(user_id: &str, filename: &str) -> Result<(), DbError> {
-    let file_path = try_jail("/app/uploads", &format!("{}/{}", user_id, filename))?;
+    let file_path = Jail::try_new("/app/uploads")?.try_path(&format!("{}/{}", user_id, filename))?;
     
     // file_path is guaranteed safe - store in database
     database.insert("user_files", &format!("{}", file_path))?; // Uses Display trait
@@ -535,8 +535,8 @@ fn store_user_file(user_id: &str, filename: &str) -> Result<(), DbError> {
 
 **When to use each approach**:
 ```rust
-// One-off operations - use try_jail with default marker
-let temp_file = try_jail("/tmp", "upload_123.txt")?;
+// One-off operations - create a jail inline
+let temp_file = Jail::try_new("/tmp")?.try_path("upload_123.txt")?;
 
 // Multiple validations - use PathValidator (more efficient)
 let validator = PathValidator::with_jail("/user/files")?;
@@ -546,9 +546,9 @@ let doc3 = validator.try_path("document3.pdf")?;
 
 // Type safety needed - use explicit type annotation or turbofish
 struct UserFiles;
-let file: JailedPath<UserFiles> = try_jail("/user/files", "doc.pdf")?;
+let file: JailedPath<UserFiles> = Jail::try_new("/user/files")?.try_path("doc.pdf")?;
 // or
-let file = try_jail::<UserFiles, _, _>("/user/files", "doc.pdf")?;
+let file = Jail::<UserFiles>::try_new("/user/files")?.try_path("doc.pdf")?;
 ```
 
 ## Phase 2: Advanced Security Features (v0.2.0)

@@ -3,7 +3,7 @@ use soft_canonicalize::soft_canonicalize;
 use std::fs;
 use std::io::Write;
 
-mod try_jail_test;
+// try_jail tests removed; use Jail::try_new + try_path directly
 
 /// Creates a cross-platform non-existent absolute path for testing
 fn get_nonexistent_absolute_path() -> String {
