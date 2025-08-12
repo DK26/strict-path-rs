@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING: Constructor Rename**: `PathValidator::with_jail()` is now `Jail::try_new()` for consistency with Rust naming conventions
 - Updated all examples, documentation, and tests to use the new `Jail` API
 - Added `examples/new_api.rs` to demonstrate the updated API usage
+ - Windows hardening: Reject DOS 8.3 short filename components (e.g., `PROGRA~1`) when those components do not yet exist inside the jail, to avoid ambiguous future resolution outside/inside the boundary.
 
 ### Fixed
 

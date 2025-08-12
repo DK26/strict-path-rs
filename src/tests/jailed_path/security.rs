@@ -186,6 +186,25 @@ fn test_windows_specific_attacks() {
 }
 
 #[test]
+#[cfg(windows)]
+fn test_windows_83_short_names_rejected_for_nonexistent() {
+    use std::fs;
+    use std::path::PathBuf;
+
+    let temp = tempfile::tempdir().unwrap();
+    let jail_root = temp.path();
+    let validator: Jail = Jail::try_new(jail_root).unwrap();
+
+    // Create a base directory but do not create the tilde-named entry
+    fs::create_dir_all(jail_root.join("users")).unwrap();
+
+    // PROGRA~1-style component for a path that doesn't exist should be rejected
+    let candidate = PathBuf::from("users/PROGRA~1/test.txt");
+    let res = validator.try_path(candidate);
+    assert!(res.is_err(), "8.3 short name pattern should be rejected for non-existent components on Windows");
+}
+
+#[test]
 #[cfg(unix)]
 fn test_unix_specific_attacks() {
     let temp = tempfile::tempdir().unwrap();

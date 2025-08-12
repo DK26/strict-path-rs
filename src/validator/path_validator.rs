@@ -180,6 +180,55 @@ impl<Marker> Jail<Marker> {
         // STEP 1: Clamp the candidate path
         let clamped = ValidatedPath::<Raw>::new(candidate_path.as_ref()).clamp();
 
+        // Windows-only hardening: reject DOS 8.3 short names (tilde form) in any
+        // non-existent component, since their eventual long-name resolution is ambiguous.
+        // This prevents surprising boundary comparisons if a future long name gets created.
+        #[cfg(windows)]
+        {
+            use std::ffi::OsStr;
+            use std::path::Component;
+
+            fn is_potential_83_short_name(os: &OsStr) -> bool {
+                let s = os.to_string_lossy();
+                // Quick reject: must contain '~' and at least one digit after it
+                if !s.contains('~') { return false; }
+                let mut parts = s.split('~');
+                let prefix = parts.next().unwrap_or("");
+                let rest = parts.next().unwrap_or("");
+                if prefix.is_empty() || rest.is_empty() { return false; }
+                // Common pattern is 1-6 valid chars + '~' + digits (e.g., PROGRA~1)
+                // Be conservative: accept alnum and underscore in prefix, length 1..=6
+                let prefix_ok = prefix.len() <= 6 && prefix.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+                if !prefix_ok { return false; }
+                // Require at least one digit immediately after '~'
+                let digits_len = rest.chars().take_while(|c| c.is_ascii_digit()).count();
+                if digits_len == 0 { return false; }
+                true
+            }
+
+            // Build up from the canonicalized jail path and check which components don't exist.
+            let mut probe = self.jail().to_path_buf();
+            for comp in clamped.components() {
+                match comp {
+                    Component::CurDir => continue,
+                    Component::ParentDir => continue, // shouldn't appear post-clamp, but ignore defensively
+                    Component::RootDir | Component::Prefix(_) => continue, // clamped removed these
+                    Component::Normal(name) => {
+                        probe.push(name);
+                        if !probe.exists() {
+                            if is_potential_83_short_name(name) {
+                                let err = IoError::new(ErrorKind::InvalidInput, "Windows 8.3 short filename pattern is not allowed for non-existent components");
+                                return Err(JailedPathError::path_resolution_error(probe.clone(), err));
+                            }
+                            // Once a non-existent component is found, all following components are also non-existent.
+                            // We still scan remaining components to catch additional tilde segments, but we do not need
+                            // to touch the filesystem for them.
+                        }
+                    }
+                }
+            }
+        }
+
         // STEP 2: Join to jail root (type-state: ((Raw, Clamped), JoinedJail))
         let joined = clamped.join_jail(&self.jail);
 
