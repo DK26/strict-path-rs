@@ -187,6 +187,8 @@ fn test_windows_specific_attacks() {
 fn test_windows_83_short_names_rejected_for_nonexistent() {
     use std::fs;
     use std::path::PathBuf;
+    // Import the Windows-only error type locally so non-Windows clippy doesn't remove it
+    use crate::JailedPathError;
 
     let temp = tempfile::tempdir().unwrap();
     let jail_root = temp.path();
