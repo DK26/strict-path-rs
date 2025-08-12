@@ -44,6 +44,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         jail_boundary.display()
                     );
                 }
+                #[cfg(windows)]
+                JailedPathError::WindowsShortName { component, original, checked_at } => {
+                    println!(
+                        "Windows 8.3 short name '{}' rejected at '{}' for original '{}'",
+                        component.to_string_lossy(),
+                        checked_at.display(),
+                        original.display()
+                    );
+                }
             }
         }
         Ok(validator) => {

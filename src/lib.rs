@@ -168,6 +168,18 @@
 //! mathematically validated against the jail boundary. Path traversal attacks
 //! are impossible to bypass.
 //!
+//! ### Windows-only hardening: DOS 8.3 short names
+//!
+//! On Windows, paths like `PROGRA~1` are DOS 8.3 short-name aliases. To avoid surprising resolution
+//! semantics, this crate uses a hybrid approach:
+//!
+//! - Non-existent components that look like 8.3 short names are rejected early with a dedicated
+//!   error variant: [`JailedPathError::WindowsShortName`].
+//! - Existing short-name components inside the jail are allowed and validated as usual.
+//!
+//! This allows application code to implement custom recovery (e.g., prompt for the full long name).
+//! The behavior is Windows-only and does not affect Unix-like systems.
+//!
 //! ## Usage
 //!
 //! First, add `jailed-path` to your `Cargo.toml`:

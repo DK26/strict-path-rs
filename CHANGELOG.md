@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **BREAKING: API Rename**: Renamed `PathValidator` to `Jail` throughout the codebase for improved clarity and ergonomics
+
+### Added
+
+- Windows: Introduced `JailedPathError::WindowsShortName { component, original, checked_at }` returned when a DOS 8.3 short filename component (e.g., `PROGRA~1`) is detected in a non-existent path segment. This enables callers to implement their own recovery (e.g., prompting for a full long name) instead of treating it as a generic resolution error.
+
+### Security
+
+- Windows hardening (Hybrid): Before canonicalization, the validator rejects 8.3 short-name looking components that do not yet exist inside the jail. Existing entries pass through and are validated normally. This reduces ambiguity and potential bypasses while keeping compatibility for already-present short-name entries.
 - **BREAKING: Constructor Rename**: `PathValidator::with_jail()` is now `Jail::try_new()` for consistency with Rust naming conventions
 - Updated all examples, documentation, and tests to use the new `Jail` API
 - Added `examples/new_api.rs` to demonstrate the updated API usage

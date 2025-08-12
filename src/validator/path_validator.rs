@@ -150,11 +150,17 @@ impl<Marker> Jail<Marker> {
     /// 1. **Path Traversal Protection**: Converts `../../../etc/passwd` → safely contained within jail
     /// 2. **Symlink Resolution**: Resolves all symbolic links and verifies they stay within jail  
     /// 3. **Boundary Enforcement**: Ensures final path is within the jail directory
+    /// 4. **Windows-only Hardening**: Early precheck rejects non-existent components that look like
+    ///    DOS 8.3 short names (e.g., `PROGRA~1`), returning a specialized error variant so the caller
+    ///    can choose a recovery strategy. Existing short-name components inside the jail are allowed.
     ///
     /// # What Gets Fixed vs Rejected
     ///
     /// **✅ FIXED (No Error)**: Basic traversal attempts like `../`, `./`, absolute paths
     /// **❌ REJECTED (Error)**: Symbolic links that point outside the jail directory
+    ///
+    /// On Windows, non-existent components resembling 8.3 short names are also rejected with
+    /// `JailedPathError::WindowsShortName`.
     ///
     /// # Common Usage
     /// - Validating file upload paths from users
@@ -177,6 +183,8 @@ impl<Marker> Jail<Marker> {
     /// # }
     /// ```
     pub fn try_path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
+        // Keep the original user path for error reporting
+        let original_user_path = candidate_path.as_ref().to_path_buf();
         // STEP 1: Clamp the candidate path
         let clamped = ValidatedPath::<Raw>::new(candidate_path.as_ref()).clamp();
 
@@ -190,20 +198,12 @@ impl<Marker> Jail<Marker> {
 
             fn is_potential_83_short_name(os: &OsStr) -> bool {
                 let s = os.to_string_lossy();
-                // Quick reject: must contain '~' and at least one digit after it
-                if !s.contains('~') { return false; }
-                let mut parts = s.split('~');
-                let prefix = parts.next().unwrap_or("");
-                let rest = parts.next().unwrap_or("");
-                if prefix.is_empty() || rest.is_empty() { return false; }
-                // Common pattern is 1-6 valid chars + '~' + digits (e.g., PROGRA~1)
-                // Be conservative: accept alnum and underscore in prefix, length 1..=6
-                let prefix_ok = prefix.len() <= 6 && prefix.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-                if !prefix_ok { return false; }
-                // Require at least one digit immediately after '~'
-                let digits_len = rest.chars().take_while(|c| c.is_ascii_digit()).count();
-                if digits_len == 0 { return false; }
-                true
+                // Heuristic: presence of '~' followed by at least one ASCII digit
+                if let Some(pos) = s.find('~') {
+                    s[pos + 1..].chars().next().map_or(false, |ch| ch.is_ascii_digit())
+                } else {
+                    false
+                }
             }
 
             // Build up from the canonicalized jail path and check which components don't exist.
@@ -217,8 +217,15 @@ impl<Marker> Jail<Marker> {
                         probe.push(name);
                         if !probe.exists() {
                             if is_potential_83_short_name(name) {
-                                let err = IoError::new(ErrorKind::InvalidInput, "Windows 8.3 short filename pattern is not allowed for non-existent components");
-                                return Err(JailedPathError::path_resolution_error(probe.clone(), err));
+                                // Emit specialized error so callers can decide recovery
+                                // checked_at is the parent directory where this component would live
+                                let mut checked_at = probe.clone();
+                                let _ = checked_at.pop();
+                                return Err(JailedPathError::windows_short_name(
+                                    name.to_os_string(),
+                                    original_user_path.clone(),
+                                    checked_at,
+                                ));
                             }
                             // Once a non-existent component is found, all following components are also non-existent.
                             // We still scan remaining components to catch additional tilde segments, but we do not need

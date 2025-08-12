@@ -48,6 +48,20 @@ pub enum JailedPathError {
         /// The underlying I/O error.
         source: std::io::Error,
     },
+
+    /// Windows-only: A DOS 8.3 short filename component (e.g., "PROGRA~1") was detected
+    /// in a non-existent path segment inside the jail. Returning this specialized error
+    /// allows callers to choose a recovery strategy (e.g., reject, prompt for full name,
+    /// or map to a known safe long name).
+    #[cfg(windows)]
+    WindowsShortName {
+        /// The short-name component that triggered the rejection (e.g., "PROGRA~1").
+        component: std::ffi::OsString,
+        /// The original user-provided path.
+        original: PathBuf,
+        /// The directory inside the jail where existence was checked.
+        checked_at: PathBuf,
+    },
 }
 
 impl JailedPathError {
@@ -67,6 +81,20 @@ impl JailedPathError {
     /// Creates a new `PathResolutionError` from an I/O error.
     pub fn path_resolution_error(path: PathBuf, source: std::io::Error) -> Self {
         Self::PathResolutionError { path, source }
+    }
+
+    /// Creates a new `WindowsShortName` error (Windows only).
+    #[cfg(windows)]
+    pub fn windows_short_name(
+        component: std::ffi::OsString,
+        original: PathBuf,
+        checked_at: PathBuf,
+    ) -> Self {
+        Self::WindowsShortName {
+            component,
+            original,
+            checked_at,
+        }
     }
 }
 
@@ -91,6 +119,22 @@ impl fmt::Display for JailedPathError {
             JailedPathError::PathResolutionError { path, .. } => {
                 write!(f, "Cannot resolve path: {}", path.display())
             }
+            #[cfg(windows)]
+            JailedPathError::WindowsShortName {
+                component,
+                original,
+                checked_at,
+            } => {
+                let original_trunc = truncate_path_display(original, MAX_ERROR_PATH_LEN);
+                let checked_trunc = truncate_path_display(checked_at, MAX_ERROR_PATH_LEN);
+                write!(
+                    f,
+                    "Windows 8.3 short filename component '{}' rejected at '{}' for original '{}'",
+                    component.to_string_lossy(),
+                    checked_trunc,
+                    original_trunc,
+                )
+            }
         }
     }
 }
@@ -101,6 +145,8 @@ impl Error for JailedPathError {
             JailedPathError::InvalidJail { source, .. }
             | JailedPathError::PathResolutionError { source, .. } => Some(source),
             JailedPathError::PathEscapesBoundary { .. } => None,
+            #[cfg(windows)]
+            JailedPathError::WindowsShortName { .. } => None,
         }
     }
 }
