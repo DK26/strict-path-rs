@@ -197,42 +197,49 @@ impl<Marker> Jail<Marker> {
             // Keep the original user path for error reporting (Windows only)
             let original_user_path = candidate_path.as_ref().to_path_buf();
 
-            fn is_potential_83_short_name(os: &OsStr) -> bool {
-                let s = os.to_string_lossy();
-                // Heuristic: presence of '~' followed by at least one ASCII digit
-                if let Some(pos) = s.find('~') {
-                    s[pos + 1..]
-                        .chars()
-                        .next()
-                        .is_some_and(|ch| ch.is_ascii_digit())
-                } else {
-                    false
+            // If the input was an absolute path, we will clamp it to be jail-relative.
+            // In that case, skip the 8.3 short-name precheck to avoid false positives from
+            // absolute prefixes (e.g., C:\Users\RUNNER~1\...) present in CI environments.
+            if candidate_path.as_ref().is_absolute() {
+                // Proceed without the short-name precheck; clamping + boundary check still apply.
+            } else {
+                fn is_potential_83_short_name(os: &OsStr) -> bool {
+                    let s = os.to_string_lossy();
+                    // Heuristic: presence of '~' followed by at least one ASCII digit
+                    if let Some(pos) = s.find('~') {
+                        s[pos + 1..]
+                            .chars()
+                            .next()
+                            .is_some_and(|ch| ch.is_ascii_digit())
+                    } else {
+                        false
+                    }
                 }
-            }
 
-            // Build up from the canonicalized jail path and check which components don't exist.
-            let mut probe = self.jail().to_path_buf();
-            for comp in clamped.components() {
-                match comp {
-                    Component::CurDir => continue,
-                    Component::ParentDir => continue, // shouldn't appear post-clamp, but ignore defensively
-                    Component::RootDir | Component::Prefix(_) => continue, // clamped removed these
-                    Component::Normal(name) => {
-                        probe.push(name);
-                        if !probe.exists() && is_potential_83_short_name(name) {
-                            // Emit specialized error so callers can decide recovery
-                            // checked_at is the parent directory where this component would live
-                            let mut checked_at = probe.clone();
-                            let _ = checked_at.pop();
-                            return Err(JailedPathError::windows_short_name(
-                                name.to_os_string(),
-                                original_user_path,
-                                checked_at,
-                            ));
+                // Build up from the canonicalized jail path and check which components don't exist.
+                let mut probe = self.jail().to_path_buf();
+                for comp in clamped.components() {
+                    match comp {
+                        Component::CurDir => continue,
+                        Component::ParentDir => continue, // shouldn't appear post-clamp, but ignore defensively
+                        Component::RootDir | Component::Prefix(_) => continue, // clamped removed these
+                        Component::Normal(name) => {
+                            probe.push(name);
+                            if !probe.exists() && is_potential_83_short_name(name) {
+                                // Emit specialized error so callers can decide recovery
+                                // checked_at is the parent directory where this component would live
+                                let mut checked_at = probe.clone();
+                                let _ = checked_at.pop();
+                                return Err(JailedPathError::windows_short_name(
+                                    name.to_os_string(),
+                                    original_user_path,
+                                    checked_at,
+                                ));
+                            }
+                            // Once a non-existent component is found, all following components are also non-existent.
+                            // We still scan remaining components to catch additional tilde segments, but we do not need
+                            // to touch the filesystem for them.
                         }
-                        // Once a non-existent component is found, all following components are also non-existent.
-                        // We still scan remaining components to catch additional tilde segments, but we do not need
-                        // to touch the filesystem for them.
                     }
                 }
             }
