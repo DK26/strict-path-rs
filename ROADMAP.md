@@ -51,8 +51,9 @@ file.write_string("Hello, secure world!")?;
 ### Key Design Decisions Made
 
 **Security-First Principles:**
-- ✅ **NO PATH LEAKS**: Never expose `&Path` or `AsRef<Path>` to prevent security bypasses
-- ✅ **STRING-ONLY ACCESS**: Jail root and real paths only accessible via string methods
+- ✅ **NO PATH LEAKS FROM JAILEDPATH**: `JailedPath` never exposes `&Path` or `AsRef<Path>` to prevent security bypasses
+- ✅ **JAIL ERGONOMICS**: `Jail` provides `path()` method for explicit access (safe - jail root is not secret)
+- ✅ **STRING-ONLY ACCESS**: JailedPath real paths only accessible via string methods
 - ✅ **VIRTUAL BY DEFAULT**: All display/UI methods show virtual paths unless explicitly requesting real
 
 **Naming Conventions:**
@@ -66,6 +67,32 @@ file.write_string("Hello, secure world!")?;
 - ❌ Virtual jail concepts - Jail root is always real
 
 **Context:** After extensive API design review (August 2025), we identified several issues with the current API that allow misuse and confusion. The library's core principle is "make the secure path the only path, with one obvious way to do each operation."
+
+### 🏛️ Critical Security Distinction: `Jail` vs `JailedPath`
+
+**The security model has two distinct types with different safety requirements:**
+
+#### `Jail<Marker>` - The Validator (Safe to expose as `Path`)
+- **Purpose**: Factory for creating `JailedPath` instances
+- **Security Role**: Validates user input, but is NOT itself a security promise
+- **Path Exposure**: ✅ **SAFE** to provide `path()` method 
+- **Rationale**: 
+  - Jail root path is not secret information
+  - Cannot be used to escape jail boundaries (`jail.path().join("/escape")` just gives you a regular `Path`)
+  - Simple and readable: `jail.path().display()`
+  - No security bypass possible - validation happens in `jail.try_path()`
+
+#### `JailedPath<Marker>` - The Security Promise (NEVER expose as `Path`)
+- **Purpose**: Represents a path guaranteed to be within jail boundaries
+- **Security Role**: IS the security promise to users and compiler
+- **Path Exposure**: ❌ **FORBIDDEN** to implement `AsRef<Path>` or `Deref<Target = Path>`
+- **Rationale**:
+  - Would allow `jailed_path.join("../../../etc/passwd")` attacks
+  - Breaks compile-time safety guarantees
+  - Users receiving `JailedPath` must not be able to escape jail
+  - String-only access preserves security model
+
+**Key Insight**: The security boundary is **creating** `JailedPath` instances, not accessing the jail root directory. This is why `Jail` can safely expose its path while `JailedPath` cannot.
 
 ### Core Design Principles Established:
 1. **Minimalism Reduces Misuse:** Fewer methods = fewer ways to make mistakes
@@ -131,14 +158,18 @@ impl<Marker> Jail<Marker> {
     ✅ KEEP: pub fn try_new<P: AsRef<Path>>(root: P) -> Result<Self>
     ✅ KEEP: pub fn try_path<P: AsRef<Path>>(&self, user_path: P) -> Result<JailedPath<Marker>>
     🔴 REMOVE: pub fn try_path_normalized(&self, &str) -> Result<JailedPath<Marker>>
-    🔴 REMOVE: pub fn jail(&self) -> &Path
+    🔴 REMOVE: pub fn jail(&self) -> &Path  // Raw Path leakage - replaced with path() method
     ⏳ CONSIDER: pub fn root(&self) -> JailedPath<Marker>  // Virtual "/" root, add only if needed
+
+    // Path access (simple and readable)
+    pub fn path(&self) -> &Path
 }
 ```
 
 **Rationale:**
 - One obvious way to validate paths: `jail.try_path()`
-- No raw Path exposure prevents mental model drift
+- `path()` method for `Jail` improves ergonomics without security risk
+- Removed `jail() -> &Path` method - replaced with explicit `path()` method
 - Smaller surface = harder to misuse
 
 #### 2. Refine Windows 8.3 Detection (CRITICAL - SECURITY)
@@ -158,6 +189,94 @@ fn is_potential_83_short_name(os: &OsStr) -> bool {
     // 
     // ✅ Matches: PROGRA~1, MYDOCU~1, LONGFI~10
     // ❌ Rejects: backup~1.txt, config~2.old, file~backup
+}
+```
+
+**Reference Implementation (Full Code):**
+```rust
+#[cfg(windows)]
+#[inline]
+fn has_windows_short_component(p: &Path) -> bool {
+    use std::path::Component;
+    for comp in p.components() {
+        if let Component::Normal(name) = comp {
+            // Fast path: check for '~' in UTF-16 code units without allocating a String
+            use std::os::windows::ffi::OsStrExt;
+            let mut saw_tilde = false;
+            for u in name.encode_wide() {
+                if u == b'~' as u16 {
+                    saw_tilde = true;
+                    break;
+                }
+            }
+            if !saw_tilde {
+                continue;
+            }
+            if is_likely_8_3_short_name_wide(name) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[cfg(windows)]
+fn is_likely_8_3_short_name_wide(name: &std::ffi::OsStr) -> bool {
+    use std::os::windows::ffi::OsStrExt;
+    // Stream over UTF-16 code units without heap allocation using a small state machine.
+    // States:
+    //   0 = before '~' (must see at least one ASCII char)
+    //   1 = reading one-or-more digits after '~'
+    let mut it = name.encode_wide();
+    let mut seen_pre_char = false; // at least one ASCII char before '~'
+    let mut state = 0u8;
+    let mut saw_digit = false;
+
+    // Iterate through all code units once.
+    while let Some(u) = it.next() {
+        // Enforce ASCII-only for 8.3 short names
+        if u > 0x7F {
+            return false;
+        }
+        let b = u as u8;
+        match state {
+            0 => {
+                if b == b'~' {
+                    // Require at least one char before '~'
+                    if !seen_pre_char {
+                        return false;
+                    }
+                    state = 1;
+                } else {
+                    // Any ASCII char counts as pre-tilde content
+                    seen_pre_char = true;
+                }
+            }
+            1 => {
+                if b.is_ascii_digit() {
+                    saw_digit = true;
+                } else {
+                    // Digit run ended; accept only "." followed by at least one more char
+                    if !saw_digit {
+                        return false;
+                    }
+                    if b == b'.' {
+                        // Must have at least one ASCII unit after '.'
+                        match it.next() {
+                            Some(u2) if u2 <= 0x7F => return true,
+                            _ => return false,
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // End of stream: valid only if we were parsing digits and saw at least one.
+    state == 1 && saw_digit
 }
 ```
 
@@ -199,43 +318,74 @@ fn is_potential_83_short_name(os: &OsStr) -> bool {
 
 **Established Conventions:**
 - `try_*` - Fallible security-critical operations
-- `virtual_*` - Jail-relative path operations (safe, but work on real paths internally)
-- `real_*` - Methods exposing filesystem paths (dangerous, explicit)
+- `*_real` - Methods exposing real filesystem paths (dangerous, explicit)
+- `*_virtual` - Methods exposing virtual display paths (safe, user-friendly)
+- Path manipulation methods use standard names (`join()`, `parent()`, etc.) since only safe variants exist
 
-**Important Clarification:**
-- **Virtual paths** are ONLY for display/UI purposes (showing `/alice/file.txt` instead of `/app/storage/users/alice/file.txt`)
-- **All actual operations** work with real, full filesystem paths
-- **`virtual_*` methods** perform safe path manipulation but return JailedPaths with real paths
+---
 
-**Review Needed:**
-- Verify all file operation methods follow conventions
+## 🎯 Immediate Priorities (Pre-v0.1.0)
 
-### 📋 Additional API Refinements (Post-Discussion):
+### CRITICAL (Blocking v0.1.0):
+1. **🔴 IMPLEMENT: `path()` method for `Jail`** - Enable explicit path access (already specified in API above)
+2. **🔴 REFINE: Windows 8.3 detection** - Use precise UTF-16 state machine for short name detection (full implementation included above)
+3. **🔴 REMOVE: `jail() -> &Path` method** - BREAKING CHANGE, replace with explicit `path()` method
+4. **🔴 REMOVE: `try_path_normalized()` method** - BREAKING CHANGE, confusing API surface
+
+### HIGH PRIORITY:
+5. **🟡 UPDATE: Documentation** - Remove all references to removed methods, add `path()` method examples
+6. **🟡 WINDOWS: Platform-specific documentation** - Document 8.3 behavior and Windows security considerations
+
+---
+
+## 📋 Additional API Refinements (Post-Discussion):
 
 #### Display Methods Clarification:
 ```rust
 impl<Marker> JailedPath<Marker> {
-    // DEFAULT: Virtual display (jail-relative, user-friendly)
-    // jailed_path.to_string() or format!("{}", jailed_path)
-    // Shows: "/alice/documents/file.txt" (relative to jail)
+    // DEFAULT: Virtual display via Display trait (jail-relative, user-friendly)
+    // format!("{}", jailed_path) -> "/alice/documents/file.txt" (relative to jail)
     
-    // EXPLICIT: Real path access when needed
-    pub fn display_real(&self) -> String  // Full filesystem path
-    pub fn as_os_str_real(&self) -> &OsStr  // Real OsStr
-    pub fn as_os_str_virtual(&self) -> OsString  // Virtual OsStr (computed)
+    // String conversion - explicit suffixes when both variants exist
+    pub fn to_string_virtual(&self) -> String      // Virtual path 
+    pub fn to_string_real(&self) -> String         // Full filesystem path
+    
+    // String slice access - explicit suffixes when both variants exist  
+    pub fn to_str_virtual(&self) -> Option<&str>   // Virtual path as &str
+    pub fn to_str_real(&self) -> Option<&str>      // Full filesystem path as &str
+    
+    // OsStr access - explicit suffixes when both variants exist
+    pub fn as_os_str_real(&self) -> &OsStr         // Real OsStr
+    pub fn as_os_str_virtual(&self) -> OsString    // Virtual OsStr (computed)
 }
 ```
 
 #### Methods to Remove/Modify:
 - **Remove or make private: `virtual_path()`** - Prevents confusion; users should work directly on JailedPath
-- **Default Display = Virtual** - `format!("{}", jailed_path)` shows jail-relative path
-- **Explicit Real Access** - Methods with `_real` suffix when full path needed
+- **Default Display = Virtual** - `format!("{}", jailed_path)` shows jail-relative path via Display trait
+- **Explicit Real Access** - Methods like `real_path_to_str()` when full path needed for filesystem operations
 
 #### Rationale:
 - **Less confusion**: No `virtual_path()` method that returns a separate Path object
 - **Clear intent**: `_real` vs `_virtual` suffixes make purpose obvious  
 - **Sensible defaults**: Display shows user-friendly virtual paths by default
 - **Explicit escape hatches**: Real path access requires explicit method calls
+
+## 🏷️ JailedPath Method Naming Rules
+
+**Critical naming conventions for `JailedPath<Marker>` methods:**
+
+**Rule A**: If a method exposes a real path in any way, it **MUST** end with the suffix `_real()`
+- Examples: `to_string_real()`, `to_str_real()`, `as_os_str_real()`
+- Rationale: Makes real path exposure explicit and obvious in code review
+
+**Rule B**: If a method could represent either a virtual variant or a real variant under the same name, it **MUST** end with a proper suffix: either `_real()` or `_virtual()`
+- Examples: `to_string_virtual()` / `to_string_real()`, `to_str_virtual()` / `to_str_real()`
+- Rationale: Eliminates ambiguity about which representation is returned
+
+**Rule C**: If a method represents a virtual presentation, but has no (or should never have in the future) a `_real()` version, it is considered "safe" and should **NOT** use any suffix
+- Examples: `join()`, `parent()`, `with_extension()` (these only have safe variants)
+- Rationale: Clean API for common operations that don't leak real paths
 
 ## 📚 Final API Design Specification
 
@@ -274,30 +424,26 @@ impl<Marker> Jail<Marker> {
     pub fn try_path<P: AsRef<Path>>(&self, user_path: P) -> Result<JailedPath<Marker>, JailedPathError>
     
     // ========================================
-    // JAIL ACCESS (String Methods Only)
+    // PATH ACCESS (Simple and Readable)
     // ========================================
     
-    /// Get the jail as a string for debugging, logging, or comparison.
-    /// Example: "/app/storage/users"
-    pub fn display(&self) -> String
-    
-    /// Get jail as UTF-8 string if possible, None if non-UTF-8.
-    pub fn to_str(&self) -> Option<&str>
-    
-    /// Get jail as string with lossy UTF-8 conversion.
-    pub fn to_string_lossy(&self) -> Cow<str>
-    
-    /// Get jail as OsStr for ecosystem integration.
-    pub fn as_os_str(&self) -> &OsStr
-    
-    /// Convert jail to bytes for ecosystem integration.
-    pub fn to_bytes(&self) -> Vec<u8>
+    /// Get the jail root as a Path reference.
+    /// ✅ SAFE: Jail root exposure doesn't compromise security.
+    /// Simple and readable: jail.path().display()
+    pub fn path(&self) -> &Path
     
     // ========================================
     // REMOVED METHODS (breaking changes)
     // ========================================
     // - try_path_normalized() - Removed to eliminate confusion
-    // - jail() -> &Path - Removed to prevent raw Path leakage
+    // - jail() -> &Path - Removed in favor of path() method
+    // - display() -> String - Use jail.path().display().to_string()
+    // - to_str() -> Option<&str> - Use jail.path().to_str()
+    // - to_string_lossy() -> Cow<str> - Use jail.path().to_string_lossy()
+    // - as_os_str() -> &OsStr - Use jail.path().as_os_str()
+    // - to_bytes() -> Vec<u8> - Use jail.path().as_os_str().as_bytes()
+    // - as_path() -> &Path - Renamed to path() for simplicity
+    // - AsRef<Path> implementation - Removed in favor of explicit path() method
     
     // FUTURE CONSIDERATION (only if real use case emerges):
     // pub fn root(&self) -> JailedPath<Marker>  // Returns virtual "/" root
@@ -308,7 +454,6 @@ impl<Marker> PartialEq for Jail<Marker>  // Compare jail roots
 impl<Marker> Eq for Jail<Marker>
 impl<Marker> Hash for Jail<Marker>
 impl<Marker> Clone for Jail<Marker>      // Cheap clone (Arc internally)
-```
 
 ### 🛡️ `JailedPath<Marker>` - The Secure Path
 
@@ -328,30 +473,27 @@ impl<Marker> JailedPath<Marker> {
     // DISPLAY & STRING CONVERSION (Virtual by Default)
     // ========================================
     
-    /// Default display shows virtual path (jail-relative).
-    /// Example: "/alice/documents/file.txt" instead of "/app/storage/users/alice/documents/file.txt"
-    /// Used by: format!("{}", jailed), println!("{}", jailed), etc.
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result  // Display trait
-    
-    /// Explicit real path display when full filesystem path is needed.
-    /// Example: "/app/storage/users/alice/documents/file.txt"
-    pub fn display_real(&self) -> String
-    
     /// Virtual path as string (jail-relative, user-friendly).
     /// Same as format!("{}", self) but returns String directly.
-    pub fn display_virtual(&self) -> String
+    pub fn to_string_virtual(&self) -> String
     
-    /// Real path as UTF-8 string if possible, None if contains invalid UTF-8.
-    pub fn to_str_real(&self) -> Option<&str>
+    /// Real path as owned string.
+    /// ⚠️ Use only for filesystem operations, not user display.
+    pub fn to_string_real(&self) -> String
     
     /// Virtual path as UTF-8 string if possible.
-    pub fn to_str_virtual(&self) -> Option<String>
+    pub fn to_str_virtual(&self) -> Option<&str>
     
-    /// Real path as string with lossy UTF-8 conversion.
-    pub fn to_string_lossy_real(&self) -> Cow<str>
+    /// Real path as UTF-8 string if possible, None if contains invalid UTF-8.
+    /// ⚠️ Use only for filesystem operations, not user display.
+    pub fn to_str_real(&self) -> Option<&str>
     
     /// Virtual path as string with lossy UTF-8 conversion.
     pub fn to_string_lossy_virtual(&self) -> String
+    
+    /// Real path as string with lossy UTF-8 conversion.
+    /// ⚠️ Use only for filesystem operations, not user display.
+    pub fn to_string_lossy_real(&self) -> Cow<str>
     
     // ========================================
     // OS STRING CONVERSION
@@ -368,17 +510,17 @@ impl<Marker> JailedPath<Marker> {
     // ========================================
     
     /// Join a relative path segment safely. Returns None if result would escape jail.
-    /// Example: jailed.virtual_join("subfolder/file.txt")
-    pub fn virtual_join<P: AsRef<Path>>(&self, path: P) -> Option<Self>
+    /// Example: jailed.join("subfolder/file.txt")
+    pub fn join<P: AsRef<Path>>(&self, path: P) -> Option<Self>
     
     /// Get parent directory safely. Returns None if already at jail root.
-    pub fn virtual_parent(&self) -> Option<Self>
+    pub fn parent(&self) -> Option<Self>
     
     /// Replace file name safely. Returns None if result would escape jail.
-    pub fn virtual_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Option<Self>
+    pub fn with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Option<Self>
     
     /// Replace file extension safely. Returns None if result would escape jail.
-    pub fn virtual_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Option<Self>
+    pub fn with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Option<Self>
     
     // ========================================
     // PATH COMPONENT ACCESS (Always Safe)
@@ -461,20 +603,44 @@ impl<Marker> JailedPath<Marker> {
     
     /// Virtual path as bytes (jail-relative).
     pub fn to_bytes_virtual(&self) -> Vec<u8>
-    
+}
+
+// ========================================
+// TRAIT IMPLEMENTATIONS
+// ========================================
+
+impl<Marker> fmt::Display for JailedPath<Marker> {
+    /// Display shows virtual path (jail-relative, user-friendly).
+    /// Example: "/alice/documents/file.txt" instead of "/app/storage/users/alice/documents/file.txt"
+    /// Used by: format!("{}", jailed), println!("{}", jailed), etc.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_string_virtual())
+    }
+}
+
+impl<Marker> fmt::Debug for JailedPath<Marker> {
+    /// Debug shows real path (full filesystem path) for debugging/logging.
+    /// Example: "/app/storage/users/alice/documents/file.txt"
+    /// ⚠️ This exposes real paths - use only for debugging, not user-facing output.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_string_real())
+    }
+}
+
+impl<Marker> JailedPath<Marker> {
     // ========================================
     // JAIL ACCESS (String Methods Only)
     // ========================================
     
-    /// Get the jail as a string for debugging or comparison.
-    /// ⚠️  This exposes the real jail path - use carefully!
-    pub fn jail_display(&self) -> String
-    
-    /// Get jail as UTF-8 string if possible.
-    pub fn jail_to_str(&self) -> Option<&str>
-    
-    /// Get jail as string with lossy UTF-8 conversion.
-    pub fn jail_to_string_lossy(&self) -> Cow<str>
+    // ========================================
+    // JAIL ACCESS - REMOVED (Use jail.path() instead)
+    // ========================================
+    // - jail_display() -> String - Use jail.path().display().to_string()
+    // - jail_to_str() -> Option<&str> - Use jail.path().to_str()  
+    // - jail_to_string_lossy() -> Cow<str> - Use jail.path().to_string_lossy()
+    //
+    // Rationale: Keep reference to original Jail for jail information
+    // Pattern: let (jail, jailed) = (jail, jail.try_path("file")?);
     
     // ========================================
     // REMOVED METHODS (Breaking Changes)
@@ -537,17 +703,20 @@ let file = jail.try_path("alice/documents/report.pdf")?;
 println!("File: {}", file);  // "/alice/documents/report.pdf"
 tracing::info!("Serving: {}", file);  // Clean logs
 
-// Real path when needed
-println!("Debug: {}", file.display_real());  // "/app/storage/users/alice/documents/report.pdf"
+// Debug (real path for debugging)
+println!("Debug: {:?}", file);  // "/app/storage/users/alice/documents/report.pdf"
+
+// Real path when needed for filesystem operations
+println!("Debug: {}", file.to_string_real());  // "/app/storage/users/alice/documents/report.pdf"
 
 // Safe path manipulation
-let backup = file.virtual_with_extension("backup")?;
-let parent = file.virtual_parent()?;
+let backup = file.with_extension("backup")?;
+let parent = file.parent()?;
 
 // Built-in file operations
 if file.exists() {
     let content = file.read_to_string()?;
-    let backup_file = file.virtual_with_extension("bak")?;
+    let backup_file = file.with_extension("bak")?;
     backup_file.write_string(&content)?;
 }
 
@@ -566,8 +735,8 @@ Based on patterns from [`app-path`](https://github.com/DK26/app-path-rs), `jaile
 
 | Crate                                                   | Use Case                           | Integration Pattern                                    |
 | ------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------- |
-| **[`camino`](https://crates.io/crates/camino)**         | UTF-8 path guarantees for web apps | `Utf8PathBuf::from_path_buf(jailed.unjail())?`        |
-| **[`typed-path`](https://crates.io/crates/typed-path)** | Cross-platform type-safe paths     | `WindowsPath::new(jailed.to_bytes())`                 |
+| **[`camino`](https://crates.io/crates/camino)**         | UTF-8 path guarantees for web apps | `Utf8PathBuf::try_from(jailed.to_string_virtual())?`  |
+| **[`typed-path`](https://crates.io/crates/typed-path)** | Cross-platform type-safe paths     | `WindowsPath::new(jailed.to_string_virtual())`        |
 | **[`dunce`](https://crates.io/crates/dunce)**           | Windows UNC path canonicalization  | `dunce::canonicalize(jailed.unjail())?`               |
 | **[`path-clean`](https://crates.io/crates/path-clean)** | Lexical path cleaning               | Not needed - jailed-path handles this internally      |
 | **[`normalize-path`](https://crates.io/crates/normalize-path)** | Path normalization          | Not needed - jailed-path handles this internally      |
@@ -583,34 +752,38 @@ use typed_path::WindowsPath;
 let jail = Jail::try_new("/app/storage")?;
 let jailed = jail.try_path("users/alice/config.json")?;
 
-// Convert to UTF-8 path for web APIs
-let utf8_path = Utf8PathBuf::from_path_buf(jailed.unjail())
+// Convert to UTF-8 path for web APIs (VIRTUAL ONLY for security)
+let utf8_path = Utf8PathBuf::try_from(jailed.to_string_virtual())
     .map_err(|_| "Non-UTF-8 path not supported")?;
 
-// Cross-platform paths with typed-path
-let windows_path = WindowsPath::new(jailed.to_bytes());
-let unix_path = typed_path::UnixPath::new(jailed.to_bytes());
+// Cross-platform paths with typed-path (VIRTUAL ONLY for security)
+let windows_path = WindowsPath::new(jailed.to_string_virtual());
+let unix_path = typed_path::UnixPath::new(jailed.to_string_virtual());
 
 // Database storage (virtual paths for user-facing data)
-let storage_path = jailed.virtual_display(); // "/users/alice/config.json"
+let storage_path = jailed.to_string_virtual(); // "/users/alice/config.json"
 database.store("file_path", &storage_path)?;
 
+// For REAL paths - use explicit unjail() escape hatch
+let real_pathbuf = jailed.unjail();  // Explicit escape
+let utf8_real = Utf8PathBuf::from_path_buf(real_pathbuf)?;
+
 // Debugging and logging (jail root information)
-log::debug!("File {} in jail {}", jailed, jail.display());
+log::debug!("File {} in jail {}", jailed, jail.path().display());
 ```
 
 #### **Security Considerations for Integration**
 
 ```rust
 // ✅ SAFE: Using virtual display for user-facing data
-let user_friendly = jailed.virtual_display(); // "/alice/documents/file.txt"
+let user_friendly = jailed.to_string_virtual(); // "/alice/documents/file.txt"
 response.json(json!({ "path": user_friendly }));
 
-// ✅ SAFE: Using bytes for ecosystem integration (no path leakage)
-let windows_path = WindowsPath::new(jailed.to_bytes());
+// ✅ SAFE: Using virtual strings for ecosystem integration (no path leakage)
+let windows_path = WindowsPath::new(jailed.to_string_virtual());
 
 // ⚠️  CAREFUL: Jail root exposure (only for debugging/logging)
-log::debug!("Jail root: {}", jail.display()); // "/app/storage/users"
+log::debug!("Jail root: {}", jail.path().display()); // "/app/storage/users"
 
 // ⚠️  CAREFUL: Full path exposure (only for external APIs)
 let raw_path = jailed.unjail(); // Loses all safety guarantees
@@ -706,10 +879,10 @@ This is a **major breaking change** but justified because:
 | 1.4.1                                           | `try_jail<Marker=()>(jail, path)` function | ✅ (removed) | 1 - CRITICAL | Was a simple, top-level function for easy validation; replaced by explicit `Jail::try_new().try_path()`.                                                                                                            |
 | **Phase 2: Secure API & Ergonomics (v0.2.0)**   |
 | 2.1                                             | Secure Path Manipulation API               | ✅           | 1 - CRITICAL | All path manipulation is done via secure `virtual_*` methods.                                                                                                                                                       |
-| 2.1.1                                           | `virtual_join()` method                    | ✅           | 1 - CRITICAL | Implemented for secure path joining.                                                                                                                                                                                |
-| 2.1.2                                           | `virtual_parent()` method                  | ✅           | 1 - CRITICAL | Implemented for secure parent navigation.                                                                                                                                                                           |
-| 2.1.3                                           | `virtual_with_file_name()` method          | ✅           | 2 - HIGH     | Implemented for secure file name replacement.                                                                                                                                                                       |
-| 2.1.4                                           | `virtual_with_extension()` method          | ✅           | 2 - HIGH     | Implemented for secure extension replacement.                                                                                                                                                                       |
+| 2.1.1                                           | `join()` method                            | ✅           | 1 - CRITICAL | Implemented for secure path joining.                                                                                                                                                                                |
+| 2.1.2                                           | `parent()` method                          | ✅           | 1 - CRITICAL | Implemented for secure parent navigation.                                                                                                                                                                           |
+| 2.1.3                                           | `with_file_name()` method                  | ✅           | 2 - HIGH     | Implemented for secure file name replacement.                                                                                                                                                                       |
+| 2.1.4                                           | `with_extension()` method                  | ✅           | 2 - HIGH     | Implemented for secure extension replacement.                                                                                                                                                                       |
 | 2.2                                             | Explicit Path Access API                   | ✅           | 1 - CRITICAL | API requires explicit calls to access the inner path, preventing misuse.                                                                                                                                            |
 | 2.2.1                                           | ~~`real_path()` method~~                   | ❌           | ~~CRITICAL~~ | **Removed:** Discourages raw `&Path` use. Philosophy is to add specialized methods to `JailedPath` as needed. Forcing an escape hatch requires `to_string()` or `unjail()`, making the developer's intent explicit. |
 | 2.2.2                                           | `unjail()` method                          | ✅           | 1 - CRITICAL | Explicitly consumes `JailedPath` to return the inner `PathBuf`, removing safety guarantees.                                                                                                                         |
@@ -758,10 +931,10 @@ This is a **major breaking change** but justified because:
 - **Serde Support (1.3)**: Essential for web APIs and JSON serialization - most web apps require this
 
 **Path-Complete API (2.3):**
-- **Deref to Path (2.3.6)**: Enables zero-cost access to all Path methods - fundamental compatibility
-- **~~Essential traits (2.3.7)~~**: ~~`AsRef`, `Borrow`, `PartialEq` needed for collections and ecosystem integration~~ (❌ Cancelled, see below)
-- **Core path methods (2.3.1, 2.3.2)**: `join()` and `parent()` are essential for path manipulation
-- **Conversion methods (2.3.5, 2.3.5a)**: `into_path_buf()` and `into_inner()` needed for ecosystem compatibility
+- **Built-in file operations (2.5)**: Direct I/O operations on JailedPath without Path exposure
+- **~~Essential traits (2.3.7)~~**: ~~`AsRef`, `Borrow`, `PartialEq` needed for collections and ecosystem integration~~ (❌ Cancelled for security)
+- **Core path methods (2.3.1, 2.3.2)**: `join()` and `parent()` implemented for safe path manipulation
+- **Explicit conversion methods (2.3.5, 2.3.5a)**: `unjail()` and string methods for ecosystem compatibility
 
 ### **HIGH (2) - Important for Usability**
 *Features that significantly improve the developer experience and enable real-world usage*
@@ -1049,11 +1222,11 @@ let jail = Jail::try_new("/app/storage")?;
 let jailed: JailedPath<UserFiles> = jail.try_path("users/alice/файл.txt")?;  // Non-UTF-8 filename
 
 // UTF-8 methods for web development
-match jailed.to_str() {
+match jailed.to_str_real() {
     Some(utf8_path) => {
-        // Perfect for JSON APIs - but this gives FULL path
-        // For clean API responses, use Display formatting:
-        let clean_display = format!("{}", jailed);  // "/users/alice/файл.txt" (virtual root)
+        // ⚠️ This gives FULL path - use only for filesystem operations
+        // For clean API responses, use virtual display:
+        let clean_display = jailed.to_string_virtual();  // "/users/alice/файл.txt" (virtual)
         let response = json!({ "path": clean_display });
     }
     None => {
@@ -1063,21 +1236,24 @@ match jailed.to_str() {
     }
 }
 
-// For the rare case you need relative UTF-8 string manually:
-let full_path_str = jailed.to_str().unwrap();  // "/app/storage/users/alice/file.txt"
-let relative_str = full_path_str.strip_prefix("/app/storage").unwrap();  // "/users/alice/file.txt"
+// For the rare case you need real path string:
+let full_path_str = jailed.to_str_real().unwrap();  // "/app/storage/users/alice/file.txt"
+
+// ✅ PREFERRED: Use virtual strings for user-facing operations
+let virtual_str = jailed.to_string_virtual();  // "/users/alice/file.txt"
 
 // But usually just use Display trait:
-println!("User sees: {}", jailed);  // Automatic virtual root display
+println!("User sees: {}", jailed);  // Automatic virtual display
 
-// Still works with all standard Path methods via Deref
+// Access path components safely (direct methods on JailedPath)
 let extension = jailed.extension();  // Option<&OsStr>
 let file_name = jailed.file_name();  // Option<&OsStr>
-let is_absolute = jailed.is_absolute();  // bool
+let is_absolute = jailed.is_absolute();  // bool - always true for JailedPath
 
-// Use with existing file I/O functions
-std::fs::metadata(&jailed)?;  // Works seamlessly via AsRef<Path>
-tokio::fs::read(&jailed).await?;  // Works with async file I/O
+// Use with file I/O via built-in methods (no trait conversion needed)
+jailed.metadata()?;  // Built-in metadata access
+jailed.read_to_string()?;  // Built-in file reading
+// For external crates, use unjail() explicitly when needed
 ```
 
 ### 🔧 Core Validation Functions
@@ -1198,7 +1374,7 @@ Automatic dereferencing to `&Path` is dangerous because it makes it easy to acci
 By omitting these traits, we force the developer to be explicit about their intent, which makes the code safer and easier to audit.
 
 **The Secure API:**
-- **Path Manipulation**: All path modifications (joining, getting parent, etc.) **must** be done using the provided `virtual_*` methods (`virtual_join()`, `virtual_parent()`, etc.). These methods are guaranteed to be jail-safe.
+- **Path Manipulation**: All path modifications (joining, getting parent, etc.) **must** be done using the provided safe methods (`join()`, `parent()`, etc.). These methods are guaranteed to be jail-safe.
 - **Filesystem Access**: For I/O operations, you can use the convenient built-in methods (`.read()`, `.write()`) or explicitly get the real path as a string via `to_string_lossy()` and create a `Path` from it.
 - **Leaving the Jail**: If you need to convert the `JailedPath` back into a regular `PathBuf` (and thus lose the safety guarantees), you must call the explicit `.unjail()` method.
 - **Ergonomics**: Traits like `PartialEq`, `Eq`, `Ord`, and `Hash` are implemented to ensure `JailedPath` works seamlessly in collections and comparisons.
@@ -1215,7 +1391,7 @@ fn process_file_secure(path: JailedPath<UserFiles>) -> Result<String, Box<dyn st
     let content = path.read()?;
     
     // CORRECT: Path manipulation uses jail-safe virtual methods.
-    let backup_path = path.virtual_with_extension("backup").ok_or("Backup path failed")?;
+    let backup_path = path.with_extension("backup").ok_or("Backup path failed")?;
     
     // CORRECT: Use the explicit `to_string_lossy()` for functions expecting a &Path.
     std::fs::copy(path.to_string_lossy().as_ref(), backup_path.to_string_lossy().as_ref())?;
@@ -1232,9 +1408,9 @@ let jailed = validator.try_path("users/alice/config.toml")?;
 file_cache.insert(jailed.clone(), b"cached content".to_vec());
 
 // Path manipulation is explicit and safe.
-let config_dir = jailed.virtual_parent().unwrap();
-let log_file = config_dir.virtual_join("app.log").unwrap();
-let backup_config = jailed.virtual_with_file_name("config.backup.toml").unwrap();
+let config_dir = jailed.parent().unwrap();
+let log_file = config_dir.join("app.log").unwrap();
+let backup_config = jailed.with_file_name("config.backup.toml").unwrap();
 
 // You can still access path components safely.
 println!("Config file: {}", jailed.file_name().unwrap().to_string_lossy());
@@ -1250,6 +1426,30 @@ let file_size = existing_file_function(Path::new(&jailed.to_string_lossy()))?;
 // To get the inner PathBuf, you must "unjail" it.
 let raw_path: PathBuf = jailed.unjail(); // Safety guarantees are now gone.
 ```
+
+#### Design: `Jail` Can Safely Provide `path()` Method
+
+**Important Distinction**: While `JailedPath` intentionally avoids `AsRef<Path>` for security reasons, `Jail` can safely provide a `path()` method because it serves a different purpose:
+
+**Why `Jail` + `path()` is Safe:**
+- **No Security Promise**: `Jail` is just a validator factory, not a security guarantee itself
+- **No Escape Possible**: `jail.path().join("/escape")` just gives you a regular `Path` - no jail bypass
+- **Simple and Readable**: Simple `path()` method enables clean patterns like `jail.path().display()`
+- **Boundary is Creation**: Security boundary is creating `JailedPath` instances via `jail.try_path()`, not accessing jail root
+
+**Ergonomic Benefits:**
+```rust
+let jail = Jail::try_new("/app/uploads")?;
+let file = jail.try_path("user/image.jpg")?;
+
+// Clean, readable test assertions
+assert!(file.starts_with(jail.path()));  // ✅ Explicit and readable
+
+// Alternative string-based approach if needed
+let jail_display = jail.path().display().to_string();
+```
+
+**The jail root path is not secret information** - it's just a validation boundary. The security model prevents path traversal during validation, not access to the jail directory itself.
 
 ### 🌐 Web Framework Integration (Axum)
 **Goal**: Security-first web handler patterns with pre-validated paths.
