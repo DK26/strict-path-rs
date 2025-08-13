@@ -12,7 +12,7 @@
 > *Putting your paths in jail by the Type-State Police Department*  
 > *because your LLM can't be trusted with security*
 
-`JailedPath` is a filesystem path **mathematically proven** to stay within directory boundaries. Unlike libraries that hope validation works, we mathematically prove it at compile time using Rust's type system. Create `JailedPath` instances by building a jail with `Jail::try_new()` and validating paths via `jail.try_path()`. This guarantees containment—even malicious input like `../../../etc/passwd` gets safely clamped.
+`JailedPath` is a filesystem path type that **mathematically proven** to stay within directory boundaries. Unlike libraries that hope validation works, we mathematically prove it at compile time using Rust's type system. Create `JailedPath` instances by building a jail with `Jail::try_new()` and validating paths via `jail.try_path()`. This guarantees containment—even malicious input like `../../../etc/passwd` gets safely clamped.
 
 **Zero Learning Curve**: Two simple functions solve 99% of use cases. **Attack Impossibility**: Not just "hard to bypass" - actually impossible due to API design.
 
