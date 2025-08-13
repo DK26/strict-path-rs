@@ -5,6 +5,139 @@
 
 This roadmap outlines the planned evolution of the `jailed-path` crate based on ecosystem research, user needs analysis, and security-first principles.
 
+## 🎯 Real-World Use Cases
+
+The `jailed-path` crate addresses critical security needs across multiple domains where path validation is essential:
+
+### 🌐 **Cloud Storage Services**
+**Challenge:** Users upload files that must stay within their allocated storage boundaries
+```rust
+// Each user gets their own secure storage jail
+let user_jail = Jail::<UserStorage>::try_new(format!("/cloud/users/{}", user_id))?;
+let uploaded_file = user_jail.try_path(&upload_request.filename)?;
+
+// Safe file operations - guaranteed within user's storage
+uploaded_file.write_bytes(&file_data)?;
+log::info!("Saved file: {}", uploaded_file); // Shows: "/documents/photo.jpg" (virtual)
+```
+
+### 🌍 **Web Hosting Platforms**
+**Challenge:** Website files must remain within designated site directories
+```rust
+// Each website gets isolated file access
+let site_jail = Jail::<WebsiteAssets>::try_new(format!("/sites/{}/public", site_id))?;
+let asset_path = site_jail.try_path(&request_path)?;
+
+// Serve files safely - no directory traversal possible
+if asset_path.is_file() {
+    return serve_file(asset_path.read_bytes()?);
+}
+```
+
+### 📦 **Archive Extraction Tools**
+**Challenge:** ZIP/TAR files can contain malicious paths like `../../../etc/passwd`
+```rust
+// Extract to safe directory only
+let extract_jail = Jail::<ExtractedFiles>::try_new("/tmp/safe_extract")?;
+
+for entry in archive.entries() {
+    // Automatically rejects directory traversal attempts
+    if let Ok(safe_path) = extract_jail.try_path(&entry.path()) {
+        safe_path.write_bytes(&entry.data())?;
+        println!("Extracted: {}", safe_path); // Virtual path for user
+    } else {
+        warn!("Rejected malicious path: {}", entry.path());
+    }
+}
+```
+
+### 🏢 **Enterprise File Management**
+**Challenge:** Users need access to department files but not sensitive areas
+```rust
+// Department-specific file access
+let hr_jail = Jail::<HRDepartment>::try_new("/company/departments/hr")?;
+let finance_jail = Jail::<FinanceDepartment>::try_new("/company/departments/finance")?;
+
+// Type safety prevents cross-department access
+let hr_document: JailedPath<HRDepartment> = hr_jail.try_path("employee_handbook.pdf")?;
+// finance_jail.try_path() returns JailedPath<FinanceDepartment> - incompatible types!
+```
+
+### 🎮 **Game Mod/Plugin Systems**
+**Challenge:** User-created content must not access system files
+```rust
+// Mods can only access their designated directories
+let mod_jail = Jail::<ModAssets>::try_new(format!("/game/mods/{}", mod_name))?;
+let texture_path = mod_jail.try_path(&mod_request.asset_path)?;
+
+// Safe asset loading - guaranteed within mod boundaries
+let texture_data = texture_path.read_bytes()?;
+```
+
+### 🐳 **Container/Sandbox Environments**
+**Challenge:** Applications need file access within container boundaries
+```rust
+// Container-aware file operations
+let container_jail = Jail::<ContainerFS>::try_new("/app/workspace")?;
+let config_file = container_jail.try_path("config/app.toml")?;
+
+// Works with container orchestration
+config_file.write_string(&updated_config)?;
+```
+
+### 💾 **Backup and Sync Tools**
+**Challenge:** Backup paths must stay within designated backup locations
+```rust
+// Multiple backup destinations with type safety
+let local_backup = Jail::<LocalBackup>::try_new("/backups/local")?;
+let cloud_backup = Jail::<CloudBackup>::try_new("/backups/cloud")?;
+
+// Type system prevents mixing backup contexts
+let file_backup: JailedPath<LocalBackup> = local_backup.try_path(&relative_path)?;
+```
+
+### 🔧 **Development Tools & IDEs**
+**Challenge:** Project files must stay within project boundaries
+```rust
+// Project-scoped file operations
+let project_jail = Jail::<ProjectFiles>::try_new(&workspace_root)?;
+let source_file = project_jail.try_path(&relative_file_path)?;
+
+// Safe code generation and file manipulation
+source_file.write_string(&generated_code)?;
+```
+
+### 📱 **Mobile App Sandboxing**
+**Challenge:** Apps need secure access to their document directories
+```rust
+// App-specific document access
+let app_docs = Jail::<AppDocuments>::try_new(app_documents_dir())?;
+let user_file = app_docs.try_path(&user_selected_filename)?;
+
+// Guaranteed within app sandbox
+user_file.write_bytes(&document_data)?;
+```
+
+### 🏥 **Healthcare Data Processing**
+**Challenge:** Patient data must remain within compliant storage boundaries
+```rust
+// HIPAA-compliant file handling
+let patient_jail = Jail::<PatientData>::try_new(format!("/medical/patients/{}", patient_id))?;
+let medical_record = patient_jail.try_path("records/latest.json")?;
+
+// Audit-safe operations with virtual path logging
+audit_log!("Accessed file: {}", medical_record); // Virtual path only
+```
+
+**Key Benefits Across All Use Cases:**
+- ✅ **Compile-time Safety**: Type system prevents mixing contexts
+- ✅ **Zero Directory Traversal**: Automatic protection against `../` attacks  
+- ✅ **Audit-Friendly**: Virtual paths in logs don't expose filesystem structure
+- ✅ **Performance**: No runtime overhead for path validation after creation
+- ✅ **Cross-Platform**: Handles Windows, Unix, and containerized environments
+- ✅ **Future-Proof**: Easy to add new security features without breaking changes
+
+---
 
 
 ## ✅ COMPLETED: Jail-Safe File Operations Trait

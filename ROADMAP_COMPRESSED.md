@@ -2,6 +2,23 @@
 
 > **Security-first path validation with type-safe jails and safe symlinks**
 
+## 🎯 Real-World Use Cases
+
+**Cloud Storage**: User file uploads within storage quotas
+**Web Hosting**: Website assets within site boundaries  
+**Archive Extraction**: Safe ZIP/TAR extraction (blocks `../../../etc/passwd`)
+**Enterprise Files**: Department-specific access with type safety
+**Game Mods**: User content within mod directories
+**Container Apps**: File access within container boundaries
+**Backup Tools**: Multiple backup destinations with type isolation
+**Development IDEs**: Project files within workspace boundaries
+**Mobile Apps**: App-specific document sandboxing
+**Healthcare**: HIPAA-compliant patient data handling
+
+**Universal Benefits**: Compile-time safety, zero directory traversal, audit-friendly virtual paths, cross-platform, future-proof API.
+
+---
+
 ## ️ Core Security Model
 
 ### **CRITICAL: `Jail` vs `JailedPath` Distinction**
