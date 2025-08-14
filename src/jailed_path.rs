@@ -522,7 +522,7 @@ impl<Marker> JailedPath<Marker> {
     }
 
     /// Get jail as string with lossy UTF-8 conversion.
-    pub fn jail_to_string_lossy(&self) -> Cow<str> {
+    pub fn jail_to_string_lossy(&self) -> Cow<'_, str> {
         self.jail_root.to_string_lossy()
     }
 

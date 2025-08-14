@@ -269,7 +269,7 @@ impl<Marker> Jail<Marker> {
     }
 
     /// Get jail as string with lossy UTF-8 conversion.
-    pub fn to_string_lossy(&self) -> std::borrow::Cow<str> {
+    pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
         self.jail.to_string_lossy()
     }
 
