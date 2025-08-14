@@ -25,9 +25,9 @@
 //! // Even attacks are neutralized:
 //! let attack_path: JailedPath = jail.try_path("../../../etc/passwd")?;
 //! // ✅ Virtual path shows clean, predictable output - no filesystem leakage!
-//! assert_eq!(attack_path.virtual_display(), "/etc/passwd");  // Virtual path display
+//! assert_eq!(attack_path.to_string_virtual(), "/etc/passwd");  // Virtual path display
 //! // ✅ But the real path is safely clamped within the jail
-//! assert!(attack_path.ends_with("customer_uploads/etc/passwd"));  // Real path clamped!
+//! assert!(attack_path.starts_with_real(jail.path()));  // Real path clamped within jail
 //! # std::fs::remove_dir_all("customer_uploads").ok();
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
@@ -143,9 +143,9 @@
 //! let attack2_path = web_server_jail.try_path("assets/../../../etc/passwd")?;
 //! let attack3_path = web_server_jail.try_path("/etc/shadow")?;
 //! // ✅ SAFE: Verify all attacks were neutralized - paths are contained within jail
-//! assert!(attack1_path.starts_with(web_public_dir));
-//! assert!(attack2_path.starts_with(web_public_dir));
-//! assert!(attack3_path.starts_with(web_public_dir));
+//! assert!(attack1_path.starts_with_real(web_public_dir));
+//! assert!(attack2_path.starts_with_real(web_public_dir));
+//! assert!(attack3_path.starts_with_real(web_public_dir));
 //!
 //! // Cleanup: remove the test directory
 //! fs::remove_dir_all(web_public_dir).ok();
@@ -213,7 +213,7 @@
 //!     let malicious_path = "../../../etc/passwd";
 //!     let attack_path = uploads_jail.try_path(malicious_path)?; // This succeeds but is clamped
 //!     // ✅ SAFE: Verify the attack was neutralized - path stays within jail
-//!     assert!(attack_path.starts_with(jail_dir));
+//!     assert!(attack_path.starts_with_real(jail_dir));
 //!     Ok(())
 //! }
 //! ```
@@ -336,10 +336,10 @@
 //! let jailed_path = jail.try_path("file.txt")?;
 //!
 //! // ✅ SECURE: Use built-in methods that preserve security
-//! assert!(jailed_path.starts_with(jail.as_os_str())); // Secure and direct
+//! assert!(jailed_path.starts_with_real(jail.path())); // Secure and direct
 //! jailed_path.write_bytes(b"test content")?; // Safe file operations
 //! let content = jailed_path.read_bytes()?; // Safe file operations
-//! let parent = jailed_path.virtual_parent(); // Safe path manipulation (returns Option)
+//! let parent = jailed_path.parent(); // Safe path manipulation (returns Option)
 //! # std::fs::remove_dir_all("/tmp/safe_correct").ok();
 //! # Ok(())
 //! # }

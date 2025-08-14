@@ -78,7 +78,7 @@ fn test_jail_creation_with_existing_directory() {
     let result = Jail::<()>::try_new(&temp_dir);
     assert!(result.is_ok(), "Should succeed with existing directory");
     let jail = result.unwrap();
-    assert_eq!(jail.as_os_str(), temp_dir.canonicalize().unwrap());
+    assert_eq!(jail.path(), temp_dir.canonicalize().unwrap());
     cleanup_test_directory(&temp_dir);
 }
 
@@ -96,11 +96,11 @@ fn test_try_path_with_valid_relative_path() {
 
     let jailed_path = result.unwrap();
     assert!(
-        jailed_path.ends_with("test.txt"),
+        jailed_path.ends_with_real("test.txt"),
         "JailedPath should point to the correct file"
     );
     assert!(
-        jailed_path.starts_with(jail.as_os_str()),
+        jailed_path.starts_with_real(jail.path()),
         "JailedPath should be within jail boundary"
     );
 
@@ -122,11 +122,11 @@ fn test_try_path_with_valid_subdirectory_path() {
 
     let jailed_path = result.unwrap();
     assert!(
-        jailed_path.ends_with("sub_test.txt"),
+        jailed_path.ends_with_real("sub_test.txt"),
         "JailedPath should point to the correct file"
     );
     assert!(
-        jailed_path.starts_with(jail.as_os_str()),
+        jailed_path.starts_with_real(jail.path()),
         "JailedPath should be within jail boundary"
     );
 
@@ -152,7 +152,7 @@ fn test_try_path_with_absolute_path_inside_jail() {
     // For this test, we just need to verify the path is valid - we can't easily check
     // the exact path without accessing internals, but we can verify it's within jail
     assert!(
-        jailed_path.starts_with(jail_root.as_path()),
+        jailed_path.starts_with_real(jail_root),
         "Clamped absolute path should be within jail boundary"
     );
 
@@ -173,8 +173,8 @@ fn test_try_path_with_nonexistent_file() {
     );
 
     let jailed_path = result.unwrap();
-    assert!(jailed_path.ends_with("new_document.pdf"));
-    assert!(jailed_path.starts_with(jail.as_os_str()));
+    assert!(jailed_path.ends_with_real("new_document.pdf"));
+    assert!(jailed_path.starts_with_real(jail.path()));
 
     // Cleanup
     cleanup_test_directory(&temp_dir);
@@ -193,8 +193,8 @@ fn test_try_path_with_nonexistent_nested_file() {
     );
 
     let jailed_path = result.unwrap();
-    assert!(jailed_path.ends_with("beach.jpg"));
-    assert!(jailed_path.starts_with(jail.as_os_str()));
+    assert!(jailed_path.ends_with_real("beach.jpg"));
+    assert!(jailed_path.starts_with_real(jail.path()));
 
     // SECURITY: Verify parent directories were cleaned up for anti-spam protection
     let parent_dir = temp_dir.join("users/john/photos/vacation");
@@ -231,8 +231,8 @@ fn test_try_path_with_mixed_existing_and_nonexistent() {
     );
 
     let jailed_path = result.unwrap();
-    assert!(jailed_path.starts_with(jail.as_os_str()));
-    assert!(jailed_path.ends_with("new_file.txt"));
+    assert!(jailed_path.starts_with_real(jail.path()));
+    assert!(jailed_path.ends_with_real("new_file.txt"));
 
     // Cleanup
     cleanup_test_directory(&temp_dir);
@@ -278,7 +278,7 @@ fn test_try_path_handles_permission_errors_gracefully() {
     // Should either succeed or fail gracefully with a clear error
     match result {
         Ok(jailed_path) => {
-            assert!(jailed_path.starts_with(jail.as_os_str()));
+            assert!(jailed_path.starts_with_real(jail.path()));
         }
         Err(JailedPathError::PathResolutionError { .. }) => {
             // Acceptable - permission denied or other IO error
@@ -303,7 +303,7 @@ fn test_try_path_edge_case_empty_relative_path() {
     for path in edge_cases {
         let result = jail.try_path(path);
         if let Ok(jailed_path) = result {
-            assert!(jailed_path.starts_with(jail.as_os_str()));
+            assert!(jailed_path.starts_with_real(jail.path()));
         }
         // Some of these might fail, which is acceptable behavior
     }
@@ -330,12 +330,13 @@ fn test_try_path_performance_with_many_validations() {
         let result = jail.try_path(path);
         assert!(
             result.is_ok(),
-            "Validation #{} should succeed for path: {path}",
-            i + 1
+            "Validation #{} should succeed for path: {}",
+            i + 1,
+            path
         );
 
         let jailed_path = result.unwrap();
-        assert!(jailed_path.starts_with(jail.as_os_str()));
+        assert!(jailed_path.starts_with_real(jail.path()));
     }
 
     // Cleanup
@@ -383,7 +384,7 @@ fn test_validator_jail_accessor() {
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // jail() method should return the canonical jail path
-    let jail_path = jail.as_os_str();
+    let jail_path = jail.path();
     assert_eq!(jail_path, temp_dir.canonicalize().unwrap());
 
     // Cleanup
@@ -398,7 +399,7 @@ fn test_validator_clone_and_debug() {
 
     // Should be cloneable
     let cloned_jail = jail.clone();
-    assert_eq!(jail.as_os_str(), cloned_jail.as_os_str());
+    assert_eq!(jail.path(), cloned_jail.path());
 
     // Should be debuggable (just ensure it doesn't panic)
     let debug_str = format!("{jail:?}");
@@ -494,7 +495,7 @@ fn test_try_path_cleanup_on_canonicalization_error() {
     // Try to create a path that will fail during canonicalization
     // We'll use a very long path name that might hit OS limits
     let problematic_path = format!(
-        "{}{}",
+        "{}{} ",
         "a/".repeat(1000), // Very deep nesting
         "x".repeat(300)    // Very long filename
     );
@@ -577,7 +578,7 @@ fn test_massive_directory_spam_attack_prevention() {
     }
 
     println!(
-        "✅ Successfully prevented directory spam attack with {} attempts",
+        "Successfully prevented directory spam attack with {} attempts",
         spam_paths.len()
     );
 
@@ -598,11 +599,11 @@ fn test_lexical_validation_allows_legitimate_paths() {
         "users/john/documents/report.pdf",
         "data/2024/january/backup.zip",
         // Paths with ".." in filenames (not as path components)
-        "..file.txt",              // filename starts with ..
-        "file..txt",               // filename contains ..
-        "my_file...extension",     // multiple dots
-        "documents/..hidden_file", // hidden file starting with ..
-        "config/app..backup.conf", // .. inside filename
+        "..file.txt",
+        "file..txt",
+        "my_file...extension",
+        "documents/..hidden_file",
+        "config/app..backup.conf",
         // Current directory references (allowed)
         "./file.txt",
         "subdir/./file.txt",
@@ -620,10 +621,10 @@ fn test_lexical_validation_allows_legitimate_paths() {
         // but never with PathEscapesBoundary
         match result {
             Ok(_) => {
-                println!("✅ Correctly allowed (exists): {legitimate_path}");
+                println!("Correctly allowed (exists): {legitimate_path}");
             }
             Err(JailedPathError::PathResolutionError { .. }) => {
-                println!("✅ Correctly allowed (doesn't exist): {legitimate_path}");
+                println!("Correctly allowed (doesn't exist): {legitimate_path}");
             }
             Err(JailedPathError::PathEscapesBoundary { .. }) => {
                 panic!("Legitimate path should not be blocked as escape: {legitimate_path}");

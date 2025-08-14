@@ -88,9 +88,9 @@ fn test_complete_workflow_with_marker_types() {
         let result = public_jail.try_path(path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
-        // Use built-in starts_with method instead of unjailing
+        // Ensure resulting path is within jail using approved API
         assert!(
-            jailed_path.starts_with(public_jail.as_os_str()),
+            jailed_path.starts_with_real(public_jail.path()),
             "Clamped path should be within jail: {jailed_path:?}"
         );
     }
@@ -100,9 +100,9 @@ fn test_complete_workflow_with_marker_types() {
         let result = upload_jail.try_path(path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
-        // Use built-in starts_with method instead of unjailing
+        // Ensure resulting path is within jail using approved API
         assert!(
-            jailed_path.starts_with(upload_jail.as_os_str()),
+            jailed_path.starts_with_real(upload_jail.path()),
             "Clamped path should be within jail: {jailed_path:?}"
         );
     }
@@ -119,10 +119,10 @@ fn test_error_handling_and_reporting() {
     // 1. Non-existent file should now succeed with touch technique
     match jail.try_path("nonexistent.txt") {
         Ok(jailed_path) => {
-            assert!(jailed_path.ends_with("nonexistent.txt"));
-            // Use built-in starts_with method instead of unjailing
+            assert!(jailed_path.to_string_virtual().ends_with("nonexistent.txt"));
+            // Ensure path is within jail using approved API
             assert!(
-                jailed_path.starts_with(jail.as_os_str()),
+                jailed_path.starts_with_real(jail.path()),
                 "Path should be within jail: {jailed_path:?}"
             );
         }
@@ -133,9 +133,9 @@ fn test_error_handling_and_reporting() {
     // NEW BEHAVIOR: Traversal is clamped, not blocked
     match jail.try_path("../private/secrets.txt") {
         Ok(jailed_path) => {
-            // Use built-in starts_with method instead of unjailing
+            // Ensure path is within jail using approved API
             assert!(
-                jailed_path.starts_with(jail.as_os_str()),
+                jailed_path.starts_with_real(jail.path()),
                 "Clamped path should be within jail: {jailed_path:?}"
             );
         }
@@ -157,7 +157,11 @@ fn test_error_handling_and_reporting() {
             let canonicalized_nonexistent_jail = soft_canonicalize(nonexistent_jail).unwrap();
 
             assert!(
-                jailed_path.starts_with(canonicalized_nonexistent_jail),
+                jailed_path.starts_with_real(canonicalized_nonexistent_jail.as_path()),
+                "Jailed path should start with the jail boundary"
+            );
+            assert!(
+                jailed_path.starts_with_real(&canonicalized_nonexistent_jail),
                 "Jailed path should start with the jail boundary"
             );
         }
@@ -186,13 +190,21 @@ fn test_absolute_vs_relative_path_handling() {
     // Both should resolve to paths within jail
     let relative_path = relative_result.unwrap();
     let absolute_path = absolute_result.unwrap();
-    // Use built-in starts_with method instead of unjailing
+    // Ensure both resolve to paths within jail using approved API
     assert!(
-        relative_path.starts_with(jail.as_os_str()),
+        relative_path.starts_with_real(jail.path()),
         "Relative path should be within jail: {relative_path:?}"
     );
     assert!(
-        absolute_path.starts_with(jail.as_os_str()),
+        absolute_path.starts_with_real(jail.path()),
+        "Absolute path should be within jail: {absolute_path:?}"
+    );
+    assert!(
+        relative_path.starts_with_real(jail.path()),
+        "Relative path should be within jail: {relative_path:?}"
+    );
+    assert!(
+        absolute_path.starts_with_real(jail.path()),
         "Absolute path should be within jail: {absolute_path:?}"
     );
 
@@ -205,9 +217,9 @@ fn test_absolute_vs_relative_path_handling() {
         "Absolute path outside jail should be clamped"
     );
     let jailed_path = outside_result.unwrap();
-    // Use built-in starts_with method instead of unjailing
+    // Ensure clamped path is within jail using approved API
     assert!(
-        jailed_path.starts_with(jail.as_os_str()),
+        jailed_path.starts_with_real(jail.path()),
         "Clamped path should be within jail: {jailed_path:?}"
     );
 }
@@ -278,9 +290,9 @@ fn test_memory_safety_with_long_paths() {
     // Should handle long paths gracefully without memory exhaustion
     match jail.try_path(long_path) {
         Ok(jailed_path) => {
-            // Use built-in starts_with method instead of unjailing
+            // Ensure resulting path is within jail using approved API
             assert!(
-                jailed_path.starts_with(jail.as_os_str()),
+                jailed_path.starts_with_real(jail.path()),
                 "Clamped path should be within jail: {jailed_path:?}"
             );
         }
@@ -311,10 +323,10 @@ fn test_edge_cases_and_special_paths() {
         if let Ok(jailed_path) = result {
             // If successful, should still be within jail (use canonicalized jail path)
             assert!(
-                jailed_path.starts_with(jail.as_os_str()),
+                jailed_path.starts_with_real(jail.path()),
                 "Path '{}' resolved outside jail: {}",
                 case,
-                jailed_path.virtual_display()
+                jailed_path.to_string_virtual()
             );
         } else {
             // Some edge cases might fail due to canonicalization - that's also acceptable
@@ -335,9 +347,9 @@ fn test_edge_cases_and_special_paths() {
         let result = jail.try_path(case);
         assert!(result.is_ok(), "Malicious path '{case}' should be clamped");
         let jailed_path = result.unwrap();
-        // Use built-in starts_with method instead of unjailing
+        // Ensure clamped path is within jail using approved API
         assert!(
-            jailed_path.starts_with(jail.as_os_str()),
+            jailed_path.starts_with_real(jail.path()),
             "Clamped path should be within jail: {jailed_path:?}"
         );
     }
@@ -350,7 +362,11 @@ fn test_validator_properties() {
     let jail = Jail::<()>::try_new(public_dir.clone()).unwrap();
 
     // Test jail() accessor
-    assert_eq!(jail.as_os_str(), public_dir.canonicalize().unwrap());
+    // Compare canonicalized jail boundary to the canonicalized public_dir
+    assert_eq!(
+        jail.path().canonicalize().unwrap(),
+        public_dir.canonicalize().unwrap()
+    );
 
     // Test that validator is cloneable
     // Test that validator works the same

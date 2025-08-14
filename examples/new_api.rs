@@ -22,8 +22,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🛡️  Attack attempt clamped to: {attack_path}");
 
     // Verify the attack was indeed neutralized - check that it starts with the jail root
-    assert!(attack_path.starts_with(docs_jail.as_os_str()));
-    println!("✅ Security verified: attack path is contained within jail");
+    assert!(attack_path.starts_with_real(docs_jail.path()));
+    println!("Security verified: attack path is contained within jail");
 
     // 4. Demonstrate type-safe markers for different jails
     struct Documents;

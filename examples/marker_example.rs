@@ -10,7 +10,7 @@ fn main() -> Result<(), JailedPathError> {
     // Unmarked validator (no generics needed)
     let generic_jail: Jail = Jail::try_new(&current_dir)?;
     match generic_jail.try_path("Cargo.toml") {
-        Ok(generic_path) => println!("Generic path: {}", generic_path.virtual_display()),
+        Ok(generic_path) => println!("Generic path: {}", generic_path.to_string_virtual()),
         Err(e) => println!("Error: {e}"),
     }
 
@@ -18,7 +18,7 @@ fn main() -> Result<(), JailedPathError> {
     let image_jail: Jail<ImageResource> = Jail::try_new(&current_dir)?;
     match image_jail.try_path("Cargo.toml") {
         Ok(image_path) => {
-            println!("Image resource path: {}", image_path.virtual_display());
+            println!("Image resource path: {}", image_path.to_string_virtual());
             process_images(image_path); // Use the function to avoid dead code warning
         }
         Err(e) => println!("Error: {e}"),
@@ -28,7 +28,7 @@ fn main() -> Result<(), JailedPathError> {
     let user_jail: Jail<UserData> = Jail::try_new(&current_dir)?;
     match user_jail.try_path("Cargo.toml") {
         Ok(user_path) => {
-            println!("User data path: {}", user_path.virtual_display());
+            println!("User data path: {}", user_path.to_string_virtual());
             process_user_data(user_path); // Use the function to avoid dead code warning
         }
         Err(e) => println!("Error: {e}"),

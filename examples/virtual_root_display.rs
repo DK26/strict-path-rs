@@ -28,15 +28,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     // Jail root is accessible if needed
-    println!("Jail root: {}", jail.display());
-    println!("User jail root: {}", user_doc.jail_display());
+    println!("Jail root: {}", jail.path().to_string_lossy());
+    println!("User jail root: {}", user_doc.to_string_virtual());
     println!();
 
     // Still works with all Path methods via Deref
     println!("Path methods still work:");
     println!("  Document filename: {:?}", user_doc.file_name());
     println!("  Document extension: {:?}", user_doc.extension());
-    println!("  Document parent: {:?}", user_doc.virtual_parent());
+    println!("  Document parent: {:?}", user_doc.parent());
     println!();
 
     // Works with file operations (AsRef<Path>)
@@ -61,10 +61,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match jail.try_path(attack) {
             Ok(clamped_path) => {
                 // Verify the path was clamped to jail boundary
-                assert_eq!(clamped_path.jail_display(), jail.display());
-                println!("  ✅ Attack clamped: {attack} → {clamped_path}");
+                assert!(clamped_path.starts_with_real(jail.path()));
+                println!(
+                    "  Attack clamped: {} -> {}",
+                    attack,
+                    clamped_path.to_string_virtual()
+                );
             }
-            Err(e) => println!("  ❌ Unexpected error for {attack}: {e}"),
+            Err(e) => println!("  Unexpected error for {attack}: {e}"),
         }
     }
 

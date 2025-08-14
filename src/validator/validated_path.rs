@@ -116,6 +116,7 @@ impl ValidatedPath<Raw> {
 
 // join_jail now requires the jail to be a canonicalized path (no unconstrained S2)
 impl<S> ValidatedPath<(S, Clamped)> {
+    #[inline]
     pub fn join_jail(
         self,
         jail: &ValidatedPath<(Raw, Canonicalized)>,
@@ -178,6 +179,7 @@ impl<S> ValidatedPath<S> {
 // Only callable on ValidatedPath<(((S, Clamped), JoinedJail), Canonicalized)>
 #[allow(clippy::type_complexity)]
 impl<S> ValidatedPath<(((S, Clamped), JoinedJail), Canonicalized)> {
+    #[inline]
     pub fn boundary_check(
         self,
         jail: &ValidatedPath<(Raw, Canonicalized)>,

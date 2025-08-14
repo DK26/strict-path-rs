@@ -257,29 +257,40 @@ impl<Marker> Jail<Marker> {
         Ok(JailedPath::new(self.jail.clone(), checked))
     }
 
-    /// Get the jail as a string for debugging, logging, or comparison.
-    /// Example: "/app/storage/users"
-    pub fn display(&self) -> String {
-        self.jail.display().to_string()
+    /// Returns a reference to the jail's root path.
+    ///
+    /// This provides a safe, read-only way to access the jail's boundary for logging,
+    /// assertions, or integration with other APIs that need a `&Path`.
+    ///
+    /// # Security
+    ///
+    /// This is **safe** to expose because the `Jail` itself is just a validator. The real
+    /// security guarantee comes from the `JailedPath` type, which can only be created
+    /// through validation and does not expose its internal path.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use jailed_path::Jail;
+    /// # use std::path::Path;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let jail = Jail::<()>::try_new("/app/storage")?;
+    /// let jailed_path = jail.try_path("user/file.txt")?;
+    ///
+    /// // Use the jail's path for assertions or logging
+    /// assert!(jailed_path.starts_with_real(jail.path()));
+    /// println!("Jail is located at: {}", jail.path().display());
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn path(&self) -> &Path {
+        &self.jail
     }
+}
 
-    /// Get jail as UTF-8 string if possible, None if non-UTF-8.
-    pub fn to_str(&self) -> Option<&str> {
-        self.jail.to_str()
-    }
-
-    /// Get jail as string with lossy UTF-8 conversion.
-    pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
-        self.jail.to_string_lossy()
-    }
-
-    /// Get jail as OsStr for ecosystem integration.
-    pub fn as_os_str(&self) -> &std::ffi::OsStr {
-        self.jail.as_os_str()
-    }
-
-    /// Convert jail to bytes for ecosystem integration.
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.jail.to_string_lossy().into_owned().into_bytes()
+impl<Marker> std::fmt::Display for Jail<Marker> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.path().display())
     }
 }

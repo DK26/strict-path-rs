@@ -9,17 +9,25 @@ const MAX_ERROR_PATH_LEN: usize = 256;
 /// while preserving readability by showing both start and end of the path
 pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
     let path_str = path.to_string_lossy();
-    if path_str.len() <= max_len {
-        path_str.into_owned()
-    } else {
-        // Keep beginning and end, indicate truncation
-        let keep_len = max_len.saturating_sub(5) / 2; // Reserve 5 chars for "..."
-        format!(
-            "{}...{}",
-            &path_str[..keep_len],
-            &path_str[path_str.len().saturating_sub(keep_len)..]
-        )
+
+    // Use character-aware truncation to avoid slicing at invalid UTF-8 boundaries.
+    let char_count = path_str.chars().count();
+    if char_count <= max_len {
+        return path_str.into_owned();
     }
+
+    // Keep beginning and end, indicate truncation. Reserve 5 chars for "..."
+    let keep = max_len.saturating_sub(5) / 2;
+
+    // Collect the first `keep` chars
+    let start: String = path_str.chars().take(keep).collect();
+
+    // Collect the last `keep` chars by iterating in reverse and then reversing back
+    let mut tail_chars: Vec<char> = path_str.chars().rev().take(keep).collect();
+    tail_chars.reverse();
+    let end: String = tail_chars.into_iter().collect();
+
+    format!("{start}...{end}")
 }
 
 /// Errors that can occur during jailed path operations.
@@ -66,12 +74,14 @@ pub enum JailedPathError {
 
 impl JailedPathError {
     /// Creates a new `InvalidJail` error.
-    pub fn invalid_jail(jail: PathBuf, source: std::io::Error) -> Self {
+    #[inline]
+    pub(crate) fn invalid_jail(jail: PathBuf, source: std::io::Error) -> Self {
         Self::InvalidJail { jail, source }
     }
 
     /// Creates a new `PathEscapesBoundary` error.
-    pub fn path_escapes_boundary(attempted_path: PathBuf, jail_boundary: PathBuf) -> Self {
+    #[inline]
+    pub(crate) fn path_escapes_boundary(attempted_path: PathBuf, jail_boundary: PathBuf) -> Self {
         Self::PathEscapesBoundary {
             attempted_path,
             jail_boundary,
@@ -79,13 +89,15 @@ impl JailedPathError {
     }
 
     /// Creates a new `PathResolutionError` from an I/O error.
-    pub fn path_resolution_error(path: PathBuf, source: std::io::Error) -> Self {
+    #[inline]
+    pub(crate) fn path_resolution_error(path: PathBuf, source: std::io::Error) -> Self {
         Self::PathResolutionError { path, source }
     }
 
     /// Creates a new `WindowsShortName` error (Windows only).
     #[cfg(windows)]
-    pub fn windows_short_name(
+    #[inline]
+    pub(crate) fn windows_short_name(
         component: std::ffi::OsString,
         original: PathBuf,
         checked_at: PathBuf,
