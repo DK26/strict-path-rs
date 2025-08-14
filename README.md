@@ -24,9 +24,6 @@ fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
     safe_path.read_bytes()  // Built-in safe operations
 }
 
-# std::fs::create_dir_all("users/alice_workspace/documents")?;
-# std::fs::write("users/alice_workspace/documents/report.pdf", b"Alice's report")?;
-
 // Main pattern: Reusable jail for multiple validations (most common)
 let user_jail: Jail = Jail::try_new("users/alice_workspace")?;
 let safe_path: JailedPath = user_jail.try_path("documents/report.pdf")?;
@@ -38,8 +35,6 @@ let one_shot_path: JailedPath = Jail::try_new("users/alice_workspace")?
 // Even attacks are neutralized:
 let attack_path = user_jail.try_path("../../../etc/passwd")?;
 assert!(attack_path.ends_with("users/alice_workspace"));  // Attack contained!
-# std::fs::remove_dir_all("users").ok();
-# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 ## Key Features: Security-First Design
@@ -312,7 +307,6 @@ match jail.try_path("users/PROGRA~1/report.txt") {
     }
     Err(e) => return Err(e.into()),
 }
-# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 Notes:
