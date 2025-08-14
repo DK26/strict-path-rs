@@ -217,7 +217,7 @@ impl<Marker> Jail<Marker> {
                 }
 
                 // Build up from the canonicalized jail path and check which components don't exist.
-                let mut probe = self.jail().to_path_buf();
+                let mut probe = self.jail.as_ref().to_path_buf();
                 for comp in clamped.components() {
                     match comp {
                         Component::CurDir => continue,
@@ -257,16 +257,29 @@ impl<Marker> Jail<Marker> {
         Ok(JailedPath::new(self.jail.clone(), checked))
     }
 
-    /// Like try_path, but normalizes all backslashes to slashes before validation.
-    /// Use this for any external or untrusted string path to ensure cross-platform consistency.
-    #[inline]
-    pub fn try_path_normalized(&self, path_str: &str) -> Result<JailedPath<Marker>> {
-        let normalized = path_str.replace('\\', "/");
-        self.try_path(normalized)
+    /// Get the jail as a string for debugging, logging, or comparison.
+    /// Example: "/app/storage/users"
+    pub fn display(&self) -> String {
+        self.jail.display().to_string()
     }
 
-    #[inline]
-    pub fn jail(&self) -> &Path {
-        &self.jail
+    /// Get jail as UTF-8 string if possible, None if non-UTF-8.
+    pub fn to_str(&self) -> Option<&str> {
+        self.jail.to_str()
+    }
+
+    /// Get jail as string with lossy UTF-8 conversion.
+    pub fn to_string_lossy(&self) -> std::borrow::Cow<str> {
+        self.jail.to_string_lossy()
+    }
+
+    /// Get jail as OsStr for ecosystem integration.
+    pub fn as_os_str(&self) -> &std::ffi::OsStr {
+        self.jail.as_os_str()
+    }
+
+    /// Convert jail to bytes for ecosystem integration.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.jail.to_string_lossy().into_owned().into_bytes()
     }
 }

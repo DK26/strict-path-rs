@@ -1,4 +1,4 @@
-use crate::validator::Jail;
+use crate::validator::jail::Jail;
 use std::fs;
 use std::io::Write;
 
@@ -41,7 +41,7 @@ fn cleanup_test_directory(path: &std::path::Path) {
 #[test]
 fn test_virtual_root_display_functionality() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
+    let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Test various paths to ensure virtual root display works correctly
     let test_cases = vec![
@@ -58,7 +58,7 @@ fn test_virtual_root_display_functionality() {
     ];
 
     for (input_path, expected_display) in test_cases {
-        let result = validator.try_path(input_path);
+        let result = jail.try_path(input_path);
         assert!(
             result.is_ok(),
             "Path validation should succeed for: {input_path}"
@@ -95,9 +95,9 @@ fn test_virtual_root_display_functionality() {
 #[test]
 fn test_virtual_root_debug_formatting() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
+    let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
-    let jailed_path = validator.try_path("user/document.pdf").unwrap();
+    let jailed_path = jail.try_path("user/document.pdf").unwrap();
 
     let debug_output = format!("{jailed_path:?}");
 
@@ -115,9 +115,9 @@ fn test_virtual_root_debug_formatting() {
 #[test]
 fn test_virtual_root_display_vs_debug_differences() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
+    let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
-    let jailed_path = validator.try_path("users/alice/file.txt").unwrap();
+    let jailed_path = jail.try_path("users/alice/file.txt").unwrap();
 
     // Get both outputs
     let display_output = format!("{jailed_path}");
@@ -149,20 +149,25 @@ fn test_virtual_root_display_vs_debug_differences() {
 #[test]
 fn test_virtual_root_jail_root_accessor() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
+    let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
-    let jailed_path = validator.try_path("file.txt").unwrap();
+    let jailed_path = jail.try_path("file.txt").unwrap();
 
-    // Test jail() accessor method
-    let jail_root = jailed_path.jail();
-
-    // Should return the same path as validator.jail()
-    assert_eq!(jail_root, validator.jail());
+    // Test jail root access through the jail, not the jailed_path
+    let jail_root = jail.as_os_str();
 
     // Should be the canonical jail path
-    assert_eq!(jail_root, temp_dir.canonicalize().unwrap());
+    assert_eq!(jail_root, temp_dir.canonicalize().unwrap().as_os_str());
 
-    println!("✅ Jail root accessor works: {}", jail_root.display());
+    // JailedPath should not expose jail root directly for security
+    // Instead, it should only provide its own path (which includes the file)
+    let jailed_full_path = jailed_path.as_os_str();
+    assert!(jailed_full_path.to_string_lossy().ends_with("file.txt"));
+
+    println!(
+        "✅ Jail root accessor works: {}",
+        jail_root.to_string_lossy()
+    );
 
     // Cleanup
     cleanup_test_directory(&temp_dir);
@@ -175,21 +180,32 @@ fn test_virtual_root_with_different_marker_types() {
 
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
 
-    let user_validator: Jail<UserFiles> = Jail::try_new(&temp_dir).unwrap();
-    let config_validator: Jail<ConfigFiles> = Jail::try_new(&temp_dir).unwrap();
+    let user_jail: Jail<UserFiles> = Jail::try_new(&temp_dir).unwrap();
+    let config_jail: Jail<ConfigFiles> = Jail::try_new(&temp_dir).unwrap();
 
-    let user_path: crate::JailedPath<UserFiles> =
-        user_validator.try_path("user_data.json").unwrap();
-    let config_path: crate::JailedPath<ConfigFiles> =
-        config_validator.try_path("config.toml").unwrap();
+    let user_path: crate::JailedPath<UserFiles> = user_jail.try_path("user_data.json").unwrap();
+    let config_path: crate::JailedPath<ConfigFiles> = config_jail.try_path("config.toml").unwrap();
 
     // Both should have same virtual root display behavior regardless of marker type
     assert_eq!(format!("{user_path}"), "/user_data.json");
     assert_eq!(format!("{config_path}"), "/config.toml");
 
-    // Both should have access to jail()
-    assert_eq!(user_path.jail(), config_path.jail());
-    assert_eq!(user_path.jail(), temp_dir.canonicalize().unwrap());
+    // Both jails should access the same directory (but through their own jail instances)
+    assert_eq!(user_jail.as_os_str(), config_jail.as_os_str());
+    assert_eq!(
+        user_jail.as_os_str(),
+        temp_dir.canonicalize().unwrap().as_os_str()
+    );
+
+    // JailedPaths should have their full paths (including filenames)
+    assert!(user_path
+        .as_os_str()
+        .to_string_lossy()
+        .ends_with("user_data.json"));
+    assert!(config_path
+        .as_os_str()
+        .to_string_lossy()
+        .ends_with("config.toml"));
 
     // Debug formatting should work for both
     let user_debug = format!("{user_path:?}");
@@ -209,7 +225,7 @@ fn test_virtual_root_with_different_marker_types() {
 #[test]
 fn test_virtual_root_display_edge_cases() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
+    let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Test edge cases for virtual root display
     let separator = "/";
@@ -228,7 +244,7 @@ fn test_virtual_root_display_edge_cases() {
     ];
 
     for (input_path, expected_display) in edge_cases {
-        let result = validator.try_path(input_path);
+        let result = jail.try_path(input_path);
         if let Ok(jailed_path) = result {
             let display_output = format!("{jailed_path}");
 
@@ -255,12 +271,10 @@ fn test_virtual_root_display_edge_cases() {
 #[test]
 fn test_virtual_root_with_cross_platform_paths() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
+    let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // Test that virtual root display handles cross-platform path separators
-    let jailed_path = validator
-        .try_path("users/alice/documents/file.txt")
-        .unwrap();
+    let jailed_path = jail.try_path("users/alice/documents/file.txt").unwrap();
     let display_output = format!("{jailed_path}");
 
     // Virtual root should use platform-appropriate separators
@@ -284,7 +298,7 @@ fn test_virtual_root_with_cross_platform_paths() {
 #[cfg(windows)]
 fn test_virtual_root_display_windows_separators() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
+    let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // On Windows, virtual root should use forward slashes (cross-platform contract)
     let test_cases = vec![
@@ -301,7 +315,7 @@ fn test_virtual_root_display_windows_separators() {
     ];
 
     for (input_path, expected_display) in test_cases {
-        let result = validator.try_path(input_path);
+        let result = jail.try_path(input_path);
         assert!(
             result.is_ok(),
             "Path validation should succeed for: {input_path}"
@@ -337,7 +351,7 @@ fn test_virtual_root_display_windows_separators() {
 #[cfg(unix)]
 fn test_virtual_root_display_unix_separators() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
+    let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
     // On Unix/Linux/macOS, virtual root should use forward slashes (Unix convention)
     let test_cases = vec![
@@ -354,7 +368,7 @@ fn test_virtual_root_display_unix_separators() {
     ];
 
     for (input_path, expected_display) in test_cases {
-        let result = validator.try_path(input_path);
+        let result = jail.try_path(input_path);
         assert!(
             result.is_ok(),
             "Path validation should succeed for: {input_path}"
@@ -391,9 +405,9 @@ fn test_virtual_root_display_unix_separators() {
 #[test]
 fn test_virtual_root_platform_consistency() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let validator = Jail::<()>::try_new(&temp_dir).unwrap();
+    let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
-    let jailed_path = validator.try_path("users/alice/file.txt").unwrap();
+    let jailed_path = jail.try_path("users/alice/file.txt").unwrap();
     let display_output = format!("{jailed_path}");
 
     // Should always start with a forward slash (cross-platform contract)

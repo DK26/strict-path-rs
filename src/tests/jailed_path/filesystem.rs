@@ -1,5 +1,6 @@
-use crate::Jail;
 use std::fs;
+
+use crate::validator::jail::Jail;
 
 #[test]
 fn test_jail_directory_deletion() {
@@ -7,10 +8,10 @@ fn test_jail_directory_deletion() {
     let jail_path = temp.path().join("jail");
     fs::create_dir_all(&jail_path).unwrap();
 
-    let validator: Jail = Jail::try_new(&jail_path).unwrap();
+    let jail: Jail = Jail::try_new(&jail_path).unwrap();
 
     // Create a valid path first
-    let jailed_path = validator.try_path("test.txt").unwrap();
+    let jailed_path = jail.try_path("test.txt").unwrap();
     // Compare with canonicalized jail path to handle UNC paths on Windows
     let canonical_jail = jail_path.canonicalize().unwrap();
     assert!(jailed_path.starts_with(canonical_jail));
@@ -25,7 +26,7 @@ fn test_jail_directory_deletion() {
         .contains("test.txt"));
 
     // New validations might fail (depending on implementation)
-    if let Ok(new_path) = validator.try_path("new_file.txt") {
+    if let Ok(new_path) = jail.try_path("new_file.txt") {
         assert!(new_path
             .virtual_path_to_string_lossy()
             .contains("new_file.txt"));
@@ -35,7 +36,7 @@ fn test_jail_directory_deletion() {
 #[test]
 fn test_network_paths() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     // Network path patterns that should be rejected or safely handled
     let network_paths = vec![
@@ -47,7 +48,7 @@ fn test_network_paths() {
     ];
 
     for net_path in network_paths {
-        if let Ok(jailed_path) = validator.try_path(net_path) {
+        if let Ok(jailed_path) = jail.try_path(net_path) {
             // If accepted, must still be within local jail - use built-in starts_with
             let canonical_temp = temp.path().canonicalize().unwrap();
             assert!(
@@ -61,7 +62,7 @@ fn test_network_paths() {
 #[test]
 fn test_special_filesystem_entries() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     let special_names = vec![
         ".",
@@ -77,8 +78,8 @@ fn test_special_filesystem_entries() {
     ];
 
     for name in special_names {
-        if let Ok(jailed_path) = validator.try_path(name) {
-            assert!(jailed_path.starts_with(validator.jail()));
+        if let Ok(jailed_path) = jail.try_path(name) {
+            assert!(jailed_path.starts_with(jail.as_os_str()));
             // Special names should be handled safely
         }
     }

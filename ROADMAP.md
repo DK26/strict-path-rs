@@ -866,13 +866,13 @@ Based on patterns from [`app-path`](https://github.com/DK26/app-path-rs), `jaile
 
 #### **Popular Path Crate Compatibility**
 
-| Crate                                                   | Use Case                           | Integration Pattern                                    |
-| ------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------- |
-| **[`camino`](https://crates.io/crates/camino)**         | UTF-8 path guarantees for web apps | `Utf8PathBuf::try_from(jailed.to_string_virtual())?`  |
-| **[`typed-path`](https://crates.io/crates/typed-path)** | Cross-platform type-safe paths     | `WindowsPath::new(jailed.to_string_virtual())`        |
-| **[`dunce`](https://crates.io/crates/dunce)**           | Windows UNC path canonicalization  | `dunce::canonicalize(jailed.unjail())?`               |
-| **[`path-clean`](https://crates.io/crates/path-clean)** | Lexical path cleaning               | Not needed - jailed-path handles this internally      |
-| **[`normalize-path`](https://crates.io/crates/normalize-path)** | Path normalization          | Not needed - jailed-path handles this internally      |
+| Crate                                                           | Use Case                           | Integration Pattern                                  |
+| --------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| **[`camino`](https://crates.io/crates/camino)**                 | UTF-8 path guarantees for web apps | `Utf8PathBuf::try_from(jailed.to_string_virtual())?` |
+| **[`typed-path`](https://crates.io/crates/typed-path)**         | Cross-platform type-safe paths     | `WindowsPath::new(jailed.to_string_virtual())`       |
+| **[`dunce`](https://crates.io/crates/dunce)**                   | Windows UNC path canonicalization  | `dunce::canonicalize(jailed.unjail())?`              |
+| **[`path-clean`](https://crates.io/crates/path-clean)**         | Lexical path cleaning              | Not needed - jailed-path handles this internally     |
+| **[`normalize-path`](https://crates.io/crates/normalize-path)** | Path normalization                 | Not needed - jailed-path handles this internally     |
 
 #### **Integration Examples**
 
@@ -996,7 +996,7 @@ This is a **major breaking change** but justified because:
 | ----------------------------------------------- | ------------------------------------------ | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Phase 1: Core UX & Web Integration (v0.1.0)** |
 | 1.1                                             | Virtual Root Display                       | ✅           | 1 - CRITICAL | Implemented via `Display` trait. Virtual paths show jail-relative display by default without separate method.                                                                                                       |
-| 1.1.0                                           | **Security-hardened jail creation**            | ✅           | 1 - CRITICAL | SECURITY: Requires jail directories to exist. Added `try_new_create()` for explicit creation. Prioritizes secure defaults over convenience.                                                                        |
+| 1.1.0                                           | **Security-hardened jail creation**        | ✅           | 1 - CRITICAL | SECURITY: Requires jail directories to exist. Added `try_new_create()` for explicit creation. Prioritizes secure defaults over convenience.                                                                         |
 | 1.1.1                                           | Store jail root as `Arc<ValidatedPath>`    | ✅           | 1 - CRITICAL | Implemented for memory-efficient jail root sharing.                                                                                                                                                                 |
 | 1.1.3                                           | Implement `Display` trait                  | ✅           | 1 - CRITICAL | Implemented for clean, virtual root display.                                                                                                                                                                        |
 | 1.1.4                                           | Add debug formatting                       | ✅           | 2 - HIGH     | Implemented custom `Debug` to show full path and jail root.                                                                                                                                                         |
@@ -1316,7 +1316,7 @@ fn validate_user_path<'de, D>(deserializer: D) -> Result<JailedPath<UserFiles>, 
 where D: Deserializer<'de> {
     let path_str = String::deserialize(deserializer)?;
     // Get validator from context (implementation detail)
-    USER_VALIDATOR.try_path(&path_str).map_err(serde::de::Error::custom)
+    USER_jail.try_path(&path_str).map_err(serde::de::Error::custom)
 }
 
 // Usage in web handler
@@ -1481,9 +1481,9 @@ let temp_file = Jail::try_new("/tmp")?.try_path("upload_123.txt")?;
 
 // Multiple validations - use Jail (more efficient)
 let jail = Jail::try_new("/user/files")?;
-let doc1 = validator.try_path("document1.pdf")?;
-let doc2 = validator.try_path("document2.pdf")?;
-let doc3 = validator.try_path("document3.pdf")?;
+let doc1 = jail.try_path("document1.pdf")?;
+let doc2 = jail.try_path("document2.pdf")?;
+let doc3 = jail.try_path("document3.pdf")?;
 
 // Type safety needed - use explicit type annotation or turbofish
 struct UserFiles;
@@ -1535,8 +1535,8 @@ fn process_file_secure(path: JailedPath<UserFiles>) -> Result<String, Box<dyn st
 // Collections work seamlessly due to Hash and PartialEq implementations.
 let mut file_cache: HashMap<JailedPath<UserFiles>, Vec<u8>> = HashMap::new();
 
-let validator = PathValidator::with_jail("/app/storage")?;
-let jailed = validator.try_path("users/alice/config.toml")?;
+let jail = PathValidator::with_jail("/app/storage")?;
+let jailed = jail.try_path("users/alice/config.toml")?;
 
 file_cache.insert(jailed.clone(), b"cached content".to_vec());
 
@@ -1733,7 +1733,7 @@ struct PathValidator<Marker, Strategy = SoftCanonicalize> {
 1. **File Creation & Uploads**:
    ```rust
    // ❌ Would fail with "existing only" requirement
-   let new_file = validator.try_path("uploads/user123/new_document.pdf")?;
+   let new_file = jail.try_path("uploads/user123/new_document.pdf")?;
    tokio::fs::write(&new_file, content).await?; // Can't create new files!
    ```
 
@@ -1741,7 +1741,7 @@ struct PathValidator<Marker, Strategy = SoftCanonicalize> {
    ```rust
    // ❌ User uploads would be impossible
    async fn upload_handler(file_data: Vec<u8>) -> Result<()> {
-       let upload_path = validator.try_path("temp/upload_123.tmp")?; // Fails!
+       let upload_path = jail.try_path("temp/upload_123.tmp")?; // Fails!
        std::fs::write(&upload_path, file_data)?; // Never reached
    }
    ```
@@ -1749,20 +1749,20 @@ struct PathValidator<Marker, Strategy = SoftCanonicalize> {
 3. **Log File Creation**:
    ```rust
    // ❌ New log files couldn't be validated
-   let log_file = validator.try_path("logs/app_2025_07_22.log")?; // Fails!
+   let log_file = jail.try_path("logs/app_2025_07_22.log")?; // Fails!
    let mut logger = File::create(&log_file)?; // Never works
    ```
 
 4. **Backup & Export Operations**:
    ```rust
    // ❌ Can't create backup files
-   let backup_path = validator.try_path("backups/db_backup_20250722.sql")?; // Fails!
+   let backup_path = jail.try_path("backups/db_backup_20250722.sql")?; // Fails!
    ```
 
 5. **Session Management**:
    ```rust
    // ❌ Temporary session files couldn't be created
-   let session_file = validator.try_path("sessions/sess_abc123.json")?; // Fails!
+   let session_file = jail.try_path("sessions/sess_abc123.json")?; // Fails!
    ```
 
 **Why Current Soft Canonicalization Design Is Correct:**
@@ -1815,18 +1815,18 @@ This section documents key design decisions and conclusions reached during devel
 **Code Examples**:
 ```rust
 // ✅ CORRECT: All these work with soft canonicalization
-let validator = PathValidator::with_jail("/app/storage")?;
+let jail = PathValidator::with_jail("/app/storage")?;
 
 // File creation (path doesn't exist yet)
-let new_file = validator.try_path("uploads/user123/document.pdf")?;
+let new_file = jail.try_path("uploads/user123/document.pdf")?;
 tokio::fs::write(&new_file, data).await?;
 
 // Log file creation
-let log_file = validator.try_path("logs/app_2025_07_22.log")?;
+let log_file = jail.try_path("logs/app_2025_07_22.log")?;
 File::create(&log_file)?;
 
 // Backup operations
-let backup = validator.try_path("backups/db_backup.sql")?;
+let backup = jail.try_path("backups/db_backup.sql")?;
 
 // Container scenario (jail doesn't exist yet)
 let future_validator = PathValidator::with_jail("/app/future-storage")?; // ✅ Works!
@@ -1900,7 +1900,7 @@ fn test_validation() {
 
 // ✅ Dynamic workspaces
 let workspace = format!("/app/workspaces/{}", session_id);
-let validator = PathValidator::with_jail(&workspace)?; // Works immediately
+let jail = PathValidator::with_jail(&workspace)?; // Works immediately
 ```
 
 ### 📁 **Conclusion 3: No Automatic Directory Creation**
@@ -1950,17 +1950,17 @@ impl<Marker> Jail<Marker> {
 **Usage Patterns**:
 ```rust
 // Pattern 1: Existing directory
-let validator = PathValidator::with_jail("/app/storage")?;
+let jail = PathValidator::with_jail("/app/storage")?;
 
 // Pattern 2: Ensure directory exists (user control)
 std::fs::create_dir_all("/app/storage")?;
-let validator = PathValidator::with_jail("/app/storage")?;
+let jail = PathValidator::with_jail("/app/storage")?;
 
 // Pattern 3: Convenience method (optional)
-let validator = PathValidator::with_jail_created("/app/storage")?;
+let jail = PathValidator::with_jail_created("/app/storage")?;
 
 // Pattern 4: Future directory (containers)
-let validator = PathValidator::with_jail("/app/future-storage")?; // ✅ Works!
+let jail = PathValidator::with_jail("/app/future-storage")?; // ✅ Works!
 ```
 
 ### 🔐 **Conclusion 4: Symlink Attack Reality Check**
@@ -2035,8 +2035,8 @@ impl<Marker> Display for JailedPath<Marker> {
 
 **Usage Examples**:
 ```rust
-let validator = PathValidator::with_jail("/app/storage/users")?;
-let jailed = validator.try_path("alice/documents/report.pdf")?;
+let jail = PathValidator::with_jail("/app/storage/users")?;
+let jailed = jail.try_path("alice/documents/report.pdf")?;
 
 // Virtual root display (user-friendly)
 println!("File: {}", jailed);  // Output: "/alice/documents/report.pdf"
@@ -2072,7 +2072,7 @@ fn validate_jail_integrity(&self) -> Result<(), JailedPathError> {
 }
 
 // Primary security focus: directory traversal prevention
-let safe_path = validator.try_path("../../../etc/passwd")?; // ❌ Blocked!
+let safe_path = jail.try_path("../../../etc/passwd")?; // ❌ Blocked!
 ```
 
 ### 🚀 **Conclusion 7: Web Framework Integration Patterns**
@@ -2114,7 +2114,7 @@ async fn authenticate_user(user_id: &str) -> Result<PathValidator<UserSpace>, Au
     
     // ✅ SECURITY: Simple path joining with validation
     let user_validator = PathValidator::with_jail(
-        app_validator.jail().join(&format!("users/{}", user_id))
+        app_jail.jail().join(&format!("users/{}", user_id))
     )?;
     
     Ok(user_validator)
@@ -2122,13 +2122,13 @@ async fn authenticate_user(user_id: &str) -> Result<PathValidator<UserSpace>, Au
 
 // Session management: create session validator from user validator
 async fn create_session(
-    user_validator: &PathValidator<UserSpace>,
+    user_jail: &PathValidator<UserSpace>,
     session_id: &str
 ) -> Result<PathValidator<SessionSpace>, SessionError> {
     
     // ✅ SECURITY: Dynamic validator creation with proper validation
     let session_validator = PathValidator::with_jail(
-        user_validator.jail().join(&format!("sessions/{}", session_id))
+        user_jail.jail().join(&format!("sessions/{}", session_id))
     )?;
     
     Ok(session_validator)

@@ -5,8 +5,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a temporary directory for our demonstration
     fs::create_dir_all("file_ops_demo")?;
 
-    let validator = Jail::<()>::try_new("file_ops_demo")?;
-    let file_path = validator.try_path("demo.txt")?;
+    let jail = Jail::<()>::try_new("file_ops_demo")?;
+    let file_path = jail.try_path("demo.txt")?;
 
     println!("=== JailedPath Built-in File Operations Demo ===");
 
@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📖 Read {} bytes using built-in method", bytes.len());
 
     // Create a subdirectory using built-in method
-    let subdir = validator.try_path("subdir")?;
+    let subdir = jail.try_path("subdir")?;
     subdir.create_dir_all()?;
     println!("✅ Directory created using built-in method");
 

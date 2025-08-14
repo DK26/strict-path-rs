@@ -38,8 +38,8 @@ use std::sync::Arc;
 /// # use jailed_path::Jail;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// # std::fs::create_dir_all("temp_jail")?;
-/// let validator = Jail::<()>::try_new("temp_jail")?;
-/// let jailed_path = validator.try_path("file.txt")?;
+/// let jail = Jail::<()>::try_new("temp_jail")?;
+/// let jailed_path = jail.try_path("file.txt")?;
 ///
 /// // If jail_root is "temp_jail" and path is "file.txt"
 /// // Virtual path shows: "/file.txt"
@@ -215,8 +215,8 @@ impl<Marker> JailedPath<Marker> {
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # std::fs::create_dir_all("/tmp/unjail_example1")?;
-    /// let validator = Jail::<()>::try_new("/tmp/unjail_example1")?;
-    /// let jailed_path = validator.try_path("file.txt")?;
+    /// let jail = Jail::<()>::try_new("/tmp/unjail_example1")?;
+    /// let jailed_path = jail.try_path("file.txt")?;
     ///
     /// // ❌ WRONG: Unjailing just to check containment
     /// let real_path = jailed_path.unjail();
@@ -225,8 +225,8 @@ impl<Marker> JailedPath<Marker> {
     /// assert!(!contains_safe, "This anti-pattern produces wrong results!");
     ///
     /// // ✅ CORRECT: Use built-in method instead
-    /// let jailed_path2 = validator.try_path("file.txt")?;
-    /// assert!(jailed_path2.starts_with(validator.jail())); // This works correctly
+    /// let jailed_path2 = jail.try_path("file.txt")?;
+    /// assert!(jailed_path2.starts_with(jail.as_os_str())); // This works correctly
     /// # std::fs::remove_dir_all("/tmp/unjail_example1").ok();
     /// # Ok(())
     /// # }
@@ -237,8 +237,8 @@ impl<Marker> JailedPath<Marker> {
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # std::fs::create_dir_all("/tmp/unjail_example2")?;
-    /// let validator = Jail::<()>::try_new("/tmp/unjail_example2")?;
-    /// let jailed_path = validator.try_path("file.txt")?;
+    /// let jail = Jail::<()>::try_new("/tmp/unjail_example2")?;
+    /// let jailed_path = jail.try_path("file.txt")?;
     ///
     /// // ❌ WRONG: Unjailing just to do file operations
     /// let real_path = jailed_path.unjail();
@@ -246,7 +246,7 @@ impl<Marker> JailedPath<Marker> {
     /// println!("Exposed real path: {:?}", real_path);
     ///
     /// // ✅ CORRECT: Use built-in safe operations (create new jailed_path for demo)
-    /// let jailed_path2 = validator.try_path("file2.txt")?;
+    /// let jailed_path2 = jail.try_path("file2.txt")?;
     /// jailed_path2.write_bytes(b"secure content")?; // Stays within security model
     /// let content = jailed_path2.read_bytes()?; // Safe and secure
     /// # std::fs::remove_dir_all("/tmp/unjail_example2").ok();
@@ -269,8 +269,8 @@ impl<Marker> JailedPath<Marker> {
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # std::fs::create_dir_all("/tmp/legitimate_unjail")?;
-    /// let validator = Jail::<()>::try_new("/tmp/legitimate_unjail")?;
-    /// let jailed_path = validator.try_path("file.txt")?;
+    /// let jail = Jail::<()>::try_new("/tmp/legitimate_unjail")?;
+    /// let jailed_path = jail.try_path("file.txt")?;
     ///
     /// // ✅ OK: Immediate consumption for external API
     /// let result = external_api_that_takes_pathbuf(jailed_path.unjail());
@@ -286,8 +286,8 @@ impl<Marker> JailedPath<Marker> {
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # std::fs::create_dir_all("/tmp/display_example")?;
-    /// let validator = Jail::<()>::try_new("/tmp/display_example")?;
-    /// let jailed_path = validator.try_path("file.txt")?;
+    /// let jail = Jail::<()>::try_new("/tmp/display_example")?;
+    /// let jailed_path = jail.try_path("file.txt")?;
     ///
     /// // ✅ PREFERRED: Use Display (shows virtual path)
     /// println!("Processing file: {}", jailed_path);
@@ -512,8 +512,18 @@ impl<Marker> JailedPath<Marker> {
 
     /// Returns reference to the jail root path.
     #[inline]
-    pub fn jail(&self) -> &Path {
-        &self.jail_root
+    pub fn jail_display(&self) -> String {
+        self.jail_root.display().to_string()
+    }
+
+    /// Get jail as UTF-8 string if possible.
+    pub fn jail_to_str(&self) -> Option<&str> {
+        self.jail_root.to_str()
+    }
+
+    /// Get jail as string with lossy UTF-8 conversion.
+    pub fn jail_to_string_lossy(&self) -> Cow<str> {
+        self.jail_root.to_string_lossy()
     }
 
     // ---- File System Operations ----

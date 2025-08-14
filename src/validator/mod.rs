@@ -1,4 +1,2 @@
-pub mod path_validator;
+pub mod jail;
 pub mod validated_path;
-
-pub use path_validator::Jail;

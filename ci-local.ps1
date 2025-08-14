@@ -269,6 +269,7 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
                     & rustup run 1.70.0 cargo generate-lockfile
                     if ($LASTEXITCODE -eq 0) {
                         Write-Host "  SUCCESS: Cargo.lock regenerated successfully" -ForegroundColor Green
+                        Run-Fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
                         Run-Check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
                         Run-Check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
                     } else {
@@ -277,6 +278,7 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
                 } catch {
                     Write-Host "  WARNING: Failed to generate Cargo.lock with Rust 1.70.0" -ForegroundColor Yellow
                     Write-Host "  INFO: Trying fallback: cargo update then check" -ForegroundColor Yellow
+                    Run-Fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
                     Run-Check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
                     Run-Check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
                 }

@@ -6,11 +6,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create a validator for user files
     struct UserFiles;
-    let validator: Jail<UserFiles> = Jail::try_new("example_storage")?;
+    let jail: Jail<UserFiles> = Jail::try_new("example_storage")?;
 
     // Validate and create jailed paths
-    let user_doc: JailedPath<UserFiles> = validator.try_path("users/alice/documents/report.pdf")?;
-    let user_image: JailedPath<UserFiles> = validator.try_path("users/alice/profile.jpg")?;
+    let user_doc: JailedPath<UserFiles> = jail.try_path("users/alice/documents/report.pdf")?;
+    let user_image: JailedPath<UserFiles> = jail.try_path("users/alice/profile.jpg")?;
 
     println!("=== Virtual Root Display Demo ===");
     println!();
@@ -28,8 +28,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     // Jail root is accessible if needed
-    println!("Jail root: {}", validator.jail().display());
-    println!("User jail root: {}", user_doc.jail().display());
+    println!("Jail root: {}", jail.display());
+    println!("User jail root: {}", user_doc.jail_display());
     println!();
 
     // Still works with all Path methods via Deref
@@ -58,10 +58,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for attack in attacks {
-        match validator.try_path(attack) {
+        match jail.try_path(attack) {
             Ok(clamped_path) => {
                 // Verify the path was clamped to jail boundary
-                assert_eq!(clamped_path.jail(), validator.jail());
+                assert_eq!(clamped_path.jail_display(), jail.display());
                 println!("  ✅ Attack clamped: {attack} → {clamped_path}");
             }
             Err(e) => println!("  ❌ Unexpected error for {attack}: {e}"),

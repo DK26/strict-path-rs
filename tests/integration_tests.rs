@@ -64,21 +64,20 @@ fn test_complete_workflow_with_marker_types() {
     let uploads_dir = public_dir.join("uploads");
 
     // Create validators for different resource types
-    let public_validator: Jail<PublicAsset> = Jail::try_new(&public_dir).unwrap();
-    let upload_validator: Jail<UploadedFile> = Jail::try_new(uploads_dir).unwrap();
+    let public_jail: Jail<PublicAsset> = Jail::try_new(&public_dir).unwrap();
+    let upload_jail: Jail<UploadedFile> = Jail::try_new(uploads_dir).unwrap();
 
     // Test public asset access
-    let public_file: JailedPath<PublicAsset> = public_validator.try_path("index.html").unwrap();
+    let public_file: JailedPath<PublicAsset> = public_jail.try_path("index.html").unwrap();
     assert!(public_file.exists(), "Public file should exist");
     assert!(public_file.is_file(), "Should be a file");
 
     // Test upload access
-    let upload_file: JailedPath<UploadedFile> = upload_validator.try_path("image.jpg").unwrap();
+    let upload_file: JailedPath<UploadedFile> = upload_jail.try_path("image.jpg").unwrap();
     assert!(upload_file.exists(), "Upload file should exist");
 
     // Test that public validator can access subdirectories
-    let nested_upload: JailedPath<PublicAsset> =
-        public_validator.try_path("uploads/image.jpg").unwrap();
+    let nested_upload: JailedPath<PublicAsset> = public_jail.try_path("uploads/image.jpg").unwrap();
     assert!(nested_upload.exists(), "Should access nested files");
 
     // Test that validators block escape attempts
@@ -86,24 +85,24 @@ fn test_complete_workflow_with_marker_types() {
     // Escape attempts for public_validator
     let public_escape_attempts = vec!["../private/secrets.txt"];
     for path in public_escape_attempts {
-        let result = public_validator.try_path(path);
+        let result = public_jail.try_path(path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
         // Use built-in starts_with method instead of unjailing
         assert!(
-            jailed_path.starts_with(public_validator.jail()),
+            jailed_path.starts_with(public_jail.as_os_str()),
             "Clamped path should be within jail: {jailed_path:?}"
         );
     }
     // Escape attempts for upload_validator
     let upload_escape_attempts = vec!["../index.html", "../../private/secrets.txt"];
     for path in upload_escape_attempts {
-        let result = upload_validator.try_path(path);
+        let result = upload_jail.try_path(path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
         // Use built-in starts_with method instead of unjailing
         assert!(
-            jailed_path.starts_with(upload_validator.jail()),
+            jailed_path.starts_with(upload_jail.as_os_str()),
             "Clamped path should be within jail: {jailed_path:?}"
         );
     }
@@ -113,17 +112,17 @@ fn test_complete_workflow_with_marker_types() {
 fn test_error_handling_and_reporting() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let validator = Jail::<()>::try_new(public_dir).unwrap();
+    let jail = Jail::<()>::try_new(public_dir).unwrap();
 
     // Test different error scenarios
 
     // 1. Non-existent file should now succeed with touch technique
-    match validator.try_path("nonexistent.txt") {
+    match jail.try_path("nonexistent.txt") {
         Ok(jailed_path) => {
             assert!(jailed_path.ends_with("nonexistent.txt"));
             // Use built-in starts_with method instead of unjailing
             assert!(
-                jailed_path.starts_with(validator.jail()),
+                jailed_path.starts_with(jail.as_os_str()),
                 "Path should be within jail: {jailed_path:?}"
             );
         }
@@ -132,11 +131,11 @@ fn test_error_handling_and_reporting() {
 
     // 2. Directory traversal attempt
     // NEW BEHAVIOR: Traversal is clamped, not blocked
-    match validator.try_path("../private/secrets.txt") {
+    match jail.try_path("../private/secrets.txt") {
         Ok(jailed_path) => {
             // Use built-in starts_with method instead of unjailing
             assert!(
-                jailed_path.starts_with(validator.jail()),
+                jailed_path.starts_with(jail.as_os_str()),
                 "Clamped path should be within jail: {jailed_path:?}"
             );
         }
@@ -146,9 +145,9 @@ fn test_error_handling_and_reporting() {
     // 3. Test that non-existent jail is now allowed (should succeed)
     let nonexistent_jail = get_nonexistent_absolute_path();
     match Jail::<()>::try_new(&nonexistent_jail) {
-        Ok(validator) => {
+        Ok(jail) => {
             // Should allow creation, but paths inside should still be jailed
-            let result = validator.try_path("foo.txt");
+            let result = jail.try_path("foo.txt");
             assert!(
                 result.is_ok(),
                 "Should allow paths inside non-existent jail"
@@ -170,15 +169,15 @@ fn test_error_handling_and_reporting() {
 fn test_absolute_vs_relative_path_handling() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let validator = Jail::<()>::try_new(public_dir.clone()).unwrap();
+    let jail = Jail::<()>::try_new(public_dir.clone()).unwrap();
 
     // Test relative path
-    let relative_result = validator.try_path("index.html");
+    let relative_result = jail.try_path("index.html");
     assert!(relative_result.is_ok(), "Relative path should work");
 
     // Test absolute path within jail
     let absolute_path = public_dir.join("index.html");
-    let absolute_result = validator.try_path(absolute_path);
+    let absolute_result = jail.try_path(absolute_path);
     assert!(
         absolute_result.is_ok(),
         "Absolute path within jail should work"
@@ -189,17 +188,17 @@ fn test_absolute_vs_relative_path_handling() {
     let absolute_path = absolute_result.unwrap();
     // Use built-in starts_with method instead of unjailing
     assert!(
-        relative_path.starts_with(validator.jail()),
+        relative_path.starts_with(jail.as_os_str()),
         "Relative path should be within jail: {relative_path:?}"
     );
     assert!(
-        absolute_path.starts_with(validator.jail()),
+        absolute_path.starts_with(jail.as_os_str()),
         "Absolute path should be within jail: {absolute_path:?}"
     );
 
     // Test absolute path outside jail
     let outside_path = temp_dir.join("private").join("secrets.txt");
-    let outside_result = validator.try_path(outside_path);
+    let outside_result = jail.try_path(outside_path);
     // NEW BEHAVIOR: Absolute path outside jail is clamped
     assert!(
         outside_result.is_ok(),
@@ -208,7 +207,7 @@ fn test_absolute_vs_relative_path_handling() {
     let jailed_path = outside_result.unwrap();
     // Use built-in starts_with method instead of unjailing
     assert!(
-        jailed_path.starts_with(validator.jail()),
+        jailed_path.starts_with(jail.as_os_str()),
         "Clamped path should be within jail: {jailed_path:?}"
     );
 }
@@ -223,8 +222,8 @@ fn test_real_world_web_server_scenario() {
     let uploads_dir = public_dir.join("uploads");
 
     // Simulate a web server with different validators for different content types
-    let static_validator: Jail<StaticAsset> = Jail::try_new(public_dir).unwrap();
-    let upload_validator: Jail<UserUpload> = Jail::try_new(uploads_dir).unwrap();
+    let static_jail: Jail<StaticAsset> = Jail::try_new(public_dir).unwrap();
+    let upload_jail: Jail<UserUpload> = Jail::try_new(uploads_dir).unwrap();
 
     // Function that serves static assets
     fn serve_static_asset(
@@ -238,31 +237,30 @@ fn test_real_world_web_server_scenario() {
 
     // Function that handles user uploads
     fn access_user_upload(
-        validator: &Jail<UserUpload>,
+        jail: &Jail<UserUpload>,
         file_path: &str,
     ) -> Result<JailedPath<UserUpload>, String> {
-        validator
-            .try_path(file_path)
+        jail.try_path(file_path)
             .map_err(|e| format!("Upload not found: {e}"))
     }
 
     // Test legitimate requests
-    assert!(serve_static_asset(&static_validator, "index.html").is_ok());
-    assert!(serve_static_asset(&static_validator, "uploads/image.jpg").is_ok());
-    assert!(access_user_upload(&upload_validator, "image.jpg").is_ok());
+    assert!(serve_static_asset(&static_jail, "index.html").is_ok());
+    assert!(serve_static_asset(&static_jail, "uploads/image.jpg").is_ok());
+    assert!(access_user_upload(&upload_jail, "image.jpg").is_ok());
 
     // Test security violations
     // NEW BEHAVIOR: These paths are clamped, not blocked
-    // Escape attempts for static_validator
+    // Escape attempts for static_jail
     let static_escape_attempts = vec!["../private/secrets.txt"];
     for path in static_escape_attempts {
-        let result = serve_static_asset(&static_validator, path);
+        let result = serve_static_asset(&static_jail, path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
     }
     // Escape attempts for upload_validator
     let upload_escape_attempts = vec!["../index.html", "../../private/secrets.txt"];
     for path in upload_escape_attempts {
-        let result = access_user_upload(&upload_validator, path);
+        let result = access_user_upload(&upload_jail, path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
     }
 }
@@ -271,18 +269,18 @@ fn test_real_world_web_server_scenario() {
 fn test_memory_safety_with_long_paths() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let validator = Jail::<()>::try_new(public_dir).unwrap();
+    let jail = Jail::<()>::try_new(public_dir).unwrap();
 
     // Create a very long path that would cause memory issues in naive implementations
     let long_component = "a".repeat(1000);
     let long_path = format!("../{}/{}", long_component, "etc/passwd");
 
     // Should handle long paths gracefully without memory exhaustion
-    match validator.try_path(long_path) {
+    match jail.try_path(long_path) {
         Ok(jailed_path) => {
             // Use built-in starts_with method instead of unjailing
             assert!(
-                jailed_path.starts_with(validator.jail()),
+                jailed_path.starts_with(jail.as_os_str()),
                 "Clamped path should be within jail: {jailed_path:?}"
             );
         }
@@ -300,7 +298,7 @@ fn test_memory_safety_with_long_paths() {
 fn test_edge_cases_and_special_paths() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let validator = Jail::<()>::try_new(public_dir).unwrap();
+    let jail = Jail::<()>::try_new(public_dir).unwrap();
 
     // Test various edge cases that should work
     let valid_cases = vec![
@@ -309,11 +307,11 @@ fn test_edge_cases_and_special_paths() {
     ];
 
     for case in valid_cases {
-        let result = validator.try_path(case);
+        let result = jail.try_path(case);
         if let Ok(jailed_path) = result {
             // If successful, should still be within jail (use canonicalized jail path)
             assert!(
-                jailed_path.starts_with(validator.jail()),
+                jailed_path.starts_with(jail.as_os_str()),
                 "Path '{}' resolved outside jail: {}",
                 case,
                 jailed_path.virtual_display()
@@ -334,12 +332,12 @@ fn test_edge_cases_and_special_paths() {
     ];
 
     for case in malicious_cases {
-        let result = validator.try_path(case);
+        let result = jail.try_path(case);
         assert!(result.is_ok(), "Malicious path '{case}' should be clamped");
         let jailed_path = result.unwrap();
         // Use built-in starts_with method instead of unjailing
         assert!(
-            jailed_path.starts_with(validator.jail()),
+            jailed_path.starts_with(jail.as_os_str()),
             "Clamped path should be within jail: {jailed_path:?}"
         );
     }
@@ -349,14 +347,14 @@ fn test_edge_cases_and_special_paths() {
 fn test_validator_properties() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let validator = Jail::<()>::try_new(public_dir.clone()).unwrap();
+    let jail = Jail::<()>::try_new(public_dir.clone()).unwrap();
 
     // Test jail() accessor
-    assert_eq!(validator.jail(), public_dir.canonicalize().unwrap());
+    assert_eq!(jail.as_os_str(), public_dir.canonicalize().unwrap());
 
     // Test that validator is cloneable
     // Test that validator works the same
-    let original_result = validator.try_path("index.html").unwrap();
-    let cloned_result = validator.try_path("index.html").unwrap();
+    let original_result = jail.try_path("index.html").unwrap();
+    let cloned_result = jail.try_path("index.html").unwrap();
     assert_eq!(original_result, cloned_result);
 }

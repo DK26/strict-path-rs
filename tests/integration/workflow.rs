@@ -1,4 +1,4 @@
-use jailed_path::{JailedPath, Jail};
+use jailed_path::{Jail, JailedPath};
 use std::fs;
 use std::io::Write;
 
@@ -49,23 +49,20 @@ fn test_complete_workflow_with_marker_types() {
     let uploads_dir = public_dir.join("uploads");
 
     // Create validators for different resource types
-    let public_validator: Jail<PublicAsset> =
-        Jail::try_new(&public_dir).unwrap();
-    let upload_validator: Jail<UploadedFile> =
-        Jail::try_new(uploads_dir).unwrap();
+    let public_jail: Jail<PublicAsset> = Jail::try_new(&public_dir).unwrap();
+    let upload_jail: Jail<UploadedFile> = Jail::try_new(uploads_dir).unwrap();
 
     // Test public asset access
-    let public_file: JailedPath<PublicAsset> = public_validator.try_path("index.html").unwrap();
+    let public_file: JailedPath<PublicAsset> = public_jail.try_path("index.html").unwrap();
     assert!(public_file.exists(), "Public file should exist");
     assert!(public_file.is_file(), "Should be a file");
 
     // Test upload access
-    let upload_file: JailedPath<UploadedFile> = upload_validator.try_path("image.jpg").unwrap();
+    let upload_file: JailedPath<UploadedFile> = upload_jail.try_path("image.jpg").unwrap();
     assert!(upload_file.exists(), "Upload file should exist");
 
     // Test that public validator can access subdirectories
-    let nested_upload: JailedPath<PublicAsset> =
-        public_validator.try_path("uploads/image.jpg").unwrap();
+    let nested_upload: JailedPath<PublicAsset> = public_jail.try_path("uploads/image.jpg").unwrap();
     assert!(nested_upload.exists(), "Should access nested files");
 
     // Test that validators block escape attempts
@@ -73,10 +70,10 @@ fn test_complete_workflow_with_marker_types() {
     // Escape attempts for public_validator
     let public_escape_attempts = vec!["../private/secrets.txt"];
     for path in public_escape_attempts {
-        let result = public_validator.try_path(path);
+        let result = public_jail.try_path(path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
-        let jail_root = public_validator.jail().canonicalize().unwrap();
+        let jail_root = public_jail.jail().canonicalize().unwrap();
         // Use direct comparison - the JailedPath should start with the jail root
         assert!(
             jailed_path.starts_with(&jail_root),
@@ -87,10 +84,10 @@ fn test_complete_workflow_with_marker_types() {
     // Escape attempts for upload_validator
     let upload_escape_attempts = vec!["../index.html", "../../private/secrets.txt"];
     for path in upload_escape_attempts {
-        let result = upload_validator.try_path(path);
+        let result = upload_jail.try_path(path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
-        let jail_root = upload_validator.jail().canonicalize().unwrap();
+        let jail_root = upload_jail.jail().canonicalize().unwrap();
         // Use direct comparison - the JailedPath should start with the jail root
         assert!(
             jailed_path.starts_with(&jail_root),

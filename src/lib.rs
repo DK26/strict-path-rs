@@ -336,7 +336,7 @@
 //! let jailed_path = jail.try_path("file.txt")?;
 //!
 //! // ✅ SECURE: Use built-in methods that preserve security
-//! assert!(jailed_path.starts_with(jail.jail())); // Secure and direct
+//! assert!(jailed_path.starts_with(jail.as_os_str())); // Secure and direct
 //! jailed_path.write_bytes(b"test content")?; // Safe file operations
 //! let content = jailed_path.read_bytes()?; // Safe file operations
 //! let parent = jailed_path.virtual_parent(); // Safe path manipulation (returns Option)
@@ -412,9 +412,7 @@ mod tests;
 // Public exports
 pub use error::JailedPathError;
 pub use jailed_path::JailedPath;
-pub use validator::Jail;
-
-// try_jail was removed in favor of explicit Jail::try_new(...).try_path(...)
+pub use validator::jail::Jail;
 
 /// Result type alias for this crate's operations.
 pub type Result<T> = std::result::Result<T, JailedPathError>;

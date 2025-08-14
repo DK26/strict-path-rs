@@ -271,11 +271,13 @@ if command -v rustup &> /dev/null; then
         echo "  • Generating new Cargo.lock with Rust 1.70.0"
         if rustup run 1.70.0 cargo generate-lockfile; then
             echo "  ✓ Cargo.lock regenerated successfully"
+            run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
             run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
             run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
         else
             echo "  ❌ Failed to generate Cargo.lock with Rust 1.70.0"
             echo "  💡 Trying fallback: cargo update then check"
+            run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
             run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
             run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
         fi
@@ -293,11 +295,13 @@ if command -v rustup &> /dev/null; then
             echo "  • Generating new Cargo.lock with Rust 1.70.0"
             if rustup run 1.70.0 cargo generate-lockfile; then
                 echo "  ✓ Cargo.lock regenerated successfully"
+                run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
                 run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
                 run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
             else
                 echo "  ❌ Failed to generate Cargo.lock with Rust 1.70.0"
                 echo "  💡 Trying fallback: cargo update then check"
+                run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
                 run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
                 run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
             fi

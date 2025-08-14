@@ -9,10 +9,10 @@ fn main() -> Result<(), JailedPathError> {
     );
 
     // Create a path validator
-    let validator: Jail = Jail::try_new(&current_dir)?;
+    let jail: Jail = Jail::try_new(&current_dir)?;
 
     // Test valid path
-    match validator.try_path("Cargo.toml") {
+    match jail.try_path("Cargo.toml") {
         Ok(jailed_path) => {
             println!("✓ Valid path: {}", jailed_path.virtual_display());
         }
@@ -22,7 +22,7 @@ fn main() -> Result<(), JailedPathError> {
     }
 
     // Test path with directory traversal (gets clamped to jail root)
-    match validator.try_path("../../../sensitive.txt") {
+    match jail.try_path("../../../sensitive.txt") {
         Ok(clamped_path) => {
             println!(
                 "✓ Path traversal clamped to jail root: {}",

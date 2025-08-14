@@ -59,12 +59,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Ok(validator) => {
+        Ok(jail) => {
             // Test detailed error API
             println!("Validator created successfully!");
 
             // Try to validate a path - this is the only way to check validity
-            match validator.try_path("../../../sensitive.txt") {
+            match jail.try_path("../../../sensitive.txt") {
                 Ok(_) => println!("Unexpected success!"),
                 Err(e) => println!("Correctly blocked traversal: {e}"),
             }

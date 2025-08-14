@@ -1,11 +1,11 @@
-use crate::Jail;
+use crate::validator::jail::Jail;
 use std::sync::Arc;
 use std::thread;
 
 #[test]
 fn test_known_cve_patterns() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     // Common CVE patterns that should be safely handled
     let attack_patterns = vec![
@@ -24,12 +24,12 @@ fn test_known_cve_patterns() {
     ];
 
     for pattern in attack_patterns {
-        if let Ok(jailed_path) = validator.try_path(pattern) {
+        if let Ok(jailed_path) = jail.try_path(pattern) {
             // Debug: Let's see what the actual paths are
             let virtual_path = jailed_path.virtual_path();
             println!("Pattern: '{pattern}' -> Virtual: '{virtual_path:?}'");
             println!("Jail (from temp): '{:?}'", temp.path());
-            println!("Jail (from validator): '{:?}'", validator.jail());
+            println!("Jail: '{:?}'", jail.as_os_str());
 
             // Should be clamped to jail root or within jail
             let virtual_str = virtual_path.to_string_lossy();
@@ -49,7 +49,7 @@ fn test_known_cve_patterns() {
 
             // Should not escape jail - use built-in starts_with method
             assert!(
-                jailed_path.starts_with(validator.jail()),
+                jailed_path.starts_with(jail.as_os_str()),
                 "Attack pattern '{pattern}' escaped jail: {jailed_path:?}"
             );
         } else {
@@ -61,7 +61,7 @@ fn test_known_cve_patterns() {
 #[test]
 fn test_unicode_edge_cases() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     let unicode_patterns = vec![
         "файл.txt",                 // Cyrillic
@@ -75,10 +75,10 @@ fn test_unicode_edge_cases() {
     ];
 
     for pattern in unicode_patterns {
-        match validator.try_path(pattern) {
+        match jail.try_path(pattern) {
             Ok(jailed_path) => {
-                // Should handle Unicode gracefully - use validator.jail() instead of canonicalizing
-                assert!(jailed_path.starts_with(validator.jail()));
+                // Should handle Unicode gracefully - use jail.as_os_str() instead of canonicalizing
+                assert!(jailed_path.starts_with(jail.as_os_str()));
             }
             Err(e) => {
                 // Some Unicode patterns might be rejected, which is fine
@@ -91,16 +91,16 @@ fn test_unicode_edge_cases() {
 #[test]
 fn test_concurrent_validator_usage() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Arc<Jail> = Arc::new(Jail::try_new(temp.path()).unwrap());
+    let jail: Arc<Jail> = Arc::new(Jail::try_new(temp.path()).unwrap());
     let mut handles = vec![];
 
     // Spawn multiple threads using the same validator
     for i in 0..5 {
-        let validator_clone = Arc::clone(&validator);
+        let jail_clone = Arc::clone(&jail);
         let handle = thread::spawn(move || {
             for j in 0..50 {
                 let path = format!("thread_{i}/file_{j}.txt");
-                let result = validator_clone.try_path(&path);
+                let result = jail_clone.try_path(&path);
                 assert!(result.is_ok(), "Thread {i} iteration {j} failed");
 
                 let jailed_path = result.unwrap();
@@ -122,23 +122,23 @@ fn test_concurrent_validator_usage() {
 #[test]
 fn test_long_path_handling() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     // Very long path (approaching filesystem limits)
     let long_component = "a".repeat(255);
     let long_path = format!("{long_component}/{long_component}/{long_component}/{long_component}");
 
-    if let Ok(jailed_path) = validator.try_path(long_path) {
-        assert!(jailed_path.starts_with(validator.jail()));
+    if let Ok(jailed_path) = jail.try_path(long_path) {
+        assert!(jailed_path.starts_with(jail.as_os_str()));
     } else {
         // Long paths might be rejected, which is acceptable
     }
 
     // Extremely long traversal attempt
     let traversal_attack = "../".repeat(100) + "etc/passwd";
-    if let Ok(jailed_path) = validator.try_path(traversal_attack) {
+    if let Ok(jailed_path) = jail.try_path(traversal_attack) {
         // Should be clamped to jail root, with remaining path components preserved
-        assert!(jailed_path.starts_with(validator.jail()));
+        assert!(jailed_path.starts_with(jail.as_os_str()));
         let virtual_path = jailed_path.virtual_path();
         // The .. components should be consumed, but "etc/passwd" should be preserved
         // This matches shell behavior: excessive .. get clamped to root, remaining path is kept
@@ -157,7 +157,7 @@ fn test_long_path_handling() {
 #[cfg(windows)]
 fn test_windows_specific_attacks() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     let windows_patterns = vec![
         "CON",
@@ -173,9 +173,9 @@ fn test_windows_specific_attacks() {
     ];
 
     for pattern in windows_patterns {
-        if let Ok(jailed_path) = validator.try_path(pattern) {
+        if let Ok(jailed_path) = jail.try_path(pattern) {
             // If accepted, should still be within jail
-            assert!(jailed_path.starts_with(validator.jail()));
+            assert!(jailed_path.starts_with(jail.as_os_str()));
         } else {
             // Windows-specific rejections are expected
         }
@@ -192,14 +192,14 @@ fn test_windows_83_short_names_rejected_for_nonexistent() {
 
     let temp = tempfile::tempdir().unwrap();
     let jail_root = temp.path();
-    let validator: Jail = Jail::try_new(jail_root).unwrap();
+    let jail: Jail = Jail::try_new(jail_root).unwrap();
 
     // Create a base directory but do not create the tilde-named entry
     fs::create_dir_all(jail_root.join("users")).unwrap();
 
     // PROGRA~1-style component for a path that doesn't exist should be rejected
     let candidate = PathBuf::from("users/PROGRA~1/test.txt");
-    let res = validator.try_path(candidate.clone());
+    let res = jail.try_path(candidate.clone());
     match res {
         Err(JailedPathError::WindowsShortName {
             component,
@@ -221,7 +221,7 @@ fn test_windows_83_short_names_allowed_if_exists() {
     use std::fs;
     let temp = tempfile::tempdir().unwrap();
     let jail_root = temp.path();
-    let validator: Jail = Jail::try_new(jail_root).unwrap();
+    let jail: Jail = Jail::try_new(jail_root).unwrap();
 
     // Explicitly create the tilde-named entry inside the jail
     let tilde_dir = jail_root.join("users").join("PROGRA~1");
@@ -229,9 +229,9 @@ fn test_windows_83_short_names_allowed_if_exists() {
 
     // Now the same component should be accepted because it exists inside the jail
     let candidate = "users/PROGRA~1/file.txt";
-    let res = validator.try_path(candidate);
+    let res = jail.try_path(candidate);
     if let Ok(jailed_path) = res {
-        assert!(jailed_path.starts_with(validator.jail()));
+        assert!(jailed_path.starts_with(jail.as_os_str()));
     } else {
         // Some systems may still reject; both behaviors are acceptable
     }
@@ -241,7 +241,7 @@ fn test_windows_83_short_names_allowed_if_exists() {
 #[cfg(unix)]
 fn test_unix_specific_attacks() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     let unix_patterns = vec![
         "/dev/null",
@@ -252,9 +252,9 @@ fn test_unix_specific_attacks() {
     ];
 
     for pattern in unix_patterns {
-        if let Ok(jailed_path) = validator.try_path(pattern) {
+        if let Ok(jailed_path) = jail.try_path(pattern) {
             // Should be safe and within jail
-            assert!(jailed_path.starts_with(validator.jail()));
+            assert!(jailed_path.starts_with(jail.as_os_str()));
             assert!(!jailed_path
                 .virtual_path()
                 .to_string_lossy()
@@ -270,14 +270,14 @@ fn test_unix_specific_attacks() {
 #[test]
 fn test_no_filesystem_leak_in_virtual_display() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     let candidate = "../../../secret.txt";
-    if let Ok(jailed_path) = validator.try_path(candidate) {
+    if let Ok(jailed_path) = jail.try_path(candidate) {
         let vp = jailed_path.virtual_path();
         let virtual_str = vp.to_string_lossy().to_string();
         // Should not leak absolute jail path
-        let jail_abs = validator.jail().to_string_lossy();
+        let jail_abs = jail.as_os_str().to_string_lossy();
         assert!(
             !virtual_str.contains(jail_abs.as_ref()),
             "Virtual path leaked absolute jail path"
@@ -290,29 +290,29 @@ fn test_no_filesystem_leak_in_virtual_display() {
 fn test_absolute_path_outside_is_clamped_or_rejected() {
     let temp = tempfile::tempdir().unwrap();
     let jail_root = temp.path();
-    let validator: Jail = Jail::try_new(jail_root).unwrap();
+    let jail: Jail = Jail::try_new(jail_root).unwrap();
 
     // Construct an absolute path outside the jail
     let outside_abs = jail_root.parent().unwrap().join("outside.txt");
-    let res = validator.try_path(outside_abs);
+    let res = jail.try_path(outside_abs);
     if let Ok(jailed_path) = res {
-        assert!(jailed_path.starts_with(validator.jail()));
+        assert!(jailed_path.starts_with(jail.as_os_str()));
     } else {
         // Rejection is allowed
     }
 
     // Absolute path inside the jail should pass and remain inside
     let inside_abs = jail_root.join("inside.txt");
-    let res2 = validator.try_path(inside_abs);
+    let res2 = jail.try_path(inside_abs);
     if let Ok(jailed_path) = res2 {
-        assert!(jailed_path.starts_with(validator.jail()));
+        assert!(jailed_path.starts_with(jail.as_os_str()));
     }
 }
 
 #[test]
 fn test_dot_and_dotdot_segments() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     let inputs = [
         "./a/b/./c.txt",
@@ -323,8 +323,8 @@ fn test_dot_and_dotdot_segments() {
     ];
 
     for input in inputs {
-        if let Ok(jailed_path) = validator.try_path(input) {
-            assert!(jailed_path.starts_with(validator.jail()));
+        if let Ok(jailed_path) = jail.try_path(input) {
+            assert!(jailed_path.starts_with(jail.as_os_str()));
             let vp = jailed_path.virtual_path();
             let v = vp.to_string_lossy();
             assert!(
@@ -338,9 +338,9 @@ fn test_dot_and_dotdot_segments() {
 #[test]
 fn test_create_and_use_safe_file_ops() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
-    let file = validator.try_path("subdir/data.txt").unwrap();
+    let file = jail.try_path("subdir/data.txt").unwrap();
 
     // Create the parent directory and write data via jailed operations
     let parent = file.virtual_parent().unwrap();
@@ -360,10 +360,10 @@ fn test_create_and_use_safe_file_ops() {
 #[test]
 fn test_reject_interior_null_byte() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     let s = "foo\0bar";
-    let res = validator.try_path(s);
+    let res = jail.try_path(s);
     assert!(res.is_err(), "Interior NUL should be rejected");
 }
 
@@ -371,10 +371,10 @@ fn test_reject_interior_null_byte() {
 #[cfg(unix)]
 fn test_backslash_is_literal_on_unix() {
     let temp = tempfile::tempdir().unwrap();
-    let validator: Jail = Jail::try_new(temp.path()).unwrap();
+    let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     let p = r"dir\file.txt";
-    let jailed = validator.try_path(p).unwrap();
+    let jailed = jail.try_path(p).unwrap();
     let vp = jailed.virtual_path();
     let v = vp.to_string_lossy();
     assert!(
@@ -400,13 +400,13 @@ fn test_symlink_outside_is_rejected_or_clamped() {
     fs::create_dir_all(link_path.parent().unwrap()).unwrap();
     symlink(&outside_file, &link_path).unwrap();
 
-    let validator: Jail = Jail::try_new(jail_root).unwrap();
+    let jail: Jail = Jail::try_new(jail_root).unwrap();
 
     // Try to validate the symlink path
-    let res = validator.try_path("public/link.out");
+    let res = jail.try_path("public/link.out");
     if let Ok(jailed_path) = res {
         // If accepted, it must still resolve within jail boundary
-        assert!(jailed_path.starts_with(validator.jail()));
+        assert!(jailed_path.starts_with(jail.as_os_str()));
     }
 }
 
@@ -421,9 +421,9 @@ fn test_symlink_loop_handling() {
     // Self-referential symlink
     let _ = symlink(&loop_path, &loop_path);
 
-    let validator: Jail = Jail::try_new(jail_root).unwrap();
-    let res = validator.try_path("loop");
+    let jail: Jail = Jail::try_new(jail_root).unwrap();
+    let res = jail.try_path("loop");
     if let Ok(jailed_path) = res {
-        assert!(jailed_path.starts_with(validator.jail()));
+        assert!(jailed_path.starts_with(jail.as_os_str()));
     }
 }

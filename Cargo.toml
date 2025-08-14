@@ -13,7 +13,7 @@ keywords = ["path", "security", "jail", "filesystem", "traversal"]
 categories = ["filesystem", "development-tools", "web-programming"]
 
 [dependencies]
-soft-canonicalize = "0.2.4"
+soft-canonicalize = "0.2.5"
 
 [dev-dependencies]
 app-path = "1.1.2"

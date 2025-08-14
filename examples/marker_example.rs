@@ -8,15 +8,15 @@ fn main() -> Result<(), JailedPathError> {
     let current_dir = std::env::current_dir().unwrap();
 
     // Unmarked validator (no generics needed)
-    let generic_validator: Jail = Jail::try_new(&current_dir)?;
-    match generic_validator.try_path("Cargo.toml") {
+    let generic_jail: Jail = Jail::try_new(&current_dir)?;
+    match generic_jail.try_path("Cargo.toml") {
         Ok(generic_path) => println!("Generic path: {}", generic_path.virtual_display()),
         Err(e) => println!("Error: {e}"),
     }
 
     // Marked validator for images
-    let image_validator: Jail<ImageResource> = Jail::try_new(&current_dir)?;
-    match image_validator.try_path("Cargo.toml") {
+    let image_jail: Jail<ImageResource> = Jail::try_new(&current_dir)?;
+    match image_jail.try_path("Cargo.toml") {
         Ok(image_path) => {
             println!("Image resource path: {}", image_path.virtual_display());
             process_images(image_path); // Use the function to avoid dead code warning
@@ -25,8 +25,8 @@ fn main() -> Result<(), JailedPathError> {
     }
 
     // Marked validator for user data
-    let user_validator: Jail<UserData> = Jail::try_new(&current_dir)?;
-    match user_validator.try_path("Cargo.toml") {
+    let user_jail: Jail<UserData> = Jail::try_new(&current_dir)?;
+    match user_jail.try_path("Cargo.toml") {
         Ok(user_path) => {
             println!("User data path: {}", user_path.virtual_display());
             process_user_data(user_path); // Use the function to avoid dead code warning
