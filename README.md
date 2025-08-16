@@ -29,8 +29,7 @@ let user_jail: Jail = Jail::try_new("users/alice_workspace")?;
 let safe_path: JailedPath = user_jail.try_path("documents/report.pdf")?;
 
 // Alternative: One-shot style (inline) without storing the jail
-let one_shot_path: JailedPath = Jail::try_new("users/alice_workspace")?
-    .try_path("documents/report.pdf")?;
+let one_shot_path: JailedPath = Jail::try_new("users/alice_workspace")?.try_path("documents/report.pdf")?;
 
 // Even attacks are neutralized:
 let attack_path = user_jail.try_path("../../../etc/passwd")?;

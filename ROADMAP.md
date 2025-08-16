@@ -951,7 +951,7 @@ This is a **major breaking change** but justified because:
 
 ### 🚨 CRITICAL SECURITY DECISIONS (August 13, 2025):
 
-**Note:** Some legacy examples throughout this document may still reference `PathValidator` - these should be read as `Jail` for current API design.
+**Note:** Some legacy examples throughout this document may still reference `Jail` - these should be read as `Jail` for current API design.
 
 1. **Jail Directory Must Exist**: Changed from soft canonicalization approach to requiring jail existence
    - **Rationale**: "Remember we are a security crate, so we must keep the most secure options"
@@ -1514,7 +1514,7 @@ By omitting these traits, we force the developer to be explicit about their inte
 
 **API Usage Example - The Secure Way:**
 ```rust
-use jailed_path::{PathValidator, JailedPath};
+use jailed_path::{Jail, JailedPath};
 use std::collections::HashMap;
 
 struct UserFiles;
@@ -1535,7 +1535,7 @@ fn process_file_secure(path: JailedPath<UserFiles>) -> Result<String, Box<dyn st
 // Collections work seamlessly due to Hash and PartialEq implementations.
 let mut file_cache: HashMap<JailedPath<UserFiles>, Vec<u8>> = HashMap::new();
 
-let jail = PathValidator::with_jail("/app/storage")?;
+let jail = Jail::try_new("/app/storage")?;
 let jailed = jail.try_path("users/alice/config.toml")?;
 
 file_cache.insert(jailed.clone(), b"cached content".to_vec());
@@ -1591,14 +1591,14 @@ The recommended pattern is to use `JailedPath` throughout your application, ensu
 
 ```rust
 use axum::{extract::{Path, State}, http::StatusCode, response::Response, routing::get, Router};
-use jailed_path::{PathValidator, JailedPath};
+use jailed_path::{Jail, JailedPath};
 use std::sync::Arc;
 
 struct UserFiles;
 
 #[derive(Clone)]
 struct AppState {
-    user_files: PathValidator<UserFiles>,
+    user_files: Jail<UserFiles>,
 }
 
 // Security-first handler: receives user input, validates it, and then uses the
@@ -1626,7 +1626,7 @@ async fn serve_user_file(
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app_state = AppState {
-        user_files: PathValidator::with_jail("/app/storage/users")?,
+        user_files: Jail::try_new("/app/storage/users")?,
     };
     
     let app = Router::new()
@@ -1709,7 +1709,7 @@ trait CanonicalizeStrategy {
     fn canonicalize(&self, path: &Path) -> Result<PathBuf>;
 }
 
-struct PathValidator<Marker, Strategy = SoftCanonicalize> {
+struct Jail<Marker, Strategy = SoftCanonicalize> {
     // Allow custom canonicalization strategies
 }
 ```
@@ -1815,7 +1815,7 @@ This section documents key design decisions and conclusions reached during devel
 **Code Examples**:
 ```rust
 // ✅ CORRECT: All these work with soft canonicalization
-let jail = PathValidator::with_jail("/app/storage")?;
+let jail = Jail::try_new("/app/storage")?;
 
 // File creation (path doesn't exist yet)
 let new_file = jail.try_path("uploads/user123/document.pdf")?;
@@ -1829,7 +1829,7 @@ File::create(&log_file)?;
 let backup = jail.try_path("backups/db_backup.sql")?;
 
 // Container scenario (jail doesn't exist yet)
-let future_validator = PathValidator::with_jail("/app/future-storage")?; // ✅ Works!
+let future_validator = Jail::try_new("/app/future-storage")?; // ✅ Works!
 ```
 
 **Security Analysis**:
@@ -1896,21 +1896,20 @@ fn test_validation() {
     let jail = Jail::try_new("/tmp/test-jail")?; // Security-first: must exist
     // ... test validation logic
 }
-}
 
 // ✅ Dynamic workspaces
 let workspace = format!("/app/workspaces/{}", session_id);
-let jail = PathValidator::with_jail(&workspace)?; // Works immediately
+let jail = Jail::try_new_create(&workspace)?; // Works immediately
 ```
 
 ### 📁 **Conclusion 3: No Automatic Directory Creation**
 
-**Decision**: `with_jail()` should NOT automatically create directories.
+**Decision**: `try_new()` should NOT automatically create directories.
 
 **Rationale**:
 - **Separation of concerns**: Path validation vs filesystem operations
 - **User control**: Explicit directory creation with proper permissions
-- **No side effects**: `with_jail()` is purely about validation setup
+- **No side effects**: `try_new()` is purely about validation setup
 - **Security**: Avoid accidental directory creation in wrong locations
 
 **Recommended API Design (UPDATED - Security First)**:
@@ -1942,7 +1941,7 @@ impl<Marker> Jail<Marker> {
         std::fs::create_dir_all(jail_path)
             .map_err(|e| JailedPathError::jail_creation_failed(jail_path.to_path_buf(), e))?;
         
-        Self::with_jail(jail_path)
+        Self::try_new(jail_path)
     }
 }
 ```
@@ -1950,17 +1949,17 @@ impl<Marker> Jail<Marker> {
 **Usage Patterns**:
 ```rust
 // Pattern 1: Existing directory
-let jail = PathValidator::with_jail("/app/storage")?;
+let jail = Jail::try_new("/app/storage")?;
 
 // Pattern 2: Ensure directory exists (user control)
 std::fs::create_dir_all("/app/storage")?;
-let jail = PathValidator::with_jail("/app/storage")?;
+let jail = Jail::try_new("/app/storage")?;
 
 // Pattern 3: Convenience method (optional)
-let jail = PathValidator::with_jail_created("/app/storage")?;
+let jail = Jail::try_new_created("/app/storage")?;
 
 // Pattern 4: Future directory (containers)
-let jail = PathValidator::with_jail("/app/future-storage")?; // ✅ Works!
+let jail = Jail::try_new("/app/future-storage")?; // ✅ Works!
 ```
 
 ### 🔐 **Conclusion 4: Symlink Attack Reality Check**
@@ -2035,7 +2034,7 @@ impl<Marker> Display for JailedPath<Marker> {
 
 **Usage Examples**:
 ```rust
-let jail = PathValidator::with_jail("/app/storage/users")?;
+let jail = Jail::try_new("/app/storage/users")?;
 let jailed = jail.try_path("alice/documents/report.pdf")?;
 
 // Virtual root display (user-friendly)
@@ -2083,8 +2082,8 @@ let safe_path = jail.try_path("../../../etc/passwd")?; // ❌ Blocked!
 ```rust
 #[derive(Clone)]
 struct AppState {
-    user_files: Arc<PathValidator<UserFiles>>,
-    public_assets: Arc<PathValidator<PublicAssets>>,
+    user_files: Arc<Jail<UserFiles>>,
+    public_assets: Arc<Jail<PublicAssets>>,
 }
 
 async fn serve_user_file(
@@ -2109,11 +2108,11 @@ async fn serve_user_file(
 **Simple Dynamic Validator Pattern**:
 ```rust
 // Authentication: create user-specific validator using simple path joining
-async fn authenticate_user(user_id: &str) -> Result<PathValidator<UserSpace>, AuthError> {
-    let app_validator = PathValidator::with_jail("/app/storage")?;
+async fn authenticate_user(user_id: &str) -> Result<Jail<UserSpace>, AuthError> {
+    let app_validator = Jail::try_new("/app/storage")?;
     
     // ✅ SECURITY: Simple path joining with validation
-    let user_validator = PathValidator::with_jail(
+    let user_validator = Jail::try_new(
         app_jail.jail().join(&format!("users/{}", user_id))
     )?;
     
@@ -2122,12 +2121,12 @@ async fn authenticate_user(user_id: &str) -> Result<PathValidator<UserSpace>, Au
 
 // Session management: create session validator from user validator
 async fn create_session(
-    user_jail: &PathValidator<UserSpace>,
+    user_jail: &Jail<UserSpace>,
     session_id: &str
-) -> Result<PathValidator<SessionSpace>, SessionError> {
+) -> Result<Jail<SessionSpace>, SessionError> {
     
     // ✅ SECURITY: Dynamic validator creation with proper validation
-    let session_validator = PathValidator::with_jail(
+    let session_validator = Jail::try_new(
         user_jail.jail().join(&format!("sessions/{}", session_id))
     )?;
     
@@ -2149,7 +2148,7 @@ async fn create_session(
 
 **Code Example - Defense in Depth**:
 ```rust
-impl<Marker> PathValidator<Marker> {
+impl<Marker> Jail<Marker> {
     pub fn try_path<P: AsRef<Path>>(&self, path: P) -> Result<JailedPath<Marker>> {
         let candidate = path.as_ref();
         
@@ -2183,7 +2182,7 @@ These conclusions form the foundation of jailed-path's design philosophy: **secu
 
 ### Critical Design Issue: Mixed Canonicalization Approaches
 
-**Current Problem**: PathValidator uses inconsistent canonicalization:
+**Current Problem**: Jail uses inconsistent canonicalization:
 ```rust
 // Jail creation - requires existing directory
 pub fn with_jail<P: AsRef<Path>>(jail: P) -> Result<Self> {
@@ -2316,7 +2315,7 @@ This multi-layer approach ensures that even complex attack patterns involving co
 For applications that need TOCTOU protection, implement optional runtime validation:
 
 ```rust
-impl<Marker> PathValidator<Marker> {
+impl<Marker> Jail<Marker> {
     pub fn try_path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
         let candidate_path = candidate_path.as_ref();
         
