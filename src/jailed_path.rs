@@ -1,5 +1,5 @@
-use crate::validator::validated_path::{
-    BoundaryChecked, Canonicalized, Clamped, JoinedJail, Raw, ValidatedPath,
+use crate::validator::stated_path::{
+    BoundaryChecked, Canonicalized, Exists, JailJoined, Raw, StatedPath, Virtualized,
 };
 use std::cmp::Ordering;
 use std::ffi::{OsStr, OsString};
@@ -40,7 +40,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct JailedPath<Marker = ()> {
     path: PathBuf,
-    jail_root: Arc<ValidatedPath<(Raw, Canonicalized)>>,
+    jail_path: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
     _marker: PhantomData<Marker>,
 }
 
@@ -52,15 +52,15 @@ impl<Marker> JailedPath<Marker> {
     /// Creates a new JailedPath from a fully validated ValidatedPath with the exact required type-state.
     #[allow(clippy::type_complexity)]
     pub(crate) fn new(
-        jail_root: Arc<ValidatedPath<(Raw, Canonicalized)>>,
-        validated_path: ValidatedPath<(
-            (((Raw, Clamped), JoinedJail), Canonicalized),
+        jail_path: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
+        validated_path: StatedPath<(
+            (((Raw, Virtualized), JailJoined), Canonicalized),
             BoundaryChecked,
         )>,
     ) -> Self {
         Self {
             path: validated_path.into_inner(),
-            jail_root,
+            jail_path,
             _marker: PhantomData,
         }
     }
@@ -74,22 +74,22 @@ impl<Marker> JailedPath<Marker> {
     fn virtual_path(&self) -> PathBuf {
         // This should not fail if logic is correct, as self.path is guaranteed to be inside jail_root
         self.path
-            .strip_prefix(&*self.jail_root)
+            .strip_prefix(&*self.jail_path)
             .unwrap_or(&self.path)
             .to_path_buf()
     }
 
     /// Re-validates a new virtual path derived from the current one.
     fn revalidate(&self, new_virtual_path: PathBuf) -> Option<Self> {
-        let validated = ValidatedPath::<Raw>::new(new_virtual_path)
-            .clamp()
-            .join_jail(&self.jail_root)
+        let validated = StatedPath::<Raw>::new(new_virtual_path)
+            .virtualize()
+            .join_jail(&self.jail_path)
             .canonicalize()
             .ok()?
-            .boundary_check(&self.jail_root)
+            .boundary_check(&self.jail_path)
             .ok()?;
         // Build new instance and construct its cached virtual_display in `new()`.
-        Some(Self::new(self.jail_root.clone(), validated))
+        Some(Self::new(self.jail_path.clone(), validated))
     }
 
     // ---- String Conversion ----
@@ -349,7 +349,7 @@ impl<Marker> fmt::Debug for JailedPath<Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("JailedPath")
             .field("path", &self.path.display())
-            .field("jail_root", &&self.jail_root.display())
+            .field("jail_root", &&self.jail_path.display())
             .finish()
     }
 }

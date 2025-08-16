@@ -69,6 +69,7 @@
 ```rust
 impl<Marker> Jail<Marker> {
     pub fn try_new<P: AsRef<Path>>(root: P) -> Result<Self>
+    pub fn try_new_create<P: AsRef<Path>>(root: P) -> Result<Self>
     pub fn try_path<P: AsRef<Path>>(&self, path: P) -> Result<JailedPath<Marker>>
     
     // Path access (simple and readable)

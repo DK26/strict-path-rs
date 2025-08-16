@@ -1,4 +1,4 @@
-use super::validated_path::*;
+use super::stated_path::*;
 use crate::jailed_path::JailedPath;
 use crate::{JailedPathError, Result};
 use std::io::{Error as IoError, ErrorKind};
@@ -50,14 +50,14 @@ use std::sync::Arc;
 ///     // Non-existent files for writing also work  
 ///     let _path = jail.try_path("user123/new_document.pdf")?;
 ///
-///     // Traversal attacks are clamped to the jail root (no error is returned)
+///     // Traversal attacks have their roots stripped and are then canonicalized (no error is returned)
 ///     let _ = jail.try_path("../../../sensitive.txt")?;
 ///     Ok(())
 /// }
 /// ```
 #[derive(Debug, Clone)]
 pub struct Jail<Marker = ()> {
-    jail: Arc<ValidatedPath<(Raw, Canonicalized)>>,
+    jail: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
     _marker: PhantomData<Marker>,
 }
 
@@ -86,7 +86,9 @@ impl<Marker> Jail<Marker> {
     /// - The jail path exists but is not a directory (e.g., it's a file or special device)
     ///
     /// # Important Notes
-    /// - The jail directory does NOT need to exist when creating the jail
+    /// - The jail directory MUST exist when calling `Jail::try_new`. The API now
+    ///   canonicalizes and verifies the path exists to avoid surprising runtime
+    ///   errors later in the validation pipeline.
     /// - Store this jail and reuse it for all path validations in your application
     /// - Never bypass this jail - it's your only protection against path traversal attacks
     ///
@@ -100,8 +102,8 @@ impl<Marker> Jail<Marker> {
     ///     // ✅ Valid jail directory
     ///     let _jail = Jail::<()>::try_new("valid_jail")?;
     ///
-    ///     // Non-existent directory is allowed (jail is created)
-    ///     let _ = Jail::<()>::try_new("does_not_exist")?;
+    ///     // ❌ Non-existent directory will fail
+    ///     assert!(Jail::<()>::try_new("does_not_exist").is_err());
     ///
     ///     fs::write("not_a_dir.txt", "content")?;
     ///     // ❌ Path exists but is not a directory
@@ -114,10 +116,22 @@ impl<Marker> Jail<Marker> {
     #[inline]
     pub fn try_new<P: AsRef<Path>>(jail_path: P) -> Result<Self> {
         let jail_path = jail_path.as_ref();
-        let validated_path = ValidatedPath::<Raw>::new(jail_path);
-        let canonicalized = validated_path.canonicalize()?;
+        let raw = StatedPath::<Raw>::new(jail_path);
 
-        if canonicalized.exists() && !canonicalized.is_dir() {
+        let canonicalized = raw.canonicalize()?;
+
+        let verified_exists = match canonicalized.verify_exists() {
+            Some(path) => path,
+            None => {
+                let io = IoError::new(
+                    ErrorKind::NotFound,
+                    "The specified jail path does not exist.",
+                );
+                return Err(JailedPathError::invalid_jail(jail_path.to_path_buf(), io));
+            }
+        };
+
+        if !verified_exists.is_dir() {
             let error = IoError::new(
                 ErrorKind::InvalidInput,
                 "The specified jail path exists but is not a directory.",
@@ -129,7 +143,7 @@ impl<Marker> Jail<Marker> {
         }
 
         Ok(Self {
-            jail: Arc::new(canonicalized),
+            jail: Arc::new(verified_exists),
             _marker: PhantomData,
         })
     }
@@ -170,21 +184,25 @@ impl<Marker> Jail<Marker> {
     /// # Example
     /// ```rust
     /// use jailed_path::Jail;
+    /// use std::fs;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let jail = Jail::<()>::try_new("/safe/uploads")?;
+    /// // Create a temporary directory for the example
+    /// fs::create_dir_all("safe_uploads")?;
+    /// let jail = Jail::<()>::try_new("safe_uploads")?;
     ///
-    /// // ✅ Safe - creates /safe/uploads/user123/document.pdf
+    /// // ✅ Safe - creates safe_uploads/user123/document.pdf
     /// let safe_path = jail.try_path("user123/document.pdf")?;
     ///
-    /// // ✅ Safe - traversal attempt blocked, becomes /safe/uploads/
+    /// // ✅ Safe - traversal attempt blocked, becomes safe_uploads/
     /// let blocked = jail.try_path("../../../etc/passwd")?;
     ///
+    /// fs::remove_dir_all("safe_uploads").ok();
     /// # Ok(())
     /// # }
     /// ```
     pub fn try_path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
-        // STEP 1: Clamp the candidate path
-        let clamped = ValidatedPath::<Raw>::new(candidate_path.as_ref()).clamp();
+        // STEP 1: Strip root components from the candidate path
+        let clamped = StatedPath::<Raw>::new(candidate_path.as_ref()).virtualize();
 
         // Windows-only hardening: reject DOS 8.3 short names (tilde form) in any
         // non-existent component, since their eventual long-name resolution is ambiguous.
@@ -197,11 +215,11 @@ impl<Marker> Jail<Marker> {
             // Keep the original user path for error reporting (Windows only)
             let original_user_path = candidate_path.as_ref().to_path_buf();
 
-            // If the input was an absolute path, we will clamp it to be jail-relative.
+            // If the input was an absolute path, we will strip roots to make it jail-relative.
             // In that case, skip the 8.3 short-name precheck to avoid false positives from
             // absolute prefixes (e.g., C:\Users\RUNNER~1\...) present in CI environments.
             if candidate_path.as_ref().is_absolute() {
-                // Proceed without the short-name precheck; clamping + boundary check still apply.
+                // Proceed without the short-name precheck; root stripping + boundary check still apply.
             } else {
                 fn is_potential_83_short_name(os: &OsStr) -> bool {
                     let s = os.to_string_lossy();
@@ -221,8 +239,8 @@ impl<Marker> Jail<Marker> {
                 for comp in clamped.components() {
                     match comp {
                         Component::CurDir => continue,
-                        Component::ParentDir => continue, // shouldn't appear post-clamp, but ignore defensively
-                        Component::RootDir | Component::Prefix(_) => continue, // clamped removed these
+                        Component::ParentDir => continue, // shouldn't appear post-root-strip, but ignore defensively
+                        Component::RootDir | Component::Prefix(_) => continue, // root stripping removed these
                         Component::Normal(name) => {
                             probe.push(name);
                             if !probe.exists() && is_potential_83_short_name(name) {
@@ -245,13 +263,13 @@ impl<Marker> Jail<Marker> {
             }
         }
 
-        // STEP 2: Join to jail root (type-state: ((Raw, Clamped), JoinedJail))
+        // STEP 2: Join to jail root (type-state: ((Raw, RootStripped), JoinedJail))
         let joined = clamped.join_jail(&self.jail);
 
-        // STEP 3: Canonicalize (type-state: (((Raw, Clamped), JoinedJail), Canonicalized))
+        // STEP 3: Canonicalize (type-state: (((Raw, RootStripped), JoinedJail), Canonicalized))
         let canon = joined.canonicalize()?;
 
-        // STEP 4: Boundary check (type-state: ((((Raw, Clamped), JoinedJail), Canonicalized), BoundaryChecked))
+        // STEP 4: Boundary check (type-state: ((((Raw, RootStripped), JoinedJail), Canonicalized), BoundaryChecked))
         let checked = canon.boundary_check(&self.jail)?;
 
         Ok(JailedPath::new(self.jail.clone(), checked))
@@ -273,13 +291,16 @@ impl<Marker> Jail<Marker> {
     /// ```rust
     /// # use jailed_path::Jail;
     /// # use std::path::Path;
+    /// # use std::fs;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let jail = Jail::<()>::try_new("/app/storage")?;
+    /// fs::create_dir_all("app_storage")?;
+    /// let jail = Jail::<()>::try_new("app_storage")?;
     /// let jailed_path = jail.try_path("user/file.txt")?;
     ///
     /// // Use the jail's path for assertions or logging
     /// assert!(jailed_path.starts_with_real(jail.path()));
     /// println!("Jail is located at: {}", jail.path().display());
+    /// fs::remove_dir_all("app_storage").ok();
     /// # Ok(())
     /// # }
     /// ```

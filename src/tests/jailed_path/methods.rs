@@ -6,17 +6,19 @@ use std::sync::Arc;
 fn test_jailed_path_join_and_parent() {
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
+        .unwrap()
+        .verify_exists()
         .unwrap(),
     );
     let jail_relative = PathBuf::from("foo/bar.txt");
-    let validated_path = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
+    let validated_path = crate::validator::stated_path::StatedPath::<
+        crate::validator::stated_path::Raw,
     >::new(jail_relative)
-    .clamp()
+    .virtualize()
     .join_jail(&jail_root)
     .canonicalize()
     .unwrap()
@@ -47,10 +49,10 @@ fn test_jailed_path_join_and_parent() {
     assert_eq!(actual_parent.to_string_virtual(), "/foo");
 
     // parent (at jail root)
-    let jail_validated_path = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
+    let jail_validated_path = crate::validator::stated_path::StatedPath::<
+        crate::validator::stated_path::Raw,
     >::new(PathBuf::new())
-    .clamp()
+    .virtualize()
     .join_jail(&jail_root)
     .canonicalize()
     .unwrap()
@@ -65,18 +67,20 @@ fn test_jailed_path_join_and_parent() {
 fn test_jailed_path_pathbuf_methods() {
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
+        .unwrap()
+        .verify_exists()
         .unwrap(),
     );
 
     let jail_relative = PathBuf::from("foo/bar.txt");
-    let validated_path = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
+    let validated_path = crate::validator::stated_path::StatedPath::<
+        crate::validator::stated_path::Raw,
     >::new(jail_relative)
-    .clamp()
+    .virtualize()
     .join_jail(&jail_root)
     .canonicalize()
     .unwrap()
@@ -101,10 +105,10 @@ fn test_jailed_path_pathbuf_methods() {
     assert_eq!(parent.unwrap().to_string_virtual(), "/foo");
 
     // parent (at jail root)
-    let jail_validated_path = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
+    let jail_validated_path = crate::validator::stated_path::StatedPath::<
+        crate::validator::stated_path::Raw,
     >::new(PathBuf::new())
-    .clamp()
+    .virtualize()
     .join_jail(&jail_root)
     .canonicalize()
     .unwrap()
@@ -120,10 +124,10 @@ fn test_jailed_path_pathbuf_methods() {
     assert_eq!(with_name.unwrap().to_string_virtual(), "/foo/newname.txt");
 
     // with_file_name (potential escape attempt)
-    let root_validated_path = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
+    let root_validated_path = crate::validator::stated_path::StatedPath::<
+        crate::validator::stated_path::Raw,
     >::new(PathBuf::new())
-    .clamp()
+    .virtualize()
     .join_jail(&jail_root)
     .canonicalize()
     .unwrap()

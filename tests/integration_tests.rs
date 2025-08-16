@@ -1,21 +1,8 @@
 use jailed_path::{Jail, JailedPath};
-use soft_canonicalize::soft_canonicalize;
 use std::fs;
 use std::io::Write;
 
 // try_jail tests removed; use Jail::try_new + try_path directly
-
-/// Creates a cross-platform non-existent absolute path for testing
-fn get_nonexistent_absolute_path() -> String {
-    #[cfg(windows)]
-    {
-        "C:\\NonExistent\\Path\\That\\Does\\Not\\Exist".to_string()
-    }
-    #[cfg(not(windows))]
-    {
-        "/nonexistent/path/that/does/not/exist".to_string()
-    }
-}
 
 /// Create a test directory structure for integration testing
 fn create_test_directory() -> std::io::Result<std::path::PathBuf> {
@@ -142,30 +129,31 @@ fn test_error_handling_and_reporting() {
         other => panic!("Traversal should be clamped, got: {other:?}"),
     }
 
-    // 3. Test that non-existent jail is now allowed (should succeed)
-    let nonexistent_jail = get_nonexistent_absolute_path();
-    match Jail::<()>::try_new(&nonexistent_jail) {
+    // 3. Test creating a jail when the directory exists: create a real temp dir
+    // that mimics a previously non-existent jail, create it, and ensure try_new succeeds.
+    let base = std::env::temp_dir();
+    let test_jail_dir = base.join(format!("jailed_path_test_jail_{}", std::process::id()));
+    // Ensure a clean start
+    let _ = std::fs::remove_dir_all(&test_jail_dir);
+    // Directory doesn't exist yet; create it to satisfy the new API requirement
+    std::fs::create_dir_all(&test_jail_dir).expect("Failed to create test jail directory");
+
+    match Jail::<()>::try_new(&test_jail_dir) {
         Ok(jail) => {
-            // Should allow creation, but paths inside should still be jailed
+            // Should allow creation and allow paths inside
             let result = jail.try_path("foo.txt");
-            assert!(
-                result.is_ok(),
-                "Should allow paths inside non-existent jail"
-            );
+            assert!(result.is_ok(), "Should allow paths inside created jail");
             let jailed_path = result.unwrap();
 
-            let canonicalized_nonexistent_jail = soft_canonicalize(nonexistent_jail).unwrap();
-
+            let canonicalized_jail = test_jail_dir.canonicalize().unwrap();
             assert!(
-                jailed_path.starts_with_real(canonicalized_nonexistent_jail.as_path()),
-                "Jailed path should start with the jail boundary"
-            );
-            assert!(
-                jailed_path.starts_with_real(&canonicalized_nonexistent_jail),
+                jailed_path.starts_with_real(canonicalized_jail),
                 "Jailed path should start with the jail boundary"
             );
         }
-        Err(e) => panic!("Non-existent jail should be allowed, got error: {e}"),
+        Err(e) => {
+            panic!("Creating a jail for an existing directory should succeed, got error: {e}")
+        }
     }
 }
 

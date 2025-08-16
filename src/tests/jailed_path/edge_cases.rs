@@ -6,16 +6,18 @@ fn create_jailed_path(path: impl AsRef<Path>) -> (JailedPath, Arc<PathBuf>) {
     let temp = tempfile::tempdir().unwrap();
     let jail_root_path = temp.path().to_path_buf();
     let jail_root = Arc::new(
-        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
             &jail_root_path,
         )
         .canonicalize()
+        .unwrap()
+        .verify_exists()
         .unwrap(),
     );
-    let validated_path = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
+    let validated_path = crate::validator::stated_path::StatedPath::<
+        crate::validator::stated_path::Raw,
     >::new(path.as_ref())
-    .clamp()
+    .virtualize()
     .join_jail(&jail_root)
     .canonicalize()
     .unwrap()

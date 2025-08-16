@@ -1,2 +1,2 @@
 pub mod jail;
-pub mod validated_path;
+pub mod stated_path;

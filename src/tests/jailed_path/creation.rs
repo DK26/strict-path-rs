@@ -7,16 +7,18 @@ fn test_jailed_path_creation() {
     let test_path = PathBuf::from("path");
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
+        .unwrap()
+        .verify_exists()
         .unwrap(),
     );
-    let validated_path = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
+    let validated_path = crate::validator::stated_path::StatedPath::<
+        crate::validator::stated_path::Raw,
     >::new(test_path.clone())
-    .clamp()
+    .virtualize()
     .join_jail(&jail_root)
     .canonicalize()
     .unwrap()
@@ -35,16 +37,18 @@ fn test_jailed_path_clone_and_debug() {
     let test_path = PathBuf::from("path");
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
+        .unwrap()
+        .verify_exists()
         .unwrap(),
     );
-    let validated_path = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
+    let validated_path = crate::validator::stated_path::StatedPath::<
+        crate::validator::stated_path::Raw,
     >::new(test_path)
-    .clamp()
+    .virtualize()
     .join_jail(&jail_root)
     .canonicalize()
     .unwrap()

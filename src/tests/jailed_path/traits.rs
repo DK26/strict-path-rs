@@ -8,17 +8,19 @@ fn test_jailed_path_collections() {
 
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
+        .unwrap()
+        .verify_exists()
         .unwrap(),
     );
-    let test_path = PathBuf::from("path");
-    let validated_path = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
+    let test_path = PathBuf::from("/path/file.txt");
+    let validated_path = crate::validator::stated_path::StatedPath::<
+        crate::validator::stated_path::Raw,
     >::new(test_path)
-    .clamp()
+    .virtualize()
     .join_jail(&jail_root)
     .canonicalize()
     .unwrap()
@@ -39,18 +41,20 @@ fn test_jailed_path_collections() {
 fn test_jailed_path_display_formatting() {
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
+        .unwrap()
+        .verify_exists()
         .unwrap(),
     );
-    let test_path = PathBuf::from("path/file.txt");
+    let test_path = PathBuf::from("/path/file.txt");
 
-    let validated_path = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
+    let validated_path = crate::validator::stated_path::StatedPath::<
+        crate::validator::stated_path::Raw,
     >::new(test_path)
-    .clamp()
+    .virtualize()
     .join_jail(&jail_root)
     .canonicalize()
     .unwrap()
@@ -73,40 +77,38 @@ fn test_jailed_path_equality_and_hash() {
     let path3 = PathBuf::from("different/path");
     let temp = tempfile::tempdir().unwrap();
     let jail_root = Arc::new(
-        crate::validator::validated_path::ValidatedPath::<crate::validator::validated_path::Raw>::new(
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
             temp.path(),
         )
         .canonicalize()
+        .unwrap()
+        .verify_exists()
         .unwrap(),
     );
-
-    let validated_path1 = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
-    >::new(path1)
-    .clamp()
-    .join_jail(&jail_root)
-    .canonicalize()
-    .unwrap()
-    .boundary_check(&jail_root)
-    .unwrap();
-    let validated_path2 = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
-    >::new(path2)
-    .clamp()
-    .join_jail(&jail_root)
-    .canonicalize()
-    .unwrap()
-    .boundary_check(&jail_root)
-    .unwrap();
-    let validated_path3 = crate::validator::validated_path::ValidatedPath::<
-        crate::validator::validated_path::Raw,
-    >::new(path3)
-    .clamp()
-    .join_jail(&jail_root)
-    .canonicalize()
-    .unwrap()
-    .boundary_check(&jail_root)
-    .unwrap();
+    let validated_path1 =
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(path1)
+            .virtualize()
+            .join_jail(&jail_root)
+            .canonicalize()
+            .unwrap()
+            .boundary_check(&jail_root)
+            .unwrap();
+    let validated_path2 =
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(path2)
+            .virtualize()
+            .join_jail(&jail_root)
+            .canonicalize()
+            .unwrap()
+            .boundary_check(&jail_root)
+            .unwrap();
+    let validated_path3 =
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(path3)
+            .virtualize()
+            .join_jail(&jail_root)
+            .canonicalize()
+            .unwrap()
+            .boundary_check(&jail_root)
+            .unwrap();
     let jailed1: JailedPath = JailedPath::new(Arc::clone(&jail_root), validated_path1);
     let jailed2: JailedPath = JailedPath::new(Arc::clone(&jail_root), validated_path2);
     let jailed3: JailedPath = JailedPath::new(Arc::clone(&jail_root), validated_path3);
