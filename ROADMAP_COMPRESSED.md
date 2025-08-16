@@ -71,10 +71,35 @@ impl<Marker> Jail<Marker> {
     pub fn try_new<P: AsRef<Path>>(root: P) -> Result<Self>
     pub fn try_new_create<P: AsRef<Path>>(root: P) -> Result<Self>
     pub fn try_path<P: AsRef<Path>>(&self, path: P) -> Result<JailedPath<Marker>>
+    pub fn try_path_virtual<P: AsRef<Path>>(&self, path: P) -> Result<JailedPath<Marker>>
     
     // Path access (simple and readable)
     pub fn path(&self) -> &Path
 }
+```
+
+### Path Validation Methods (Dual Behavior)
+
+**Two distinct validation approaches for different use cases:**
+
+#### `try_path()` - Boundary-Checked Full Paths
+- **Purpose**: Validate absolute/full filesystem paths against jail boundary
+- **Use Cases**: Config files with absolute paths, database-stored paths, system integration
+- **Behavior**: Accepts full paths if within jail boundary, rejects if outside
+```rust
+let jail = Jail::try_new("/app/uploads")?;
+let config_path = jail.try_path("/app/uploads/config/settings.ini")?;  // ✅ Within boundary
+let system_path = jail.try_path("/etc/passwd")?;                       // ❌ Outside boundary
+```
+
+#### `try_path_virtual()` - Clamped Virtual Paths  
+- **Purpose**: Treat all input as jail-relative/virtual paths (current behavior)
+- **Use Cases**: User input, relative navigation, untrusted path strings
+- **Behavior**: Always clamps `..` components to jail root, never escapes
+```rust
+let jail = Jail::try_new("/app/uploads")?;
+let user_file = jail.try_path_virtual("documents/report.pdf")?;  // Relative to jail
+let attack = jail.try_path_virtual("../../../etc/passwd")?;      // Clamped to jail root
 ```
 
 ### `JailedPath<Marker>`  
@@ -151,43 +176,43 @@ impl<Marker> Debug for JailedPath<Marker> {
 
 ### CRITICAL (Blocking v0.1.0):
 1. **🔴 IMPLEMENT: `path()` method for `Jail`** - Enable explicit path access
-2. **🔴 REFINE: Windows 8.3 detection** - Use precise UTF-16 state machine for short name detection (see ROADMAP.md for full implementation)
-3. **🔴 REMOVE: `jail() -> &Path` method** - BREAKING CHANGE, replace with explicit `path()` method
-4. **🔴 REMOVE: `try_path_normalized()` method** - BREAKING CHANGE, confusing API surface
+2. **🔴 IMPLEMENT: Dual validation methods** - Add `try_path_virtual()` alongside existing `try_path()`
+3. **🔴 REFINE: Windows 8.3 detection** - Use precise UTF-16 state machine for short name detection (see ROADMAP.md for full implementation)
+4. **🔴 REMOVE: `jail() -> &Path` method** - BREAKING CHANGE, replace with explicit `path()` method
+5. **🔴 REMOVE: `try_path_normalized()` method** - BREAKING CHANGE, confusing API surface
 
 ### HIGH PRIORITY:
-5. **🟡 UPDATE: Documentation** - Remove all references to removed methods, add `path()` method examples
-6. **🟡 WINDOWS: Platform-specific documentation** - Document 8.3 behavior and Windows security considerations
+6. **🟡 UPDATE: Documentation** - Document dual validation methods, remove references to removed methods
+7. **🟡 WINDOWS: Platform-specific documentation** - Document 8.3 behavior and Windows security considerations
 
 ## 📚 Usage Patterns
 
-### Basic Usage
+### Basic Usage with Dual Validation
 ```rust
 use jailed_path::Jail;
 
 let jail = Jail::try_new("/app/uploads")?;
-let file = jail.try_path("user/image.jpg")?;
+
+// Virtual/relative paths (user input, relative navigation)
+let user_file = jail.try_path_virtual("user/image.jpg")?;  // Always relative to jail
+let attack = jail.try_path_virtual("../../../etc/passwd")?;  // Clamped to jail root
+
+// Full/absolute paths (config files, database entries)  
+let config_file = jail.try_path("/app/uploads/config.json")?;  // OK - within boundary
+// let system_file = jail.try_path("/etc/passwd")?;  // Error - outside boundary
 
 // Display vs Debug behavior
-println!("User sees: {}", file);        // Display: "/user/image.jpg" (virtual)
-println!("Debug info: {:?}", file);     // Debug: "/app/uploads/user/image.jpg" (real)
-
-// File operations
-if file.exists() {
-    let content = file.read_to_string()?;
-}
-
-// Safe path manipulation  
-let backup = file.with_extension("bak").unwrap();
+println!("User sees: {}", user_file);        // Display: "/user/image.jpg" (virtual)
+println!("Debug info: {:?}", user_file);     // Debug: "/app/uploads/user/image.jpg" (real)
 ```
 
 ### Testing with Ergonomic Path Access
 ```rust
 let jail = Jail::try_new("/app/uploads")?;
-let file = jail.try_path("user/image.jpg")?;
+let file = jail.try_path_virtual("user/image.jpg")?;
 
 // ✅ Clean test assertions
-assert!(file.starts_with(jail.path()));  // Explicit path access
+assert!(file.starts_with_real(jail.path()));  // Explicit path access
 assert_eq!(file.parent().unwrap().to_string_virtual(), "/user");  // Explicit suffix
 ```
 
@@ -199,8 +224,8 @@ struct UploadedFile;
 let public_jail: Jail<PublicAsset> = Jail::try_new("/app/public")?;
 let upload_jail: Jail<UploadedFile> = Jail::try_new("/app/uploads")?;
 
-let public_file: JailedPath<PublicAsset> = public_jail.try_path("index.html")?;
-let upload_file: JailedPath<UploadedFile> = upload_jail.try_path("image.jpg")?;
+let public_file: JailedPath<PublicAsset> = public_jail.try_path_virtual("index.html")?;
+let upload_file: JailedPath<UploadedFile> = upload_jail.try_path_virtual("image.jpg")?;
 
 // Compile-time type safety prevents mixing contexts
 ```
@@ -218,9 +243,10 @@ let upload_file: JailedPath<UploadedFile> = upload_jail.try_path("image.jpg")?;
 
 1. **Security Boundary**: Creating `JailedPath` via validation, not accessing jail root
 2. **Safe Methods**: `Jail` can have `path()` method, `JailedPath` cannot expose `&Path`
-3. **Virtual Display**: Default display shows user-friendly relative paths
-4. **Built-in I/O**: Direct file operations without trait conversion needed
-5. **Type Safety**: Marker types prevent cross-context path mixing
-6. **Explicit Escape**: Use `unjail()` when raw path access truly needed
+3. **Dual Validation**: `try_path()` for full paths, `try_path_virtual()` for relative paths
+4. **Virtual Display**: Default display shows user-friendly relative paths
+5. **Built-in I/O**: Direct file operations without trait conversion needed
+6. **Type Safety**: Marker types prevent cross-context path mixing
+7. **Explicit Escape**: Use `unjail()` when raw path access truly needed
 
 **Remember**: `Jail` is a validator (safe to expose), `JailedPath` is a security promise (never expose as `Path`).

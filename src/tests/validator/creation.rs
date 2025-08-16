@@ -638,3 +638,367 @@ fn test_lexical_validation_allows_legitimate_paths() {
     // Cleanup
     cleanup_test_directory(&temp_dir);
 }
+
+#[test]
+fn test_try_new_create_with_nonexistent_path() {
+    let temp_base = std::env::temp_dir();
+    let new_dir = temp_base.join(format!("jailed_path_test_new_{}", std::process::id()));
+
+    // Ensure directory does not exist before test
+    cleanup_test_directory(&new_dir);
+    assert!(
+        !new_dir.exists(),
+        "Test directory should not exist initially"
+    );
+
+    // Should create the directory and succeed
+    let result = Jail::<()>::try_new_create(&new_dir);
+    assert!(
+        result.is_ok(),
+        "try_new_create should succeed with non-existent path"
+    );
+    assert!(new_dir.exists(), "Directory should be created");
+
+    let jail = result.unwrap();
+    assert_eq!(jail.path(), new_dir.canonicalize().unwrap());
+
+    // Cleanup
+    cleanup_test_directory(&new_dir);
+}
+
+#[test]
+fn test_try_new_create_with_existing_directory() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+
+    // Should succeed even if directory already exists
+    let result = Jail::<()>::try_new_create(&temp_dir);
+    assert!(
+        result.is_ok(),
+        "try_new_create should succeed with existing directory"
+    );
+
+    let jail = result.unwrap();
+    assert_eq!(jail.path(), temp_dir.canonicalize().unwrap());
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+fn test_try_new_create_with_file_path() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let file_path = temp_dir.join("a_file.txt");
+    std::fs::write(&file_path, "hello").unwrap();
+
+    // Should fail if path is a file
+    let result = Jail::<()>::try_new_create(&file_path);
+    assert!(
+        result.is_err(),
+        "try_new_create should fail if path is a file"
+    );
+
+    match result.unwrap_err() {
+        JailedPathError::InvalidJail { .. } => {
+            // Expected error type
+        }
+        other => panic!("Unexpected error type: {other:?}"),
+    }
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+#[cfg(not(windows))] // Permissions tests are tricky on Windows
+fn test_try_new_create_permission_denied() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let restricted_dir = temp_dir.join("restricted");
+    fs::create_dir(&restricted_dir).unwrap();
+
+    // Set read-only permissions
+    let mut perms = fs::metadata(&restricted_dir).unwrap().permissions();
+    perms.set_mode(0o555); // r-xr-xr-x
+    fs::set_permissions(&restricted_dir, perms).unwrap();
+
+    let new_jail_path = restricted_dir.join("new_jail");
+
+    // Should fail due to permissions
+    let result = Jail::<()>::try_new_create(new_jail_path);
+    assert!(
+        result.is_err(),
+        "try_new_create should fail with permission denied"
+    );
+
+    match result.unwrap_err() {
+        JailedPathError::InvalidJail { .. } => {
+            // Expected error type
+        }
+        other => panic!("Unexpected error type: {other:?}"),
+    }
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+fn test_try_new_create_concurrently() {
+    use std::sync::Arc;
+    use std::thread;
+
+    let temp_base = std::env::temp_dir();
+    let new_dir = Arc::new(temp_base.join(format!(
+        "jailed_path_test_concurrent_{}",
+        std::process::id()
+    )));
+
+    // Ensure directory does not exist before test
+    cleanup_test_directory(&new_dir);
+
+    let mut handles = vec![];
+    for _ in 0..10 {
+        let new_dir_clone = Arc::clone(&new_dir);
+        let handle = thread::spawn(move || {
+            // All threads try to create the same jail
+            Jail::<()>::try_new_create(new_dir_clone.as_ref())
+        });
+        handles.push(handle);
+    }
+
+    let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+
+    // At least one should succeed, others might fail if they race
+    let success_count = results.iter().filter(|r| r.is_ok()).count();
+    assert!(
+        success_count >= 1,
+        "At least one thread should successfully create the jail"
+    );
+
+    // The directory should exist at the end
+    assert!(
+        new_dir.exists(),
+        "Directory should exist after concurrent test"
+    );
+
+    // Cleanup
+    cleanup_test_directory(&new_dir);
+}
+
+#[test]
+#[cfg(unix)] // Symlink tests are specific to Unix-like systems
+fn test_try_new_with_symlink_to_directory() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let jail_dir = temp_dir.join("real_jail");
+    fs::create_dir(&jail_dir).unwrap();
+
+    let symlink_path = temp_dir.join("jail_symlink");
+    std::os::unix::fs::symlink(&jail_dir, &symlink_path).unwrap();
+
+    // try_new should succeed with a symlink to a directory
+    let result = Jail::<()>::try_new(&symlink_path);
+    assert!(
+        result.is_ok(),
+        "try_new should succeed with a symlink to a directory"
+    );
+
+    let jail = result.unwrap();
+    assert_eq!(jail.path(), jail_dir.canonicalize().unwrap());
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_try_new_with_symlink_to_file() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let file_path = temp_dir.join("a_file.txt");
+    std::fs::write(&file_path, "hello").unwrap();
+
+    let symlink_path = temp_dir.join("file_symlink");
+    std::os::unix::fs::symlink(&file_path, &symlink_path).unwrap();
+
+    // try_new should fail with a symlink to a file
+    let result = Jail::<()>::try_new(&symlink_path);
+    assert!(
+        result.is_err(),
+        "try_new should fail with a symlink to a file"
+    );
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_try_new_with_broken_symlink() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let non_existent_path = temp_dir.join("non_existent");
+
+    let symlink_path = temp_dir.join("broken_symlink");
+    std::os::unix::fs::symlink(non_existent_path, &symlink_path).unwrap();
+
+    // try_new should fail with a broken symlink
+    let result = Jail::<()>::try_new(&symlink_path);
+    assert!(result.is_err(), "try_new should fail with a broken symlink");
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_try_new_create_with_parent_as_symlink() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let real_parent = temp_dir.join("real_parent");
+    fs::create_dir(&real_parent).unwrap();
+
+    let symlink_parent = temp_dir.join("symlink_parent");
+    std::os::unix::fs::symlink(&real_parent, &symlink_parent).unwrap();
+
+    let new_jail_path = symlink_parent.join("new_jail");
+
+    // try_new_create should succeed and create the directory in the real parent
+    let result = Jail::<()>::try_new_create(new_jail_path);
+    assert!(
+        result.is_ok(),
+        "try_new_create should succeed with parent as symlink"
+    );
+
+    let created_real = real_parent.join("new_jail");
+    assert!(created_real.exists());
+    // On Unix the symlink path resolves to the real directory; the canonicalized
+    // paths should therefore be identical (verify link was followed)
+    assert_eq!(
+        created_real.canonicalize().unwrap(),
+        symlink_parent.join("new_jail").canonicalize().unwrap()
+    );
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+#[cfg(windows)] // Windows-specific symlink tests
+fn test_try_new_with_symlink_to_directory_windows() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let jail_dir = temp_dir.join("real_jail");
+    fs::create_dir(&jail_dir).unwrap();
+
+    let symlink_path = temp_dir.join("jail_symlink");
+    // Attempt to create the symlink, but ignore the test if permissions are denied
+    match std::os::windows::fs::symlink_dir(&jail_dir, &symlink_path) {
+        Ok(_) => {
+            // try_new should succeed with a symlink to a directory
+            let result = Jail::<()>::try_new(&symlink_path);
+            assert!(
+                result.is_ok(),
+                "try_new should succeed with a symlink to a directory"
+            );
+
+            let jail = result.unwrap();
+            assert_eq!(jail.path(), jail_dir.canonicalize().unwrap());
+        }
+        Err(e) => {
+            if e.raw_os_error() == Some(1314) {
+                println!("Permission denied to create symlink; ignoring test.");
+                return;
+            }
+            panic!("Failed to create symlink: {e}");
+        }
+    }
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+#[cfg(windows)]
+fn test_try_new_with_symlink_to_file_windows() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let file_path = temp_dir.join("a_file.txt");
+    std::fs::write(&file_path, "hello").unwrap();
+
+    let symlink_path = temp_dir.join("file_symlink");
+    match std::os::windows::fs::symlink_file(&file_path, &symlink_path) {
+        Ok(_) => {
+            // try_new should fail with a symlink to a file
+            let result = Jail::<()>::try_new(&symlink_path);
+            assert!(
+                result.is_err(),
+                "try_new should fail with a symlink to a file"
+            );
+        }
+        Err(e) => {
+            if e.raw_os_error() == Some(1314) {
+                println!("Permission denied to create symlink; ignoring test.");
+                return;
+            }
+            panic!("Failed to create symlink: {e}");
+        }
+    }
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+#[cfg(windows)]
+fn test_try_new_with_broken_symlink_windows() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let non_existent_path = temp_dir.join("non_existent");
+
+    let symlink_path = temp_dir.join("broken_symlink");
+    match std::os::windows::fs::symlink_dir(non_existent_path, &symlink_path) {
+        Ok(_) => {
+            // try_new should fail with a broken symlink
+            let result = Jail::<()>::try_new(&symlink_path);
+            assert!(result.is_err(), "try_new should fail with a broken symlink");
+        }
+        Err(e) => {
+            if e.raw_os_error() == Some(1314) {
+                println!("Permission denied to create symlink; ignoring test.");
+                return;
+            }
+            panic!("Failed to create symlink: {e}");
+        }
+    }
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}
+
+#[test]
+#[cfg(windows)]
+fn test_try_new_create_with_parent_as_symlink_windows() {
+    let temp_dir = create_test_directory().expect("Failed to create temp directory");
+    let real_parent = temp_dir.join("real_parent");
+    fs::create_dir(&real_parent).unwrap();
+
+    let symlink_parent = temp_dir.join("symlink_parent");
+    match std::os::windows::fs::symlink_dir(&real_parent, &symlink_parent) {
+        Ok(_) => {
+            let new_jail_path = symlink_parent.join("new_jail");
+
+            // try_new_create should succeed and create the directory in the real parent
+            let result = Jail::<()>::try_new_create(new_jail_path);
+            assert!(
+                result.is_ok(),
+                "try_new_create should succeed with parent as symlink"
+            );
+
+            assert!(real_parent.join("new_jail").exists());
+        }
+        Err(e) => {
+            if e.raw_os_error() == Some(1314) {
+                println!("Permission denied to create symlink; ignoring test.");
+                return;
+            }
+            panic!("Failed to create symlink: {e}");
+        }
+    }
+
+    // Cleanup
+    cleanup_test_directory(&temp_dir);
+}

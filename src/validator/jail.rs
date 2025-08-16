@@ -148,6 +148,53 @@ impl<Marker> Jail<Marker> {
         })
     }
 
+    /// Create a new jail, creating the directory if it doesn't exist.
+    ///
+    /// This is an explicit alternative to `try_new()` for cases where you want
+    /// to create the jail directory structure. Use this when you need to ensure
+    /// the jail directory exists and are comfortable with directory creation.
+    ///
+    /// # Security Considerations
+    ///
+    /// - Creates parent directories as needed with `std::fs::create_dir_all()`
+    /// - Only use when directory creation is intentional and safe
+    /// - Avoid in production containers where filesystem should be read-only
+    /// - Prevents typos in jail paths (unlike `try_new()` which requires existing dirs)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use jailed_path::Jail;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Create jail directory if it doesn't exist
+    /// let jail = Jail::<()>::try_new_create("app/user_uploads")?;
+    /// let file = jail.try_path("user123/avatar.jpg")?;
+    /// # std::fs::remove_dir_all("app").ok();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `JailedPathError::Io` if:
+    /// - Directory creation fails due to permissions
+    /// - Path exists but is not a directory
+    /// - Filesystem is read-only or full
+    /// - Invalid path characters (platform-specific)
+    pub fn try_new_create<P: AsRef<Path>>(root: P) -> Result<Self> {
+        let root_path = root.as_ref();
+
+        // Create the directory (and parents) if it doesn't exist
+        if !root_path.exists() {
+            std::fs::create_dir_all(root_path)
+                .map_err(|e| JailedPathError::invalid_jail(root_path.to_path_buf(), e))?;
+        }
+
+        // Now use the standard try_new() logic for validation
+        Self::try_new(root_path)
+    }
+
     /// Validates a user-provided path and returns a secure `JailedPath` for file operations.
     ///
     /// **This is the SECOND step in secure path validation - call this for EVERY user path.**

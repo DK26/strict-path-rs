@@ -9,493 +9,168 @@
 
 **Prevent directory traversal with type-safe virtual path jails and safe symlinks**
 
-> *Putting your paths in jail by the Type-State Police Department*  
+> *Putting your paths in jail by the Type-State Police Department*
 > *because your LLM can't be trusted with security*
+>
 
-`JailedPath` is a filesystem path type that **mathematically proven** to stay within directory boundaries. Unlike libraries that hope validation works, we mathematically prove it at compile time using Rust's type system. Create `JailedPath` instances by building a jail with `Jail::try_new()` and validating paths via `jail.try_path()`. This guarantees containment—even malicious input like `../../../etc/passwd` gets safely clamped.
+## 🎯 **Core Security Principle: Jail Every External Path**
 
-**Zero Learning Curve**: Two simple functions solve 99% of use cases. **Attack Impossibility**: Not just "hard to bypass" - actually impossible due to API design.
+**RULE: Each path that comes from an uncontrolled environment should be jailed.**
 
-```rust
-use jailed_path::{Jail, JailedPath};
+**Sources requiring `JailedPath` validation:**
 
-// ✅ SECURE - Guaranteed safe by construction
-fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
-    safe_path.read_bytes()  // Built-in safe operations
-}
+- 📡 **HTTP requests** - User file uploads, API endpoints, URL parameters
+- 🌐 **Web forms** - File paths in form submissions, route parameters  
+- ⚙️ **Configuration files** - User-editable config, external config sources
+- 💾 **Database content** - File paths stored in user data, content management
+- 📂 **CLI arguments** - Command-line file paths, script parameters
+- 🔌 **External APIs** - Third-party services, webhook payloads
+- 🤖 **LLM/AI output** - Generated file paths, autonomous agent decisions
+- 📨 **Inter-service communication** - Microservice requests, message queues
+- 📱 **Mobile/Desktop apps** - User document selection, drag-and-drop paths
+- 📦 **Archive contents** - ZIP/RAR/TAR file entries, embedded path strings in binary files
+- 🔧 **File format internals** - Any file that contains path strings as data
 
-// Main pattern: Reusable jail for multiple validations (most common)
-let user_jail: Jail = Jail::try_new("users/alice_workspace")?;
-let safe_path: JailedPath = user_jail.try_path("documents/report.pdf")?;
+**The Rule**: **If the path comes from outside your direct code control → jail it with `JailedPath`.**
 
-// Alternative: One-shot style (inline) without storing the jail
-let one_shot_path: JailedPath = Jail::try_new("users/alice_workspace")?.try_path("documents/report.pdf")?;
+---
 
-// Even attacks are neutralized:
-let attack_path = user_jail.try_path("../../../etc/passwd")?;
-assert!(attack_path.ends_with("users/alice_workspace"));  // Attack contained!
-```
+`JailedPath` is a filesystem path type **mathematically proven** to stay within directory boundaries. Unlike libraries that hope validation works, we mathematically prove it at compile time using Rust's type system. Create `JailedPath` instances by building a jail with `Jail::try_new()` and validating paths via `jail.try_path()`. This guarantees containment—even malicious input like `../../../etc/passwd` gets safely clamped.
 
-## Key Features: Security-First Design
 
-🔒 **Security First**: API makes unsafe operations impossible, not just difficult  
-🏛️ **Mathematical Guarantees**: Rust's type system proves security at compile time  
-🛡️ **Zero Attack Surface**: No `Deref` to `Path`, no `AsRef<Path>`, validation cannot be bypassed  
-📁 **Built-in Safe Operations**: Direct file operations on jailed paths without exposing raw filesystem paths  
-👁️ **Virtual Root Display**: Clean user-facing paths that never leak filesystem structure  
-🎯 **Multi-Jail Safety**: Marker types prevent cross-jail contamination  
-📦 **Minimal Attack Surface**: Only one dependency - our auditable `soft-canonicalize` crate (handles non-existent paths unlike `std::fs::canonicalize`)  
-🔗 **Type-History Design**: Internal pattern ensures paths carry proof of validation stages  
-🧪 **Comprehensive Testing**: 100%+ test coverage with attack scenario simulation  
-🌍 **Cross-Platform**: Works on Windows, macOS, and Linux  
-🤖 **LLM-Friendly**: Documentation and APIs designed for both humans and AI systems to understand and use correctly  
+## The Problem
 
-## The Problem: Every Path Is a Security Risk
+Every external path is a potential security vulnerability:
 
 ```rust
-// 🚨 DANGEROUS - This code looks innocent but has a critical vulnerability
-fn serve_file(path: &str) -> std::io::Result<Vec<u8>> {
-    std::fs::read(format!("./public/{path}"))  // ← Path traversal attack possible!
-}
-
-// Attacker sends: "../../../etc/passwd" 
-// Your server happily serves: ./public/../../../etc/passwd → /etc/passwd 💀
+// 🚨 DANGEROUS - Directory traversal attack
+std::fs::read(format!("./uploads/{}", user_path))  // user_path = "../../../etc/passwd"
 ```
 
-**The brutal truth**: Manual path validation is error-prone and easy to bypass. Even security-conscious developers get it wrong.
-
-## See The Promise In Action: Detailed Examples
-
-```rust
-use jailed_path::{Jail, JailedPath};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// THE PROMISE HANDLES ATTACKS - Even escape attempts honor the containment promise:
-// ═══════════════════════════════════════════════════════════════════════════════
-
-let escape_attempt = "../../../etc/passwd";
-let alice_jail = Jail::try_new("users/alice_workspace")?;
-let attack_path: JailedPath = alice_jail.try_path(escape_attempt)?;
-
-// Virtual display shows clamped path - the promise includes hiding real filesystem structure
-assert_eq!(attack_path.virtual_display(), "/etc/passwd");  // Clean display, but SAFELY clamped
-
-// ✅ The promise is verified: this path is actually contained within the jail
-assert!(attack_path.ends_with("users/alice_workspace"));  // PROOF: Real path is inside the jail!
-
-// Reusable jail with try_path()
-let alice_home_jail = Jail::try_new("./users/alice_workspace")?;
-let vacation_photo_path: JailedPath = alice_home_jail.try_path("photos/vacation.jpg")?;
-assert_eq!(vacation_photo_path.virtual_display(), "/photos/vacation.jpg");  // Promise: within alice's space!
-
-let cross_user_attack_path: JailedPath = alice_home_jail.try_path("../bob_workspace/secrets.txt")?;
-assert_eq!(cross_user_attack_path.virtual_display(), "/bob_workspace/secrets.txt");  // Clean display
-assert!(cross_user_attack_path.ends_with("users/alice_workspace"));  // PROOF: Still within alice's jail!
-```
-
-**The revolutionary insight**: Every `JailedPath` you hold is a cryptographic-strength promise that has been mathematically verified by Rust's type system. You cannot forge this promise—there are no other constructors!
-
-## Understanding the Generic Marker System
-
-You might have noticed something in the examples above. Let's explore the "generic trap" and why it's actually a feature:
+## Simple API Usage
 
 ```rust
 use jailed_path::Jail;
 
-// Simple approach - no type annotation needed
-let static_files_jail = Jail::try_new("./static/css")?;
-let stylesheet_path = static_files_jail.try_path("bootstrap.css")?;  // Type: JailedPath<()>
+// External path from HTTP request, CLI arg, config file, etc.
+let user_provided_path = "documents/invoice-2024.pdf";  // From external source
+let malicious_input = "../../../etc/passwd";  // Attacker input
 
-// Or be explicit with the "turbofish" syntax  
-let static_files_jail: Jail<()> = Jail::try_new("./static/css")?;
-let stylesheet_path: JailedPath<()> = static_files_jail.try_path("bootstrap.css")?;
+let jail = Jail::try_new("customer_uploads")?;
+let safe_path = jail.try_path(user_provided_path)?;  // Validates external input
+let attack_path = jail.try_path(malicious_input)?;   // Attack neutralized!
+
+safe_path.write_bytes(b"data")?;  // Safe within ./customer_uploads
+assert!(attack_path.starts_with_real(jail.path()));  // Proof: contained
 ```
 
-**"Why the generic `<()>` parameter?"** - This is Rust's way of saying "no special marker." But the real power comes when you DO use markers...
-
-## The Power of Multiple Jails: Promises with Specific Identities
-
-Real applications have multiple directories. Here's where the promise system becomes even more powerful by adding **identity** to the containment promise:
+## Mathematical Security: Functions Require Validation
 
 ```rust
-use jailed_path::{Jail, JailedPath};
+use jailed_path::JailedPath;
 
-// Define semantic markers for different promise types
+// ✅ SECURE - Function signature makes bypass impossible
+fn serve_file(safe_path: &JailedPath) -> std::io::Result<Vec<u8>> {
+    safe_path.read_bytes()  // No way to call this with unsafe path
+}
+
+// serve_file("/etc/passwd");           // ❌ Compile error - needs JailedPath
+// serve_file(&std::path::Path::new("../../../etc/passwd")); // ❌ Compile error
+```
+
+## Multi-Jail Type Safety (The Coolest Feature!)
+
+```rust
 struct WebAssets;
 struct UserUploads;
 
-// Create type-safe path jails that make specific promises
-let cdn_assets_jail: Jail<WebAssets> = Jail::try_new("./cdn/assets")?;
-let user_uploads_jail: Jail<UserUploads> = Jail::try_new("./uploads")?;
-
-// Get paths with specific promises
-let css_bundle_path: JailedPath<WebAssets> = cdn_assets_jail.try_path("app.bundle.css")?;
-// ↑ Promise: "I am contained within ./cdn/assets AND I am a WebAssets path"
-
-let profile_pic_path: JailedPath<UserUploads> = user_uploads_jail.try_path("avatars/user123.png")?;
-// ↑ Promise: "I am contained within ./uploads AND I am a UserUploads path"
-
-// Functions can require specific promise types
-fn serve_cdn_asset(asset: &JailedPath<WebAssets>) -> std::io::Result<Vec<u8>> {
-    asset.read_bytes() // ✅ This function ONLY accepts the WebAssets promise
+// Functions with type-safe security contracts
+fn serve_public_asset(asset: &JailedPath<WebAssets>) -> Result<Vec<u8>, std::io::Error> {
+    asset.read_bytes()  // ✅ ONLY accepts WebAssets paths
 }
 
-// The type system enforces promise contracts
-serve_cdn_asset(&css_bundle_path)?;  // ✅ Correct promise type
-// serve_cdn_asset(&profile_pic_path)?;  // ❌ Compile error! Wrong promise type!
-```
-
-**The magic**: The compiler mathematically guarantees that different promise types cannot be mixed up. A `JailedPath<WebAssets>` promises both containment AND identity—you can never accidentally serve a user upload as a CDN asset.
-
-## Even Single Jails Benefit from Semantic Markers
-
-```rust
-use jailed_path::{Jail, JailedPath};
-
-struct DocumentStorage;
-
-let docs_jail: Jail<DocumentStorage> = Jail::try_new("./company_docs")?;
-
-fn access_document(file: &JailedPath<DocumentStorage>) -> std::io::Result<Vec<u8>> {
-    // The type signature makes it crystal clear what this function expects
-    file.read_bytes() // ✅ Safe built-in operation
+fn process_user_upload(upload: &JailedPath<UserUploads>) -> Result<(), std::io::Error> {
+    upload.write_string("processed")  // ✅ ONLY accepts UserUploads paths  
 }
+
+let assets_jail: Jail<WebAssets> = Jail::try_new("assets")?;
+let uploads_jail: Jail<UserUploads> = Jail::try_new("uploads")?;
+
+// External paths from different sources
+let css_request = "style.css";        // From HTTP request for assets
+let upload_filename = "avatar.jpg";   // From file upload form
+
+let css_file: JailedPath<WebAssets> = assets_jail.try_path(css_request)?;
+let user_file: JailedPath<UserUploads> = uploads_jail.try_path(upload_filename)?;
+
+serve_public_asset(&css_file)?;   // ✅ Correct type - compiles
+process_user_upload(&user_file)?; // ✅ Correct type - compiles
+
+// serve_public_asset(&user_file)?;   // ❌ COMPILE ERROR: wrong context!
+// process_user_upload(&css_file)?;   // ❌ COMPILE ERROR: prevents mixing!
 ```
 
-The marker adds semantic meaning and prevents accidental misuse.
+## Real-World Examples
 
-## Safe File Operations: Why Direct Path Access Can Be Dangerous
-
-Here's a critical security insight: even with a `JailedPath`, getting a raw `&Path` can be risky if misused:
-
+### Archive Extraction (Zip Slip Prevention)
 ```rust
-use jailed_path::Jail;
-use std::path::Path;
-
-let customer_data_jail = Jail::try_new("./customer_data")?;
-let invoice_path = customer_data_jail.try_path("invoices/2024/invoice-001.pdf")?;
-
-// 🚨 DANGEROUS - A raw &Path can be misused!
-let raw_path: &Path = invoice_path.as_ref();
-let dangerous = raw_path.join("../../../etc/passwd");  // Oops! Escaped the jail!
-```
-
-**The solution**: Use our built-in safe operations instead.
-
-## Built-in Safe File Operations
-
-```rust
-use jailed_path::Jail;
-
-let customer_uploads_jail = Jail::try_new("./customer_uploads")?;
-let contract_path = customer_uploads_jail.try_path("contracts/acme-corp-2024.pdf")?;
-
-// ✅ SAFE - All operations stay within the jail automatically
-contract_path.write_string("Contract updated with new terms")?;
-let content = contract_path.read_to_string()?;
-assert_eq!(content, "Contract updated with new terms");
-
-// Write operations - always safe
-contract_path.write_bytes(b"PDF binary data")?;
-let data = contract_path.read_bytes()?;
-assert_eq!(data, b"PDF binary data");
-
-// Directory operations - always safe  
-let client_folder_path = customer_uploads_jail.try_path("new_client_folder")?;
-client_folder_path.create_dir_all()?;
-assert!(client_folder_path.exists());
-
-// Metadata operations - always safe
-contract_path.write_string("Updated contract content")?;
-let metadata = contract_path.metadata()?;
-assert!(metadata.len() > 0);
-```
-
-**No raw path access needed!** All operations are mathematically guaranteed to stay within the jail.
-
-## Virtual Root Display: Clean User-Facing Paths
-
-```rust
-use jailed_path::Jail;
-
-let saas_tenant_jail = Jail::try_new("./tenant_data/company_xyz")?;
-let report_path = saas_tenant_jail.try_path("reports/quarterly/2024-q1.xlsx")?;
-
-// User sees clean, intuitive paths - never internal filesystem details
-assert_eq!(format!("{report_path}"), "/reports/quarterly/2024-q1.xlsx");
-
-// The real path is hidden (and you shouldn't need it anyway!)
-assert_eq!(report_path.to_string_lossy(), "./tenant_data/company_xyz/reports/quarterly/2024-q1.xlsx");
-```
-
-This prevents leaking internal filesystem structure in logs, error messages, or user interfaces.
-
-## Mathematical Security: Our Type-State Design
-
-This crate uses a sophisticated "Type-History" design pattern internally. Every path carries mathematical proof of what validation stages it has passed through:
-
-```rust
-// Internal type-state progression (you don't see this, but it's happening):
-// Raw → Clamped → JoinedJail → Canonicalized → BoundaryChecked → JailedPath
-```
-
-Our comprehensive test coverage (100%+) and LLM-friendly documentation ensure that every security property is verified mathematically, not just hoped for.
-
-## Complete Attack Immunity Demonstration
-
-```rust
-use jailed_path::Jail;
-
-let web_server_jail: Jail = Jail::try_new("./www/htdocs")?;
-
-// ✅ Normal paths work as expected - legitimate web requests
-let homepage_path = web_server_jail.try_path("index.html")?;
-assert_eq!(homepage_path.to_string_lossy(), "./www/htdocs/index.html");
-assert_eq!(format!("{homepage_path}"), "/index.html");
-
-let stylesheet_path = web_server_jail.try_path("css/main.css")?;
-assert_eq!(stylesheet_path.to_string_lossy(), "./www/htdocs/css/main.css");
-assert_eq!(stylesheet_path.virtual_display(), "/css/main.css");
-
-// 🛡️ ATTACK ATTEMPTS ARE MATHEMATICALLY IMPOSSIBLE TO SUCCEED
-let shadow_attack_path = web_server_jail.try_path("/etc/shadow")?;
-assert_eq!(shadow_attack_path.to_string_lossy(), "./www/htdocs/etc/shadow");  // Harmless!
-assert_eq!(shadow_attack_path.virtual_display(), "/etc/shadow");  // In jail
-
-let config_attack_path = web_server_jail.try_path("../config.ini")?;
-assert_eq!(config_attack_path.to_string_lossy(), "./www/htdocs");  // Jail root
-assert_eq!(config_attack_path.virtual_display(), "/");
-
-let passwd_attack_path = web_server_jail.try_path("../../../etc/passwd")?;
-assert_eq!(passwd_attack_path.to_string_lossy(), "./www/htdocs");  // Jail root
-assert_eq!(passwd_attack_path.virtual_display(), "/");
-
-// 🔒 The attacker CANNOT access the real /etc/passwd - it's mathematically impossible!
-assert!(config_attack_path.ends_with("htdocs"));  // PROOF: Clamped to jail root
-assert!(passwd_attack_path.ends_with("htdocs"));  // PROOF: Clamped to jail root
-```
-
-## Windows-specific hardening: 8.3 short names (PROGRA~1)
-
-On Windows, DOS 8.3 short filenames (like `PROGRA~1`) are alternate aliases for long names. They can create surprising bypasses if validated differently than their long-name counterparts.
-
-This crate uses a hybrid defense on Windows:
-
-- Early precheck rejects any non-existent path component that looks like an 8.3 short name (contains `~` followed by a digit), returning a dedicated error so the caller can decide how to recover.
-- If the component already exists inside the jail, it is allowed to pass and is validated normally (clamping, canonicalization, boundary checks).
-
-Recovery example (Windows only):
-
-```rust,no_run
-use jailed_path::{Jail, JailedPathError};
-
-let jail = Jail::<()>::try_new("C:/safe/uploads")?;
-match jail.try_path("users/PROGRA~1/report.txt") {
-    Ok(safe) => { /* use safe */ }
-    Err(JailedPathError::WindowsShortName { component, original, checked_at }) => {
-        eprintln!(
-            "Rejected DOS 8.3 short name '{}' at '{}' for original '{}'",
-            component.to_string_lossy(),
-            checked_at.display(),
-            original.display(),
-        );
-        // Recovery options:
-        // - Ask user for the full long name
-        // - Map to a known-safe long name
-        // - Reject/log according to your threat model
-    }
-    Err(e) => return Err(e.into()),
+// Safe archive extraction
+let extract_jail = Jail::try_new("./extracted")?;
+for entry in archive.entries() {
+    let safe_path = extract_jail.try_path(entry.path())?;  // Contains "../../../etc/passwd"
+    safe_path.write_bytes(entry.data())?;  // Safe within ./extracted
 }
 ```
 
-Notes:
-
-- Legitimate names containing `~` without a digit after it (e.g., `my~file.txt`) are not treated as short names by this precheck.
-- This behavior is Windows-only and does not affect Unix-like systems.
-
-## Advanced: Real-World Integration Examples
-
-### Axum Web Server with Multi-Tenant File Serving
-
+### Web Server
 ```rust
-use axum::{extract::Path, response::Response, http::StatusCode};
-use jailed_path::Jail;
-
-struct StaticAssets;
-struct UserContent;
-
-// Set up path jails for different content types
-let static_jail = Jail::<StaticAssets>::try_new("./public")?;
-let content_jail = Jail::<UserContent>::try_new("./user_content")?;
-
-async fn serve_static(Path(file_path): Path<String>) -> Result<Response, StatusCode> {
-    let safe_path = static_jail.try_path(&file_path)
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    
-    if !safe_path.exists() {
-        return Err(StatusCode::NOT_FOUND);
-    }
-    
-    let content = safe_path.read_bytes()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    Ok(Response::new(content.into()))
-}
-
-async fn serve_user_content(Path((tenant_id, file_path)): Path<(String, String)>) -> Result<Response, StatusCode> {
-    let tenant_path = format!("{tenant_id}/{file_path}");
-    let safe_path = content_jail.try_path(&tenant_path)
-        .map_err(|_| StatusCode::FORBIDDEN)?;  // Auto-blocks traversal attacks
-        
-    // Rest of handler logic...
-    Ok(Response::new("content".into()))
+async fn serve_file(path: String) -> Result<Response> {
+    let public_jail = Jail::try_new("./public")?;
+    let safe_path = public_jail.try_path(&path)?;  // Blocks traversal attacks
+    Ok(Response::new(safe_path.read_bytes()?))
 }
 ```
 
-### Cloud Storage Sync Service
-
+### Configuration Processing
 ```rust
-use jailed_path::Jail;
-
-struct LocalCache;
-struct RemoteSync;
-
-// Automation service that syncs cloud storage locally
-let cache_jail = Jail::<LocalCache>::try_new("./cache/downloads")?;
-let sync_jail = Jail::<RemoteSync>::try_new("./sync_staging")?;
-
-async fn download_cloud_file(cloud_path: &str, local_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    // Ensure downloaded files stay in designated cache area
-    let local_path = cache_jail.try_path(local_name)?;
-    
-    // Download from cloud service (S3, GCS, etc.)
-    let cloud_data = fetch_from_cloud(cloud_path).await?;
-    
-    // Safe write - guaranteed to stay in cache jail
-    local_path.write_bytes(&cloud_data)?;
-    
-    println!("Downloaded to: {}", local_path.display());  // Clean path display
-    Ok(())
-}
-
-async fn sync_to_staging(cached_file: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let cache_path = cache_jail.try_path(cached_file)?;
-    let staging_path = sync_jail.try_path(cached_file)?;
-    
-    // Move between jails safely
-    let data = cache_path.read_bytes()?;
-    staging_path.write_bytes(&data)?;
-    
-    Ok(())
+fn load_config_file(config_path: &str) -> Result<String> {
+    let config_jail = Jail::try_new("./config")?;
+    let safe_path = config_jail.try_path(config_path)?;  // Validates external config paths
+    safe_path.read_to_string()
 }
 ```
 
-### Resource Bundling Tool
+## API Overview
 
 ```rust
-use jailed_path::Jail;
+// Create jail and validate paths
+let jail = Jail::try_new("./safe_dir")?;                    // or try_new_create() to create dir
+let safe_path = jail.try_path("user/file.txt")?;            // Validates and contains path
 
-struct SourceAssets;
-struct BuildOutput;
+// Built-in safe operations
+safe_path.read_bytes()?;                                     // File I/O
+safe_path.write_string("content")?;
+safe_path.create_dir_all()?;                                 // Directory ops
+safe_path.exists();
 
-// Build tool that processes resources from multiple sources
-let source_jail = Jail::<SourceAssets>::try_new("./src/assets")?;
-let build_jail = Jail::<BuildOutput>::try_new("./dist")?;
+// Path display
+println!("{}", safe_path);                                   // Virtual: "/user/file.txt"
+safe_path.to_string_real();                                  // Real: "./safe_dir/user/file.txt"
 
-fn bundle_css_files(css_files: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
-    let mut combined_css = String::new();
-    
-    for css_file in css_files {
-        // Safe access to source files - no traversal possible
-        let source_path = source_jail.try_path(css_file)?;
-        let css_content = source_path.read_to_string()?;
-        combined_css.push_str(&css_content);
-        combined_css.push('\n');
-    }
-    
-    // Safe output to build directory
-    let bundle_path = build_jail.try_path("bundle.css")?;
-    bundle_path.write_string(&combined_css)?;
-    
-    println!("CSS bundle created: {}", bundle_path.display());
-    Ok(())
-}
-
-fn process_image_assets(image_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let source_dir = source_jail.try_path(image_dir)?;
-    
-    // Process all images in the source directory
-    for entry in std::fs::read_dir(source_dir.as_ref())? {
-        let entry = entry?;
-        let filename = entry.file_name().to_string_lossy().to_string();
-        
-        if filename.ends_with(".png") || filename.ends_with(".jpg") {
-            let source_img = source_jail.try_path(&format!("{image_dir}/{filename}"))?;
-            let output_img = build_jail.try_path(&format!("images/{filename}"))?;
-            
-            // Safe image processing - both paths are jailed
-            let img_data = source_img.read_bytes()?;
-            // ... image optimization logic ...
-            output_img.write_bytes(&img_data)?;
-        }
-    }
-    
-    Ok(())
-}
+// Safe path manipulation
+safe_path.parent();                                          // Returns Option<JailedPath>
+safe_path.join("subfile.txt");                               // Returns Option<JailedPath>
 ```
 
-## For Inline Validation: Banking Application
+## Windows Security
 
-Sometimes you need quick path validation inline without storing the jail:
+Handles DOS 8.3 short names (`PROGRA~1`) with early detection and dedicated error handling for security-conscious applications.
 
-```rust
-use jailed_path::Jail;
+## Advanced Usage
 
-// Banking application handling customer statements
-fn generate_customer_statement(customer_id: &str, year: &str) -> Result<String, Box<dyn std::error::Error>> {
-    // Quick validation: keep customer statements within their secure directory
-    let jail = Jail::try_new("./bank_statements")?;
-    let statement_path = jail.try_path(format!("customer_{}/statements/{}.pdf", customer_id, year))?;
-
-    if !statement_path.exists() {
-        return Err("Statement not found".into());
-    }
-
-    Ok(format!("Statement available at: {}", statement_path.display()))
-}
-
-// Example usage - secure by design
-match generate_customer_statement("12345", "2023") {
-    Ok(location) => println!("{}", location),
-    Err(e) => println!("Access denied: {}", e), // Handles traversal attacks automatically
-}
-
-// What happens with attacks:
-// generate_customer_statement("../../../etc", "passwd") -> Error: path escapes jail
-// generate_customer_statement("12345", "../other_customer") -> Error: path escapes jail
-```
-
-### With External Crates (Portable Paths)
-
-```rust
-use app_path::app_path;
-use jailed_path::Jail;
-
-struct ConfigFiles;
-struct DataFiles;
-
-// Portable paths relative to your executable
-let config: Jail<ConfigFiles> = Jail::try_new(app_path!("config"))?;
-let data: Jail<DataFiles> = Jail::try_new(app_path!("data"))?;
-
-// Type-safe, attack-proof file access
-let settings_path = config.try_path("app.toml")?;
-let database_path = data.try_path("users.db")?;
-```
+For low-level control of canonicalized paths that may not exist, consider using our dependency [`soft-canonicalize`](https://crates.io/crates/soft-canonicalize) directly. The `jailed-path` crate is built on this foundation for path resolution.
 
 ## Installation
-
-Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
@@ -504,9 +179,4 @@ jailed-path = "0.0.4"
 
 ## License
 
-Licensed under either of:
-
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT License ([LICENSE-MIT](LICENSE-MIT))
-
-at your option.
+MIT OR Apache-2.0
