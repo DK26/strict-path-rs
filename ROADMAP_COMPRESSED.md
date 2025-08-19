@@ -56,6 +56,21 @@
 5. One obvious way; no hidden conversions; use `into_jailed(&Jail)` explicitly
 6. Keep virtual manipulation off `JailedPath`
 
+Note: Public APIs avoid returning `&Path` or `PathBuf` directly from `JailedPath`. Instead use `realpath_` prefixed accessors (e.g., `realpath_to_string()`, `realpath_as_os_str()`) and explicit `unjail()` when ownership is required. `VirtualPath` provides `virtualpath_` prefixed aliases for its string accessors.
+
+### Type evolution and conversion names (explicit)
+
+We document the canonical type flow and the exact function names to use for conversions. These rules are enforced by design: no `From`/`Into` between `JailedPath` and `VirtualPath` are provided.
+
+Paths -> (jailed) -> JailedPath -> (virtualize()) -> VirtualPath
+
+- `Jail::try_path(...) -> JailedPath` — validate a raw/system path into a jailed system-facing path.
+- `JailedPath::virtualize() -> VirtualPath` — explicit conversion from system-facing to user-facing.
+- `VirtualPath::unvirtual() -> JailedPath` — explicit conversion from user-facing back to system-facing.
+- `JailedPath::unjail() -> PathBuf` — explicit escape hatch that yields ownership of the underlying PathBuf (unsafe to use without care).
+
+Why: Making these conversion points explicit prevents accidental downgrades or upgrades and makes audit trails in security reviews trivial to follow.
+
 ## 🏷️ Method Naming Rules
 
 ### For `JailedPath<Marker>` (system-facing)
@@ -117,6 +132,14 @@ impl<Marker> VirtualRoot<Marker> {
   pub fn try_new_create<P: AsRef<Path>>(root: P) -> Result<Self>
   pub fn try_path_virtual<P: AsRef<Path>>(&self, path: P) -> Result<VirtualPath<Marker>>
 }
+
+Note: `VirtualRoot` can produce `VirtualPath` values directly from user input; you do not need to construct a `JailedPath` first. This keeps user-facing flows simple and focused on virtual semantics.
+
+Example:
+```rust
+let vroot = VirtualRoot::<M>::try_new("/app/storage")?;
+let vp = vroot.try_path_virtual("users/alice/report.pdf")?; // direct
+```
 ```
 
 ### `VirtualPath<Marker>` (user-facing)

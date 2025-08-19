@@ -11,13 +11,25 @@ This roadmap outlines the planned evolution of the `jailed-path` crate based on 
 > - VirtualRoot + VirtualPath: user-facing, virtual semantics, clamped to the jail as virtual '/'
 > - Jail + JailedPath: system-facing, real filesystem semantics and I/O
 >
-> Naming policy (Option A):
-> - VirtualPath methods use `_virtual` suffixes (e.g., `join_virtual`, `parent_virtual`)
-> - JailedPath methods that operate on real paths use `_real` suffixes (e.g., `to_string_real`)
->
-> Display policy:
-> - `VirtualPath`: Display shows the virtual path (never leaks real filesystem structure)
-> - `JailedPath`: Display shows the real filesystem path (system-facing)
+Naming policy (Option A):
+- VirtualPath methods use `_virtual` suffixes (e.g., `join_virtual`, `parent_virtual`)
+- JailedPath methods that operate on real paths use `_real` suffixes (e.g., `to_string_real`)
+- We also provide `virtualpath_` and `realpath_` prefixed aliases for string/os accessors to improve clarity and grepability (e.g., `virtualpath_to_string()`, `realpath_as_os_str()`).
+
+Display policy:
+- `VirtualPath`: Display shows the virtual path (never leaks real filesystem structure)
+- `JailedPath`: Display shows the real filesystem path (system-facing)
+
+Type evolution (canonical):
+
+Paths -> (jailed) -> JailedPath -> (virtualize()) -> VirtualPath
+
+- `Jail::try_path(...) -> JailedPath` — validate raw/system path
+- `JailedPath::virtualize() -> VirtualPath` — explicit upgrade to virtual
+- `VirtualPath::unvirtual() -> JailedPath` — explicit downgrade to system
+- `JailedPath::unjail() -> PathBuf` — explicit escape hatch (ownership, loses guarantees)
+
+Note: `VirtualRoot` can produce `VirtualPath` values directly (use `VirtualRoot::try_path_virtual()`), you do not need to create a `JailedPath` first.
 
 ## 🎯 Real-World Use Cases
 

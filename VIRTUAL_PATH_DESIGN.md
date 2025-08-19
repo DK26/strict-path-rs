@@ -31,6 +31,26 @@ Goal: Make the user-facing API obvious and safe by default, and keep system-faci
    - Eliminate mixed-method sets on the same type where possible.
    - Reduce accidental UI leakage of real filesystem structure.
 
+Note: We will never expose raw `Path` or `&Path` from `JailedPath` publicly. Instead we provide explicit `realpath_` prefixed accessors (e.g. `realpath_to_string()`, `realpath_as_os_str()`) and matching `_real` suffixed methods. Likewise, `VirtualPath` exposes `virtualpath_` aliases for its string accessors. This naming makes conversions explicit and prevents accidental, unchecked joins on a leaked `Path`.
+
+## Type evolution (explicit)
+
+To avoid ambiguity we document the canonical evolution of path types and the exact conversion functions you must use. These conversions are explicit and named — there are no hidden `From`/`Into` conversions.
+
+Paths -> (jailed) -> JailedPath -> (virtualize()) -> VirtualPath
+
+- To go from an unchecked Path-like value into a system-validated path use the `Jail::try_path(...) -> JailedPath` entrypoints (not pictured above).
+- From `JailedPath` to the user-facing `VirtualPath` call `JailedPath::virtualize()` (explicit upgrade).
+- From `VirtualPath` back to `JailedPath` call `VirtualPath::unvirtual()` (explicit downgrade).
+- From `JailedPath` to raw owned `PathBuf` call `JailedPath::unjail()` — this is an explicit escape hatch and loses all safety guarantees.
+
+Important rules to follow:
+- No implicit `From`/`Into` conversions between `JailedPath` and `VirtualPath` — conversions are explicit only.
+- Never expose `&Path` or `PathBuf` from `JailedPath` public API (we provide `realpath_` string/os accessors instead). This prevents accidental use of `Path::join` that would bypass validation.
+- All user-facing virtual string accessors have `*_virtual` suffixes and `virtualpath_` aliases; all system-facing real accessors have `*_real` suffixes and `realpath_` aliases. Example: `to_string_virtual()` / `virtualpath_to_string()` vs `to_string_real()` / `realpath_to_string()`.
+
+Rationale: The explicit evolution and naming remove ambiguity at call sites, make grep/search easy for virtual vs real operations, and ensure reviewers can quickly see when code leaves the safe virtual API surface.
+
 ## Types overview
 
 - **Jail\<M\>**
@@ -204,6 +224,17 @@ pub struct VirtualPath<Marker = ()> {
 
 - Produce a JailedPath (system-facing):
   - `Jail::<M>::try_new(jail_path)?.try_path(p) -> Result<JailedPath<M>>`
+
+### VirtualRoot is independent of JailedPath
+
+`VirtualRoot` is a user-facing entrypoint and does not require you to create a `JailedPath` first. Use `VirtualRoot::try_path_virtual()` / `join_virtual()` to obtain `VirtualPath` values directly from user input. Internally these call the same validation and canonicalization machinery used by `Jail`, but the public surface is tailored for virtual UX flows.
+
+Example:
+
+```rust
+let vroot = VirtualRoot::<M>::try_new("/app/storage")?;
+let vp = vroot.try_path_virtual("users/alice/report.pdf")?; // no JailedPath needed
+```
 
 ## Method surfaces (final shape)
 
