@@ -37,7 +37,7 @@
 
 #### `VirtualRoot<Marker>` — User-facing virtual root
 - Purpose: Entry for user/virtual paths; composes virtual paths safely
-- API: `try_new`, `try_new_create`, `try_path_virtual`, `join_virtual`
+- API: `try_new`, `try_new_create`, `try_path_virtual`
 - Produces: `VirtualPath<Marker>`
 
 #### `VirtualPath<Marker>` — User-facing path within virtual namespace
@@ -116,7 +116,6 @@ impl<Marker> VirtualRoot<Marker> {
   pub fn try_new<P: AsRef<Path>>(root: P) -> Result<Self>
   pub fn try_new_create<P: AsRef<Path>>(root: P) -> Result<Self>
   pub fn try_path_virtual<P: AsRef<Path>>(&self, path: P) -> Result<VirtualPath<Marker>>
-  pub fn join_virtual<P: AsRef<Path>>(&self, path: P) -> Result<VirtualPath<Marker>>
 }
 ```
 

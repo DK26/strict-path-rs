@@ -99,7 +99,6 @@ This design restores simplicity: user-facing logic is clean and intuitive on `Vi
 
 The explicit suffix approach prioritizes **clarity over brevity**, which is essential for a security-focused crate where the cost of confusion or mistakes is high. `Jail<M>` but exposes only virtual constructors):
    - `try_new` / `try_new_create`
-   - `join_virtual(&self, p) -> Result<VirtualPath<M>>`
    - `try_path_virtual(&self, p) -> Result<VirtualPath<M>>` (clamps absolute/relative as needed)Single-crate, internal refactor + new public types (VirtualRoot, VirtualPath)
 
 ## Why this change
@@ -166,7 +165,6 @@ VirtualRoot is a dedicated type (not an alias). It focuses on virtual semantics 
   - Note: Using `From` cannot convey errors; prefer `TryFrom` or `try_new`.
 
 - Produce a VirtualPath (user-facing):
-  - `vroot.join_virtual("hello/world") -> Result<VirtualPath<M>>`  (clamped, jail-relative)
   - `vroot.try_path_virtual(p) -> Result<VirtualPath<M>>`  (accepts absolute/relative; clamps as needed)
   - Optionally: `VirtualPath::new(&vroot, p) -> Result<VirtualPath<M>>` if a constructor is preferred
 
