@@ -251,8 +251,16 @@ struct UploadedFile;
 let public_jail: Jail<PublicAsset> = Jail::try_new("/app/public")?;
 let upload_jail: Jail<UploadedFile> = Jail::try_new("/app/uploads")?;
 
-let public_file: JailedPath<PublicAsset> = public_jail.try_path_virtual("index.html")?;
-let upload_file: JailedPath<UploadedFile> = upload_jail.try_path_virtual("image.jpg")?;
+// Create matching VirtualRoots for user-facing operations and convert when needed
+let public_vroot: VirtualRoot<PublicAsset> = VirtualRoot::try_new("/app/public")?;
+let upload_vroot: VirtualRoot<UploadedFile> = VirtualRoot::try_new("/app/uploads")?;
+
+let public_vpath = public_vroot.try_path_virtual("index.html")?;
+let upload_vpath = upload_vroot.try_path_virtual("image.jpg")?;
+
+// Transition to system-facing JailedPath when performing I/O or integration
+let public_file: JailedPath<PublicAsset> = public_vpath.into_jailed()?;
+let upload_file: JailedPath<UploadedFile> = upload_vpath.into_jailed()?;
 
 // Compile-time type safety prevents mixing contexts
 ```
