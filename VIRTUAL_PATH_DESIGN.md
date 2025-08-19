@@ -82,8 +82,8 @@ Rationale: The explicit evolution and naming remove ambiguity at call sites, mak
 ## Type relationships
 
 - VirtualPath<M> encapsulates JailedPath<M> (composition) + stores virtual PathBuf
-  - Upgrade: `VirtualPath::from_jailed(JailedPath)` or `VirtualPath::from(JailedPath)`
-  - Downgrade: `VirtualPath::into_jailed()` or `JailedPath::from(VirtualPath)`
+   - Upgrade: call `JailedPath::virtualize()` to obtain a `VirtualPath` (explicit upgrade)
+   - Downgrade: `VirtualPath::unvirtual()` or `JailedPath::from(VirtualPath)`
 
 VirtualRoot is a dedicated type (not an alias). It focuses on virtual semantics and hides system-facing APIs.
 
@@ -254,7 +254,7 @@ let vp = vroot.try_path_virtual("users/alice/report.pdf")?; // no JailedPath nee
 **Display/Debug behavior:**
 - `Display` impl shows real path (system-facing)
 - `Debug` shows real path and jail info for diagnostics
-- Conversion: `into_virtual()` method to create VirtualPath
+- Conversion: `virtualize()` method to create VirtualPath
 
 ### VirtualPath<M> (user-facing only)
 **Natural virtual operations with explicit suffixes:**
@@ -282,7 +282,7 @@ let vp = vroot.try_path_virtual("users/alice/report.pdf")?; // no JailedPath nee
 - All I/O operations delegate to `inner: JailedPath<M>`
 
 **Escape hatch:**
-- `into_jailed(self) -> JailedPath<M>` (when you need system-facing behavior)
+- `unvirtual(self) -> JailedPath<M>` (when you need system-facing behavior)
 
 ## Virtualization/clamping semantics (unchanged core behavior)
 
@@ -321,8 +321,8 @@ let vp = vroot.try_path_virtual("users/alice/report.pdf")?; // no JailedPath nee
    - `VirtualPath::Display` shows virtual path with forward slashes
 
 6. **Provide conversion methods**:
-   - `JailedPath::into_virtual() -> VirtualPath<M>`
-   - `VirtualPath::into_jailed() -> JailedPath<M>`
+   - `JailedPath::virtualize() -> VirtualPath<M>`
+   - `VirtualPath::unvirtual() -> JailedPath<M>`
 
 ## Example flows (illustrative)
 
@@ -349,7 +349,7 @@ external_api(jp.unjail()); // PathBuf ownership when needed
 let vroot = VirtualRoot::<M>::try_new("/app/storage")?;
 let vp = vroot.try_path_virtual("users/alice/report.pdf")?;
 println!("User sees: {}", vp); // Virtual path
-let jp = vp.into_jailed();
+let jp = vp.unvirtual();
 println!("System logs: {}", jp); // Real path
 let content = jp.read_bytes()?; // I/O operations
 ```

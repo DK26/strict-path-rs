@@ -41,9 +41,9 @@
 - Produces: `VirtualPath<Marker>`
 
 #### `VirtualPath<Marker>` — User-facing path within virtual namespace
-- Purpose: Virtual presentation of a jailed path
-- API: Virtual string/joins/parents, plus `into_jailed(&Jail)` to get a `JailedPath`
-- Display: Shows VIRTUAL, jail-relative path (forward-slash style)
+ - Purpose: Virtual presentation of a jailed path
+ - API: Virtual string/joins/parents, plus `unvirtual()` to get a `JailedPath`
+ - Display: Shows VIRTUAL, jail-relative path (forward-slash style)
 
 ## 🎯 Design Principles
 
@@ -53,7 +53,7 @@
 4. Explicit suffixes (Option A):
    - `VirtualPath`: methods end with `_virtual`
    - `JailedPath`: methods end with `_real`
-5. One obvious way; no hidden conversions; use `into_jailed(&Jail)` explicitly
+5. One obvious way; no hidden conversions; use `unvirtual()` explicitly
 6. Keep virtual manipulation off `JailedPath`
 
 Note: Public APIs avoid returning `&Path` or `PathBuf` directly from `JailedPath`. Instead use `realpath_` prefixed accessors (e.g., `realpath_to_string()`, `realpath_as_os_str()`) and explicit `unjail()` when ownership is required. `VirtualPath` provides `virtualpath_` prefixed aliases for its string accessors.
@@ -85,7 +85,7 @@ Rule B: No virtual manipulation lives here; omit any `_virtual` API on `JailedPa
 Rule C: Methods that present or manipulate virtual paths end with `_virtual()`
 - Examples: `to_string_virtual()`, `to_str_virtual()`, `join_virtual()`, `parent_virtual()`, `with_extension_virtual()`
 
-Rule D: `VirtualPath` provides `into_jailed(&Jail)` to transition to system operations
+Rule D: `VirtualPath` provides `unvirtual()` to transition to system operations
 
 ## 📋 API Surface (Final)
 
@@ -156,7 +156,7 @@ impl<Marker> VirtualPath<Marker> {
   pub fn with_extension_virtual<S: AsRef<OsStr>>(&self, extension: S) -> Option<Self>
 
   // Transition to system-facing for I/O
-  pub fn into_jailed(self, jail: &Jail<Marker>) -> Result<JailedPath<Marker>>
+  pub fn unvirtual(self) -> Result<JailedPath<Marker>>
 }
 ```
 
@@ -247,7 +247,7 @@ let config_file = jail.try_path("/app/uploads/config.json")?;  // OK - within bo
 // let system_file = jail.try_path("/etc/passwd")?;  // Error - outside boundary
 
 // Transition to system-facing for I/O
-let jailed = vpath.into_jailed(&jail)?;
+let jailed = vpath.unvirtual()?;
 
 // Display behavior
 println!("Virtual (user): {}", vroot.try_path_virtual("user/image.jpg")?);  // "/user/image.jpg"
@@ -259,7 +259,7 @@ println!("System (real): {}", jailed);                                      // "
 let jail = Jail::try_new("/app/uploads")?;
 let vroot = VirtualRoot::try_new("/app/uploads")?;
 let vfile = vroot.try_path_virtual("user/image.jpg")?;
-let file = vfile.into_jailed(&jail)?;
+let file = vfile.unvirtual()?;
 
 // ✅ Clean test assertions
 assert!(file.starts_with_real(jail.path()));  // Explicit path access
@@ -282,8 +282,8 @@ let public_vpath = public_vroot.try_path_virtual("index.html")?;
 let upload_vpath = upload_vroot.try_path_virtual("image.jpg")?;
 
 // Transition to system-facing JailedPath when performing I/O or integration
-let public_file: JailedPath<PublicAsset> = public_vpath.into_jailed()?;
-let upload_file: JailedPath<UploadedFile> = upload_vpath.into_jailed()?;
+let public_file: JailedPath<PublicAsset> = public_vpath.unvirtual()?;
+let upload_file: JailedPath<UploadedFile> = upload_vpath.unvirtual()?;
 
 // Compile-time type safety prevents mixing contexts
 ```
