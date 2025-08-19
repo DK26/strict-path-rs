@@ -5,6 +5,20 @@
 
 This roadmap outlines the planned evolution of the `jailed-path` crate based on ecosystem research, user needs analysis, and security-first principles.
 
+> Design Update (August 2025)
+>
+> We are separating user-facing virtual path ergonomics from system-facing filesystem operations:
+> - VirtualRoot + VirtualPath: user-facing, virtual semantics, clamped to the jail as virtual '/'
+> - Jail + JailedPath: system-facing, real filesystem semantics and I/O
+>
+> Naming policy (Option A):
+> - VirtualPath methods use `_virtual` suffixes (e.g., `join_virtual`, `parent_virtual`)
+> - JailedPath methods that operate on real paths use `_real` suffixes (e.g., `to_string_real`)
+>
+> Display policy:
+> - `VirtualPath`: Display shows the virtual path (never leaks real filesystem structure)
+> - `JailedPath`: Display shows the real filesystem path (system-facing)
+
 ## 🎯 Real-World Use Cases
 
 The `jailed-path` crate addresses critical security needs across multiple domains where path validation is essential:
@@ -187,12 +201,12 @@ file.write_string("Hello, secure world!")?;
 - ✅ **NO PATH LEAKS FROM JAILEDPATH**: `JailedPath` never exposes `&Path` or `AsRef<Path>` to prevent security bypasses
 - ✅ **JAIL ERGONOMICS**: `Jail` provides `path()` method for explicit access (safe - jail root is not secret)
 - ✅ **STRING-ONLY ACCESS**: JailedPath real paths only accessible via string methods
-- ✅ **VIRTUAL BY DEFAULT**: All display/UI methods show virtual paths unless explicitly requesting real
+- ✅ **VIRTUAL DISPLAY VIA VIRTUALPATH**: User-facing display/manipulation lives on `VirtualPath`; `JailedPath` is system-facing
 
 **Naming Conventions:**
-- ✅ **SUFFIX PATTERN**: Use `_real`/`_virtual` as suffixes for discoverability (e.g., `to_str_real()`)
+- ✅ **SUFFIX PATTERN**: Use `_real` on `JailedPath` and `_virtual` on `VirtualPath` for discoverability
 - ✅ **JAIL NOT ROOT**: Methods access "jail" path, not "root" (jail is the security boundary)
-- ✅ **NO VIRTUAL JAIL**: Jail root is always real filesystem path - no `_real` suffix needed
+- ✅ **NO VIRTUAL JAIL**: `Jail` is real; `VirtualRoot` is the dedicated virtual type
 
 **Removed Confusing Methods:**
 - ❌ `try_path_normalized()` - Confusing name, use `try_path()` 
@@ -475,33 +489,39 @@ fn is_likely_8_3_short_name_wide(name: &std::ffi::OsStr) -> bool {
 
 #### Display Methods Clarification:
 ```rust
+// VirtualRoot + VirtualPath (user-facing)
+impl<Marker> VirtualPath<Marker> {
+    // Display shows virtual path (jail is '/')
+    // format!("{}", virtual_path) -> "/users/alice/file.txt"
+    pub fn to_string_virtual(&self) -> String
+
+    // Virtual operations (explicit suffix for clarity in mixed usage)
+    pub fn join_virtual<P: AsRef<Path>>(&self, p: P) -> Result<VirtualPath<Marker>>
+    pub fn parent_virtual(&self) -> Result<Option<VirtualPath<Marker>>>
+    pub fn with_file_name_virtual<S: AsRef<OsStr>>(&self, s: S) -> Result<VirtualPath<Marker>>
+    pub fn with_extension_virtual<S: AsRef<OsStr>>(&self, s: S) -> Result<VirtualPath<Marker>>
+}
+
+// Jail + JailedPath (system-facing)
 impl<Marker> JailedPath<Marker> {
-    // DEFAULT: Virtual display via Display trait (jail-relative, user-friendly)
-    // format!("{}", jailed_path) -> "/alice/documents/file.txt" (relative to jail)
-    
-    // String conversion - explicit suffixes when both variants exist
-    pub fn to_string_virtual(&self) -> String      // Virtual path 
-    pub fn to_string_real(&self) -> String         // Full filesystem path
-    
-    // String slice access - explicit suffixes when both variants exist  
-    pub fn to_str_virtual(&self) -> Option<&str>   // Virtual path as &str
-    pub fn to_str_real(&self) -> Option<&str>      // Full filesystem path as &str
-    
-    // OsStr access - explicit suffixes when both variants exist
-    pub fn as_os_str_real(&self) -> &OsStr         // Real OsStr
-    pub fn as_os_str_virtual(&self) -> OsString    // Virtual OsStr (computed)
+    // Display shows real filesystem path (system-facing)
+    pub fn to_string_real(&self) -> String
+
+    // Real path checks carry `_real` suffix
+    pub fn starts_with_real<P: AsRef<Path>>(&self, p: P) -> bool
+    pub fn ends_with_real<P: AsRef<Path>>(&self, p: P) -> bool
 }
 ```
 
 #### Methods to Remove/Modify:
 - **Remove or make private: `virtual_path()`** - Prevents confusion; users should work directly on JailedPath
-- **Default Display = Virtual** - `format!("{}", jailed_path)` shows jail-relative path via Display trait
+- **Default Display** - `VirtualPath` displays virtual; `JailedPath` displays real (system-facing)
 - **Explicit Real Access** - Methods like `real_path_to_str()` when full path needed for filesystem operations
 
 #### Rationale:
 - **Less confusion**: No `virtual_path()` method that returns a separate Path object
 - **Clear intent**: `_real` vs `_virtual` suffixes make purpose obvious  
-- **Sensible defaults**: Display shows user-friendly virtual paths by default
+- **Sensible defaults**: Virtual display lives on `VirtualPath`; `JailedPath` is system-facing
 - **Explicit escape hatches**: Real path access requires explicit method calls
 
 ## 🏷️ JailedPath Method Naming Rules
@@ -516,9 +536,9 @@ impl<Marker> JailedPath<Marker> {
 - Examples: `to_string_virtual()` / `to_string_real()`, `to_str_virtual()` / `to_str_real()`
 - Rationale: Eliminates ambiguity about which representation is returned
 
-**Rule C**: If a method represents a virtual presentation, but has no (or should never have in the future) a `_real()` version, it is considered "safe" and should **NOT** use any suffix
-- Examples: `join()`, `parent()`, `with_extension()` (these only have safe variants)
-- Rationale: Clean API for common operations that don't leak real paths
+**Rule C**: Virtual operations live on `VirtualPath` and use `_virtual` suffixes for clarity
+- Examples: `join_virtual()`, `parent_virtual()`, `with_extension_virtual()`
+- Rationale: Mixed-usage clarity in projects using both virtual and real paths
 
 ## 📚 Final API Design Specification
 
