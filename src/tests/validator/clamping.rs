@@ -115,10 +115,10 @@ fn test_cleanup_on_jail_escape_attempts_with_clamping() {
         assert!(
             jailed_path.starts_with_real(jail_root),
             "Clamped path should be within jail: {}",
-            jailed_path.to_string_real()
+            jailed_path.realpath_to_string()
         );
-        // Display should show virtual root
-        let display = format!("{jailed_path}");
+        // Display should show virtual root (use explicit virtualization)
+        let display = format!("{}", jailed_path.virtualize());
         assert!(
             display.starts_with('/'),
             "Should display as virtual root (forward slash): {display}"
@@ -237,10 +237,10 @@ fn test_try_path_blocks_traversal_in_nonexistent_paths() {
         // Use starts_with directly on JailedPath instead of unjailing
         assert!(
             jailed_path
-                .to_string_real()
+                .realpath_to_string()
                 .starts_with(jail_root.to_string_lossy().as_ref()),
             "Clamped path should be within jail: {}",
-            jailed_path.to_string_real()
+            jailed_path.realpath_to_string()
         );
         println!("✅ Clamped traversal attempt: {attempt} -> {jailed_path}");
     }
@@ -266,10 +266,10 @@ fn test_try_path_with_absolute_nonexistent_path_outside_jail() {
         // Use starts_with directly on JailedPath instead of unjailing
         assert!(
             jailed_path
-                .to_string_real()
+                .realpath_to_string()
                 .starts_with(jail_root.to_string_lossy().as_ref()),
             "Clamped path should be within jail: {}",
-            jailed_path.to_string_real()
+            jailed_path.realpath_to_string()
         );
         println!("✅ Clamped absolute path: {path} -> {jailed_path}");
     }
@@ -304,10 +304,10 @@ fn test_try_path_with_complex_traversal_patterns() {
         // Use starts_with directly on JailedPath instead of unjailing
         assert!(
             jailed_path
-                .to_string_real()
+                .realpath_to_string()
                 .starts_with(jail_root.to_string_lossy().as_ref()),
             "Clamped path should be within jail: {}",
-            jailed_path.to_string_real()
+            jailed_path.realpath_to_string()
         );
         println!("✅ Clamped complex traversal: {attack} -> {jailed_path}");
     }
@@ -356,13 +356,13 @@ fn test_cleanup_on_jail_escape_attempts() {
         // Use starts_with directly on JailedPath instead of unjailing
         assert!(
             jailed_path
-                .to_string_real()
+                .realpath_to_string()
                 .starts_with(jail_root.to_string_lossy().as_ref()),
             "Clamped path should be within jail: {}",
-            jailed_path.to_string_real()
+            jailed_path.realpath_to_string()
         );
         // Display should show virtual root
-        let display = format!("{jailed_path}");
+        let display = format!("{}", jailed_path.virtualize());
         assert!(
             display.starts_with('/'),
             "Should display as virtual root: {display}"
@@ -438,7 +438,7 @@ fn test_attacker_path_clamping_in_existing_directory() {
         jailed_path.to_string_real()
     );
     // Display should show virtual root
-    let display = format!("{jailed_path}");
+    let display = format!("{}", jailed_path.virtualize());
     assert!(
         display.starts_with('/'),
         "Should display as virtual root path (forward slash): {display}"
@@ -507,8 +507,8 @@ fn test_absolute_path_clamping_and_virtual_root() {
         let jailed_path = result.unwrap();
         // Use starts_with directly on JailedPath instead of unjailing
         assert!(jailed_path.starts_with_real(jail.path()));
-        // Should show as virtual root path
-        let display = format!("{jailed_path}");
+        // Should show as virtual root path (use VirtualPath for user-facing display)
+        let display = format!("{}", jailed_path.virtualize());
         assert!(
             display.starts_with('/'),
             "Should display as virtual root path: {display}"

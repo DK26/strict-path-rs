@@ -1,7 +1,9 @@
 use jailed_path::{Jail, JailedPath, JailedPathError};
 
 // Define marker types for different resource categories
+#[derive(Clone, Debug)]
 pub struct ImageResource;
+#[derive(Clone, Debug)]
 pub struct UserData;
 
 fn main() -> Result<(), JailedPathError> {
@@ -10,7 +12,10 @@ fn main() -> Result<(), JailedPathError> {
     // Unmarked validator (no generics needed)
     let generic_jail: Jail = Jail::try_new(&current_dir)?;
     match generic_jail.try_path("Cargo.toml") {
-        Ok(generic_path) => println!("Generic path: {}", generic_path.to_string_virtual()),
+        Ok(generic_path) => println!(
+            "Generic path: {}",
+            generic_path.virtualize().virtualpath_to_string()
+        ),
         Err(e) => println!("Error: {e}"),
     }
 
@@ -18,7 +23,10 @@ fn main() -> Result<(), JailedPathError> {
     let image_jail: Jail<ImageResource> = Jail::try_new(&current_dir)?;
     match image_jail.try_path("Cargo.toml") {
         Ok(image_path) => {
-            println!("Image resource path: {}", image_path.to_string_virtual());
+            println!(
+                "Image resource path: {}",
+                image_path.clone().virtualize().virtualpath_to_string()
+            );
             process_images(image_path); // Use the function to avoid dead code warning
         }
         Err(e) => println!("Error: {e}"),
@@ -28,7 +36,10 @@ fn main() -> Result<(), JailedPathError> {
     let user_jail: Jail<UserData> = Jail::try_new(&current_dir)?;
     match user_jail.try_path("Cargo.toml") {
         Ok(user_path) => {
-            println!("User data path: {}", user_path.to_string_virtual());
+            println!(
+                "User data path: {}",
+                user_path.clone().virtualize().virtualpath_to_string()
+            );
             process_user_data(user_path); // Use the function to avoid dead code warning
         }
         Err(e) => println!("Error: {e}"),

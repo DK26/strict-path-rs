@@ -5,6 +5,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all("example_storage/users/alice/documents")?;
 
     // Create a validator for user files
+    #[derive(Clone, Debug)]
     struct UserFiles;
     let jail: Jail<UserFiles> = Jail::try_new("example_storage")?;
 
@@ -29,14 +30,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Jail root is accessible if needed
     println!("Jail root: {}", jail.path().to_string_lossy());
-    println!("User jail root: {}", user_doc.to_string_virtual());
+    println!(
+        "User jail root: {}",
+        user_doc.clone().virtualize().virtualpath_to_string()
+    );
     println!();
 
-    // Still works with all Path methods via Deref
-    println!("Path methods still work:");
-    println!("  Document filename: {:?}", user_doc.file_name());
-    println!("  Document extension: {:?}", user_doc.extension());
-    println!("  Document parent: {:?}", user_doc.parent());
+    // Still works with the explicit virtual APIs
+    println!("Path methods still work (virtual):");
+    println!(
+        "  Document filename: {:?}",
+        user_doc.clone().virtualize().file_name_virtual()
+    );
+    println!(
+        "  Document extension: {:?}",
+        user_doc.clone().virtualize().extension_virtual()
+    );
+    println!(
+        "  Document parent: {:?}",
+        user_doc.clone().virtualize().parent_virtual().unwrap()
+    );
     println!();
 
     // Works with file operations (AsRef<Path>)
@@ -65,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!(
                     "  Attack clamped: {} -> {}",
                     attack,
-                    clamped_path.to_string_virtual()
+                    clamped_path.virtualize().virtualpath_to_string()
                 );
             }
             Err(e) => println!("  Unexpected error for {attack}: {e}"),

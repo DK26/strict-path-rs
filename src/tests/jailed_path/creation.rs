@@ -15,21 +15,16 @@ fn test_jailed_path_creation() {
         .verify_exists()
         .unwrap(),
     );
-    let validated_path = crate::validator::stated_path::StatedPath::<
-        crate::validator::stated_path::Raw,
-    >::new(test_path.clone())
-    .virtualize()
-    .join_jail(&jail_root)
-    .canonicalize()
-    .unwrap()
-    .boundary_check(&jail_root)
+    let jailed_path: JailedPath = crate::validator::jail::validate(
+        crate::validator::jail::virtualize_to_jail(test_path.clone(), &jail_root),
+        Arc::clone(&jail_root),
+    )
     .unwrap();
-    let jailed_path: JailedPath = JailedPath::new(Arc::clone(&jail_root), validated_path);
 
     // Should store the path correctly
     let abs_path = &*jail_root.join(&test_path);
-    assert_eq!(jailed_path.to_string_real(), abs_path.to_string_lossy());
-    assert_eq!(jailed_path.to_string_real(), abs_path.to_string_lossy());
+    assert_eq!(jailed_path.realpath_to_string(), abs_path.to_string_lossy());
+    assert_eq!(jailed_path.realpath_to_string(), abs_path.to_string_lossy());
 }
 
 #[test]
@@ -45,16 +40,11 @@ fn test_jailed_path_clone_and_debug() {
         .verify_exists()
         .unwrap(),
     );
-    let validated_path = crate::validator::stated_path::StatedPath::<
-        crate::validator::stated_path::Raw,
-    >::new(test_path)
-    .virtualize()
-    .join_jail(&jail_root)
-    .canonicalize()
-    .unwrap()
-    .boundary_check(&jail_root)
+    let jailed_path: JailedPath = crate::validator::jail::validate(
+        crate::validator::jail::virtualize_to_jail(test_path, &jail_root),
+        jail_root,
+    )
     .unwrap();
-    let jailed_path: JailedPath = JailedPath::new(jail_root, validated_path);
 
     // Should be cloneable
     assert_eq!(jailed_path, jailed_path.clone());

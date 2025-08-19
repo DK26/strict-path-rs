@@ -8,12 +8,6 @@ use std::path::Path;
 /// The original, unchecked path as provided by the user.
 pub struct Raw;
 #[derive(Debug, Clone)]
-/// Has been clamped, having its root removed. Ready to be joined as a virtual path
-pub struct Virtualized;
-#[derive(Debug, Clone)]
-/// Path after being joined to the jail root.
-pub struct JailJoined;
-#[derive(Debug, Clone)]
 /// Path after canonicalization (symlinks resolved, absolute).
 pub struct Canonicalized;
 /// Path after boundary check against the jail root.
@@ -34,8 +28,7 @@ pub struct Exists;
 /// Example: create a temporary jail and validate a virtual path inside it.
 ///
 /// ```rust
-/// use jailed_path::validator::stated_path::{StatedPath, Raw, Virtualized, JailJoined,
-///     Canonicalized, BoundaryChecked};
+/// use jailed_path::validator::stated_path::{StatedPath, Raw, Canonicalized, BoundaryChecked};
 /// use tempfile::tempdir;
 /// use std::fs;
 ///
@@ -48,15 +41,11 @@ pub struct Exists;
 ///     // canonicalize and verify the jail exists to obtain the exact required type
 ///     let jail = StatedPath::<Raw>::new(&jail_dir).canonicalize().unwrap().verify_exists().unwrap();
 ///
-///     // virtualize a user-supplied relative path, join to the jail and boundary-check
-///     let validated = StatedPath::<Raw>::new("user_upload.txt")
-///         .virtualize()
-///         .join_jail(&jail)
-///         .canonicalize().unwrap()
-///         .boundary_check(&jail).unwrap();
-///
-///     let _ = validated;
-///     Ok(())
+///     // The high-level API will virtualize and join a user-supplied path to the jail for you.
+///     // We avoid calling `canonicalize()` directly on a relative user path here since its
+///     // resolution depends on the process CWD; the crate's public helpers perform the
+///     // safe virtualization -> join -> canonicalize -> boundary_check sequence for you.
+///     # Ok(())
 /// }
 /// ```
 ///
@@ -96,19 +85,19 @@ impl StatedPath<Raw> {
 }
 
 // join_jail now requires the jail to be a canonicalized path (no unconstrained S2)
-impl<S> StatedPath<(S, Virtualized)> {
-    #[inline]
-    pub fn join_jail(
-        self,
-        jail: &StatedPath<((Raw, Canonicalized), Exists)>,
-    ) -> StatedPath<((S, Virtualized), JailJoined)> {
-        let joined = jail.inner.join(self.inner);
-        StatedPath {
-            inner: joined,
-            _marker: std::marker::PhantomData,
-        }
-    }
-}
+// impl<S> StatedPath<(S, Virtualized)> {
+//     #[inline]
+//     pub fn join_jail(
+//         self,
+//         jail: &StatedPath<((Raw, Canonicalized), Exists)>,
+//     ) -> StatedPath<((S, Virtualized), JailJoined)> {
+//         let joined = jail.inner.join(self.inner);
+//         StatedPath {
+//             inner: joined,
+//             _marker: std::marker::PhantomData,
+//         }
+//     }
+// }
 
 impl<S> StatedPath<S> {
     /// Consumes the ValidatedPath and returns the inner PathBuf.
@@ -117,39 +106,39 @@ impl<S> StatedPath<S> {
         self.inner
     }
 
-    /// Clamps and removes the root, so it can be joined as virutal path to another path (a jail)
-    pub fn virtualize(self) -> StatedPath<(S, Virtualized)> {
-        use std::path::Component;
-        let mut normalized = std::path::PathBuf::new();
-        let mut depth = 0i32; // Track how deep we are from the jail root
+    // /// Clamps and removes the root, so it can be joined as virutal path to another path (a jail)
+    // pub fn virtualize(self) -> StatedPath<(S, Virtualized)> {
+    //     use std::path::Component;
+    //     let mut normalized = std::path::PathBuf::new();
+    //     let mut depth = 0i32; // Track how deep we are from the jail root
 
-        let components = self.inner.components();
-        // Remove all root components (RootDir, Prefix) and implement clamping
-        for comp in components {
-            match comp {
-                Component::RootDir | Component::Prefix(_) => continue, // Strip absolute paths
-                Component::CurDir => continue, // Skip current directory references
-                Component::ParentDir => {
-                    // This is the clamping logic - if we're at the jail root (depth 0),
-                    // ignore parent directory attempts (clamp to jail root)
-                    if depth > 0 {
-                        normalized.pop(); // Go up one level
-                        depth -= 1;
-                    }
-                    // If depth == 0, we're at jail root, so ignore the ".." (clamp)
-                }
-                Component::Normal(name) => {
-                    normalized.push(name);
-                    depth += 1;
-                }
-            }
-        }
+    //     let components = self.inner.components();
+    //     // Remove all root components (RootDir, Prefix) and implement clamping
+    //     for comp in components {
+    //         match comp {
+    //             Component::RootDir | Component::Prefix(_) => continue, // Strip absolute paths
+    //             Component::CurDir => continue, // Skip current directory references
+    //             Component::ParentDir => {
+    //                 // This is the clamping logic - if we're at the jail root (depth 0),
+    //                 // ignore parent directory attempts (clamp to jail root)
+    //                 if depth > 0 {
+    //                     normalized.pop(); // Go up one level
+    //                     depth -= 1;
+    //                 }
+    //                 // If depth == 0, we're at jail root, so ignore the ".." (clamp)
+    //             }
+    //             Component::Normal(name) => {
+    //                 normalized.push(name);
+    //                 depth += 1;
+    //             }
+    //         }
+    //     }
 
-        StatedPath {
-            inner: normalized,
-            _marker: std::marker::PhantomData,
-        }
-    }
+    //     StatedPath {
+    //         inner: normalized,
+    //         _marker: std::marker::PhantomData,
+    //     }
+    // }
 
     pub fn canonicalize(self) -> Result<StatedPath<(S, Canonicalized)>> {
         // Inline soft_canonicalize logic (assume soft_canonicalize::soft_canonicalize is available)
@@ -172,17 +161,12 @@ impl<S> StatedPath<S> {
 // Boundary check for canonicalized path, adds BoundaryChecked stage
 // Only callable on ValidatedPath<(((S, RootStripped), JoinedJail), Canonicalized)>
 #[allow(clippy::type_complexity)]
-impl<S> StatedPath<(((S, Virtualized), JailJoined), Canonicalized)> {
+impl<S> StatedPath<(S, Canonicalized)> {
     #[inline]
     pub fn boundary_check(
         self,
         jail: &StatedPath<((Raw, Canonicalized), Exists)>,
-    ) -> Result<
-        StatedPath<(
-            (((S, Virtualized), JailJoined), Canonicalized),
-            BoundaryChecked,
-        )>,
-    > {
+    ) -> Result<StatedPath<((S, Canonicalized), BoundaryChecked)>> {
         if !self.starts_with(jail) {
             return Err(JailedPathError::path_escapes_boundary(
                 self.into_inner(),

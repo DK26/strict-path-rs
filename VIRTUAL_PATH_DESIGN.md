@@ -59,7 +59,8 @@ Rationale: The explicit evolution and naming remove ambiguity at call sites, mak
 
 - **VirtualRoot\<M\>**
   - Dedicated type representing the virtual root (the jail, but for UX semantics)
-  - Purpose: Construct `VirtualPath` via intuitive operations (e.g., `join_virtual`, `try_path_virtual`)
+   - Purpose: Construct `VirtualPath` via intuitive operations (e.g., `try_path_virtual`).
+      Note: `join_virtual` is a `VirtualPath` operation used to manipulate existing virtual paths, not a `VirtualRoot` constructor.
 
 - **JailedPath\<M\>** (system-facing)
   - Represents a validated path guaranteed to be within the jail.
@@ -219,8 +220,8 @@ pub struct VirtualPath<Marker = ()> {
   - Optional: `VirtualRoot::<M>::try_new_create(...)` to create directories proactively
 
 - Produce a VirtualPath (user-facing):
-  - `vroot.try_path_virtual(p) -> Result<VirtualPath<M>>`  (accepts absolute/relative; clamps as needed)
-  - `vroot.join_virtual(p) -> Result<VirtualPath<M>>` (ergonomic helper)
+   - `vroot.try_path_virtual(p) -> Result<VirtualPath<M>>`  (accepts absolute/relative; clamps as needed)
+   - Note: `join_virtual` is provided on `VirtualPath` for joining/manipulating virtual paths (e.g., `vp.join_virtual("file")`). `VirtualRoot` does not expose a `join_virtual` helper; use `try_path_virtual` to construct `VirtualPath` instances from user input.
 
 - Produce a JailedPath (system-facing):
   - `Jail::<M>::try_new(jail_path)?.try_path(p) -> Result<JailedPath<M>>`

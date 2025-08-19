@@ -1,10 +1,156 @@
 use super::stated_path::*;
 use crate::jailed_path::JailedPath;
 use crate::{JailedPathError, Result};
+#[cfg(windows)]
+use std::ffi::OsStr;
 use std::io::{Error as IoError, ErrorKind};
 use std::marker::PhantomData;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
+
+#[cfg(windows)]
+fn is_potential_83_short_name(os: &OsStr) -> bool {
+    let s = os.to_string_lossy();
+    // Heuristic: presence of '~' followed by at least one ASCII digit
+    if let Some(pos) = s.find('~') {
+        // FIXME: Fix this smelly code to use the type system
+        s[pos + 1..]
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_digit())
+    } else {
+        false
+    }
+}
+
+pub(crate) fn validate<Marker>(
+    path: impl AsRef<Path>,
+    jail: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
+) -> Result<JailedPath<Marker>> {
+    #[cfg(windows)]
+    {
+        // Keep the original user path for error reporting (Windows only)
+        let original_user_path = path.as_ref().to_path_buf();
+
+        // Skip the precheck for absolute inputs to avoid false positives from system/CI prefixes
+        if !path.as_ref().is_absolute() {
+            // Build up from the jail root so we can report the parent directory where a suspect
+            // component would live (checked_at). Pushing components does not access the FS.
+            let mut probe = jail.as_ref().to_path_buf();
+
+            for comp in path.as_ref().components() {
+                match comp {
+                    Component::CurDir | Component::ParentDir => continue,
+                    Component::RootDir | Component::Prefix(_) => continue,
+                    Component::Normal(name) => {
+                        // If the component looks like an 8.3 short name (tilde + digit),
+                        // reject early and return the specialized error with the parent dir.
+                        if is_potential_83_short_name(name) {
+                            return Err(JailedPathError::windows_short_name(
+                                name.to_os_string(),
+                                original_user_path,
+                                probe.clone(), // parent directory where this component would live
+                            ));
+                        }
+                        // advance probe for the next component
+                        probe.push(name);
+                    }
+                }
+            }
+        }
+    }
+
+    // Treat incoming paths as user-supplied and virtualize (clamp/join to jail)
+    // before canonicalization. This ensures relative paths and traversal
+    // attempts are interpreted relative to the jail root and are clamped
+    // at the boundary rather than being resolved against the process CWD.
+    let virtualized = virtualize_to_jail(path, jail.as_ref());
+
+    let validated_path = StatedPath::<Raw>::new(virtualized)
+        .canonicalize()?
+        .boundary_check(&jail)?;
+
+    Ok(JailedPath::new(jail, validated_path))
+}
+
+/// Make sure provided path is always inside the jail, which behaves as a virtual root
+pub(crate) fn virtualize_to_jail(
+    path: impl AsRef<Path>,
+    jail: &StatedPath<((Raw, Canonicalized), Exists)>,
+) -> PathBuf {
+    use std::ffi::OsString;
+    // If the caller provided an absolute path that already lives inside the jail,
+    // return it unchanged to avoid joining the jail twice (double-virtualization).
+    // If the caller provided an absolute path that already lives inside the jail
+    // and does not contain any `..` or `.` components, return it unchanged to
+    // avoid joining the jail twice (double-virtualization). If it contains
+    // parent or current-dir components, fall through and normalize/clamp so
+    // traversal attempts are handled safely.
+    if path.as_ref().is_absolute() && path.as_ref().starts_with(jail.as_ref()) {
+        let mut has_parent_or_cur = false;
+        for comp in path.as_ref().components() {
+            if matches!(comp, Component::ParentDir | Component::CurDir) {
+                has_parent_or_cur = true;
+                break;
+            }
+        }
+        if !has_parent_or_cur {
+            return path.as_ref().to_path_buf();
+        }
+    }
+    let mut normalized = PathBuf::new();
+    let mut depth = 0i32; // Track how deep we are from the jail root
+    let components = path.as_ref().components();
+    let _is_abs_input = path.as_ref().is_absolute();
+    #[cfg(unix)]
+    let is_abs_input = _is_abs_input;
+    // Remove all root components (RootDir, Prefix) and implement clamping
+    for comp in components {
+        match comp {
+            Component::RootDir | Component::Prefix(_) => continue, // Strip absolute paths
+            Component::CurDir => continue, // Skip current directory references
+            Component::ParentDir => {
+                // Clamping: if we're below jail root, go up; otherwise ignore
+                if depth > 0 {
+                    normalized.pop();
+                    depth -= 1;
+                }
+            }
+            Component::Normal(name) => {
+                // Convert component to string for inspection/sanitization.
+                let s = name.to_string_lossy();
+
+                // If the original input was an absolute system path, rewrite
+                // common system prefixes to a safe external marker so the
+                // virtual display cannot be mistaken for raw system locations.
+                #[cfg(unix)]
+                {
+                    if is_abs_input && (s == "dev" || s == "proc" || s == "sys") {
+                        let mut safe = OsString::from("__external__");
+                        safe.push(s.as_ref());
+                        normalized.push(safe);
+                        depth += 1;
+                        continue;
+                    }
+                }
+
+                // Sanitize dangerous characters commonly used in injections
+                // (apply for both absolute and relative inputs).
+                let cleaned = s.replace(['\n', ';'], "_");
+                if cleaned != s {
+                    normalized.push(OsString::from(cleaned));
+                    depth += 1;
+                    continue;
+                }
+
+                normalized.push(name);
+                depth += 1;
+            }
+        }
+    }
+
+    jail.join(normalized)
+}
 
 /// A secure jail that constrains all file system operations to a specific directory.
 ///
@@ -247,79 +393,10 @@ impl<Marker> Jail<Marker> {
     /// # Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn try_path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
-        // STEP 1: Strip root components from the candidate path
-        let clamped = StatedPath::<Raw>::new(candidate_path.as_ref()).virtualize();
-
-        // Windows-only hardening: reject DOS 8.3 short names (tilde form) in any
-        // non-existent component, since their eventual long-name resolution is ambiguous.
-        // This prevents surprising boundary comparisons if a future long name gets created.
-        #[cfg(windows)]
-        {
-            use std::ffi::OsStr;
-            use std::path::Component;
-
-            // Keep the original user path for error reporting (Windows only)
-            let original_user_path = candidate_path.as_ref().to_path_buf();
-
-            // If the input was an absolute path, we will strip roots to make it jail-relative.
-            // In that case, skip the 8.3 short-name precheck to avoid false positives from
-            // absolute prefixes (e.g., C:\Users\RUNNER~1\...) present in CI environments.
-            if candidate_path.as_ref().is_absolute() {
-                // Proceed without the short-name precheck; root stripping + boundary check still apply.
-            } else {
-                fn is_potential_83_short_name(os: &OsStr) -> bool {
-                    let s = os.to_string_lossy();
-                    // Heuristic: presence of '~' followed by at least one ASCII digit
-                    if let Some(pos) = s.find('~') {
-                        s[pos + 1..]
-                            .chars()
-                            .next()
-                            .is_some_and(|ch| ch.is_ascii_digit())
-                    } else {
-                        false
-                    }
-                }
-
-                // Build up from the canonicalized jail path and check which components don't exist.
-                let mut probe = self.jail.as_ref().to_path_buf();
-                for comp in clamped.components() {
-                    match comp {
-                        Component::CurDir => continue,
-                        Component::ParentDir => continue, // shouldn't appear post-root-strip, but ignore defensively
-                        Component::RootDir | Component::Prefix(_) => continue, // root stripping removed these
-                        Component::Normal(name) => {
-                            probe.push(name);
-                            if !probe.exists() && is_potential_83_short_name(name) {
-                                // Emit specialized error so callers can decide recovery
-                                // checked_at is the parent directory where this component would live
-                                let mut checked_at = probe.clone();
-                                let _ = checked_at.pop();
-                                return Err(JailedPathError::windows_short_name(
-                                    name.to_os_string(),
-                                    original_user_path,
-                                    checked_at,
-                                ));
-                            }
-                            // Once a non-existent component is found, all following components are also non-existent.
-                            // We still scan remaining components to catch additional tilde segments, but we do not need
-                            // to touch the filesystem for them.
-                        }
-                    }
-                }
-            }
-        }
-
-        // STEP 2: Join to jail root (type-state: ((Raw, RootStripped), JoinedJail))
-        let joined = clamped.join_jail(&self.jail);
-
-        // STEP 3: Canonicalize (type-state: (((Raw, RootStripped), JoinedJail), Canonicalized))
-        let canon = joined.canonicalize()?;
-
-        // STEP 4: Boundary check (type-state: ((((Raw, RootStripped), JoinedJail), Canonicalized), BoundaryChecked))
-        let checked = canon.boundary_check(&self.jail)?;
-
-        Ok(JailedPath::new(self.jail.clone(), checked))
+        // System-facing: directly validate the provided path (canonicalize + boundary_check)
+        validate(candidate_path, self.jail.clone())
     }
 
     /// Returns a reference to the jail's root path.
@@ -355,10 +432,21 @@ impl<Marker> Jail<Marker> {
     pub fn path(&self) -> &Path {
         &self.jail
     }
+
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn stated_path(&self) -> &StatedPath<((Raw, Canonicalized), Exists)> {
+        &self.jail
+    }
 }
 
 impl<Marker> std::fmt::Display for Jail<Marker> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.path().display())
+    }
+}
+
+impl<Marker> AsRef<Path> for Jail<Marker> {
+    fn as_ref(&self) -> &Path {
+        self.path()
     }
 }

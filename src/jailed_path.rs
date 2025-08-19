@@ -1,8 +1,7 @@
-use crate::validator::stated_path::{
-    BoundaryChecked, Canonicalized, Exists, JailJoined, Raw, StatedPath, Virtualized,
-};
+use crate::validator::stated_path::{BoundaryChecked, Canonicalized, Exists, Raw, StatedPath};
+use crate::{JailedPathError, Result};
 use std::cmp::Ordering;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
@@ -11,29 +10,49 @@ use std::sync::Arc;
 
 // --- Struct Definition ---
 
-/// A validated path guaranteed to be within a jail boundary.
+/// A validated, system-facing path guaranteed to be within a jail boundary.
 ///
 /// ## Key Concepts
-/// - **Virtual paths**: User-facing paths shown as if the jail root is the filesystem root
-/// - **Real paths**: Actual filesystem paths (use with caution - may expose system paths)
-/// - **Safety**: All operations prevent path traversal attacks and jail escapes
+/// - **System-Facing**: This type is intended for direct, low-level interactions with the
+///   filesystem, such as file I/O, and for integration with external APIs that require
+///   real filesystem paths.
+/// - **Real Paths**: All path representations (`Display`, `to_string_real`, etc.) refer to the
+///   actual, canonicalized path on the filesystem (e.g., `/app/storage/user/file.txt`).
+/// - **Safety**: All operations are guaranteed to remain within the jail boundary, preventing
+///   path traversal attacks.
 ///
 /// ## Display Behavior
-/// - `Display` shows the user-friendly **virtual path** (e.g., `/user/file.txt`).
-/// - `Debug` shows the **real path** for debugging purposes (e.g., `/app/storage/user/file.txt`).
+/// - `Display` shows the **real filesystem path**.
+/// - `Debug` provides a more detailed view, including the jail root.
+///
+/// ## For User-Facing Paths
+///
+/// To display paths to users or perform user-centric path manipulation (where the jail is
+/// treated as the root `/`), convert this `JailedPath` into a `VirtualPath` using the
+/// explicit `JailedPath::virtualize()` method.
 ///
 /// ## Example
-/// ```rust
-/// # use jailed_path::Jail;
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// # std::fs::create_dir_all("temp_jail")?;
-/// let jail = Jail::<()>::try_new("temp_jail")?;
-/// let jailed_path = jail.try_path("file.txt")?;
 ///
-/// // If jail_root is "temp_jail" and path is "file.txt"
-/// // Virtual path shows: "/file.txt"
-/// println!("{jailed_path}"); // Always shows virtual path with forward slashes
-/// # std::fs::remove_dir_all("temp_jail").ok();
+/// ```rust
+/// # use jailed_path::{Jail, VirtualPath};
+/// # use std::fs;
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # std::fs::create_dir_all("temp_jail_real")?;
+/// let jail = Jail::<()>::try_new("temp_jail_real")?;
+/// let jailed_path = jail.try_path("data/file.txt")?;
+///
+/// // Displaying a JailedPath shows the real, canonicalized path.
+/// // Note: The exact output of canonicalization is platform-dependent.
+/// assert!(jailed_path.to_string().contains("temp_jail_real"));
+///
+/// // To show a user-friendly virtual path, convert it.
+/// // To show a user-friendly virtual path, convert it explicitly.
+/// // Use `JailedPath::virtualize()` rather than implicit `From`/`Into`.
+/// // Convert to a user-facing virtual path for display purposes.
+/// let virtual_path = jailed_path.virtualize();
+/// assert_eq!(virtual_path.to_string(), "/data/file.txt");
+///
+/// # fs::remove_dir_all("temp_jail_real")?;
 /// # Ok(())
 /// # }
 /// ```
@@ -53,10 +72,7 @@ impl<Marker> JailedPath<Marker> {
     #[allow(clippy::type_complexity)]
     pub(crate) fn new(
         jail_path: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
-        validated_path: StatedPath<(
-            (((Raw, Virtualized), JailJoined), Canonicalized),
-            BoundaryChecked,
-        )>,
+        validated_path: StatedPath<((Raw, Canonicalized), BoundaryChecked)>,
     ) -> Self {
         Self {
             path: validated_path.into_inner(),
@@ -65,104 +81,58 @@ impl<Marker> JailedPath<Marker> {
         }
     }
 
-    // No accessors which return `&Path` or expose the jail root are provided here.
-    // The ROADMAP explicitly forbids exposing Path references from `JailedPath`.
+    // ---- Accessors ----
 
-    // ---- Private Helpers ----
-
-    /// Returns the virtual path, which is the real path stripped of the jail root.
-    fn virtual_path(&self) -> PathBuf {
-        // This should not fail if logic is correct, as self.path is guaranteed to be inside jail_root
-        self.path
-            .strip_prefix(&*self.jail_path)
-            .unwrap_or(&self.path)
-            .to_path_buf()
+    /// Returns the real, canonicalized path as a `&Path`.
+    #[inline]
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
     }
 
-    /// Re-validates a new virtual path derived from the current one.
-    fn revalidate(&self, new_virtual_path: PathBuf) -> Option<Self> {
-        let validated = StatedPath::<Raw>::new(new_virtual_path)
-            .virtualize()
-            .join_jail(&self.jail_path)
-            .canonicalize()
-            .ok()?
-            .boundary_check(&self.jail_path)
-            .ok()?;
-        // Build new instance and construct its cached virtual_display in `new()`.
-        Some(Self::new(self.jail_path.clone(), validated))
+    /// Returns a reference to the jail's root path.
+    #[allow(clippy::type_complexity)]
+    #[inline]
+    pub(crate) fn jail_path(&self) -> &StatedPath<((Raw, Canonicalized), Exists)> {
+        &self.jail_path
+    }
+
+    /// Returns a clone of the Arc pointing to the jail's root path.
+    #[allow(clippy::type_complexity)]
+    #[inline]
+    pub(crate) fn jail_path_arc(&self) -> Arc<StatedPath<((Raw, Canonicalized), Exists)>> {
+        self.jail_path.clone()
     }
 
     // ---- String Conversion ----
 
-    /// Returns the virtual path as a string (e.g., `/user/file.txt`).
-    ///
-    /// This is the recommended way to display paths to users.
-    pub fn to_string_virtual(&self) -> String {
-        let virtual_path = self.virtual_path();
-        let components: Vec<_> = virtual_path.components().map(|c| c.as_os_str()).collect();
-
-        if components.is_empty() {
-            return "/".to_string();
-        }
-
-        let total_len = components.iter().map(|c| c.len() + 1).sum();
-        let mut result = String::with_capacity(total_len);
-        for component in components {
-            result.push('/');
-            result.push_str(&component.to_string_lossy());
-        }
-        result
-    }
-
-    // NOTE: `to_str_virtual(&self) -> Option<&str>` intentionally omitted.
-    //
-    // Rationale:
-    // - Returning a borrowed `&str` that lives for `&self` requires storing the
-    //   computed virtual-path string inside the `JailedPath` instance (a cache).
-    // - Caching has non-trivial trade-offs (per-instance memory overhead, thread-safety
-    //   considerations, and API/representation changes such as using `Arc` or `OnceLock`).
-    // - Alternative, low-overhead APIs could be added later to cover common needs
-    //   without changing the `JailedPath` layout (these are NOT implemented here):
-    //     * `to_string_virtual(&self) -> String` -- convenience, allocates each call (currently implemented)
-    //     * `write_virtual_to(&self, out: &mut String)` -- caller-provided buffer, zero per-instance (proposed)
-    //     * `virtual_arc(&self) -> Arc<String>` -- ergonomic shareable owned value (allocates) (proposed)
-    //     * feature-gated lazy cache (opt-in) if zero-copy `&str` semantics are required (proposed)
-    //
-    // For now we avoid adding a method that returns `Option<&str>` to prevent confusing
-    // semantics (a method that would simply return `None` is misleading). This decision
-    // can be revisited when we decide whether to accept the structural changes required
-    // for efficient, borrow-backed returns.
-
     /// Returns the real path as a string (e.g., `/app/storage/user/file.txt`).
-    ///
-    /// **⚠️ Caution**: Exposes the real filesystem path. Use with care.
+    #[inline]
     pub fn to_string_real(&self) -> String {
         self.path.to_string_lossy().into_owned()
     }
 
-    // Keep JailedPath API strictly to the names in the roadmap. No helpers that
-    // expose path-like data or duplicate names are added here.
+    /// Returns the real path as a `String`.
+    #[inline]
+    pub fn realpath_to_string(&self) -> String {
+        self.path.to_string_lossy().into_owned()
+    }
 
     /// Returns the real path as an `Option<&str>`.
-    ///
-    /// **⚠️ Caution**: Exposes the real filesystem path.
     #[inline]
-    pub fn to_str_real(&self) -> Option<&str> {
+    pub fn realpath_to_str(&self) -> Option<&str> {
         self.path.to_str()
     }
 
     /// Returns the real path as an `&OsStr`.
-    ///
-    /// **⚠️ Caution**: Exposes the real filesystem path.
     #[inline]
     pub fn as_os_str_real(&self) -> &OsStr {
         self.path.as_os_str()
     }
 
-    /// Returns the virtual path as an `OsString`.
+    /// Returns the real path as an `&OsStr`.
     #[inline]
-    pub fn as_os_str_virtual(&self) -> OsString {
-        self.virtual_path().into()
+    pub fn realpath_as_os_str(&self) -> &OsStr {
+        self.path.as_os_str()
     }
 
     /// Consumes the `JailedPath` and returns the real path as a `PathBuf`.
@@ -175,101 +145,91 @@ impl<Marker> JailedPath<Marker> {
         self.path
     }
 
-    // ---- Safe Path Manipulation ----
-
-    /// Safely joins a path segment to the current virtual path.
+    /// Converts this `JailedPath` into a `VirtualPath` (user-facing view).
     ///
-    /// Returns `None` if the resulting path would escape the jail.
-    pub fn join<P: AsRef<Path>>(&self, path: P) -> Option<Self> {
-        let new_virtual = self.virtual_path().join(path);
-        self.revalidate(new_virtual)
+    /// This is an explicit conversion: use `virtualize()` to move from system-facing to
+    /// user-facing types rather than relying on implicit `From/Into` conversions.
+    #[inline]
+    pub fn virtualize(self) -> crate::virtual_path::VirtualPath<Marker> {
+        crate::virtual_path::VirtualPath::new(self)
     }
 
-    /// Returns the parent directory as a new `JailedPath`.
+    // ---- Safe Path Manipulation ----
+
+    /// Safely joins a path segment to the current real path.
+    #[inline]
+    pub fn join_real<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
+        let new_real = self.path.join(path);
+        crate::validator::jail::validate(new_real, self.jail_path.clone())
+    }
+
+    /// Returns the parent directory interpreted in real-path semantics.
     ///
-    /// Returns `None` if the current path is the jail root.
-    pub fn parent(&self) -> Option<Self> {
-        self.virtual_path()
-            .parent()
-            .and_then(|p| self.revalidate(p.to_path_buf()))
+    /// Returns `Ok(None)` if the current path has no parent.
+    pub fn parent_real(&self) -> Result<Option<Self>> {
+        match self.path.parent() {
+            Some(p) => match crate::validator::jail::validate(p, self.jail_path.clone()) {
+                Ok(p) => Ok(Some(p)),
+                Err(e) => Err(e),
+            },
+            None => Ok(None),
+        }
     }
 
     /// Returns a new `JailedPath` with the file name replaced.
-    ///
-    /// Returns `None` if the operation is not possible (e.g., on an empty path).
-    pub fn with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Option<Self> {
-        let new_virtual = self.virtual_path().with_file_name(file_name);
-        self.revalidate(new_virtual)
+    #[inline]
+    pub fn with_file_name_real<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
+        let new_real = self.path.with_file_name(file_name);
+        crate::validator::jail::validate(new_real, self.jail_path.clone())
     }
 
     /// Returns a new `JailedPath` with the extension replaced.
     ///
-    /// Returns `None` if the path has no file name.
-    pub fn with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Option<Self> {
-        let vpath = self.virtual_path();
-        // If there's no file name (we're at the jail root), adding an extension is invalid.
-        vpath.file_name()?;
-        let new_virtual = vpath.with_extension(extension);
-        self.revalidate(new_virtual)
+    /// Returns an error if the path has no file name.
+    pub fn with_extension_real<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self> {
+        let rpath = self.path.as_path();
+        if rpath.file_name().is_none() {
+            return Err(JailedPathError::path_escapes_boundary(
+                self.path.clone(),
+                self.jail_path.to_path_buf(),
+            ));
+        }
+        let new_real = rpath.with_extension(extension);
+        crate::validator::jail::validate(new_real, self.jail_path.clone())
     }
 
-    // ---- Path Components (Virtual) ----
+    // ---- Path Components (Real) ----
 
-    /// Returns the final component of the virtual path, if there is one.
+    /// Returns the final component of the real path, if there is one.
     #[inline]
-    pub fn file_name(&self) -> Option<OsString> {
-        self.virtual_path().file_name().map(|s| s.to_os_string())
+    pub fn file_name_real(&self) -> Option<&OsStr> {
+        self.path.file_name()
     }
 
-    /// Returns the file stem of the virtual path.
+    /// Returns the file stem of the real path.
     #[inline]
-    pub fn file_stem(&self) -> Option<OsString> {
-        self.virtual_path().file_stem().map(|s| s.to_os_string())
+    pub fn file_stem_real(&self) -> Option<&OsStr> {
+        self.path.file_stem()
     }
 
-    /// Returns the extension of the virtual path.
+    /// Returns the extension of the real path.
     #[inline]
-    pub fn extension(&self) -> Option<OsString> {
-        self.virtual_path().extension().map(|s| s.to_os_string())
+    pub fn extension_real(&self) -> Option<&OsStr> {
+        self.path.extension()
     }
 
     // ---- Prefix / Suffix Checks ----
 
     /// Returns true if the *real* filesystem path starts with `p`.
-    ///
-    /// This compares against the internal real `PathBuf` and is equivalent
-    /// to calling `Path::starts_with` on the real path.
     #[inline]
     pub fn starts_with_real<P: AsRef<Path>>(&self, p: P) -> bool {
         self.path.starts_with(p.as_ref())
-    }
-
-    /// Returns true if the *virtual* path starts with `p`.
-    ///
-    /// This is the check you typically want in tests that assert containment
-    /// within the virtual/jail-relative namespace.
-    #[inline]
-    pub fn starts_with_virtual<P: AsRef<Path>>(&self, p: P) -> bool {
-        self.virtual_path().starts_with(p.as_ref())
     }
 
     /// Returns true if the *real* filesystem path ends with `p`.
     #[inline]
     pub fn ends_with_real<P: AsRef<Path>>(&self, p: P) -> bool {
         self.path.ends_with(p.as_ref())
-    }
-
-    /// Returns true if the *virtual* path ends with `p`.
-    ///
-    /// This method is intentionally explicit to avoid accidental exposure of
-    /// the real filesystem path. Use `ends_with_real` when you need to compare
-    /// against the underlying real path. Prefer `ends_with_virtual` in tests
-    /// and user-facing checks to ensure comparisons are performed only on the
-    /// virtual, user-visible path and do not leak or depend on real-path
-    /// details (separators, canonicalization differences, etc.).
-    #[inline]
-    pub fn ends_with_virtual<P: AsRef<Path>>(&self, p: P) -> bool {
-        self.virtual_path().ends_with(p.as_ref())
     }
 
     // ---- File System Operations ----
@@ -338,9 +298,9 @@ impl<Marker> JailedPath<Marker> {
 // --- Trait Implementations ---
 
 impl<Marker> fmt::Display for JailedPath<Marker> {
-    /// Displays the user-friendly **virtual path**.
+    /// Displays the **real filesystem path**.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string_virtual())
+        write!(f, "{}", self.path.display())
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::validator::jail::Jail;
+use crate::Jail;
 use std::sync::Arc;
 use std::thread;
 
@@ -24,12 +24,13 @@ fn test_known_cve_patterns() {
 
     for pattern in attack_patterns {
         if let Ok(jailed_path) = jail.try_path(pattern) {
-            let virtual_path = jailed_path.as_os_str_virtual();
-            println!("Pattern: '{pattern}' -> Virtual: '{virtual_path:?}'");
+            let virtual_path = jailed_path.clone().virtualize();
+            let virtual_os_str = virtual_path.as_os_str_virtual();
+            println!("Pattern: '{pattern}' -> Virtual: '{virtual_os_str:?}'");
             println!("Jail (from temp): '{:?}'", temp.path());
             println!("Jail: '{:?}'", jail.path());
 
-            let virtual_str = virtual_path.to_string_lossy();
+            let virtual_str = virtual_os_str.to_string_lossy();
 
             if !pattern.contains("....") && !pattern.contains("%2F") {
                 let is_traversal_pattern =
@@ -38,7 +39,7 @@ fn test_known_cve_patterns() {
                 if is_traversal_pattern {
                     assert!(
                         !virtual_str.contains(".."),
-                        "Attack pattern '{pattern}' not properly sanitized: {virtual_path:?}"
+                        "Attack pattern '{pattern}' not properly sanitized: {virtual_os_str:?}"
                     );
                 }
             }
@@ -94,10 +95,11 @@ fn test_concurrent_validator_usage() {
                 assert!(result.is_ok(), "Thread {i} iteration {j} failed");
 
                 let jailed_path = result.unwrap();
-                assert!(jailed_path
+                let virtual_path = jailed_path.virtualize();
+                assert!(virtual_path
                     .as_os_str_virtual()
                     .to_string_lossy()
-                    .contains(&format!("thread_{i}")));
+                    .contains(&format!("/thread_{i}")));
             }
         });
         handles.push(handle);
@@ -123,13 +125,10 @@ fn test_long_path_handling() {
     let traversal_attack = "../".repeat(100) + "etc/passwd";
     if let Ok(jailed_path) = jail.try_path(traversal_attack) {
         assert!(jailed_path.starts_with_real(jail.path()));
-        let virtual_path = jailed_path.as_os_str_virtual();
-        let expected_path = if cfg!(windows) {
-            "etc\\passwd"
-        } else {
-            "etc/passwd"
-        };
-        assert_eq!(virtual_path.to_string_lossy(), expected_path);
+        let virtual_path = jailed_path.virtualize();
+        let virtual_os_str = virtual_path.as_os_str_virtual();
+        let expected_path = "/etc/passwd";
+        assert_eq!(virtual_os_str.to_string_lossy(), expected_path);
     }
 }
 
@@ -223,15 +222,37 @@ fn test_unix_specific_attacks() {
 
     for pattern in unix_patterns {
         if let Ok(jailed_path) = jail.try_path(pattern) {
-            assert!(jailed_path.starts_with_real(jail.path()));
-            assert!(!jailed_path
-                .as_os_str_virtual()
-                .to_string_lossy()
-                .contains("/dev"));
-            assert!(!jailed_path
-                .as_os_str_virtual()
-                .to_string_lossy()
-                .contains("/proc"));
+            let virtual_path = jailed_path.virtualize();
+            assert!(virtual_path.as_jailed().starts_with_real(jail.path()));
+            // Use virtual string for checking sensitive prefixes and leakage.
+            let virtual_str = virtual_path.to_string_virtual();
+            // Ensure the virtual display does not accidentally include the
+            // absolute jail path (which would be a filesystem leak).
+            let jail_abs = jail.path().to_string_lossy();
+            assert!(
+                !virtual_str.contains(jail_abs.as_ref()),
+                "Virtual path leaked absolute jail path: {virtual_str}"
+            );
+
+            // If the input was an absolute system path (starts with '/'), the
+            // virtual display must not expose common sensitive system prefixes
+            // such as /dev, /proc or /sys. This prevents showing raw system
+            // locations to callers. For other inputs containing dangerous
+            // characters (newline, semicolon) ensure those characters are not
+            // present in the displayed virtual string.
+            if pattern.starts_with('/') {
+                assert!(
+                    !virtual_str.contains("/dev")
+                        && !virtual_str.contains("/proc")
+                        && !virtual_str.contains("/sys"),
+                    "Virtual path exposes system prefix for input '{pattern}': {virtual_str}"
+                );
+            } else if pattern.contains('\n') || pattern.contains(';') {
+                assert!(
+                    !virtual_str.contains('\n') && !virtual_str.contains(';'),
+                    "Virtual path contains dangerous characters for input '{pattern}': {virtual_str}"
+                );
+            }
         }
     }
 }
@@ -243,14 +264,14 @@ fn test_no_filesystem_leak_in_virtual_display() {
 
     let candidate = "../../../secret.txt";
     if let Ok(jailed_path) = jail.try_path(candidate) {
-        let vp = jailed_path.as_os_str_virtual();
-        let virtual_str = vp.to_string_lossy().to_string();
+        let virtual_path = jailed_path.virtualize();
+        let virtual_str = virtual_path.to_string_virtual();
         let jail_abs = jail.path().to_string_lossy();
         assert!(
             !virtual_str.contains(jail_abs.as_ref()),
             "Virtual path leaked absolute jail path"
         );
-        assert!(virtual_str.ends_with("secret.txt"));
+        assert!(virtual_str.ends_with("/secret.txt"));
     }
 }
 
@@ -288,9 +309,9 @@ fn test_dot_and_dotdot_segments() {
 
     for input in inputs {
         if let Ok(jailed_path) = jail.try_path(input) {
-            assert!(jailed_path.starts_with_real(jail.path()));
-            let vp = jailed_path.as_os_str_virtual();
-            let v = vp.to_string_lossy();
+            let virtual_path = jailed_path.virtualize();
+            assert!(virtual_path.as_jailed().starts_with_real(jail.path()));
+            let v = virtual_path.to_string_virtual();
             assert!(
                 !v.contains(".."),
                 "Dotdot remained in virtual path for {input}: {v}"
@@ -306,7 +327,7 @@ fn test_create_and_use_safe_file_ops() {
 
     let file = jail.try_path("subdir/data.txt").unwrap();
 
-    let parent = file.parent().unwrap();
+    let parent = file.parent_real().unwrap().unwrap();
     parent.create_dir_all().unwrap();
     file.write_string("hello").unwrap();
     assert!(file.exists());
@@ -337,10 +358,10 @@ fn test_backslash_is_literal_on_unix() {
 
     let p = r"dir\file.txt";
     let jailed = jail.try_path(p).unwrap();
-    let vp = jailed.as_os_str_virtual();
-    let v = vp.to_string_lossy();
+    let virtual_path = jailed.virtualize();
+    let v = virtual_path.to_string_virtual();
     assert!(
-        v.contains(r"dir\file.txt"),
+        v.contains("/dir\\file.txt"),
         "Backslash should be literal on Unix"
     );
 }

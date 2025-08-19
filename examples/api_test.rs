@@ -14,7 +14,10 @@ fn main() -> Result<(), JailedPathError> {
     // Test valid path
     match jail.try_path("Cargo.toml") {
         Ok(jailed_path) => {
-            println!("✓ Valid path: {}", jailed_path.to_string_virtual());
+            println!(
+                "✓ Valid path: {}",
+                jailed_path.virtualize().virtualpath_to_string()
+            );
         }
         Err(e) => {
             println!("✗ Unexpected error: {e}");
@@ -26,9 +29,9 @@ fn main() -> Result<(), JailedPathError> {
         Ok(clamped_path) => {
             println!(
                 "✓ Path traversal clamped to jail root: {}",
-                clamped_path.to_string_virtual()
+                clamped_path.clone().virtualize().virtualpath_to_string()
             );
-            println!("  Real path: {}", clamped_path.to_string_real());
+            println!("  Real path: {}", clamped_path.realpath_to_string());
         }
         Err(e) => {
             println!("✗ Unexpected error for clamped path: {e}");

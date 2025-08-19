@@ -1,6 +1,5 @@
+use crate::Jail;
 use std::fs;
-
-use crate::validator::jail::Jail;
 
 #[test]
 fn test_jail_directory_deletion() {
@@ -12,6 +11,7 @@ fn test_jail_directory_deletion() {
 
     // Create a valid path first
     let jailed_path = jail.try_path("test.txt").unwrap();
+    let virtual_path = jailed_path.clone().virtualize();
     // Compare with canonicalized jail path to handle UNC paths on Windows
     let canonical_jail = jail_path.canonicalize().unwrap();
     assert!(jailed_path.starts_with_real(canonical_jail));
@@ -21,11 +21,14 @@ fn test_jail_directory_deletion() {
 
     // Existing jailed paths should still reference the original location
     // Check that the virtual path contains "test.txt" (the file we created)
-    assert!(jailed_path.to_string_virtual().contains("test.txt"));
+    assert!(virtual_path.to_string_virtual().contains("/test.txt"));
 
     // New validations might fail (depending on implementation)
-    if let Ok(new_path) = jail.try_path("new_file.txt") {
-        assert!(new_path.to_string_virtual().contains("new_file.txt"));
+    if let Ok(new_jailed_path) = jail.try_path("new_file.txt") {
+        let new_virtual_path = new_jailed_path.virtualize();
+        assert!(new_virtual_path
+            .to_string_virtual()
+            .contains("/new_file.txt"));
     }
 }
 

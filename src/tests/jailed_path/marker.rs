@@ -17,21 +17,8 @@ fn test_marker_type_is_zero_cost() {
     // JailedPath now contains PathBuf + Arc<ValidatedPath<(((Raw, Clamped), Canonicalized), Exists)>>> + PhantomData
     // Arc<validated_path<...>> is a pointer-sized handle; PhantomData is 0
     // So total should be PathBuf + Arc size
-    let expected_size = std::mem::size_of::<PathBuf>()
-        + std::mem::size_of::<
-            Arc<
-                crate::validator::stated_path::StatedPath<(
-                    (
-                        (
-                            crate::validator::stated_path::Raw,
-                            crate::validator::stated_path::Virtualized,
-                        ),
-                        crate::validator::stated_path::Canonicalized,
-                    ),
-                    crate::validator::stated_path::Exists,
-                )>,
-            >,
-        >();
+    // Expected size: PathBuf + Arc<StatedPath<...>> (approximate, don't reference removed markers)
+    let expected_size = std::mem::size_of::<PathBuf>() + std::mem::size_of::<Arc<()>>();
     assert_eq!(
         std::mem::size_of::<JailedPath<()>>(),
         expected_size,
@@ -58,30 +45,26 @@ fn test_different_marker_types_are_incompatible() {
         .verify_exists()
         .unwrap(),
     );
-    let validated_path = crate::validator::stated_path::StatedPath::<
-        crate::validator::stated_path::Raw,
-    >::new(test_path.clone())
-    .virtualize()
-    .join_jail(&jail_root)
-    .canonicalize()
-    .unwrap()
-    .boundary_check(&jail_root)
-    .unwrap();
-    let _image_path: JailedPath<ImageResource> =
-        JailedPath::new(Arc::clone(&jail_root), validated_path);
-    // If you need another validated_path for a different marker, re-create it above as needed.
-    let _user_path: JailedPath<UserData> = JailedPath::new(
-        jail_root.clone(),
+    let validated_path =
         crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
-            test_path,
+            crate::validator::jail::virtualize_to_jail(test_path.clone(), &jail_root),
         )
-        .virtualize()
-        .join_jail(&jail_root)
         .canonicalize()
         .unwrap()
         .boundary_check(&jail_root)
-        .unwrap(),
-    );
+        .unwrap();
+    let _image_path: JailedPath<ImageResource> =
+        JailedPath::new(Arc::clone(&jail_root), validated_path);
+    // If you need another validated_path for a different marker, re-create it above as needed.
+    let validated_path2 =
+        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
+            crate::validator::jail::virtualize_to_jail(test_path, &jail_root),
+        )
+        .canonicalize()
+        .unwrap()
+        .boundary_check(&jail_root)
+        .unwrap();
+    let _user_path: JailedPath<UserData> = JailedPath::new(jail_root, validated_path2);
 
     // This test ensures that different marker types are treated as different types
     // The fact that we can assign to different typed variables proves this works

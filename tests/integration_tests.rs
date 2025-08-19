@@ -106,7 +106,10 @@ fn test_error_handling_and_reporting() {
     // 1. Non-existent file should now succeed with touch technique
     match jail.try_path("nonexistent.txt") {
         Ok(jailed_path) => {
-            assert!(jailed_path.to_string_virtual().ends_with("nonexistent.txt"));
+            assert!(jailed_path
+                .clone()
+                .virtualize()
+                .ends_with_virtual("nonexistent.txt"));
             // Ensure path is within jail using approved API
             assert!(
                 jailed_path.starts_with_real(jail.path()),
@@ -314,7 +317,7 @@ fn test_edge_cases_and_special_paths() {
                 jailed_path.starts_with_real(jail.path()),
                 "Path '{}' resolved outside jail: {}",
                 case,
-                jailed_path.to_string_virtual()
+                jailed_path.realpath_to_string()
             );
         } else {
             // Some edge cases might fail due to canonicalization - that's also acceptable
