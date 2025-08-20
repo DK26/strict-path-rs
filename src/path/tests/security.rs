@@ -158,7 +158,7 @@ fn test_windows_specific_attacks() {
 #[test]
 #[cfg(windows)]
 fn test_windows_83_short_names_rejected_for_nonexistent() {
-    use crate::JailedPathError;
+    use crate::error::JailedPathError;
     use std::fs;
     use std::path::PathBuf;
 

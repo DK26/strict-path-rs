@@ -6,7 +6,7 @@
 
 # When committing    
 
-- run `git diff --staged`, summarize the changes, try to understand what these changes mean, and write a commit message with that summary. Do not include or mention anything that is not reflected in the code diff. e.g., changes you may have made in the current session but were not evident within `git diff --staged` output
+- assume that changes I want to commit are only the staged ones and run `git diff --staged`, summarize the changes by what they mean instead of simply describing the actions taken on the code level, then write a commit message with that summary. Do not include or mention anything that is not reflected in the code diff. e.g., changes you may have made in the current session but were not evident within `git diff --staged` output
 
 # When bumping version  
 

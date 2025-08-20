@@ -162,3 +162,6 @@ impl Error for JailedPathError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

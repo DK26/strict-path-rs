@@ -1,12 +1,20 @@
-use super::stated_path::*;
-use crate::jailed_path::JailedPath;
-use crate::{JailedPathError, Result};
+pub mod stated_path;
+pub mod virtual_root;
+
+use crate::error::JailedPathError;
+use crate::jail::stated_path::*;
+use crate::path::jailed::JailedPath;
+use crate::Result;
+
 #[cfg(windows)]
 use std::ffi::OsStr;
 use std::io::{Error as IoError, ErrorKind};
 use std::marker::PhantomData;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(windows)]
 fn is_potential_83_short_name(os: &OsStr) -> bool {

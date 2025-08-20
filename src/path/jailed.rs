@@ -71,7 +71,7 @@ impl<Marker> JailedPath<Marker> {
     /// Creates a new JailedPath from a fully validated ValidatedPath with the exact required type-state.
     #[allow(clippy::type_complexity)]
     pub(crate) fn new(
-    jail: Arc<crate::jail::Jail<Marker>>,
+        jail: Arc<crate::jail::Jail<Marker>>,
         validated_path: StatedPath<((Raw, Canonicalized), BoundaryChecked)>,
     ) -> Self {
         Self {
@@ -150,7 +150,7 @@ impl<Marker> JailedPath<Marker> {
     pub fn join_real<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_real = self.path.join(path);
         // pass a reference to the Jail stored in this JailedPath
-    crate::jail::validate(new_real, self.jail())
+        crate::jail::validate(new_real, self.jail())
     }
 
     /// Returns the parent directory interpreted in real-path semantics.
@@ -170,7 +170,7 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn with_file_name_real<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
         let new_real = self.path.with_file_name(file_name);
-    crate::jail::validate(new_real, self.jail())
+        crate::jail::validate(new_real, self.jail())
     }
 
     /// Returns a new `JailedPath` with the extension replaced.
@@ -185,7 +185,7 @@ impl<Marker> JailedPath<Marker> {
             ));
         }
         let new_real = rpath.with_extension(extension);
-    crate::jail::validate(new_real, self.jail())
+        crate::jail::validate(new_real, self.jail())
     }
 
     // ---- Path Components (Real) ----

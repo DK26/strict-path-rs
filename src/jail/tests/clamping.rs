@@ -1,4 +1,4 @@
-use crate::validator::jail::Jail;
+use crate::jail::Jail;
 use std::fs;
 use std::io::Write;
 use tempfile::TempDir;
@@ -88,7 +88,7 @@ fn test_cleanup_on_jail_escape_attempts_with_clamping_virtual() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let _jail = Jail::<()>::try_new(&temp_dir).unwrap();
     // For user-style inputs that require clamping/virtualization, use VirtualRoot
-    let vroot = crate::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
+    let vroot = crate::jail::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
 
     let existing_subdir = temp_dir.join("legitimate_user_data");
     std::fs::create_dir(&existing_subdir).unwrap();
@@ -153,7 +153,7 @@ fn test_cleanup_on_jail_escape_attempts_with_clamping_virtual() {
 #[test]
 fn test_try_path_with_directory_traversal_attack_virtual() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let vroot = crate::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
+    let vroot = crate::jail::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
 
     // Should block directory traversal attempts
     let traversal_attempts = vec![
@@ -189,7 +189,7 @@ fn test_try_path_with_directory_traversal_attack_virtual() {
 #[test]
 fn test_try_path_with_absolute_path_outside_jail_virtual() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let vroot = crate::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
+    let vroot = crate::jail::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
 
     // Create another temp directory outside the jail
     let outside_base = std::env::temp_dir();
@@ -223,7 +223,7 @@ fn test_try_path_with_absolute_path_outside_jail_virtual() {
 #[test]
 fn test_try_path_blocks_traversal_in_nonexistent_paths_virtual() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
-    let vroot = crate::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
+    let vroot = crate::jail::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
 
     // Should block traversal attacks even for non-existent paths
     let traversal_attempts = vec![
@@ -262,7 +262,7 @@ fn test_try_path_blocks_traversal_in_nonexistent_paths_virtual() {
 fn test_try_path_with_absolute_nonexistent_path_outside_jail_virtual() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let _jail = Jail::<()>::try_new(&temp_dir).unwrap();
-    let vroot = crate::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
+    let vroot = crate::jail::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
 
     // Should block absolute paths outside jail, even if they don't exist
     let outside_paths = get_attack_target_paths();
@@ -292,7 +292,7 @@ fn test_try_path_with_absolute_nonexistent_path_outside_jail_virtual() {
 fn test_try_path_with_complex_traversal_patterns_virtual() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let _jail = Jail::<()>::try_new(&temp_dir).unwrap();
-    let vroot = crate::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
+    let vroot = crate::jail::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
 
     // Complex traversal patterns that should all be blocked
     let complex_attacks = vec![
@@ -331,7 +331,7 @@ fn test_try_path_with_complex_traversal_patterns_virtual() {
 fn test_cleanup_on_jail_escape_attempts_virtual() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let _jail = Jail::<()>::try_new(&temp_dir).unwrap();
-    let vroot = crate::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
+    let vroot = crate::jail::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
 
     // Create an existing subdirectory structure in the jail
     let existing_subdir = temp_dir.join("legitimate_user_data");
@@ -423,7 +423,7 @@ fn test_attacker_path_clamping_in_existing_directory_virtual() {
     let _jail = Jail::<()>::try_new(temp_path).unwrap();
 
     // VirtualRoot for user-style clamping behavior
-    let vroot = crate::virtual_root::VirtualRoot::<()>::try_new(temp_path).unwrap();
+    let vroot = crate::VirtualRoot::<()>::try_new(temp_path).unwrap();
 
     // Create existing directory structure (like /home/my_user/import_dir/)
     let import_dir = temp_path.join("import_dir");
@@ -482,7 +482,7 @@ fn test_parent_directory_navigation_with_clamping_virtual() {
         "a/b/c/../../..",
     ];
 
-    let vroot = crate::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
+    let vroot = crate::jail::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
     for path in parent_paths {
         let result = vroot.try_path_virtual(path).map(|vp| vp.unvirtual());
         assert!(
@@ -512,7 +512,7 @@ fn test_parent_directory_navigation_with_clamping_virtual() {
 fn test_absolute_path_clamping_and_virtual_root_virtual() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let _jail = Jail::<()>::try_new(&temp_dir).unwrap();
-    let vroot = crate::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
+    let vroot = crate::jail::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
 
     // NEW BEHAVIOR: Absolute paths outside jail are treated as jail-relative
     let outside_absolute_paths = get_attack_target_paths();
@@ -567,7 +567,7 @@ fn test_absolute_path_clamping_and_virtual_root_virtual() {
 fn test_clamping_is_fast_and_secure_virtual() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let _jail = Jail::<()>::try_new(&temp_dir).unwrap();
-    let vroot = crate::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
+    let vroot = crate::jail::virtual_root::VirtualRoot::<()>::try_new(&temp_dir).unwrap();
 
     // NEW BEHAVIOR: Malicious paths are clamped, not rejected
     let malicious_paths = vec![

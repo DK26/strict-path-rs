@@ -1,6 +1,7 @@
-use crate::jailed_path::JailedPath;
-use crate::validator::jail;
-use crate::{JailedPathError, Result};
+use crate::error::JailedPathError;
+use crate::jail;
+use crate::path::jailed::JailedPath;
+use crate::Result;
 use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -168,7 +169,7 @@ impl<Marker> VirtualPath<Marker> {
         self.inner
     }
 
-    pub fn jail(&self) -> &crate::validator::jail::Jail<Marker> {
+    pub fn jail(&self) -> &crate::jail::Jail<Marker> {
         self.inner.jail()
     }
 
@@ -178,9 +179,10 @@ impl<Marker> VirtualPath<Marker> {
     ///
     /// This is the recommended way to display paths to users. It always uses forward slashes.
     pub fn virtualpath_to_string(&self) -> String {
-        // Return the stored virtual path as a convenient String for ergonomic uses.
-        // This must not perform presentation formatting; Display is responsible for that.
-        self.virtual_path.to_string_lossy().into_owned()
+        // Use the display adapter to produce the presentation-formatted virtual path
+        // (ensures a leading '/' and normalized separators) rather than returning the
+        // raw stored PathBuf which may omit the leading '/'.
+        format!("{}", self.display())
     }
 
     /// Returns the virtual path as an `Option<String>` if valid UTF-8.
@@ -340,7 +342,7 @@ impl<'a, Marker> fmt::Display for VirtualPathDisplay<'a, Marker> {
     }
 }
 
-impl<Marker> fmt::Display for VirtualPath<Marker> {
+impl<Marker: Clone> fmt::Display for VirtualPath<Marker> {
     /// Displays the user-friendly **virtual path** by forwarding to
     /// `VirtualPath::display()` to keep presentation logic in one place.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

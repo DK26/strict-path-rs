@@ -117,22 +117,15 @@
 
 #![forbid(unsafe_code)]
 
-// Public modules
 pub mod error;
-pub mod jailed_path;
-pub mod validator;
-pub mod virtual_path;
-pub mod virtual_root;
-
-#[cfg(test)]
-mod tests;
+pub mod jail;
+pub mod path;
 
 // Public exports
 pub use error::JailedPathError;
-pub use jailed_path::JailedPath;
-pub use validator::jail::Jail;
-pub use virtual_path::VirtualPath;
-pub use virtual_root::VirtualRoot;
+pub use jail::virtual_root::VirtualRoot;
+pub use jail::Jail;
+pub use path::{jailed::JailedPath, virtual_path::VirtualPath};
 
 /// Result type alias for this crate's operations.
 pub type Result<T> = std::result::Result<T, JailedPathError>;

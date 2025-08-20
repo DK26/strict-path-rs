@@ -1,4 +1,4 @@
-use jailed_path::{Jail, JailedPath};
+use jailed_path::{Jail, JailedPath, VirtualRoot};
 use std::fs;
 use std::io::Write;
 
@@ -50,7 +50,7 @@ fn test_complete_workflow_with_marker_types() {
 
     // Create validators for different resource types
     let public_jail: Jail<PublicAsset> = Jail::try_new(&public_dir).unwrap();
-    let upload_jail: Jail<UploadedFile> = Jail::try_new(uploads_dir).unwrap();
+    let upload_jail: Jail<UploadedFile> = Jail::try_new(&uploads_dir).unwrap();
 
     // Test public asset access
     let public_file: JailedPath<PublicAsset> = public_jail.try_path("index.html").unwrap();
@@ -67,32 +67,32 @@ fn test_complete_workflow_with_marker_types() {
 
     // Test that validators block escape attempts
     // NEW BEHAVIOR: These paths are clamped, not blocked
-    // Escape attempts for public_validator
+    // Escape attempts for public_validator should be handled via VirtualRoot (user-facing clamping)
+    let public_vroot: VirtualRoot<PublicAsset> = VirtualRoot::try_new(&public_dir).unwrap();
     let public_escape_attempts = vec!["../private/secrets.txt"];
     for path in public_escape_attempts {
-        let result = public_jail.try_path(path);
+        let result = public_vroot.try_path_virtual(path).map(|vp| vp.unvirtual());
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
-    let jail_root = public_jail.path().canonicalize().unwrap();
+        let jail_root = public_jail.path().canonicalize().unwrap();
         // Use direct comparison - the JailedPath should start with the jail root
         assert!(
-            jailed_path.starts_with(&jail_root),
-            "Clamped path should be within jail root: {}",
-            jailed_path
+            jailed_path.starts_with_real(&jail_root),
+            "Clamped path should be within jail root: {jailed_path}"
         );
     }
     // Escape attempts for upload_validator
     let upload_escape_attempts = vec!["../index.html", "../../private/secrets.txt"];
+    let upload_vroot: VirtualRoot<UploadedFile> = VirtualRoot::try_new(&uploads_dir).unwrap();
     for path in upload_escape_attempts {
-        let result = upload_jail.try_path(path);
+        let result = upload_vroot.try_path_virtual(path).map(|vp| vp.unvirtual());
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
-    let jail_root = upload_jail.path().canonicalize().unwrap();
+        let jail_root = upload_jail.path().canonicalize().unwrap();
         // Use direct comparison - the JailedPath should start with the jail root
         assert!(
-            jailed_path.starts_with(&jail_root),
-            "Clamped path should be within jail root: {}",
-            jailed_path
+            jailed_path.starts_with_real(&jail_root),
+            "Clamped path should be within jail root: {jailed_path}"
         );
     }
 }

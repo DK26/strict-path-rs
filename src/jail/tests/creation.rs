@@ -1,4 +1,4 @@
-use crate::validator::jail::Jail;
+use crate::jail::Jail;
 use crate::JailedPathError;
 use std::fs;
 use std::io::Write;
@@ -356,7 +356,8 @@ fn test_marker_types_for_compile_time_safety() {
     let user_jail: Jail<UserData> = Jail::try_new(&temp_dir).unwrap();
 
     // Both should work with the same file but produce different marker types
-    let image_path: crate::JailedPath<ImageResource> = image_jail.try_path("test.txt").unwrap();
+    let image_path: crate::path::jailed::JailedPath<ImageResource> =
+        image_jail.try_path("test.txt").unwrap();
     let user_path: crate::JailedPath<UserData> = user_jail.try_path("test.txt").unwrap();
 
     // Paths have different types and cannot be compared directly (marker type safety)
@@ -369,7 +370,7 @@ fn test_marker_types_for_compile_time_safety() {
     // This ensures the PhantomData marker is working and size is consistent
     let expected_size = std::mem::size_of::<PathBuf>() + std::mem::size_of::<Arc<PathBuf>>();
     assert_eq!(
-        std::mem::size_of::<crate::JailedPath<ImageResource>>(),
+        std::mem::size_of::<crate::path::jailed::JailedPath<ImageResource>>(),
         expected_size,
         "JailedPath should have consistent size regardless of marker type"
     );

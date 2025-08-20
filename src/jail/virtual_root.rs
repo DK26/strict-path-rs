@@ -1,5 +1,5 @@
-use crate::validator::jail::{self, Jail};
-use crate::virtual_path::VirtualPath;
+use crate::jail::{self, Jail};
+use crate::path::virtual_path::VirtualPath;
 use crate::Result;
 use std::marker::PhantomData;
 use std::path::Path;
