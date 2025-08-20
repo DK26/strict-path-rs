@@ -5,17 +5,15 @@ use std::fs;
 use std::io::Write;
 
 fn create_test_directory() -> std::io::Result<std::path::PathBuf> {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    let temp_base = std::env::temp_dir();
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .subsec_nanos();
-    let temp_dir = temp_base.join(format!("jailed_path_test_{}_{}", std::process::id(), nanos));
-
-    // Create the main test directory
-    fs::create_dir_all(&temp_dir)?;
+    // Use the tempfile crate to create a unique temporary directory. Call
+    // `keep()` to persist the directory across the test and delete it
+    // manually via `cleanup_test_directory` to keep behavior consistent.
+    // Create the TempDir first, then call `keep()` and propagate any IO error
+    // while ensuring the success case yields a `PathBuf` that we can return.
+    let td = tempfile::tempdir()?;
+    // In this version of `tempfile`, `TempDir::keep()` returns a `PathBuf`.
+    // Use it directly to obtain the persisted directory path.
+    let temp_dir = td.keep();
 
     // Create a subdirectory structure for testing
     let sub_dir = temp_dir.join("subdir");
