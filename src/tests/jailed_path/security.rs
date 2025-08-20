@@ -25,7 +25,7 @@ fn test_known_cve_patterns() {
     for pattern in attack_patterns {
         if let Ok(jailed_path) = jail.try_path(pattern) {
             let virtual_path = jailed_path.clone().virtualize();
-            let virtual_os_str = virtual_path.as_os_str_virtual();
+            let virtual_os_str = virtual_path.virtualpath_as_os_str();
             println!("Pattern: '{pattern}' -> Virtual: '{virtual_os_str:?}'");
             println!("Jail (from temp): '{:?}'", temp.path());
             println!("Jail: '{:?}'", jail.path());
@@ -97,7 +97,7 @@ fn test_concurrent_validator_usage() {
                 let jailed_path = result.unwrap();
                 let virtual_path = jailed_path.virtualize();
                 assert!(virtual_path
-                    .as_os_str_virtual()
+                    .virtualpath_as_os_str()
                     .to_string_lossy()
                     .contains(&format!("/thread_{i}")));
             }
@@ -126,7 +126,7 @@ fn test_long_path_handling() {
     if let Ok(jailed_path) = jail.try_path(traversal_attack) {
         assert!(jailed_path.starts_with_real(jail.path()));
         let virtual_path = jailed_path.virtualize();
-        let virtual_os_str = virtual_path.as_os_str_virtual();
+        let virtual_os_str = virtual_path.virtualpath_as_os_str();
         let expected_path = "/etc/passwd";
         assert_eq!(virtual_os_str.to_string_lossy(), expected_path);
     }
@@ -225,7 +225,7 @@ fn test_unix_specific_attacks() {
             let virtual_path = jailed_path.virtualize();
             assert!(virtual_path.as_jailed().starts_with_real(jail.path()));
             // Use virtual string for checking sensitive prefixes and leakage.
-            let virtual_str = virtual_path.to_string_virtual();
+            let virtual_str = virtual_path.virtualpath_to_string();
             // Ensure the virtual display does not accidentally include the
             // absolute jail path (which would be a filesystem leak).
             let jail_abs = jail.path().to_string_lossy();
@@ -265,7 +265,7 @@ fn test_no_filesystem_leak_in_virtual_display() {
     let candidate = "../../../secret.txt";
     if let Ok(jailed_path) = jail.try_path(candidate) {
         let virtual_path = jailed_path.virtualize();
-        let virtual_str = virtual_path.to_string_virtual();
+        let virtual_str = virtual_path.virtualpath_to_string();
         let jail_abs = jail.path().to_string_lossy();
         assert!(
             !virtual_str.contains(jail_abs.as_ref()),
@@ -311,7 +311,7 @@ fn test_dot_and_dotdot_segments() {
         if let Ok(jailed_path) = jail.try_path(input) {
             let virtual_path = jailed_path.virtualize();
             assert!(virtual_path.as_jailed().starts_with_real(jail.path()));
-            let v = virtual_path.to_string_virtual();
+            let v = virtual_path.virtualpath_to_string();
             assert!(
                 !v.contains(".."),
                 "Dotdot remained in virtual path for {input}: {v}"
@@ -359,7 +359,7 @@ fn test_backslash_is_literal_on_unix() {
     let p = r"dir\file.txt";
     let jailed = jail.try_path(p).unwrap();
     let virtual_path = jailed.virtualize();
-    let v = virtual_path.to_string_virtual();
+    let v = virtual_path.virtualpath_to_string();
     assert!(
         v.contains("/dir\\file.txt"),
         "Backslash should be literal on Unix"

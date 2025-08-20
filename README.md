@@ -155,7 +155,7 @@ safe_path.exists();
 
 // Path display
 println!("{}", safe_path);                                   // Virtual: "/user/file.txt"
-safe_path.to_string_real();                                  // Real: "./safe_dir/user/file.txt"
+safe_path.realpath_to_string();                                  // Real: "./safe_dir/user/file.txt"
 
 // Safe path manipulation
 safe_path.parent();                                          // Returns Option<JailedPath>

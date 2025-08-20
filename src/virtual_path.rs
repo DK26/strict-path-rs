@@ -176,7 +176,7 @@ impl<Marker> VirtualPath<Marker> {
     /// Returns the virtual path as a string (e.g., `/user/file.txt`).
     ///
     /// This is the recommended way to display paths to users. It always uses forward slashes.
-    pub fn to_string_virtual(&self) -> String {
+    pub fn virtualpath_to_string(&self) -> String {
         let virtual_path = self.virtual_path_buf();
         let components: Vec<_> = virtual_path.components().map(|c| c.as_os_str()).collect();
 
@@ -193,33 +193,18 @@ impl<Marker> VirtualPath<Marker> {
         result
     }
 
-    /// Returns the virtual path as an `OsString`.
-    #[inline]
-    pub fn as_os_str_virtual(&self) -> OsString {
-        // Return an OS-independent, user-facing representation: leading `/` and
-        // forward slashes as separators. Tests and UIs expect this form.
-        OsString::from(self.to_string_virtual())
-    }
-
     /// Returns the virtual path as an `Option<String>` if valid UTF-8.
     ///
-    /// Use the `virtualpath_to_str()` alias instead of the historical `to_str_virtual()` name.
-    /// We return an owned `String` to avoid returning references into temporary `PathBuf`s.
+    /// This returns an owned `String` to avoid returning references into temporary `PathBuf`s.
     #[inline]
     pub fn virtualpath_to_str(&self) -> Option<String> {
-        Some(self.to_string_virtual())
-    }
-
-    /// Alias with explicit `virtualpath_` prefix returning owned `String`.
-    #[inline]
-    pub fn virtualpath_to_string(&self) -> String {
-        self.to_string_virtual()
+        Some(self.virtualpath_to_string())
     }
 
     /// Returns the virtual path as an `OsString` with explicit `virtualpath_` prefix.
     #[inline]
     pub fn virtualpath_as_os_str(&self) -> OsString {
-        self.as_os_str_virtual()
+        OsString::from(self.virtualpath_to_string())
     }
 
     // ---- Safe Path Manipulation ----
@@ -318,7 +303,7 @@ impl<Marker> VirtualPath<Marker> {
 impl<Marker> fmt::Display for VirtualPath<Marker> {
     /// Displays the user-friendly **virtual path**.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string_virtual())
+        write!(f, "{}", self.virtualpath_to_string())
     }
 }
 

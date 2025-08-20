@@ -16,7 +16,7 @@ use std::sync::Arc;
 /// - **System-Facing**: This type is intended for direct, low-level interactions with the
 ///   filesystem, such as file I/O, and for integration with external APIs that require
 ///   real filesystem paths.
-/// - **Real Paths**: All path representations (`Display`, `to_string_real`, etc.) refer to the
+/// - **Real Paths**: All path representations (`Display`, `realpath_to_string`, etc.) refer to the
 ///   actual, canonicalized path on the filesystem (e.g., `/app/storage/user/file.txt`).
 /// - **Safety**: All operations are guaranteed to remain within the jail boundary, preventing
 ///   path traversal attacks.
@@ -105,13 +105,7 @@ impl<Marker> JailedPath<Marker> {
 
     // ---- String Conversion ----
 
-    /// Returns the real path as a string (e.g., `/app/storage/user/file.txt`).
-    #[inline]
-    pub fn to_string_real(&self) -> String {
-        self.path.to_string_lossy().into_owned()
-    }
-
-    /// Returns the real path as a `String`.
+    /// Returns the real path as a `String` (e.g., `/app/storage/user/file.txt`).
     #[inline]
     pub fn realpath_to_string(&self) -> String {
         self.path.to_string_lossy().into_owned()
@@ -121,12 +115,6 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn realpath_to_str(&self) -> Option<&str> {
         self.path.to_str()
-    }
-
-    /// Returns the real path as an `&OsStr`.
-    #[inline]
-    pub fn as_os_str_real(&self) -> &OsStr {
-        self.path.as_os_str()
     }
 
     /// Returns the real path as an `&OsStr`.

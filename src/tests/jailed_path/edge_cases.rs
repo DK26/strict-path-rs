@@ -7,11 +7,11 @@ fn test_string_conversions() {
     let jailed_path = jail.try_path("foo/bar.txt").unwrap();
     let virtual_path = jailed_path.clone().virtualize();
 
-    // to_string_virtual() uses forward slashes consistently
+    // virtualpath_to_string() uses forward slashes consistently
     assert_eq!(virtual_path.virtualpath_to_string(), "/foo/bar.txt");
     assert_eq!(format!("{virtual_path}"), "/foo/bar.txt");
 
-    // to_string_real() uses platform separators
+    // realpath_to_string() uses platform separators
     let real_string = jailed_path.realpath_to_string();
     let expected_suffix = if cfg!(windows) {
         "foo\\bar.txt"
@@ -32,7 +32,7 @@ fn test_methods_on_root_jailed_path() {
     let virtual_path = jailed_path.virtualize();
 
     let with_name = virtual_path.with_file_name_virtual("new.txt").unwrap();
-    assert_eq!(with_name.to_string_virtual(), "/new.txt");
+    assert_eq!(with_name.virtualpath_to_string(), "/new.txt");
 
     // Can't add extension to root path (no filename)
     let with_ext_result = virtual_path.with_extension_virtual("log");

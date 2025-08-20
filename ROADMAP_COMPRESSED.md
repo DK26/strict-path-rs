@@ -56,7 +56,7 @@
 5. One obvious way; no hidden conversions; use `unvirtual()` explicitly
 6. Keep virtual manipulation off `JailedPath`
 
-Note: Public APIs avoid returning `&Path` or `PathBuf` directly from `JailedPath`. Instead use `realpath_` prefixed accessors (e.g., `realpath_to_string()`, `realpath_as_os_str()`) and explicit `unjail()` when ownership is required. `VirtualPath` provides `virtualpath_` prefixed aliases for its string accessors.
+Note: Public APIs avoid returning `&Path` or `PathBuf` directly from `JailedPath`. Instead use `realpath_` prefixed accessors (e.g., `realpath_to_string()`, `realpath_as_os_str()`) and explicit `unjail()` when ownership is required. `VirtualPath` exposes `virtualpath_` prefixed accessors for its string/OS conversions — historical `*_virtual` names were removed to keep the API surface consistent.
 
 Important: `StatedPath` is an internal type-state implementation detail. It must never be exposed in public APIs, docs, or examples. Keep `StatedPath` usage strictly inside the validator module.
 
@@ -84,8 +84,7 @@ Rule B: No virtual manipulation lives here; omit any `_virtual` API on `JailedPa
 
 ### For `VirtualPath<Marker>` (user-facing)
 
-Rule C: Methods that present or manipulate virtual paths end with `_virtual()`
-- Examples: `to_string_virtual()`, `to_str_virtual()`, `join_virtual()`, `parent_virtual()`, `with_extension_virtual()`
+Rule C: Methods that present or manipulate virtual paths are documented with the `virtualpath_` prefix in user docs. Examples of the preferred aliases: `virtualpath_to_string()`, `virtualpath_to_str()`, `join_virtual()`, `parent_virtual()`, `with_extension_virtual()` (historical `*_virtual` method names remain available as aliases in the implementation).
 
 Rule D: `VirtualPath` provides `unvirtual()` to transition to system operations
 
@@ -148,8 +147,9 @@ let vp = vroot.try_path_virtual("users/alice/report.pdf")?; // direct
 ```rust
 impl<Marker> VirtualPath<Marker> {
   // String conversion methods - virtual only
-  pub fn to_string_virtual(&self) -> String      // "/user/file.txt" (virtual)
-  pub fn to_str_virtual(&self) -> Option<&str>   // Virtual path as &str if valid UTF-8
+  // Preferred documented aliases: `virtualpath_to_string()` / `virtualpath_to_str()`
+  pub fn virtualpath_to_string(&self) -> String      // "/user/file.txt" (virtual)
+  pub fn virtualpath_to_str(&self) -> Option<&str>   // Virtual path as &str if valid UTF-8
 
   // Path manipulation (virtual)
   pub fn join_virtual<P: AsRef<Path>>(&self, path: P) -> Option<Self>
@@ -166,9 +166,9 @@ impl<Marker> VirtualPath<Marker> {
 ```rust
 impl<Marker> JailedPath<Marker> {
   // String conversion methods - real only
-  pub fn to_string_real(&self) -> String         // "/app/storage/user/file.txt" (real path)
-  pub fn to_str_real(&self) -> Option<&str>      // Real path as &str if valid UTF-8
-  pub fn as_os_str_real(&self) -> &OsStr         // Real OsStr
+  pub fn realpath_to_string(&self) -> String         // "/app/storage/user/file.txt" (real path)
+  pub fn realpath_to_str(&self) -> Option<&str>      // Real path as &str if valid UTF-8
+  pub fn realpath_as_os_str(&self) -> &OsStr         // Real OsStr
   pub fn unjail(self) -> PathBuf                 // Explicit escape hatch
     
     // File operations (built-in)
@@ -271,9 +271,10 @@ let vroot = VirtualRoot::try_new("/app/uploads")?;
 let vfile = vroot.try_path_virtual("user/image.jpg")?;
 let file = vfile.unvirtual()?;
 
-// ✅ Clean test assertions
-assert!(file.starts_with_real(jail.path()));  // Explicit path access
-assert_eq!(vroot.try_path_virtual("user").unwrap().to_string_virtual(), "/user");
+  // ✅ Clean test assertions
+  assert!(file.starts_with_real(jail.path()));  // Explicit path access
+  // Preferred form uses the `virtualpath_` alias; documentation now prefers `virtualpath_to_string()`.
+  assert_eq!(vroot.try_path_virtual("user").unwrap().virtualpath_to_string(), "/user");
 ```
 
 ### Type Safety with Markers

@@ -170,7 +170,7 @@ fn test_try_path_with_directory_traversal_attack() {
         assert!(
             jailed_path.starts_with_real(jail_root),
             "Clamped path should be within jail: {}",
-            jailed_path.to_string_real()
+            jailed_path.realpath_to_string()
         );
         println!("✅ Clamped traversal attempt: {attempt} -> {jailed_path}");
     }
@@ -203,7 +203,7 @@ fn test_try_path_with_absolute_path_outside_jail() {
     assert!(
         jailed_path.starts_with_real(jail_root),
         "Clamped absolute path should be within jail: {}",
-        jailed_path.to_string_real()
+        jailed_path.realpath_to_string()
     );
 
     // Cleanup
@@ -428,14 +428,14 @@ fn test_attacker_path_clamping_in_existing_directory() {
     assert!(
         jailed_path.starts_with_real(jail_root),
         "Clamped path should be within jail: {}",
-        jailed_path.to_string_real()
+        jailed_path.realpath_to_string()
     );
     // Should resolve to something like jail/sensitive.txt (clamped to jail root)
     let expected_suffix = "sensitive.txt";
     assert!(
         jailed_path.ends_with_real(expected_suffix),
         "Should clamp to jail root + filename: {}",
-        jailed_path.to_string_real()
+        jailed_path.realpath_to_string()
     );
     // Display should show virtual root
     let display = format!("{}", jailed_path.virtualize());
@@ -476,10 +476,10 @@ fn test_parent_directory_navigation_with_clamping() {
         // Use starts_with directly on JailedPath instead of unjailing
         assert!(
             jailed_path
-                .to_string_real()
+                .realpath_to_string()
                 .starts_with(jail_root.to_string_lossy().as_ref()),
             "Clamped path should be within jail: {}",
-            jailed_path.to_string_real()
+            jailed_path.realpath_to_string()
         );
         // Display should show virtual root
         let display = format!("{jailed_path}");
@@ -533,7 +533,7 @@ fn test_absolute_path_clamping_and_virtual_root() {
         assert!(
             jailed_path.starts_with_real(jail.path()),
             "Clamped path should be within jail: {}",
-            jailed_path.to_string_real()
+            jailed_path.realpath_to_string()
         );
         println!("✅ Correctly clamped path: {path_with_traversal} -> {jailed_path}");
     }
@@ -568,10 +568,10 @@ fn test_clamping_is_fast_and_secure() {
         // Use starts_with directly on JailedPath instead of unjailing
         assert!(
             jailed_path
-                .to_string_real()
+                .realpath_to_string()
                 .starts_with(jail_root.to_string_lossy().as_ref()),
             "Clamped path should be within jail: {}",
-            jailed_path.to_string_real()
+            jailed_path.realpath_to_string()
         );
         println!("✅ Securely clamped: {malicious_path} -> {jailed_path}");
     }

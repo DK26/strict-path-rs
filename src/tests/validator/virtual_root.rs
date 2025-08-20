@@ -381,7 +381,7 @@ fn test_virtual_root_display_unix_separators() {
         let jailed_path = result.unwrap();
         // For Unix separator tests, inspect the virtualized user-facing
         // representation rather than the real filesystem path.
-        let display_output = jailed_path.virtualize().to_string_virtual();
+        let display_output = jailed_path.virtualize().virtualpath_to_string();
 
         // On Unix, should use forward slashes
         assert_eq!(

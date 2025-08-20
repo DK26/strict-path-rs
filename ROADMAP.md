@@ -16,7 +16,7 @@ This roadmap outlines the planned evolution of the `jailed-path` crate based on 
 >
 Naming policy (Option A):
 - VirtualPath methods use `_virtual` suffixes (e.g., `join_virtual`, `parent_virtual`)
-- JailedPath methods that operate on real paths use `_real` suffixes (e.g., `to_string_real`)
+- JailedPath methods that operate on real paths use `realpath_` prefixes (e.g., `realpath_to_string`)
 - We also provide `virtualpath_` and `realpath_` prefixed aliases for string/os accessors to improve clarity and grepability (e.g., `virtualpath_to_string()`, `realpath_as_os_str()`).
 
 Display policy:
@@ -508,7 +508,7 @@ fn is_likely_8_3_short_name_wide(name: &std::ffi::OsStr) -> bool {
 impl<Marker> VirtualPath<Marker> {
     // Display shows virtual path (jail is '/')
     // format!("{}", virtual_path) -> "/users/alice/file.txt"
-    pub fn to_string_virtual(&self) -> String
+    pub fn virtualpath_to_string(&self) -> String
 
     // Virtual operations (explicit suffix for clarity in mixed usage)
     pub fn join_virtual<P: AsRef<Path>>(&self, p: P) -> Result<VirtualPath<Marker>>
@@ -520,7 +520,7 @@ impl<Marker> VirtualPath<Marker> {
 // Jail + JailedPath (system-facing)
 impl<Marker> JailedPath<Marker> {
     // Display shows real filesystem path (system-facing)
-    pub fn to_string_real(&self) -> String
+    pub fn realpath_to_string(&self) -> String
 
     // Real path checks carry `_real` suffix
     pub fn starts_with_real<P: AsRef<Path>>(&self, p: P) -> bool
@@ -544,11 +544,11 @@ impl<Marker> JailedPath<Marker> {
 **Critical naming conventions for `JailedPath<Marker>` methods:**
 
 **Rule A**: If a method exposes a real path in any way, it **MUST** end with the suffix `_real()`
-- Examples: `to_string_real()`, `to_str_real()`, `as_os_str_real()`
+- Examples: `realpath_to_string()`, `realpath_to_str()`, `realpath_as_os_str()`
 - Rationale: Makes real path exposure explicit and obvious in code review
 
 **Rule B**: If a method could represent either a virtual variant or a real variant under the same name, it **MUST** end with a proper suffix: either `_real()` or `_virtual()`
-- Examples: `to_string_virtual()` / `to_string_real()`, `to_str_virtual()` / `to_str_real()`
+- Examples: `virtualpath_to_string()` / `realpath_to_string()`, `virtualpath_to_str()` / `realpath_to_str()`
 - Rationale: Eliminates ambiguity about which representation is returned
 
 **Rule C**: Virtual operations live on `VirtualPath` and use `_virtual` suffixes for clarity
@@ -643,18 +643,18 @@ impl<Marker> JailedPath<Marker> {
     
     /// Virtual path as string (jail-relative, user-friendly).
     /// Same as format!("{}", self) but returns String directly.
-    pub fn to_string_virtual(&self) -> String
+    pub fn virtualpath_to_string(&self) -> String
     
     /// Real path as owned string.
     /// ⚠️ Use only for filesystem operations, not user display.
-    pub fn to_string_real(&self) -> String
+    pub fn realpath_to_string(&self) -> String
     
     /// Virtual path as UTF-8 string if possible.
-    pub fn to_str_virtual(&self) -> Option<&str>
+    pub fn virtualpath_to_str(&self) -> Option<&str>
     
     /// Real path as UTF-8 string if possible, None if contains invalid UTF-8.
     /// ⚠️ Use only for filesystem operations, not user display.
-    pub fn to_str_real(&self) -> Option<&str>
+    pub fn realpath_to_str(&self) -> Option<&str>
     
     /// Virtual path as string with lossy UTF-8 conversion.
     pub fn to_string_lossy_virtual(&self) -> String
@@ -668,10 +668,10 @@ impl<Marker> JailedPath<Marker> {
     // ========================================
     
     /// Real path as OsStr (full filesystem path).
-    pub fn as_os_str_real(&self) -> &OsStr
+    pub fn realpath_as_os_str(&self) -> &OsStr
     
     /// Virtual path as OsString (jail-relative).
-    pub fn as_os_str_virtual(&self) -> OsString
+    pub fn virtualpath_as_os_str(&self) -> OsString
     
     // ========================================
     // SAFE PATH MANIPULATION (Virtual Methods)
@@ -782,7 +782,7 @@ impl<Marker> fmt::Display for JailedPath<Marker> {
     /// Example: "/alice/documents/file.txt" instead of "/app/storage/users/alice/documents/file.txt"
     /// Used by: format!("{}", jailed), println!("{}", jailed), etc.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string_virtual())
+    write!(f, "{}", self.virtualpath_to_string())
     }
 }
 
@@ -791,7 +791,7 @@ impl<Marker> fmt::Debug for JailedPath<Marker> {
     /// Example: "/app/storage/users/alice/documents/file.txt"
     /// ⚠️ This exposes real paths - use only for debugging, not user-facing output.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string_real())
+    write!(f, "{}", self.realpath_to_string())
     }
 }
 
@@ -875,7 +875,7 @@ tracing::info!("Serving: {}", file);  // Clean logs
 println!("Debug: {:?}", file);  // "/app/storage/users/alice/documents/report.pdf"
 
 // Real path when needed for filesystem operations
-println!("Debug: {}", file.to_string_real());  // "/app/storage/users/alice/documents/report.pdf"
+println!("Debug: {}", file.realpath_to_string());  // "/app/storage/users/alice/documents/report.pdf"
 
 // Safe path manipulation
 let backup = file.with_extension("backup")?;
@@ -903,8 +903,8 @@ Based on patterns from [`app-path`](https://github.com/DK26/app-path-rs), `jaile
 
 | Crate                                                           | Use Case                           | Integration Pattern                                  |
 | --------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------- |
-| **[`camino`](https://crates.io/crates/camino)**                 | UTF-8 path guarantees for web apps | `Utf8PathBuf::try_from(jailed.to_string_virtual())?` |
-| **[`typed-path`](https://crates.io/crates/typed-path)**         | Cross-platform type-safe paths     | `WindowsPath::new(jailed.to_string_virtual())`       |
+| **[`camino`](https://crates.io/crates/camino)**                 | UTF-8 path guarantees for web apps | `Utf8PathBuf::try_from(jailed.virtualpath_to_string())?` |
+| **[`typed-path`](https://crates.io/crates/typed-path)**         | Cross-platform type-safe paths     | `WindowsPath::new(jailed.virtualpath_to_string())`       |
 | **[`dunce`](https://crates.io/crates/dunce)**                   | Windows UNC path canonicalization  | `dunce::canonicalize(jailed.unjail())?`              |
 | **[`path-clean`](https://crates.io/crates/path-clean)**         | Lexical path cleaning              | Not needed - jailed-path handles this internally     |
 | **[`normalize-path`](https://crates.io/crates/normalize-path)** | Path normalization                 | Not needed - jailed-path handles this internally     |
@@ -921,15 +921,15 @@ let jail = Jail::try_new("/app/storage")?;
 let jailed = jail.try_path("users/alice/config.json")?;
 
 // Convert to UTF-8 path for web APIs (VIRTUAL ONLY for security)
-let utf8_path = Utf8PathBuf::try_from(jailed.to_string_virtual())
+let utf8_path = Utf8PathBuf::try_from(jailed.virtualpath_to_string())
     .map_err(|_| "Non-UTF-8 path not supported")?;
 
 // Cross-platform paths with typed-path (VIRTUAL ONLY for security)
-let windows_path = WindowsPath::new(jailed.to_string_virtual());
-let unix_path = typed_path::UnixPath::new(jailed.to_string_virtual());
+let windows_path = WindowsPath::new(jailed.virtualpath_to_string());
+let unix_path = typed_path::UnixPath::new(jailed.virtualpath_to_string());
 
 // Database storage (virtual paths for user-facing data)
-let storage_path = jailed.to_string_virtual(); // "/users/alice/config.json"
+let storage_path = jailed.virtualpath_to_string(); // "/users/alice/config.json"
 database.store("file_path", &storage_path)?;
 
 // For REAL paths - use explicit unjail() escape hatch
@@ -944,11 +944,12 @@ log::debug!("File {} in jail {}", jailed, jail.path().display());
 
 ```rust
 // ✅ SAFE: Using virtual display for user-facing data
-let user_friendly = jailed.to_string_virtual(); // "/alice/documents/file.txt"
+// Use the documented `virtualpath_to_string()` API; documentation has been updated to prefer canonical names.
+let user_friendly = jailed.virtualpath_to_string(); // "/alice/documents/file.txt"
 response.json(json!({ "path": user_friendly }));
 
 // ✅ SAFE: Using virtual strings for ecosystem integration (no path leakage)
-let windows_path = WindowsPath::new(jailed.to_string_virtual());
+let windows_path = WindowsPath::new(jailed.virtualpath_to_string());
 
 // ⚠️  CAREFUL: Jail root exposure (only for debugging/logging)
 log::debug!("Jail root: {}", jail.path().display()); // "/app/storage/users"
@@ -1390,11 +1391,11 @@ let jail = Jail::try_new("/app/storage")?;
 let jailed: JailedPath<UserFiles> = jail.try_path("users/alice/файл.txt")?;  // Non-UTF-8 filename
 
 // UTF-8 methods for web development
-match jailed.to_str_real() {
+match jailed.realpath_to_str() {
     Some(utf8_path) => {
         // ⚠️ This gives FULL path - use only for filesystem operations
         // For clean API responses, use virtual display:
-        let clean_display = jailed.to_string_virtual();  // "/users/alice/файл.txt" (virtual)
+    let clean_display = jailed.virtualpath_to_string();  // "/users/alice/файл.txt" (virtual)
         let response = json!({ "path": clean_display });
     }
     None => {
@@ -1405,10 +1406,11 @@ match jailed.to_str_real() {
 }
 
 // For the rare case you need real path string:
-let full_path_str = jailed.to_str_real().unwrap();  // "/app/storage/users/alice/file.txt"
+let full_path_str = jailed.realpath_to_str().unwrap();  // "/app/storage/users/alice/file.txt"
 
 // ✅ PREFERRED: Use virtual strings for user-facing operations
-let virtual_str = jailed.to_string_virtual();  // "/users/alice/file.txt"
+// Use `virtualpath_to_string()`; documentation has been updated to prefer canonical names.
+let virtual_str = jailed.virtualpath_to_string();  // "/users/alice/file.txt"
 
 // But usually just use Display trait:
 println!("User sees: {}", jailed);  // Automatic virtual display

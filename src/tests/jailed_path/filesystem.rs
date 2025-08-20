@@ -21,13 +21,13 @@ fn test_jail_directory_deletion() {
 
     // Existing jailed paths should still reference the original location
     // Check that the virtual path contains "test.txt" (the file we created)
-    assert!(virtual_path.to_string_virtual().contains("/test.txt"));
+    assert!(virtual_path.virtualpath_to_string().contains("/test.txt"));
 
     // New validations might fail (depending on implementation)
     if let Ok(new_jailed_path) = jail.try_path("new_file.txt") {
         let new_virtual_path = new_jailed_path.virtualize();
         assert!(new_virtual_path
-            .to_string_virtual()
+            .virtualpath_to_string()
             .contains("/new_file.txt"));
     }
 }

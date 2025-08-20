@@ -54,7 +54,7 @@ Paths -> (jailed) -> JailedPath -> (virtualize()) -> VirtualPath
 Important rules to follow:
 - No implicit `From`/`Into` conversions between `JailedPath` and `VirtualPath` — conversions are explicit only.
 - Never expose `&Path` or `PathBuf` from `JailedPath` public API (we provide `realpath_` string/os accessors instead). This prevents accidental use of `Path::join` that would bypass validation.
-All user-facing virtual string accessors have `*_virtual` suffixes and `virtualpath_` aliases; all system-facing real accessors use the `realpath_` prefix. Example: `to_string_virtual()` / `virtualpath_to_string()` vs `realpath_to_string()`.
+All user-facing virtual string accessors use the `virtualpath_` prefix; all system-facing real accessors use the `realpath_` prefix. Example: `virtualpath_to_string()` vs `realpath_to_string()`.
 
 Rationale: The explicit evolution and naming remove ambiguity at call sites, make grep/search easy for virtual vs real operations, and ensure reviewers can quickly see when code leaves the safe virtual API surface.
 
@@ -84,7 +84,7 @@ Rationale: The explicit evolution and naming remove ambiguity at call sites, mak
 
 - `JailedPath` is a thin, validated, system-facing representation of a filesystem path inside the jail. It behaves like a simple, canonicalized path wrapper intended for I/O and integration with external APIs.
 - `JailedPath` itself does NOT perform virtual clamping or virtual-root-relative normalization. It exposes the real filesystem path semantics (reads/writes, real comparisons, and `Display` shows the real path).
-- All virtual semantics — stripping the jail prefix, treating the jail as `/`, clamping upward traversal at the virtual root, and any UX-oriented normalization — are performed by `VirtualRoot`/`VirtualPath` during construction or when calling `_virtual` methods.
+- All virtual semantics — stripping the jail prefix, treating the jail as `/`, clamping upward traversal at the virtual root, and any UX-oriented normalization — are performed by `VirtualRoot`/`VirtualPath` during construction or when calling `virtualpath_` methods.
 - In short: use `JailedPath` when you need a plain, system-facing path; use `VirtualPath`/`VirtualRoot` when you need clamping, virtual normalization, or any user-facing path behavior.
 
 ## Type relationships
@@ -117,14 +117,14 @@ VirtualRoot is a dedicated type (not an alias). It focuses on virtual semantics 
 - Reduces API surface and potential confusion
 - Each type has a clear, focused purpose
 
-### Decision 3: Keep _virtual suffixes on VirtualPath methods
-**Decision**: Use explicit suffixes like `join_virtual()`, `parent_virtual()` on `VirtualPath`
+### Decision 3: Keep `_virtual` suffixes on path-manipulation methods; prefer `virtualpath_` for string accessors
+**Decision**: Use explicit suffixes like `join_virtual()`, `parent_virtual()` on `VirtualPath`. For virtual string/OS accessors, documentation prefers the `virtualpath_` prefix (`virtualpath_to_string()`, `virtualpath_as_os_str()`). Historical `*_virtual` string accessors were removed from the public docs to avoid ambiguity; the `virtualpath_` names are the canonical documented API.
 
 **Rationale**:
 - **Mixed-usage clarity**: In codebases that use both virtual and real paths, suffixes prevent confusion
 - **Security focus**: For a security crate, explicit is better than implicit - mistakes have real consequences  
 - **Type tracking burden**: Without suffixes, developers must mentally track "am I working with VirtualPath or JailedPath now?" during conversions
-- **Call-site readability**: `vp.join_virtual("file")` vs `jp.to_string_real()` - immediately clear what's happening
+- **Call-site readability**: `vp.join_virtual("file")` vs `jp.realpath_to_string()` - immediately clear what's happening
 - **Grep-friendly**: Easy to search for all virtual operations
 - **Future-proof**: Naming pattern scales if we add more path types
 
@@ -151,8 +151,8 @@ VirtualRoot is a dedicated type (not an alias). It focuses on virtual semantics 
 **Decision**: ALL virtual-related methods move from `JailedPath` to `VirtualPath`
 
 **Methods moving to VirtualPath:**
-- `to_string_virtual()` → `VirtualPath::to_string_virtual()`
-- `as_os_str_virtual()` → `VirtualPath::as_os_str_virtual()`
+- `virtualpath_to_string()` → `VirtualPath::virtualpath_to_string()`
+- `virtualpath_as_os_str()` → `VirtualPath::virtualpath_as_os_str()`
 - `starts_with_virtual()` → `VirtualPath::starts_with_virtual()`
 - `ends_with_virtual()` → `VirtualPath::ends_with_virtual()`
 - `file_name()` → `VirtualPath::file_name()` (operates on virtual path)
@@ -248,13 +248,13 @@ let vp = vroot.try_path_virtual("users/alice/report.pdf")?; // no JailedPath nee
 
 ### JailedPath<M> (system-facing only)
 **Keep real/system operations only:**
-- Real string: `to_string_real()` 
+- Real string: `realpath_to_string()` 
 - Real comparisons: `starts_with_real()`, `ends_with_real()`
 - External integration: `unjail()` (PathBuf ownership)
 - File I/O helpers: `read_*`, `write_*`, `metadata`, etc.
 
 **Remove all virtual operations:**
-- ❌ Remove: `to_string_virtual()`, `as_os_str_virtual()`
+- ❌ Historical aliases removed: use the documented `virtualpath_to_string()` / `virtualpath_as_os_str()` canonical names instead
 - ❌ Remove: `starts_with_virtual()`, `ends_with_virtual()`
 - ❌ Remove: `join()`, `parent()`, `with_file_name()`, `with_extension()`
 - ❌ Remove: Virtual-focused `file_name()`, `file_stem()`, `extension()`
@@ -272,8 +272,8 @@ let vp = vroot.try_path_virtual("users/alice/report.pdf")?; // no JailedPath nee
 - `with_extension_virtual(&self, ext) -> Option<VirtualPath<M>>` (operates on virtual PathBuf)
 
 **Virtual strings and display:**
-- `to_string_virtual() -> String` (forward slashes, jail as `/`)
-- `as_os_str_virtual() -> OsString`
+- `virtualpath_to_string() -> String` (forward slashes, jail as `/`)
+- `virtualpath_as_os_str() -> OsString`
 - `Display` shows virtual path (forward slashes; jail is `/`)
 - `Debug` includes type name and virtual path
 
