@@ -58,6 +58,8 @@
 
 Note: Public APIs avoid returning `&Path` or `PathBuf` directly from `JailedPath`. Instead use `realpath_` prefixed accessors (e.g., `realpath_to_string()`, `realpath_as_os_str()`) and explicit `unjail()` when ownership is required. `VirtualPath` provides `virtualpath_` prefixed aliases for its string accessors.
 
+Important: `StatedPath` is an internal type-state implementation detail. It must never be exposed in public APIs, docs, or examples. Keep `StatedPath` usage strictly inside the validator module.
+
 ### Type evolution and conversion names (explicit)
 
 We document the canonical type flow and the exact function names to use for conversions. These rules are enforced by design: no `From`/`Into` between `JailedPath` and `VirtualPath` are provided.
@@ -75,8 +77,8 @@ Why: Making these conversion points explicit prevents accidental downgrades or u
 
 ### For `JailedPath<Marker>` (system-facing)
 
-Rule A: Methods that surface the path must end with `_real()`
-- Examples: `to_string_real()`, `to_str_real()`, `as_os_str_real()`, `starts_with_real()`
+Rule A: Methods that surface the path must use the `realpath_` prefix for real/system-facing accessors
+- Examples: `realpath_to_string()`, `realpath_to_str()`, `realpath_as_os_str()`, `starts_with_real()`
 
 Rule B: No virtual manipulation lives here; omit any `_virtual` API on `JailedPath`
 
@@ -218,12 +220,20 @@ impl<Marker> Debug for JailedPath<Marker> { /* real path for debugging */ }
 ## 🎯 Immediate Priorities (Pre-v0.1.0)
 
 ### CRITICAL (Blocking v0.1.0):
-1. **🔴 IMPLEMENT: `VirtualRoot` and `VirtualPath`** — user-facing types with `_virtual` APIs
-2. **🔴 MIGRATE: Display rules** — `VirtualPath` displays virtual; `JailedPath` displays real
-3. **🔴 API CLEANUP: `JailedPath`** — remove/deprecate `_virtual` methods and virtual manipulation
-4. **🔴 VALIDATION SPLIT** — keep `Jail::try_path`; move virtual validation to `VirtualRoot::try_path_virtual`
-5. **🔴 REFINE: Windows 8.3 detection** — precise UTF-16 state machine (see ROADMAP.md)
-6. **🔴 REMOVE: `try_path_normalized()`** — BREAKING CHANGE, confusing API surface
+
+Status (Aug 20, 2025): Initial implementation landed in commit 51d46c9. The core Virtual API is present; remaining work items are noted below.
+
+1. ✅ IMPLEMENTED: `VirtualRoot` and `VirtualPath` — user-facing types with `_virtual` APIs (commit 51d46c9)
+2. ✅ MIGRATED: Display rules — `VirtualPath` displays virtual; `JailedPath` displays real
+3. ✅ API CLEANUP (in-progress): `JailedPath` virtual methods removed from the public surface; internal `StatedPath` state types and helpers were simplified/commented out to centralize the validation flow
+4. ✅ VALIDATION SPLIT: `Jail::try_path` delegates to the central validator; `VirtualRoot::try_path_virtual` implemented as the user-facing entrypoint
+5. � REFINE: Windows 8.3 detection — precise UTF-16 state machine documented in `ROADMAP.md`; needs verification and test coverage
+6. ✅ REMOVED: `try_path_normalized()` — removed from public API
+
+Remaining / follow-ups:
+- Add tests for Windows 8.3 short-name detection and edge cases
+- Clean up commented-out `StatedPath` code after stabilization
+- Run a full test suite and CI verification for the refactor
 
 ### HIGH PRIORITY:
 7. **🟡 UPDATE: Documentation** — Document the split (Virtual vs System), migration notes

@@ -5,11 +5,14 @@
 
 This roadmap outlines the planned evolution of the `jailed-path` crate based on ecosystem research, user needs analysis, and security-first principles.
 
-> Design Update (August 2025)
 >
 > We are separating user-facing virtual path ergonomics from system-facing filesystem operations:
 > - VirtualRoot + VirtualPath: user-facing, virtual semantics, clamped to the jail as virtual '/'
 > - Jail + JailedPath: system-facing, real filesystem semantics and I/O
+>
+> Implementation note (Aug 20, 2025): An initial implementation has been committed (see commit 51d46c9). `VirtualRoot` and `VirtualPath` are present in the codebase, `Jail::try_path` now delegates to a centralized validation helper, and several internal `StatedPath` helpers were simplified/commented out to centralize the validation flow. Remaining items (Windows 8.3 tests, cleanup of commented code, and CI verification) are listed later in this roadmap.
+
+> IMPORTANT: `StatedPath` is a strictly internal type-state implementation detail. It must never be exposed in public APIs, examples, or documentation. All references to `StatedPath` in the repository should be treated as maintainer-only implementation notes.
 >
 Naming policy (Option A):
 - VirtualPath methods use `_virtual` suffixes (e.g., `join_virtual`, `parent_virtual`)

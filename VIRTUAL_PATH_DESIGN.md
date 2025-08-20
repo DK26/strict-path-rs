@@ -1,6 +1,13 @@
 # VirtualPath and VirtualRoot: Clear Separation of UX vs FS Concerns
 
-Status: Draft design (breaking changes acceptable pre-1.0)  
+Status: Implemented (Aug 20, 2025) — initial implementation committed (see commit 51d46c9)
+ 
+Implementation notes (Aug 20, 2025):
+- `VirtualRoot` and `VirtualPath` have been implemented and added as public types.
+- Validation responsibilities were centralized in the validator; `Jail::try_path` now delegates to the shared validate helper and `Jail` exposes a small `stated_path()` accessor. An `AsRef<Path>` impl for `Jail` was added to aid integration.
+- The `StatedPath` type-state surface has been simplified in the repository: several intermediate state helpers were commented out and the high-level virtualization/join/canonicalize/boundary_check flow is now owned by the virtual root/validator layer. This was intentional to keep the public APIs focused and to avoid duplicating the validation workflow.
+
+These notes reflect the current codebase state; the design doc below is retained to explain the original rationale and the final public API shapes.
 Scope: Single-crate, internal refactor + new public types (VirtualRoot, VirtualPath)
 
 ## Why this change
@@ -31,7 +38,7 @@ Goal: Make the user-facing API obvious and safe by default, and keep system-faci
    - Eliminate mixed-method sets on the same type where possible.
    - Reduce accidental UI leakage of real filesystem structure.
 
-Note: We will never expose raw `Path` or `&Path` from `JailedPath` publicly. Instead we provide explicit `realpath_` prefixed accessors (e.g. `realpath_to_string()`, `realpath_as_os_str()`) and matching `_real` suffixed methods. Likewise, `VirtualPath` exposes `virtualpath_` aliases for its string accessors. This naming makes conversions explicit and prevents accidental, unchecked joins on a leaked `Path`.
+Note: We will never expose raw `Path` or `&Path` from `JailedPath` publicly. Instead we provide explicit `realpath_` prefixed accessors (e.g. `realpath_to_string()`, `realpath_as_os_str()`). Likewise, `VirtualPath` exposes `virtualpath_` aliases for its string accessors. This naming makes conversions explicit and prevents accidental, unchecked joins on a leaked `Path`.
 
 ## Type evolution (explicit)
 
@@ -47,7 +54,7 @@ Paths -> (jailed) -> JailedPath -> (virtualize()) -> VirtualPath
 Important rules to follow:
 - No implicit `From`/`Into` conversions between `JailedPath` and `VirtualPath` — conversions are explicit only.
 - Never expose `&Path` or `PathBuf` from `JailedPath` public API (we provide `realpath_` string/os accessors instead). This prevents accidental use of `Path::join` that would bypass validation.
-- All user-facing virtual string accessors have `*_virtual` suffixes and `virtualpath_` aliases; all system-facing real accessors have `*_real` suffixes and `realpath_` aliases. Example: `to_string_virtual()` / `virtualpath_to_string()` vs `to_string_real()` / `realpath_to_string()`.
+All user-facing virtual string accessors have `*_virtual` suffixes and `virtualpath_` aliases; all system-facing real accessors use the `realpath_` prefix. Example: `to_string_virtual()` / `virtualpath_to_string()` vs `realpath_to_string()`.
 
 Rationale: The explicit evolution and naming remove ambiguity at call sites, make grep/search easy for virtual vs real operations, and ensure reviewers can quickly see when code leaves the safe virtual API surface.
 
