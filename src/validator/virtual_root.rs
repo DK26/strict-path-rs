@@ -1,5 +1,5 @@
-use crate::jail::{self, Jail};
 use crate::path::virtual_path::VirtualPath;
+use crate::validator::{self, jail::Jail};
 use crate::Result;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -107,7 +107,7 @@ impl<Marker> VirtualRoot<Marker> {
         &self,
         candidate_path: P,
     ) -> Result<VirtualPath<Marker>> {
-        let virtualized = jail::virtualize_to_jail(candidate_path, &self.jail);
+        let virtualized = validator::virtualize_to_jail(candidate_path, &self.jail);
         let jailed_path = self.jail.try_path(virtualized)?;
         Ok(jailed_path.virtualize())
     }

@@ -1,4 +1,4 @@
-use crate::jail::Jail;
+use crate::validator::jail::Jail;
 use std::fs;
 
 #[test]

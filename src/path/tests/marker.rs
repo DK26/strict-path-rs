@@ -1,4 +1,4 @@
-use crate::path::jailed::JailedPath;
+use crate::path::jailed_path::JailedPath;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -36,11 +36,11 @@ fn test_different_marker_types_are_incompatible() {
     let test_path = PathBuf::from("path");
     // Use a real temporary directory so canonicalize() and verify_exists() succeed
     let temp = tempfile::tempdir().unwrap();
-    let jail_img = crate::jail::Jail::<ImageResource>::try_new(temp.path()).unwrap();
-    let _image_path = crate::jail::validate(test_path.clone(), &jail_img).unwrap();
+    let jail_img = crate::validator::jail::Jail::<ImageResource>::try_new(temp.path()).unwrap();
+    let _image_path = crate::validator::validate(test_path.clone(), &jail_img).unwrap();
     // If you need another validated_path for a different marker, re-create it above as needed.
-    let jail_user = crate::jail::Jail::<UserData>::try_new(temp.path()).unwrap();
-    let _user_path = crate::jail::validate(test_path, &jail_user).unwrap();
+    let jail_user = crate::validator::jail::Jail::<UserData>::try_new(temp.path()).unwrap();
+    let _user_path = crate::validator::validate(test_path, &jail_user).unwrap();
 
     // This test ensures that different marker types are treated as different types
     // The fact that we can assign to different typed variables proves this works

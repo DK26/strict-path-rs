@@ -1,4 +1,4 @@
-use crate::jail::virtual_root::VirtualRoot;
+use crate::validator::virtual_root::VirtualRoot;
 
 #[test]
 fn test_virtual_root_try_new_create() {

@@ -1,4 +1,4 @@
-use crate::jail::Jail;
+use crate::validator::jail::Jail;
 
 #[test]
 fn test_virtual_path_join_and_parent() {

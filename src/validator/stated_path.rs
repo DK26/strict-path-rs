@@ -28,7 +28,7 @@ pub struct Exists;
 /// Example: create a temporary jail and validate a virtual path inside it.
 ///
 /// ```rust
-/// use jailed_path::jail::stated_path::{StatedPath, Raw, Canonicalized, BoundaryChecked};
+/// use jailed_path::validator::stated_path::{StatedPath, Raw, Canonicalized, BoundaryChecked};
 /// use tempfile::tempdir;
 /// use std::fs;
 ///

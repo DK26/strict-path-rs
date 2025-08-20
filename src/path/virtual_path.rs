@@ -1,6 +1,6 @@
 use crate::error::JailedPathError;
-use crate::jail;
-use crate::path::jailed::JailedPath;
+use crate::path::jailed_path::JailedPath;
+use crate::validator;
 use crate::Result;
 use std::ffi::OsStr;
 use std::fmt;
@@ -61,7 +61,7 @@ impl<Marker> VirtualPath<Marker> {
         // Compute virtual path by subtracting jail components from the real path
         fn compute_virtual<Marker>(
             real: &std::path::Path,
-            jail: &jail::Jail<Marker>,
+            jail: &validator::jail::Jail<Marker>,
         ) -> std::path::PathBuf {
             use std::ffi::OsString;
             use std::path::Component;
@@ -169,7 +169,7 @@ impl<Marker> VirtualPath<Marker> {
         self.inner
     }
 
-    pub fn jail(&self) -> &crate::jail::Jail<Marker> {
+    pub fn jail(&self) -> &crate::validator::jail::Jail<Marker> {
         self.inner.jail()
     }
 
@@ -205,8 +205,8 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub fn join_virtual<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_virtual = self.virtual_path.join(path);
-        let virtualized = jail::virtualize_to_jail(new_virtual, self.inner.jail());
-        jail::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
+        let virtualized = validator::virtualize_to_jail(new_virtual, self.inner.jail());
+        validator::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
     }
 
     /// Returns the parent directory as a new `VirtualPath`.
@@ -215,8 +215,8 @@ impl<Marker> VirtualPath<Marker> {
     pub fn parent_virtual(&self) -> Result<Option<Self>> {
         match self.virtual_path.parent() {
             Some(p) => {
-                let virtualized = jail::virtualize_to_jail(p, self.inner.jail());
-                match jail::validate(virtualized, self.inner.jail()) {
+                let virtualized = validator::virtualize_to_jail(p, self.inner.jail());
+                match validator::validate(virtualized, self.inner.jail()) {
                     Ok(p) => Ok(Some(p.virtualize())),
                     Err(e) => Err(e),
                 }
@@ -229,8 +229,8 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub fn with_file_name_virtual<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
         let new_virtual = self.virtual_path.with_file_name(file_name);
-        let virtualized = jail::virtualize_to_jail(new_virtual, self.inner.jail());
-        jail::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
+        let virtualized = validator::virtualize_to_jail(new_virtual, self.inner.jail());
+        validator::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
     }
 
     /// Returns a new `VirtualPath` with the extension replaced.
@@ -244,8 +244,8 @@ impl<Marker> VirtualPath<Marker> {
             ));
         }
         let new_virtual = self.virtual_path.with_extension(extension);
-        let virtualized = jail::virtualize_to_jail(new_virtual, self.inner.jail());
-        jail::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
+        let virtualized = validator::virtualize_to_jail(new_virtual, self.inner.jail());
+        validator::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
     }
 
     // ---- Path Components (Virtual) ----

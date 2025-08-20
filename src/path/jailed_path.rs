@@ -1,4 +1,4 @@
-use crate::jail::stated_path::{BoundaryChecked, Canonicalized, Raw, StatedPath};
+use crate::validator::stated_path::{BoundaryChecked, Canonicalized, Raw, StatedPath};
 use crate::{JailedPathError, Result};
 use std::cmp::Ordering;
 use std::ffi::OsStr;
@@ -59,7 +59,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct JailedPath<Marker = ()> {
     path: PathBuf,
-    jail: Arc<crate::jail::Jail<Marker>>,
+    jail: Arc<crate::validator::jail::Jail<Marker>>,
     _marker: PhantomData<Marker>,
 }
 
@@ -71,7 +71,7 @@ impl<Marker> JailedPath<Marker> {
     /// Creates a new JailedPath from a fully validated ValidatedPath with the exact required type-state.
     #[allow(clippy::type_complexity)]
     pub(crate) fn new(
-    jail: Arc<crate::jail::Jail<Marker>>,
+        jail: Arc<crate::validator::jail::Jail<Marker>>,
         validated_path: StatedPath<((Raw, Canonicalized), BoundaryChecked)>,
     ) -> Self {
         Self {
@@ -91,7 +91,7 @@ impl<Marker> JailedPath<Marker> {
 
     /// Returns a reference to the inner `Jail` that created this `JailedPath`.
     #[inline]
-    pub(crate) fn jail(&self) -> &crate::jail::Jail<Marker> {
+    pub(crate) fn jail(&self) -> &crate::validator::jail::Jail<Marker> {
         self.jail.as_ref()
     }
 
@@ -150,7 +150,7 @@ impl<Marker> JailedPath<Marker> {
     pub fn join_real<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_real = self.path.join(path);
         // pass a reference to the Jail stored in this JailedPath
-    crate::jail::validate(new_real, self.jail())
+        crate::validator::validate(new_real, self.jail())
     }
 
     /// Returns the parent directory interpreted in real-path semantics.
@@ -158,7 +158,7 @@ impl<Marker> JailedPath<Marker> {
     /// Returns `Ok(None)` if the current path has no parent.
     pub fn parent_real(&self) -> Result<Option<Self>> {
         match self.path.parent() {
-            Some(p) => match crate::jail::validate(p, self.jail()) {
+            Some(p) => match crate::validator::validate(p, self.jail()) {
                 Ok(p) => Ok(Some(p)),
                 Err(e) => Err(e),
             },
@@ -170,7 +170,7 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn with_file_name_real<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
         let new_real = self.path.with_file_name(file_name);
-    crate::jail::validate(new_real, self.jail())
+        crate::validator::validate(new_real, self.jail())
     }
 
     /// Returns a new `JailedPath` with the extension replaced.
@@ -185,7 +185,7 @@ impl<Marker> JailedPath<Marker> {
             ));
         }
         let new_real = rpath.with_extension(extension);
-    crate::jail::validate(new_real, self.jail())
+        crate::validator::validate(new_real, self.jail())
     }
 
     // ---- Path Components (Real) ----

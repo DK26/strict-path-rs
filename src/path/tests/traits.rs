@@ -1,4 +1,4 @@
-use crate::path::jailed::JailedPath;
+use crate::path::jailed_path::JailedPath;
 use std::path::PathBuf;
 
 #[test]
@@ -6,10 +6,13 @@ fn test_jailed_path_collections() {
     use std::collections::{BTreeMap, HashMap};
 
     let temp = tempfile::tempdir().unwrap();
-    let jail = crate::jail::Jail::<()>::try_new(temp.path()).unwrap();
+    let jail = crate::validator::jail::Jail::<()>::try_new(temp.path()).unwrap();
     let test_path = PathBuf::from("/path/file.txt");
-    let jailed_path: JailedPath =
-        crate::jail::validate(crate::jail::virtualize_to_jail(test_path, &jail), &jail).unwrap();
+    let jailed_path: JailedPath = crate::validator::validate(
+        crate::validator::virtualize_to_jail(test_path, &jail),
+        &jail,
+    )
+    .unwrap();
 
     let mut map: HashMap<JailedPath, &str> = HashMap::new();
     map.insert(jailed_path.clone(), "value");
@@ -23,7 +26,7 @@ fn test_jailed_path_collections() {
 #[test]
 fn test_jailed_path_display_formatting() {
     let temp = tempfile::tempdir().unwrap();
-    let vroot = crate::jail::virtual_root::VirtualRoot::<()>::try_new(temp.path()).unwrap();
+    let vroot = crate::validator::virtual_root::VirtualRoot::<()>::try_new(temp.path()).unwrap();
     let vpath = vroot.try_path_virtual("path/file.txt").unwrap();
 
     let display_output = format!("{vpath}");
@@ -40,13 +43,16 @@ fn test_jailed_path_equality_and_hash() {
     let path2 = PathBuf::from("path");
     let path3 = PathBuf::from("different/path");
     let temp = tempfile::tempdir().unwrap();
-    let jail = crate::jail::Jail::<()>::try_new(temp.path()).unwrap();
+    let jail = crate::validator::jail::Jail::<()>::try_new(temp.path()).unwrap();
     let jailed1: JailedPath =
-        crate::jail::validate(crate::jail::virtualize_to_jail(path1, &jail), &jail).unwrap();
+        crate::validator::validate(crate::validator::virtualize_to_jail(path1, &jail), &jail)
+            .unwrap();
     let jailed2: JailedPath =
-        crate::jail::validate(crate::jail::virtualize_to_jail(path2, &jail), &jail).unwrap();
+        crate::validator::validate(crate::validator::virtualize_to_jail(path2, &jail), &jail)
+            .unwrap();
     let jailed3: JailedPath =
-        crate::jail::validate(crate::jail::virtualize_to_jail(path3, &jail), &jail).unwrap();
+        crate::validator::validate(crate::validator::virtualize_to_jail(path3, &jail), &jail)
+            .unwrap();
 
     assert_eq!(jailed1, jailed2);
     assert_ne!(jailed1, jailed3);
