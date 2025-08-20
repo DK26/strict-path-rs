@@ -1,25 +1,16 @@
 use crate::jailed_path::JailedPath;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 #[test]
 fn test_jailed_path_collections() {
     use std::collections::{BTreeMap, HashMap};
 
     let temp = tempfile::tempdir().unwrap();
-    let jail_root = Arc::new(
-        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
-            temp.path(),
-        )
-        .canonicalize()
-        .unwrap()
-        .verify_exists()
-        .unwrap(),
-    );
+    let jail = crate::validator::jail::Jail::<()>::try_new(temp.path()).unwrap();
     let test_path = PathBuf::from("/path/file.txt");
     let jailed_path: JailedPath = crate::validator::jail::validate(
-        crate::validator::jail::virtualize_to_jail(test_path, &jail_root),
-        Arc::clone(&jail_root),
+        crate::validator::jail::virtualize_to_jail(test_path, &jail),
+        &jail,
     )
     .unwrap();
 
@@ -52,28 +43,20 @@ fn test_jailed_path_equality_and_hash() {
     let path2 = PathBuf::from("path");
     let path3 = PathBuf::from("different/path");
     let temp = tempfile::tempdir().unwrap();
-    let jail_root = Arc::new(
-        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
-            temp.path(),
-        )
-        .canonicalize()
-        .unwrap()
-        .verify_exists()
-        .unwrap(),
-    );
+    let jail = crate::validator::jail::Jail::<()>::try_new(temp.path()).unwrap();
     let jailed1: JailedPath = crate::validator::jail::validate(
-        crate::validator::jail::virtualize_to_jail(path1, &jail_root),
-        Arc::clone(&jail_root),
+        crate::validator::jail::virtualize_to_jail(path1, &jail),
+        &jail,
     )
     .unwrap();
     let jailed2: JailedPath = crate::validator::jail::validate(
-        crate::validator::jail::virtualize_to_jail(path2, &jail_root),
-        Arc::clone(&jail_root),
+        crate::validator::jail::virtualize_to_jail(path2, &jail),
+        &jail,
     )
     .unwrap();
     let jailed3: JailedPath = crate::validator::jail::validate(
-        crate::validator::jail::virtualize_to_jail(path3, &jail_root),
-        Arc::clone(&jail_root),
+        crate::validator::jail::virtualize_to_jail(path3, &jail),
+        &jail,
     )
     .unwrap();
 

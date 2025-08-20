@@ -73,7 +73,7 @@ fn test_complete_workflow_with_marker_types() {
         let result = public_jail.try_path(path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
-        let jail_root = public_jail.jail().canonicalize().unwrap();
+    let jail_root = public_jail.path().canonicalize().unwrap();
         // Use direct comparison - the JailedPath should start with the jail root
         assert!(
             jailed_path.starts_with(&jail_root),
@@ -87,7 +87,7 @@ fn test_complete_workflow_with_marker_types() {
         let result = upload_jail.try_path(path);
         assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
         let jailed_path = result.unwrap();
-        let jail_root = upload_jail.jail().canonicalize().unwrap();
+    let jail_root = upload_jail.path().canonicalize().unwrap();
         // Use direct comparison - the JailedPath should start with the jail root
         assert!(
             jailed_path.starts_with(&jail_root),

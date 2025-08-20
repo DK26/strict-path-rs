@@ -88,7 +88,21 @@ impl<Marker> VirtualPath<Marker> {
             // Fast path: if `real_norm` starts with `jail_norm`, use strip_prefix which is simple and
             // handles most common cases.
             if let Ok(stripped) = real_norm.strip_prefix(&jail_norm) {
-                return stripped.to_path_buf();
+                // Sanitize components from the stripped path to ensure the
+                // virtual display cannot contain dangerous characters.
+                let mut cleaned = std::path::PathBuf::new();
+                for comp in stripped.components() {
+                    if let Component::Normal(name) = comp {
+                        let s = name.to_string_lossy();
+                        let cleaned_s = s.replace(['\n', ';'], "_");
+                        if cleaned_s == s {
+                            cleaned.push(name);
+                        } else {
+                            cleaned.push(OsString::from(cleaned_s));
+                        }
+                    }
+                }
+                return cleaned;
             }
 
             // Fallback: compare components after removing Prefix/RootDir. On Windows, do a
@@ -129,7 +143,16 @@ impl<Marker> VirtualPath<Marker> {
             let mut vb = std::path::PathBuf::new();
             for c in real_comps {
                 if let Component::Normal(name) = c {
-                    vb.push(name);
+                    // Sanitize dangerous characters for the virtual display.
+                    // Replace newlines and semicolons with '_' to avoid injection
+                    // or misleading displays in user-facing paths.
+                    let s = name.to_string_lossy();
+                    let cleaned = s.replace(['\n', ';'], "_");
+                    if cleaned == s {
+                        vb.push(name);
+                    } else {
+                        vb.push(OsString::from(cleaned));
+                    }
                 }
             }
             vb
@@ -213,8 +236,9 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub fn join_virtual<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_virtual = self.virtual_path_buf().join(path);
-        let virtualized = jail::virtualize_to_jail(new_virtual, self.inner.jail_path());
-        jail::validate(virtualized, self.inner.jail_path_arc()).map(|p| p.virtualize())
+        let virtualized =
+            jail::virtualize_to_jail(new_virtual, self.inner.jail_path_arc().as_ref());
+        jail::validate(virtualized, self.inner.jail_path_arc().as_ref()).map(|p| p.virtualize())
     }
 
     /// Returns the parent directory as a new `VirtualPath`.
@@ -223,8 +247,8 @@ impl<Marker> VirtualPath<Marker> {
     pub fn parent_virtual(&self) -> Result<Option<Self>> {
         match self.virtual_path_buf().parent() {
             Some(p) => {
-                let virtualized = jail::virtualize_to_jail(p, self.inner.jail_path());
-                match jail::validate(virtualized, self.inner.jail_path_arc()) {
+                let virtualized = jail::virtualize_to_jail(p, self.inner.jail_path_arc().as_ref());
+                match jail::validate(virtualized, self.inner.jail_path_arc().as_ref()) {
                     Ok(p) => Ok(Some(p.virtualize())),
                     Err(e) => Err(e),
                 }
@@ -237,8 +261,9 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub fn with_file_name_virtual<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
         let new_virtual = self.virtual_path_buf().with_file_name(file_name);
-        let virtualized = jail::virtualize_to_jail(new_virtual, self.inner.jail_path());
-        jail::validate(virtualized, self.inner.jail_path_arc()).map(|p| p.virtualize())
+        let virtualized =
+            jail::virtualize_to_jail(new_virtual, self.inner.jail_path_arc().as_ref());
+        jail::validate(virtualized, self.inner.jail_path_arc().as_ref()).map(|p| p.virtualize())
     }
 
     /// Returns a new `VirtualPath` with the extension replaced.
@@ -253,8 +278,9 @@ impl<Marker> VirtualPath<Marker> {
             ));
         }
         let new_virtual = vpath.with_extension(extension);
-        let virtualized = jail::virtualize_to_jail(new_virtual, self.inner.jail_path());
-        jail::validate(virtualized, self.inner.jail_path_arc()).map(|p| p.virtualize())
+        let virtualized =
+            jail::virtualize_to_jail(new_virtual, self.inner.jail_path_arc().as_ref());
+        jail::validate(virtualized, self.inner.jail_path_arc().as_ref()).map(|p| p.virtualize())
     }
 
     // ---- Path Components (Virtual) ----

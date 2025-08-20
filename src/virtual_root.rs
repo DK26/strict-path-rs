@@ -107,7 +107,7 @@ impl<Marker> VirtualRoot<Marker> {
         &self,
         candidate_path: P,
     ) -> Result<VirtualPath<Marker>> {
-        let virtualized = jail::virtualize_to_jail(candidate_path, self.jail.stated_path());
+        let virtualized = jail::virtualize_to_jail(candidate_path, &self.jail);
         let jailed_path = self.jail.try_path(virtualized)?;
         Ok(jailed_path.virtualize())
     }

@@ -1,4 +1,4 @@
-use jailed_path::{Jail, JailedPath};
+use jailed_path::{Jail, JailedPath, VirtualRoot};
 use std::fs;
 use std::io::Write;
 
@@ -51,8 +51,8 @@ fn test_complete_workflow_with_marker_types() {
     let uploads_dir = public_dir.join("uploads");
 
     // Create validators for different resource types
-    let public_jail: Jail<PublicAsset> = Jail::try_new(&public_dir).unwrap();
-    let upload_jail: Jail<UploadedFile> = Jail::try_new(uploads_dir).unwrap();
+    let public_jail: Jail<PublicAsset> = Jail::try_new(public_dir.as_path()).unwrap();
+    let upload_jail: Jail<UploadedFile> = Jail::try_new(&uploads_dir).unwrap();
 
     // Test public asset access
     let public_file: JailedPath<PublicAsset> = public_jail.try_path("index.html").unwrap();
@@ -68,26 +68,23 @@ fn test_complete_workflow_with_marker_types() {
     assert!(nested_upload.exists(), "Should access nested files");
 
     // Test that validators block escape attempts
-    // NEW BEHAVIOR: These paths are clamped, not blocked
-    // Escape attempts for public_validator
+    // NEW BEHAVIOR: These paths are clamped, not blocked; use VirtualRoot for user-facing clamping
+    let public_vroot = VirtualRoot::<PublicAsset>::try_new(public_dir.as_path()).unwrap();
     let public_escape_attempts = vec!["../private/secrets.txt"];
     for path in public_escape_attempts {
-        let result = public_jail.try_path(path);
-        assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
-        let jailed_path = result.unwrap();
-        // Ensure resulting path is within jail using approved API
+        let vp = public_vroot.try_path_virtual(path).unwrap();
+        let jailed_path = vp.unvirtual();
         assert!(
             jailed_path.starts_with_real(public_jail.path()),
             "Clamped path should be within jail: {jailed_path:?}"
         );
     }
-    // Escape attempts for upload_validator
+
+    let upload_vroot = VirtualRoot::<UploadedFile>::try_new(uploads_dir.as_path()).unwrap();
     let upload_escape_attempts = vec!["../index.html", "../../private/secrets.txt"];
     for path in upload_escape_attempts {
-        let result = upload_jail.try_path(path);
-        assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
-        let jailed_path = result.unwrap();
-        // Ensure resulting path is within jail using approved API
+        let vp = upload_vroot.try_path_virtual(path).unwrap();
+        let jailed_path = vp.unvirtual();
         assert!(
             jailed_path.starts_with_real(upload_jail.path()),
             "Clamped path should be within jail: {jailed_path:?}"
@@ -99,17 +96,17 @@ fn test_complete_workflow_with_marker_types() {
 fn test_error_handling_and_reporting() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let jail = Jail::<()>::try_new(public_dir).unwrap();
+    let jail = Jail::<()>::try_new(public_dir.as_path()).unwrap();
 
     // Test different error scenarios
 
     // 1. Non-existent file should now succeed with touch technique
     match jail.try_path("nonexistent.txt") {
         Ok(jailed_path) => {
-            assert!(jailed_path
-                .clone()
-                .virtualize()
-                .ends_with_virtual("nonexistent.txt"));
+            // Avoid redundant clone: virtualize consumes the JailedPath, so compare
+            // the virtualized path by first converting the cloned-owned path.
+            let v = jailed_path.clone().virtualize();
+            assert!(v.ends_with_virtual("nonexistent.txt"));
             // Ensure path is within jail using approved API
             assert!(
                 jailed_path.starts_with_real(jail.path()),
@@ -119,11 +116,11 @@ fn test_error_handling_and_reporting() {
         other => panic!("Expected successful validation with touch technique, got: {other:?}"),
     }
 
-    // 2. Directory traversal attempt
-    // NEW BEHAVIOR: Traversal is clamped, not blocked
-    match jail.try_path("../private/secrets.txt") {
-        Ok(jailed_path) => {
-            // Ensure path is within jail using approved API
+    // 2. Directory traversal attempt - use VirtualRoot for clamping semantics
+    let vroot: VirtualRoot<()> = VirtualRoot::try_new(temp_dir.join("public")).unwrap();
+    match vroot.try_path_virtual("../private/secrets.txt") {
+        Ok(vp) => {
+            let jailed_path = vp.unvirtual();
             assert!(
                 jailed_path.starts_with_real(jail.path()),
                 "Clamped path should be within jail: {jailed_path:?}"
@@ -164,7 +161,7 @@ fn test_error_handling_and_reporting() {
 fn test_absolute_vs_relative_path_handling() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let jail = Jail::<()>::try_new(public_dir.clone()).unwrap();
+    let jail = Jail::<()>::try_new(&public_dir).unwrap();
 
     // Test relative path
     let relative_result = jail.try_path("index.html");
@@ -199,16 +196,11 @@ fn test_absolute_vs_relative_path_handling() {
         "Absolute path should be within jail: {absolute_path:?}"
     );
 
-    // Test absolute path outside jail
+    // Test absolute path outside jail (user-facing clamping via VirtualRoot)
     let outside_path = temp_dir.join("private").join("secrets.txt");
-    let outside_result = jail.try_path(outside_path);
-    // NEW BEHAVIOR: Absolute path outside jail is clamped
-    assert!(
-        outside_result.is_ok(),
-        "Absolute path outside jail should be clamped"
-    );
-    let jailed_path = outside_result.unwrap();
-    // Ensure clamped path is within jail using approved API
+    let vroot: VirtualRoot<()> = VirtualRoot::try_new(public_dir.as_path()).unwrap();
+    let outside_result = vroot.try_path_virtual(outside_path).unwrap();
+    let jailed_path = outside_result.unvirtual();
     assert!(
         jailed_path.starts_with_real(jail.path()),
         "Clamped path should be within jail: {jailed_path:?}"
@@ -225,10 +217,10 @@ fn test_real_world_web_server_scenario() {
     let uploads_dir = public_dir.join("uploads");
 
     // Simulate a web server with different validators for different content types
-    let static_jail: Jail<StaticAsset> = Jail::try_new(public_dir).unwrap();
-    let upload_jail: Jail<UserUpload> = Jail::try_new(uploads_dir).unwrap();
+    let static_jail: Jail<StaticAsset> = Jail::try_new(public_dir.as_path()).unwrap();
+    let upload_jail: Jail<UserUpload> = Jail::try_new(&uploads_dir).unwrap();
 
-    // Function that serves static assets
+    // Function that serves static assets (system-facing)
     fn serve_static_asset(
         validator: &Jail<StaticAsset>,
         requested_path: &str,
@@ -254,17 +246,20 @@ fn test_real_world_web_server_scenario() {
 
     // Test security violations
     // NEW BEHAVIOR: These paths are clamped, not blocked
-    // Escape attempts for static_jail
+    // Escape attempts for static_jail - use VirtualRoot for clamping
+    let static_vroot = VirtualRoot::<StaticAsset>::try_new(public_dir.as_path()).unwrap();
     let static_escape_attempts = vec!["../private/secrets.txt"];
     for path in static_escape_attempts {
-        let result = serve_static_asset(&static_jail, path);
-        assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
+        let vp = static_vroot.try_path_virtual(path).unwrap();
+        let _jailed = vp.unvirtual();
     }
+
     // Escape attempts for upload_validator
+    let upload_vroot = VirtualRoot::<UserUpload>::try_new(&uploads_dir).unwrap();
     let upload_escape_attempts = vec!["../index.html", "../../private/secrets.txt"];
     for path in upload_escape_attempts {
-        let result = access_user_upload(&upload_jail, path);
-        assert!(result.is_ok(), "Escape attempt should be clamped: {path}");
+        let vp = upload_vroot.try_path_virtual(path).unwrap();
+        let _jailed = vp.unvirtual();
     }
 }
 
@@ -272,7 +267,7 @@ fn test_real_world_web_server_scenario() {
 fn test_memory_safety_with_long_paths() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let jail = Jail::<()>::try_new(public_dir).unwrap();
+    let jail = Jail::<()>::try_new(public_dir.as_path()).unwrap();
 
     // Create a very long path that would cause memory issues in naive implementations
     let long_component = "a".repeat(1000);
@@ -301,7 +296,7 @@ fn test_memory_safety_with_long_paths() {
 fn test_edge_cases_and_special_paths() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let jail = Jail::<()>::try_new(public_dir).unwrap();
+    let jail = Jail::<()>::try_new(&public_dir).unwrap();
 
     // Test various edge cases that should work
     let valid_cases = vec![
@@ -334,11 +329,11 @@ fn test_edge_cases_and_special_paths() {
         "uploads/../../private/secrets.txt",
     ];
 
+    // Use a VirtualRoot for clamping semantics in this test
+    let vroot: VirtualRoot<()> = VirtualRoot::try_new(public_dir.as_path()).unwrap();
     for case in malicious_cases {
-        let result = jail.try_path(case);
-        assert!(result.is_ok(), "Malicious path '{case}' should be clamped");
-        let jailed_path = result.unwrap();
-        // Ensure clamped path is within jail using approved API
+        let vp = vroot.try_path_virtual(case).unwrap();
+        let jailed_path = vp.unvirtual();
         assert!(
             jailed_path.starts_with_real(jail.path()),
             "Clamped path should be within jail: {jailed_path:?}"
@@ -350,7 +345,7 @@ fn test_edge_cases_and_special_paths() {
 fn test_validator_properties() {
     let temp_dir = create_test_directory().expect("Failed to create test directory");
     let public_dir = temp_dir.join("public");
-    let jail = Jail::<()>::try_new(public_dir.clone()).unwrap();
+    let jail = Jail::<()>::try_new(public_dir.as_path()).unwrap();
 
     // Test jail() accessor
     // Compare canonicalized jail boundary to the canonicalized public_dir

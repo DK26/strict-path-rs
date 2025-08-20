@@ -36,35 +36,11 @@ fn test_different_marker_types_are_incompatible() {
     let test_path = PathBuf::from("path");
     // Use a real temporary directory so canonicalize() and verify_exists() succeed
     let temp = tempfile::tempdir().unwrap();
-    let jail_root = Arc::new(
-        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
-            temp.path(),
-        )
-        .canonicalize()
-        .unwrap()
-        .verify_exists()
-        .unwrap(),
-    );
-    let validated_path =
-        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
-            crate::validator::jail::virtualize_to_jail(test_path.clone(), &jail_root),
-        )
-        .canonicalize()
-        .unwrap()
-        .boundary_check(&jail_root)
-        .unwrap();
-    let _image_path: JailedPath<ImageResource> =
-        JailedPath::new(Arc::clone(&jail_root), validated_path);
+    let jail_img = crate::validator::jail::Jail::<ImageResource>::try_new(temp.path()).unwrap();
+    let _image_path = crate::validator::jail::validate(test_path.clone(), &jail_img).unwrap();
     // If you need another validated_path for a different marker, re-create it above as needed.
-    let validated_path2 =
-        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
-            crate::validator::jail::virtualize_to_jail(test_path, &jail_root),
-        )
-        .canonicalize()
-        .unwrap()
-        .boundary_check(&jail_root)
-        .unwrap();
-    let _user_path: JailedPath<UserData> = JailedPath::new(jail_root, validated_path2);
+    let jail_user = crate::validator::jail::Jail::<UserData>::try_new(temp.path()).unwrap();
+    let _user_path = crate::validator::jail::validate(test_path, &jail_user).unwrap();
 
     // This test ensures that different marker types are treated as different types
     // The fact that we can assign to different typed variables proves this works

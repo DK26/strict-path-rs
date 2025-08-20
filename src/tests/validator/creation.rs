@@ -83,7 +83,7 @@ fn test_jail_creation_with_existing_directory() {
 }
 
 #[test]
-fn test_try_path_with_valid_relative_path() {
+fn test_try_path_with_valid_relative_path_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -109,7 +109,7 @@ fn test_try_path_with_valid_relative_path() {
 }
 
 #[test]
-fn test_try_path_with_valid_subdirectory_path() {
+fn test_try_path_with_valid_subdirectory_path_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -135,7 +135,7 @@ fn test_try_path_with_valid_subdirectory_path() {
 }
 
 #[test]
-fn test_try_path_with_absolute_path_inside_jail() {
+fn test_try_path_with_absolute_path_inside_jail_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -161,7 +161,7 @@ fn test_try_path_with_absolute_path_inside_jail() {
 }
 
 #[test]
-fn test_try_path_with_nonexistent_file() {
+fn test_try_path_with_nonexistent_file_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -181,7 +181,7 @@ fn test_try_path_with_nonexistent_file() {
 }
 
 #[test]
-fn test_try_path_with_nonexistent_nested_file() {
+fn test_try_path_with_nonexistent_nested_file_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -215,7 +215,7 @@ fn test_try_path_with_nonexistent_nested_file() {
 }
 
 #[test]
-fn test_try_path_with_mixed_existing_and_nonexistent() {
+fn test_try_path_with_mixed_existing_and_nonexistent_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -239,7 +239,7 @@ fn test_try_path_with_mixed_existing_and_nonexistent() {
 }
 
 #[test]
-fn test_try_path_preserves_file_after_validation() {
+fn test_try_path_preserves_file_after_validation_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -267,7 +267,7 @@ fn test_try_path_preserves_file_after_validation() {
 }
 
 #[test]
-fn test_try_path_handles_permission_errors_gracefully() {
+fn test_try_path_handles_permission_errors_gracefully_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -293,7 +293,7 @@ fn test_try_path_handles_permission_errors_gracefully() {
 }
 
 #[test]
-fn test_try_path_edge_case_empty_relative_path() {
+fn test_try_path_edge_case_empty_relative_path_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -313,7 +313,7 @@ fn test_try_path_edge_case_empty_relative_path() {
 }
 
 #[test]
-fn test_try_path_performance_with_many_validations() {
+fn test_try_path_performance_with_many_validations_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -410,7 +410,7 @@ fn test_validator_clone_and_debug() {
 }
 
 #[test]
-fn test_try_path_anti_directory_spam_protection() {
+fn test_try_path_anti_directory_spam_protection_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -452,7 +452,7 @@ fn test_try_path_anti_directory_spam_protection() {
 }
 
 #[test]
-fn test_try_path_preserves_existing_directories() {
+fn test_try_path_preserves_existing_directories_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 
@@ -488,7 +488,7 @@ fn test_try_path_preserves_existing_directories() {
 }
 
 #[test]
-fn test_try_path_cleanup_on_canonicalization_error() {
+fn test_try_path_cleanup_on_canonicalization_error_system() {
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
     let jail = Jail::<()>::try_new(&temp_dir).unwrap();
 

@@ -1,4 +1,4 @@
-use crate::validator::stated_path::{BoundaryChecked, Canonicalized, Exists, Raw, StatedPath};
+use crate::validator::stated_path::{BoundaryChecked, Canonicalized, Raw, StatedPath};
 use crate::{JailedPathError, Result};
 use std::cmp::Ordering;
 use std::ffi::OsStr;
@@ -59,7 +59,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct JailedPath<Marker = ()> {
     path: PathBuf,
-    jail_path: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
+    jail_path: Arc<crate::validator::jail::Jail<Marker>>,
     _marker: PhantomData<Marker>,
 }
 
@@ -71,7 +71,7 @@ impl<Marker> JailedPath<Marker> {
     /// Creates a new JailedPath from a fully validated ValidatedPath with the exact required type-state.
     #[allow(clippy::type_complexity)]
     pub(crate) fn new(
-        jail_path: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
+        jail_path: Arc<crate::validator::jail::Jail<Marker>>,
         validated_path: StatedPath<((Raw, Canonicalized), BoundaryChecked)>,
     ) -> Self {
         Self {
@@ -89,18 +89,24 @@ impl<Marker> JailedPath<Marker> {
         &self.path
     }
 
-    /// Returns a reference to the jail's root path.
-    #[allow(clippy::type_complexity)]
+    /// Returns a reference to the jail's root filesystem `Path`.
     #[inline]
-    pub(crate) fn jail_path(&self) -> &StatedPath<((Raw, Canonicalized), Exists)> {
-        &self.jail_path
+    pub(crate) fn jail_path(&self) -> &std::path::Path {
+        // Expose the jail root path via the Jail API
+        self.jail_path.path()
     }
 
     /// Returns a clone of the Arc pointing to the jail's root path.
     #[allow(clippy::type_complexity)]
     #[inline]
-    pub(crate) fn jail_path_arc(&self) -> Arc<StatedPath<((Raw, Canonicalized), Exists)>> {
+    pub(crate) fn jail_path_arc(&self) -> Arc<crate::validator::jail::Jail<Marker>> {
         self.jail_path.clone()
+    }
+
+    /// Returns a reference to the inner `Jail` that created this `JailedPath`.
+    #[inline]
+    pub(crate) fn jail(&self) -> &crate::validator::jail::Jail<Marker> {
+        self.jail_path.as_ref()
     }
 
     // ---- String Conversion ----
@@ -148,7 +154,8 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn join_real<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_real = self.path.join(path);
-        crate::validator::jail::validate(new_real, self.jail_path.clone())
+        // pass a reference to the Jail stored in this JailedPath
+        crate::validator::jail::validate(new_real, self.jail())
     }
 
     /// Returns the parent directory interpreted in real-path semantics.
@@ -156,7 +163,7 @@ impl<Marker> JailedPath<Marker> {
     /// Returns `Ok(None)` if the current path has no parent.
     pub fn parent_real(&self) -> Result<Option<Self>> {
         match self.path.parent() {
-            Some(p) => match crate::validator::jail::validate(p, self.jail_path.clone()) {
+            Some(p) => match crate::validator::jail::validate(p, self.jail()) {
                 Ok(p) => Ok(Some(p)),
                 Err(e) => Err(e),
             },
@@ -168,7 +175,7 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn with_file_name_real<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
         let new_real = self.path.with_file_name(file_name);
-        crate::validator::jail::validate(new_real, self.jail_path.clone())
+        crate::validator::jail::validate(new_real, self.jail())
     }
 
     /// Returns a new `JailedPath` with the extension replaced.
@@ -179,11 +186,11 @@ impl<Marker> JailedPath<Marker> {
         if rpath.file_name().is_none() {
             return Err(JailedPathError::path_escapes_boundary(
                 self.path.clone(),
-                self.jail_path.to_path_buf(),
+                self.jail().path().to_path_buf(),
             ));
         }
         let new_real = rpath.with_extension(extension);
-        crate::validator::jail::validate(new_real, self.jail_path.clone())
+        crate::validator::jail::validate(new_real, self.jail())
     }
 
     // ---- Path Components (Real) ----
@@ -297,7 +304,7 @@ impl<Marker> fmt::Debug for JailedPath<Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("JailedPath")
             .field("path", &self.path.display())
-            .field("jail_root", &&self.jail_path.display())
+            .field("jail_root", &&self.jail().path().display())
             .finish()
     }
 }

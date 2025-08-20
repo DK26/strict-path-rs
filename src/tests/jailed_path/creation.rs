@@ -1,28 +1,19 @@
 use crate::jailed_path::JailedPath;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 #[test]
 fn test_jailed_path_creation() {
     let test_path = PathBuf::from("path");
     let temp = tempfile::tempdir().unwrap();
-    let jail_root = Arc::new(
-        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
-            temp.path(),
-        )
-        .canonicalize()
-        .unwrap()
-        .verify_exists()
-        .unwrap(),
-    );
+    let jail = crate::validator::jail::Jail::<()>::try_new(temp.path()).unwrap();
     let jailed_path: JailedPath = crate::validator::jail::validate(
-        crate::validator::jail::virtualize_to_jail(test_path.clone(), &jail_root),
-        Arc::clone(&jail_root),
+        crate::validator::jail::virtualize_to_jail(test_path.clone(), &jail),
+        &jail,
     )
     .unwrap();
 
     // Should store the path correctly
-    let abs_path = &*jail_root.join(&test_path);
+    let abs_path = jail.path().join(&test_path);
     assert_eq!(jailed_path.realpath_to_string(), abs_path.to_string_lossy());
     assert_eq!(jailed_path.realpath_to_string(), abs_path.to_string_lossy());
 }
@@ -31,18 +22,10 @@ fn test_jailed_path_creation() {
 fn test_jailed_path_clone_and_debug() {
     let test_path = PathBuf::from("path");
     let temp = tempfile::tempdir().unwrap();
-    let jail_root = Arc::new(
-        crate::validator::stated_path::StatedPath::<crate::validator::stated_path::Raw>::new(
-            temp.path(),
-        )
-        .canonicalize()
-        .unwrap()
-        .verify_exists()
-        .unwrap(),
-    );
+    let jail = crate::validator::jail::Jail::<()>::try_new(temp.path()).unwrap();
     let jailed_path: JailedPath = crate::validator::jail::validate(
-        crate::validator::jail::virtualize_to_jail(test_path, &jail_root),
-        jail_root,
+        crate::validator::jail::virtualize_to_jail(test_path, &jail),
+        &jail,
     )
     .unwrap();
 

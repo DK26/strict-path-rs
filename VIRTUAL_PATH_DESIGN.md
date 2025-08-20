@@ -4,7 +4,7 @@ Status: Implemented (Aug 20, 2025) — initial implementation committed (see com
  
 Implementation notes (Aug 20, 2025):
 - `VirtualRoot` and `VirtualPath` have been implemented and added as public types.
-- Validation responsibilities were centralized in the validator; `Jail::try_path` now delegates to the shared validate helper and `Jail` exposes a small `stated_path()` accessor. An `AsRef<Path>` impl for `Jail` was added to aid integration.
+- Validation responsibilities were centralized in the validator; `Jail::try_path` now delegates to the shared validate helper and `Jail` exposes a small `path()` accessor. An `AsRef<Path>` impl for `Jail` was added to aid integration.
 - The `StatedPath` type-state surface has been simplified in the repository: several intermediate state helpers were commented out and the high-level virtualization/join/canonicalize/boundary_check flow is now owned by the virtual root/validator layer. This was intentional to keep the public APIs focused and to avoid duplicating the validation workflow.
 
 These notes reflect the current codebase state; the design doc below is retained to explain the original rationale and the final public API shapes.

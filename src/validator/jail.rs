@@ -25,7 +25,7 @@ fn is_potential_83_short_name(os: &OsStr) -> bool {
 
 pub(crate) fn validate<Marker>(
     path: impl AsRef<Path>,
-    jail: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
+    jail: &Jail<Marker>,
 ) -> Result<JailedPath<Marker>> {
     #[cfg(windows)]
     {
@@ -36,7 +36,7 @@ pub(crate) fn validate<Marker>(
         if !path.as_ref().is_absolute() {
             // Build up from the jail root so we can report the parent directory where a suspect
             // component would live (checked_at). Pushing components does not access the FS.
-            let mut probe = jail.as_ref().to_path_buf();
+            let mut probe = jail.path().to_path_buf();
 
             for comp in path.as_ref().components() {
                 match comp {
@@ -60,24 +60,39 @@ pub(crate) fn validate<Marker>(
         }
     }
 
-    // Treat incoming paths as user-supplied and virtualize (clamp/join to jail)
-    // before canonicalization. This ensures relative paths and traversal
-    // attempts are interpreted relative to the jail root and are clamped
-    // at the boundary rather than being resolved against the process CWD.
-    let virtualized = virtualize_to_jail(path, jail.as_ref());
+    // Treat incoming paths as system-facing: do not virtualize/clamp here.
+    // Virtualization (clamping to the virtual root) is the responsibility of
+    // `VirtualRoot::try_path_virtual`.
+    //
+    // Important: interpret relative candidate paths as jail-relative. Previously
+    // canonicalizing a relative path would resolve it against the process
+    // working directory (CWD), which could cause valid jail-relative paths to
+    // appear outside the jail. Instead, join the candidate against the jail
+    // root before canonicalization so validation happens in the jail namespace.
+    let target_path = if path.as_ref().is_absolute() {
+        path.as_ref().to_path_buf()
+    } else {
+        jail.path().join(path.as_ref())
+    };
 
-    let validated_path = StatedPath::<Raw>::new(virtualized)
+    let validated_path = StatedPath::<Raw>::new(target_path)
         .canonicalize()?
-        .boundary_check(&jail)?;
+        .boundary_check(jail.as_ref())?;
 
-    Ok(JailedPath::new(jail, validated_path))
+    // JailedPath stores an Arc<Jail> internally; allocate a new Arc here by cloning the
+    // inner `Arc<StatedPath<...>>` and constructing a fresh `Jail` value so we don't
+    // require `Marker: Clone` on the `Jail` type itself.
+    Ok(JailedPath::new(
+        Arc::new(Jail {
+            path: jail.path.clone(),
+            _marker: PhantomData,
+        }),
+        validated_path,
+    ))
 }
 
 /// Make sure provided path is always inside the jail, which behaves as a virtual root
-pub(crate) fn virtualize_to_jail(
-    path: impl AsRef<Path>,
-    jail: &StatedPath<((Raw, Canonicalized), Exists)>,
-) -> PathBuf {
+pub(crate) fn virtualize_to_jail<Marker>(path: impl AsRef<Path>, jail: &Jail<Marker>) -> PathBuf {
     use std::ffi::OsString;
     // If the caller provided an absolute path that already lives inside the jail,
     // return it unchanged to avoid joining the jail twice (double-virtualization).
@@ -86,7 +101,7 @@ pub(crate) fn virtualize_to_jail(
     // avoid joining the jail twice (double-virtualization). If it contains
     // parent or current-dir components, fall through and normalize/clamp so
     // traversal attempts are handled safely.
-    if path.as_ref().is_absolute() && path.as_ref().starts_with(jail.as_ref()) {
+    if path.as_ref().is_absolute() && path.as_ref().starts_with(jail.path()) {
         let mut has_parent_or_cur = false;
         for comp in path.as_ref().components() {
             if matches!(comp, Component::ParentDir | Component::CurDir) {
@@ -149,7 +164,8 @@ pub(crate) fn virtualize_to_jail(
         }
     }
 
-    jail.join(normalized)
+    // join against the jail root path
+    jail.path().join(normalized)
 }
 
 /// A secure jail that constrains all file system operations to a specific directory.
@@ -180,6 +196,7 @@ pub(crate) fn virtualize_to_jail(
 ///
 /// ```rust
 /// use jailed_path::Jail;
+/// use jailed_path::VirtualRoot;
 /// use jailed_path::JailedPathError;
 /// use std::fs;
 /// use tempfile::tempdir;
@@ -189,6 +206,7 @@ pub(crate) fn virtualize_to_jail(
 ///     fs::create_dir_all(jail_path.join("uploads"))?;
 ///     fs::write(jail_path.join("uploads/existing_file.txt"), "test")?;
 ///     let jail = Jail::<()>::try_new(jail_path.join("uploads"))?;
+///     let vroot = VirtualRoot::<()>::try_new(jail_path.join("uploads"))?;
 ///
 ///     // Existing files work
 ///     let _path = jail.try_path("existing_file.txt")?;
@@ -196,14 +214,16 @@ pub(crate) fn virtualize_to_jail(
 ///     // Non-existent files for writing also work  
 ///     let _path = jail.try_path("user123/new_document.pdf")?;
 ///
-///     // Traversal attacks have their roots stripped and are then canonicalized (no error is returned)
-///     let _ = jail.try_path("../../../sensitive.txt")?;
+///     // Traversal attacks should be clamped by the user-facing `VirtualRoot`.
+///     // `Jail::try_path` is system-facing and will reject attempts that escape the jail.
+///     let blocked = vroot.try_path_virtual("../../../sensitive.txt")?;
+///     let _jailed = blocked.unvirtual();
 ///     Ok(())
 /// }
 /// ```
 #[derive(Debug, Clone)]
 pub struct Jail<Marker = ()> {
-    jail: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
+    path: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
     _marker: PhantomData<Marker>,
 }
 
@@ -243,7 +263,7 @@ impl<Marker> Jail<Marker> {
     /// use jailed_path::Jail;
     /// use jailed_path::JailedPathError;
     /// use std::fs;
-    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///     fs::create_dir_all("valid_jail")?;
     ///     // ✅ Valid jail directory
     ///     let _jail = Jail::<()>::try_new("valid_jail")?;
@@ -257,7 +277,7 @@ impl<Marker> Jail<Marker> {
     ///     fs::remove_file("not_a_dir.txt").ok();
     ///     fs::remove_dir_all("valid_jail").ok();
     ///     Ok(())
-    /// }
+    /// # }
     /// ```
     #[inline]
     pub fn try_new<P: AsRef<Path>>(jail_path: P) -> Result<Self> {
@@ -289,7 +309,7 @@ impl<Marker> Jail<Marker> {
         }
 
         Ok(Self {
-            jail: Arc::new(verified_exists),
+            path: Arc::new(verified_exists),
             _marker: PhantomData,
         })
     }
@@ -376,18 +396,21 @@ impl<Marker> Jail<Marker> {
     ///
     /// # Example
     /// ```rust
-    /// use jailed_path::Jail;
+    /// use jailed_path::{Jail, VirtualRoot};
     /// use std::fs;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// // Create a temporary directory for the example
     /// fs::create_dir_all("safe_uploads")?;
     /// let jail = Jail::<()>::try_new("safe_uploads")?;
+    /// let vroot = VirtualRoot::<()>::try_new("safe_uploads")?;
     ///
-    /// // ✅ Safe - creates safe_uploads/user123/document.pdf
+    /// // ✅ Safe - creates safe_uploads/user123/document.pdf (system-facing)
     /// let safe_path = jail.try_path("user123/document.pdf")?;
     ///
-    /// // ✅ Safe - traversal attempt blocked, becomes safe_uploads/
-    /// let blocked = jail.try_path("../../../etc/passwd")?;
+    /// // ✅ User-facing traversal attempts should be clamped using VirtualRoot
+    /// let blocked = vroot.try_path_virtual("../../../etc/passwd")?;
+    /// let jailed = blocked.unvirtual();
+    /// assert!(jailed.starts_with_real(jail.path()));
     ///
     /// fs::remove_dir_all("safe_uploads").ok();
     /// # Ok(())
@@ -395,8 +418,11 @@ impl<Marker> Jail<Marker> {
     /// ```
     #[inline]
     pub fn try_path<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>> {
-        // System-facing: directly validate the provided path (canonicalize + boundary_check)
-        validate(candidate_path, self.jail.clone())
+        // System-facing: directly validate the provided path (canonicalize + boundary_check).
+        // IMPORTANT: do NOT virtualize here — virtualization/clamping belongs to
+        // `VirtualRoot::try_path_virtual`. Callers that need user-style semantics
+        // should call that API instead.
+        validate(candidate_path, self)
     }
 
     /// Returns a reference to the jail's root path.
@@ -430,13 +456,17 @@ impl<Marker> Jail<Marker> {
     /// ```
     #[inline]
     pub fn path(&self) -> &Path {
-        &self.jail
+        // Directly access the inner Arc<StatedPath<...>> and convert to `&Path`.
+        // This is idiomatic inside the impl and avoids verbose fully-qualified
+        // trait calls in this hot path.
+        self.path.as_ref().as_ref()
     }
 
-    #[allow(clippy::type_complexity)]
-    pub(crate) fn stated_path(&self) -> &StatedPath<((Raw, Canonicalized), Exists)> {
-        &self.jail
-    }
+    // Note: direct access to the inner Arc is available via `self.path.clone()`.
+    // The previous `inner_arc()` helper was removed because calling `self.path.clone()`
+    // is clear and idiomatic; keep `Jail`'s fields encapsulated but clonable.
+
+    // prefer `path()` to access the jail root as a `&Path`.
 }
 
 impl<Marker> std::fmt::Display for Jail<Marker> {
@@ -448,5 +478,15 @@ impl<Marker> std::fmt::Display for Jail<Marker> {
 impl<Marker> AsRef<Path> for Jail<Marker> {
     fn as_ref(&self) -> &Path {
         self.path()
+    }
+}
+
+// Allow the `validator` to borrow the inner `StatedPath` via `AsRef` so
+// code like `jail.as_ref()` yields `&StatedPath<...>` when used inside the
+// validator module. This keeps `StatedPath` usage internal but convenient
+// for functions that operate on it.
+impl<Marker> AsRef<StatedPath<((Raw, Canonicalized), Exists)>> for Jail<Marker> {
+    fn as_ref(&self) -> &StatedPath<((Raw, Canonicalized), Exists)> {
+        self.path.as_ref()
     }
 }
