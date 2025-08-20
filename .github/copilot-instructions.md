@@ -37,5 +37,10 @@
 
 # Roadmap  
 
-- Make sure our roadmap documents are refelcting accuratly the implemented reality in our source code  
+- Make sure our roadmap documents are reflecting accurately the implemented reality in our source code
 
+# API
+
+- You are not allowed to make up new surface APIs without discussion.  
+- You must follow the existing API design principles and patterns.  
+- As long as our crate version is below 0.1.0, do not deprecate any APIs we agree on removing. Just remove them.
