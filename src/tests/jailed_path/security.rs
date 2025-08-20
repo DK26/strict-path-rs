@@ -96,10 +96,7 @@ fn test_concurrent_validator_usage() {
 
                 let jailed_path = result.unwrap();
                 let virtual_path = jailed_path.virtualize();
-                assert!(virtual_path
-                    .virtualpath_as_os_str()
-                    .to_string_lossy()
-                    .contains(&format!("/thread_{i}")));
+                assert!(format!("{virtual_path}").contains(&format!("/thread_{i}")));
             }
         });
         handles.push(handle);
@@ -223,7 +220,10 @@ fn test_unix_specific_attacks() {
     for pattern in unix_patterns {
         if let Ok(jailed_path) = jail.try_path(pattern) {
             let virtual_path = jailed_path.virtualize();
-            assert!(virtual_path.as_jailed().starts_with_real(jail.path()));
+            assert!(virtual_path
+                .clone()
+                .unvirtual()
+                .starts_with_real(jail.path()));
             // Use virtual string for checking sensitive prefixes and leakage.
             let virtual_str = virtual_path.virtualpath_to_string();
             // Ensure the virtual display does not accidentally include the
@@ -310,7 +310,10 @@ fn test_dot_and_dotdot_segments() {
     for input in inputs {
         if let Ok(jailed_path) = jail.try_path(input) {
             let virtual_path = jailed_path.virtualize();
-            assert!(virtual_path.as_jailed().starts_with_real(jail.path()));
+            assert!(virtual_path
+                .clone()
+                .unvirtual()
+                .starts_with_real(jail.path()));
             let v = virtual_path.virtualpath_to_string();
             assert!(
                 !v.contains(".."),
@@ -359,7 +362,7 @@ fn test_backslash_is_literal_on_unix() {
     let p = r"dir\file.txt";
     let jailed = jail.try_path(p).unwrap();
     let virtual_path = jailed.virtualize();
-    let v = virtual_path.virtualpath_to_string();
+    let v = virtual_path.display().to_string();
     assert!(
         v.contains("/dir\\file.txt"),
         "Backslash should be literal on Unix"

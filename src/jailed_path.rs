@@ -59,7 +59,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct JailedPath<Marker = ()> {
     path: PathBuf,
-    jail_path: Arc<crate::validator::jail::Jail<Marker>>,
+    jail: Arc<crate::validator::jail::Jail<Marker>>,
     _marker: PhantomData<Marker>,
 }
 
@@ -71,12 +71,12 @@ impl<Marker> JailedPath<Marker> {
     /// Creates a new JailedPath from a fully validated ValidatedPath with the exact required type-state.
     #[allow(clippy::type_complexity)]
     pub(crate) fn new(
-        jail_path: Arc<crate::validator::jail::Jail<Marker>>,
+        jail: Arc<crate::validator::jail::Jail<Marker>>,
         validated_path: StatedPath<((Raw, Canonicalized), BoundaryChecked)>,
     ) -> Self {
         Self {
             path: validated_path.into_inner(),
-            jail_path,
+            jail,
             _marker: PhantomData,
         }
     }
@@ -89,24 +89,10 @@ impl<Marker> JailedPath<Marker> {
         &self.path
     }
 
-    /// Returns a reference to the jail's root filesystem `Path`.
-    #[inline]
-    pub(crate) fn jail_path(&self) -> &std::path::Path {
-        // Expose the jail root path via the Jail API
-        self.jail_path.path()
-    }
-
-    /// Returns a clone of the Arc pointing to the jail's root path.
-    #[allow(clippy::type_complexity)]
-    #[inline]
-    pub(crate) fn jail_path_arc(&self) -> Arc<crate::validator::jail::Jail<Marker>> {
-        self.jail_path.clone()
-    }
-
     /// Returns a reference to the inner `Jail` that created this `JailedPath`.
     #[inline]
     pub(crate) fn jail(&self) -> &crate::validator::jail::Jail<Marker> {
-        self.jail_path.as_ref()
+        self.jail.as_ref()
     }
 
     // ---- String Conversion ----
@@ -127,6 +113,15 @@ impl<Marker> JailedPath<Marker> {
     #[inline]
     pub fn realpath_as_os_str(&self) -> &OsStr {
         self.path.as_os_str()
+    }
+
+    /// Borrowed display adapter, similar to `std::path::Path::display()`.
+    ///
+    /// This returns the platform display adapter that borrows the internal
+    /// `PathBuf` so callers can format it without allocating.
+    #[inline]
+    pub fn display(&self) -> std::path::Display {
+        self.path.display()
     }
 
     /// Consumes the `JailedPath` and returns the real path as a `PathBuf`.

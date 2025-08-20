@@ -1,13 +1,12 @@
 use crate::jailed_path::JailedPath;
 use crate::validator::jail;
 use crate::{JailedPathError, Result};
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
 // --- Struct Definition ---
 
-/// A user-facing, validated path that is guaranteed to be within a virtual root.
 ///
 /// ## Key Concepts
 /// - **Virtual Path**: This type represents a path as the user should see it, where the jail
@@ -43,10 +42,12 @@ use std::path::{Path, PathBuf};
 /// # Ok(())
 /// # }
 /// ```
+///
+/// A user-facing, validated path that is guaranteed to be within a virtual root.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct VirtualPath<Marker = ()> {
     inner: JailedPath<Marker>,
-    virtual_path: std::path::PathBuf,
+    virtual_path: PathBuf,
 }
 
 // --- Inherent Methods ---
@@ -57,18 +58,17 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub(crate) fn new(jailed_path: JailedPath<Marker>) -> Self {
         // Compute virtual path by subtracting jail components from the real path
-        fn compute_virtual(real: &std::path::Path, jail: &std::path::Path) -> std::path::PathBuf {
+        fn compute_virtual<Marker>(
+            real: &std::path::Path,
+            jail: &jail::Jail<Marker>,
+        ) -> std::path::PathBuf {
+            use std::ffi::OsString;
             use std::path::Component;
 
-            // Normalize Windows verbatim/extended prefixes (e.g., `\\?\`) so
-            // strip_prefix has a better chance of matching. This is a best-effort
-            // normalization that avoids touching the filesystem.
             #[cfg(windows)]
             fn strip_verbatim(p: &std::path::Path) -> std::path::PathBuf {
                 let s = p.as_os_str().to_string_lossy();
-                // Handle extended local paths like "\\?\C:\..." and device paths like "\\.\"
                 if let Some(trimmed) = s.strip_prefix("\\\\?\\") {
-                    // Remove the leading "\\?\"
                     return std::path::PathBuf::from(trimmed);
                 }
                 if let Some(trimmed) = s.strip_prefix("\\\\.\\") {
@@ -83,13 +83,9 @@ impl<Marker> VirtualPath<Marker> {
             }
 
             let real_norm = strip_verbatim(real);
-            let jail_norm = strip_verbatim(jail);
+            let jail_norm = strip_verbatim(jail.path());
 
-            // Fast path: if `real_norm` starts with `jail_norm`, use strip_prefix which is simple and
-            // handles most common cases.
             if let Ok(stripped) = real_norm.strip_prefix(&jail_norm) {
-                // Sanitize components from the stripped path to ensure the
-                // virtual display cannot contain dangerous characters.
                 let mut cleaned = std::path::PathBuf::new();
                 for comp in stripped.components() {
                     if let Component::Normal(name) = comp {
@@ -158,7 +154,7 @@ impl<Marker> VirtualPath<Marker> {
             vb
         }
 
-        let virtual_path = compute_virtual(jailed_path.path(), jailed_path.jail_path());
+        let virtual_path = compute_virtual(jailed_path.path(), jailed_path.jail());
 
         Self {
             inner: jailed_path,
@@ -171,27 +167,9 @@ impl<Marker> VirtualPath<Marker> {
     pub fn unvirtual(self) -> JailedPath<Marker> {
         self.inner
     }
-    // ---- Construction & Conversion ----
 
-    /// Creates a `VirtualPath` from a `JailedPath`.
-    ///
-    /// Note: prefer `VirtualRoot::try_path_virtual` for public construction flows.
-    pub fn from_jailed(jailed_path: JailedPath<Marker>) -> Self {
-        // Delegate to the internal constructor which computes and stores
-        // the virtual path derived from the jailed (real) path and the jail root.
-        Self::new(jailed_path)
-    }
-
-    /// Explicitly returns a reference to the underlying `JailedPath` for delegation.
-    pub fn as_jailed(&self) -> &JailedPath<Marker> {
-        &self.inner
-    }
-
-    // ---- Private Helpers ----
-
-    /// Returns the virtual path, which is the real path stripped of the jail root.
-    fn virtual_path_buf(&self) -> PathBuf {
-        self.virtual_path.clone()
+    pub fn jail(&self) -> &crate::validator::jail::Jail<Marker> {
+        self.inner.jail()
     }
 
     // ---- String Conversion ----
@@ -200,34 +178,23 @@ impl<Marker> VirtualPath<Marker> {
     ///
     /// This is the recommended way to display paths to users. It always uses forward slashes.
     pub fn virtualpath_to_string(&self) -> String {
-        let virtual_path = self.virtual_path_buf();
-        let components: Vec<_> = virtual_path.components().map(|c| c.as_os_str()).collect();
-
-        if components.is_empty() {
-            return "/".to_string();
-        }
-
-        let total_len = components.iter().map(|c| c.len() + 1).sum();
-        let mut result = String::with_capacity(total_len);
-        for component in components {
-            result.push('/');
-            result.push_str(&component.to_string_lossy());
-        }
-        result
+        // Return the stored virtual path as a convenient String for ergonomic uses.
+        // This must not perform presentation formatting; Display is responsible for that.
+        self.virtual_path.to_string_lossy().into_owned()
     }
 
     /// Returns the virtual path as an `Option<String>` if valid UTF-8.
     ///
     /// This returns an owned `String` to avoid returning references into temporary `PathBuf`s.
     #[inline]
-    pub fn virtualpath_to_str(&self) -> Option<String> {
-        Some(self.virtualpath_to_string())
+    pub fn virtualpath_to_str(&self) -> Option<&str> {
+        self.virtual_path.to_str()
     }
 
     /// Returns the virtual path as an `OsString` with explicit `virtualpath_` prefix.
     #[inline]
-    pub fn virtualpath_as_os_str(&self) -> OsString {
-        OsString::from(self.virtualpath_to_string())
+    pub fn virtualpath_as_os_str(&self) -> &OsStr {
+        self.virtual_path.as_os_str()
     }
 
     // ---- Safe Path Manipulation ----
@@ -235,20 +202,19 @@ impl<Marker> VirtualPath<Marker> {
     /// Safely joins a path segment to the current virtual path.
     #[inline]
     pub fn join_virtual<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
-        let new_virtual = self.virtual_path_buf().join(path);
-        let virtualized =
-            jail::virtualize_to_jail(new_virtual, self.inner.jail_path_arc().as_ref());
-        jail::validate(virtualized, self.inner.jail_path_arc().as_ref()).map(|p| p.virtualize())
+        let new_virtual = self.virtual_path.join(path);
+        let virtualized = jail::virtualize_to_jail(new_virtual, self.inner.jail());
+        jail::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
     }
 
     /// Returns the parent directory as a new `VirtualPath`.
     ///
     /// Returns `Ok(None)` if the current path is the virtual root.
     pub fn parent_virtual(&self) -> Result<Option<Self>> {
-        match self.virtual_path_buf().parent() {
+        match self.virtual_path.parent() {
             Some(p) => {
-                let virtualized = jail::virtualize_to_jail(p, self.inner.jail_path_arc().as_ref());
-                match jail::validate(virtualized, self.inner.jail_path_arc().as_ref()) {
+                let virtualized = jail::virtualize_to_jail(p, self.inner.jail());
+                match jail::validate(virtualized, self.inner.jail()) {
                     Ok(p) => Ok(Some(p.virtualize())),
                     Err(e) => Err(e),
                 }
@@ -260,53 +226,52 @@ impl<Marker> VirtualPath<Marker> {
     /// Returns a new `VirtualPath` with the file name replaced.
     #[inline]
     pub fn with_file_name_virtual<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
-        let new_virtual = self.virtual_path_buf().with_file_name(file_name);
-        let virtualized =
-            jail::virtualize_to_jail(new_virtual, self.inner.jail_path_arc().as_ref());
-        jail::validate(virtualized, self.inner.jail_path_arc().as_ref()).map(|p| p.virtualize())
+        let new_virtual = self.virtual_path.with_file_name(file_name);
+        let virtualized = jail::virtualize_to_jail(new_virtual, self.inner.jail());
+        jail::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
     }
 
     /// Returns a new `VirtualPath` with the extension replaced.
     ///
     /// Returns an error if the path has no file name (e.g., is the virtual root).
     pub fn with_extension_virtual<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self> {
-        let vpath = self.virtual_path_buf();
-        if vpath.file_name().is_none() {
+        if self.virtual_path.file_name().is_none() {
             return Err(JailedPathError::path_escapes_boundary(
-                vpath,
-                self.inner.jail_path().to_path_buf(),
+                self.virtual_path.clone(),
+                self.inner.jail().path().to_path_buf(),
             ));
         }
-        let new_virtual = vpath.with_extension(extension);
-        let virtualized =
-            jail::virtualize_to_jail(new_virtual, self.inner.jail_path_arc().as_ref());
-        jail::validate(virtualized, self.inner.jail_path_arc().as_ref()).map(|p| p.virtualize())
+        let new_virtual = self.virtual_path.with_extension(extension);
+        let virtualized = jail::virtualize_to_jail(new_virtual, self.inner.jail());
+        jail::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
     }
 
     // ---- Path Components (Virtual) ----
 
     /// Returns the final component of the virtual path, if there is one.
+    ///
+    /// Returns a borrowed `OsStr` reference into the stored `virtual_path` to
+    /// avoid unnecessary allocations. Callers that need an owned `OsString`
+    /// can call `.to_os_string()` on the returned value.
     #[inline]
-    pub fn file_name_virtual(&self) -> Option<OsString> {
-        self.virtual_path_buf()
-            .file_name()
-            .map(|s| s.to_os_string())
+    pub fn file_name_virtual(&self) -> Option<&OsStr> {
+        self.virtual_path.file_name()
     }
 
     /// Returns the file stem of the virtual path.
+    ///
+    /// Borrowed reference into the stored `virtual_path`.
     #[inline]
-    pub fn file_stem_virtual(&self) -> Option<OsString> {
-        self.virtual_path_buf()
-            .file_stem()
-            .map(|s| s.to_os_string())
+    pub fn file_stem_virtual(&self) -> Option<&OsStr> {
+        self.virtual_path.file_stem()
     }
 
     /// Returns the extension of the virtual path.
+    ///
+    /// Borrowed reference into the stored `virtual_path`.
     #[inline]
-    pub fn extension_virtual(&self) -> Option<OsString> {
-        self.virtual_path_buf()
-            .extension()
-            .map(|s| s.to_os_string())
+    pub fn extension_virtual(&self) -> Option<&OsStr> {
+        self.virtual_path.extension()
     }
 
     // ---- Prefix / Suffix Checks ----
@@ -314,22 +279,72 @@ impl<Marker> VirtualPath<Marker> {
     /// Returns true if the *virtual* path starts with `p`.
     #[inline]
     pub fn starts_with_virtual<P: AsRef<Path>>(&self, p: P) -> bool {
-        self.virtual_path_buf().starts_with(p.as_ref())
+        self.virtual_path.starts_with(p)
     }
 
     /// Returns true if the *virtual* path ends with `p`.
     #[inline]
     pub fn ends_with_virtual<P: AsRef<Path>>(&self, p: P) -> bool {
-        self.virtual_path_buf().ends_with(p.as_ref())
+        self.virtual_path.ends_with(p)
+    }
+
+    /// Returns a borrowed display adapter that implements `fmt::Display`.
+    ///
+    /// This performs presentation formatting (normalize separators, ensure
+    /// a leading '/') when formatted, but doesn't allocate an owned `String`.
+    /// Example: `println!("{}", vp.display())` or `let s = vp.display().to_string();`.
+    #[inline]
+    pub fn display(&self) -> VirtualPathDisplay<'_, Marker> {
+        VirtualPathDisplay(self)
     }
 }
 
 // --- Trait Implementations ---
 
-impl<Marker> fmt::Display for VirtualPath<Marker> {
-    /// Displays the user-friendly **virtual path**.
+/// Borrowed display adapter for `VirtualPath`.
+///
+/// This mirrors `VirtualPath::display()` presentation logic but writes
+/// directly into the `Formatter` without producing an owned `String`.
+pub struct VirtualPathDisplay<'a, Marker>(&'a VirtualPath<Marker>);
+
+impl<'a, Marker> fmt::Display for VirtualPathDisplay<'a, Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.virtualpath_to_string())
+        // Reuse the same presentation logic as `VirtualPath::display()`
+        let s = self.0.virtual_path.as_os_str().to_string_lossy();
+        if cfg!(windows) {
+            // On Windows, normalize backslashes to forward slashes.
+            if s.is_empty() {
+                return write!(f, "/");
+            }
+            if !s.starts_with('/') {
+                write!(f, "/")?;
+            }
+            for ch in s.chars() {
+                if ch == '\\' {
+                    write!(f, "/")?;
+                } else {
+                    write!(f, "{ch}")?;
+                }
+            }
+            Ok(())
+        } else {
+            // Unix-like: preserve backslashes and write directly.
+            if s.is_empty() {
+                write!(f, "/")
+            } else if !s.starts_with('/') {
+                write!(f, "/{s}")
+            } else {
+                write!(f, "{s}")
+            }
+        }
+    }
+}
+
+impl<Marker> fmt::Display for VirtualPath<Marker> {
+    /// Displays the user-friendly **virtual path** by forwarding to
+    /// `VirtualPath::display()` to keep presentation logic in one place.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.display())
     }
 }
 

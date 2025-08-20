@@ -9,17 +9,17 @@ fn test_virtual_path_join_and_parent() {
 
     // join (inside jail)
     let joined = virtual_path.join_virtual("baz.txt").unwrap();
-    assert_eq!(joined.virtualpath_to_string(), "/foo/bar.txt/baz.txt");
+    assert_eq!(format!("{joined}"), "/foo/bar.txt/baz.txt");
 
     // join (outside jail, expect clamping)
     let outside = virtual_path.join_virtual("../../../../etc/passwd").unwrap();
-    assert_eq!(outside.virtualpath_to_string(), "/etc/passwd");
+    assert_eq!(format!("{outside}"), "/etc/passwd");
 
     // parent (inside jail)
     let parent = virtual_path.parent_virtual().unwrap();
     assert!(parent.is_some());
     let actual_parent = parent.unwrap();
-    assert_eq!(actual_parent.virtualpath_to_string(), "/foo");
+    assert_eq!(format!("{actual_parent}"), "/foo");
 
     // parent (at jail root)
     let root_jailed = jail.try_path("").unwrap();
@@ -37,7 +37,7 @@ fn test_virtual_path_pathbuf_methods() {
 
     // with_file_name (inside jail)
     let with_name = virtual_path.with_file_name_virtual("newname.txt").unwrap();
-    assert_eq!(with_name.virtualpath_to_string(), "/foo/newname.txt");
+    assert_eq!(format!("{with_name}"), "/foo/newname.txt");
 
     // with_file_name (potential escape attempt)
     let root_jailed = jail.try_path("").unwrap();
@@ -45,11 +45,11 @@ fn test_virtual_path_pathbuf_methods() {
     let escape_attempt = root_virtual
         .with_file_name_virtual("../../etc/passwd")
         .unwrap();
-    assert_eq!(escape_attempt.virtualpath_to_string(), "/etc/passwd");
+    assert_eq!(format!("{escape_attempt}"), "/etc/passwd");
 
     // with_extension (inside jail)
     let with_ext = virtual_path.with_extension_virtual("log").unwrap();
-    assert_eq!(with_ext.virtualpath_to_string(), "/foo/bar.log");
+    assert_eq!(format!("{with_ext}"), "/foo/bar.log");
 
     // unjail
     let jailed_again = virtual_path.unvirtual();

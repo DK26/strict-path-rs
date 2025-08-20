@@ -101,7 +101,7 @@ fn test_virtual_root_debug_formatting() {
 
     let virtual_path = vroot.try_path_virtual("user/document.pdf").unwrap();
 
-    let jailed_path = virtual_path.as_jailed().clone();
+    let jailed_path = virtual_path.unvirtual();
     let debug_output = format!("{jailed_path:?}");
 
     assert!(debug_output.contains("JailedPath"));
@@ -155,7 +155,7 @@ fn test_virtual_root_jail_root_accessor() {
     let vroot = VirtualRoot::<()>::try_new(&temp_dir).unwrap();
 
     let virtual_path = vroot.try_path_virtual("file.txt").unwrap();
-    let jailed_path = virtual_path.as_jailed();
+    let jailed_path = virtual_path.unvirtual();
 
     // Test jail root access through the vroot (VirtualRoot)
     let jail_root = vroot.path();
@@ -179,7 +179,9 @@ fn test_virtual_root_jail_root_accessor() {
 
 #[test]
 fn test_virtual_root_with_different_marker_types() {
+    #[derive(Clone)]
     struct UserFiles;
+    #[derive(Clone)]
     struct ConfigFiles;
 
     let temp_dir = create_test_directory().expect("Failed to create temp directory");
@@ -204,8 +206,8 @@ fn test_virtual_root_with_different_marker_types() {
     );
 
     // JailedPaths (system-facing) created from the virtual paths should have their full paths (including filenames)
-    let jailed_user = user_path.as_jailed();
-    let jailed_config = config_path.as_jailed();
+    let jailed_user = user_path.clone().unvirtual();
+    let jailed_config = config_path.clone().unvirtual();
     assert!(jailed_user.ends_with_real("user_data.json"));
     assert!(jailed_config.ends_with_real("config.toml"));
 
@@ -381,7 +383,7 @@ fn test_virtual_root_display_unix_separators() {
         let jailed_path = result.unwrap();
         // For Unix separator tests, inspect the virtualized user-facing
         // representation rather than the real filesystem path.
-        let display_output = jailed_path.virtualize().virtualpath_to_string();
+        let display_output = jailed_path.virtualize().display().to_string();
 
         // On Unix, should use forward slashes
         assert_eq!(

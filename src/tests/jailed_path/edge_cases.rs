@@ -7,8 +7,7 @@ fn test_string_conversions() {
     let jailed_path = jail.try_path("foo/bar.txt").unwrap();
     let virtual_path = jailed_path.clone().virtualize();
 
-    // virtualpath_to_string() uses forward slashes consistently
-    assert_eq!(virtual_path.virtualpath_to_string(), "/foo/bar.txt");
+    // Display uses forward slashes consistently
     assert_eq!(format!("{virtual_path}"), "/foo/bar.txt");
 
     // realpath_to_string() uses platform separators
@@ -32,7 +31,7 @@ fn test_methods_on_root_jailed_path() {
     let virtual_path = jailed_path.virtualize();
 
     let with_name = virtual_path.with_file_name_virtual("new.txt").unwrap();
-    assert_eq!(with_name.virtualpath_to_string(), "/new.txt");
+    assert_eq!(format!("{with_name}"), "/new.txt");
 
     // Can't add extension to root path (no filename)
     let with_ext_result = virtual_path.with_extension_virtual("log");
