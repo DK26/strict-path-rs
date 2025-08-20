@@ -120,7 +120,7 @@ impl<Marker> JailedPath<Marker> {
     /// This returns the platform display adapter that borrows the internal
     /// `PathBuf` so callers can format it without allocating.
     #[inline]
-    pub fn display(&self) -> std::path::Display {
+    pub fn display(&self) -> std::path::Display<'_> {
         self.path.display()
     }
 
