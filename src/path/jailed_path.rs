@@ -298,8 +298,8 @@ impl<Marker> fmt::Debug for JailedPath<Marker> {
     /// Displays the **real path** for debugging.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("JailedPath")
-            .field("path", &self.path.display())
-            .field("jail_root", &&self.jail().path().display())
+            .field("path", &self.path)
+            .field("jail", &self.jail().path())
             .finish()
     }
 }
@@ -331,5 +331,18 @@ impl<Marker> Ord for JailedPath<Marker> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.path.cmp(&other.path)
+    }
+}
+
+// Allow ergonomic comparisons between `JailedPath` and other path-like types.
+impl<T: AsRef<Path>, Marker> PartialEq<T> for JailedPath<Marker> {
+    fn eq(&self, other: &T) -> bool {
+        self.path == other.as_ref()
+    }
+}
+
+impl<T: AsRef<Path>, Marker> PartialOrd<T> for JailedPath<Marker> {
+    fn partial_cmp(&self, other: &T) -> Option<Ordering> {
+        Some(self.path.as_path().cmp(other.as_ref()))
     }
 }

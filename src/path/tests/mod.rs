@@ -1,5 +1,6 @@
 mod creation;
 mod edge_cases;
+mod ergonomics;
 mod filesystem;
 mod marker;
 mod methods;

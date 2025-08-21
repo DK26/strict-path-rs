@@ -104,7 +104,7 @@ fn test_virtual_root_debug_formatting() {
 
     assert!(debug_output.contains("JailedPath"));
     assert!(debug_output.contains("path:"));
-    assert!(debug_output.contains("jail_root:"));
+    assert!(debug_output.contains("jail:"));
 
     let expected_debug_prefix = "JailedPath { path: ";
     assert!(debug_output.starts_with(expected_debug_prefix));
@@ -138,7 +138,7 @@ fn test_virtual_root_display_vs_debug_differences() {
     // Display should NOT contain debug formatting
     assert!(!display_output.contains("JailedPath"));
     assert!(!display_output.contains("path:"));
-    assert!(!display_output.contains("jail_root:"));
+    assert!(!display_output.contains("jail:"));
 
     println!("✅ Display: {display_output}");
     println!("✅ Debug: {debug_output}");

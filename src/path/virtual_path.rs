@@ -2,8 +2,10 @@ use crate::error::JailedPathError;
 use crate::path::jailed_path::JailedPath;
 use crate::validator;
 use crate::Result;
+use std::cmp::Ordering;
 use std::ffi::OsStr;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 // --- Struct Definition ---
@@ -45,7 +47,7 @@ use std::path::{Path, PathBuf};
 /// ```
 ///
 /// A user-facing, validated path that is guaranteed to be within a virtual root.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Debug)]
 pub struct VirtualPath<Marker = ()> {
     inner: JailedPath<Marker>,
     virtual_path: PathBuf,
@@ -199,6 +201,26 @@ impl<Marker> VirtualPath<Marker> {
         self.virtual_path.as_os_str()
     }
 
+    // ---- Real Path Accessors (delegated to inner JailedPath) ----
+
+    /// Returns the real path as a `String` (e.g., `/app/storage/user/file.txt`).
+    #[inline]
+    pub fn realpath_to_string(&self) -> String {
+        self.inner.realpath_to_string()
+    }
+
+    /// Returns the real path as an `Option<&str>`.
+    #[inline]
+    pub fn realpath_to_str(&self) -> Option<&str> {
+        self.inner.realpath_to_str()
+    }
+
+    /// Returns the real path as an `&OsStr`.
+    #[inline]
+    pub fn realpath_as_os_str(&self) -> &OsStr {
+        self.inner.realpath_as_os_str()
+    }
+
     // ---- Safe Path Manipulation ----
 
     /// Safely joins a path segment to the current virtual path.
@@ -299,9 +321,85 @@ impl<Marker> VirtualPath<Marker> {
     pub fn display(&self) -> VirtualPathDisplay<'_, Marker> {
         VirtualPathDisplay(self)
     }
+
+    // ---- File System Operations ----
+
+    /// Returns `true` if the path exists on disk.
+    #[inline]
+    pub fn exists(&self) -> bool {
+        self.inner.exists()
+    }
+
+    /// Returns `true` if the path is a file.
+    #[inline]
+    pub fn is_file(&self) -> bool {
+        self.inner.is_file()
+    }
+
+    /// Returns `true` if the path is a directory.
+    #[inline]
+    pub fn is_dir(&self) -> bool {
+        self.inner.is_dir()
+    }
+
+    /// Returns the metadata for the path.
+    #[inline]
+    pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
+        self.inner.metadata()
+    }
+
+    /// Reads the entire contents of a file into a string.
+    #[inline]
+    pub fn read_to_string(&self) -> std::io::Result<String> {
+        self.inner.read_to_string()
+    }
+
+    /// Reads the entire contents of a file into a bytes vector.
+    #[inline]
+    pub fn read_bytes(&self) -> std::io::Result<Vec<u8>> {
+        self.inner.read_bytes()
+    }
+
+    /// Writes a slice of bytes as the entire content of a file.
+    #[inline]
+    pub fn write_bytes(&self, data: &[u8]) -> std::io::Result<()> {
+        self.inner.write_bytes(data)
+    }
+
+    /// Writes a string as the entire content of a file.
+    #[inline]
+    pub fn write_string(&self, data: &str) -> std::io::Result<()> {
+        self.inner.write_string(data)
+    }
+
+    /// Creates a directory at this path, including any parent directories.
+    #[inline]
+    pub fn create_dir_all(&self) -> std::io::Result<()> {
+        self.inner.create_dir_all()
+    }
+
+    /// Removes a file from the filesystem.
+    #[inline]
+    pub fn remove_file(&self) -> std::io::Result<()> {
+        self.inner.remove_file()
+    }
+
+    /// Removes an empty directory.
+    #[inline]
+    pub fn remove_dir(&self) -> std::io::Result<()> {
+        self.inner.remove_dir()
+    }
+
+    /// Removes a directory and all its contents recursively.
+    #[inline]
+    pub fn remove_dir_all(&self) -> std::io::Result<()> {
+        self.inner.remove_dir_all()
+    }
 }
 
 // --- Trait Implementations ---
+
+// NOTE: comparisons must be performed against the inner real path exactly.
 
 /// Borrowed display adapter for `VirtualPath`.
 ///
@@ -347,6 +445,50 @@ impl<Marker: Clone> fmt::Display for VirtualPath<Marker> {
     /// `VirtualPath::display()` to keep presentation logic in one place.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.display())
+    }
+}
+
+// Make `VirtualPath` easily comparable with other path-like types (Path, PathBuf, &str, String, OsStr, etc.)
+// without implementing `AsRef<Path>`/`Borrow<Path>`/`Deref` on `VirtualPath` itself.
+impl<Marker> PartialEq for VirtualPath<Marker> {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl<Marker> Eq for VirtualPath<Marker> {}
+
+impl<Marker> Hash for VirtualPath<Marker> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.inner.hash(state);
+    }
+}
+
+impl<Marker> PartialOrd for VirtualPath<Marker> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<Marker> Ord for VirtualPath<Marker> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.inner.cmp(&other.inner)
+    }
+}
+
+// Make `VirtualPath` easily comparable with other path-like types (Path, PathBuf, &str, String, OsStr, etc.)
+// without implementing `AsRef<Path>`/`Borrow<Path>`/`Deref` on `VirtualPath` itself.
+impl<T: AsRef<Path>, Marker> PartialEq<T> for VirtualPath<Marker> {
+    fn eq(&self, other: &T) -> bool {
+        // Compare the full inner real path directly as requested.
+        self.inner.path() == other.as_ref()
+    }
+}
+
+impl<T: AsRef<Path>, Marker> PartialOrd<T> for VirtualPath<Marker> {
+    fn partial_cmp(&self, other: &T) -> Option<Ordering> {
+        // Order by the full inner real path directly without allocating.
+        Some(self.inner.path().cmp(other.as_ref()))
     }
 }
 
