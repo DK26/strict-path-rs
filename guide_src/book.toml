@@ -1,0 +1,8 @@
+[book]
+authors = ["David Krasnitsky"]
+language = "en"
+src = "src"
+title = "The Complete JailedPath Guide"
+
+[build]
+build-dir = "../guide"
