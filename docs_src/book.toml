@@ -5,4 +5,4 @@ src = "src"
 title = "The Complete JailedPath Guide"
 
 [build]
-build-dir = "../guide"
+build-dir = "../docs"
