@@ -151,6 +151,9 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
+    - name: Build examples crate
+      run: cargo build --manifest-path examples/examples-crate/Cargo.toml --verbose
+
   docs:
     name: Documentation
     runs-on: ubuntu-latest
@@ -178,7 +181,9 @@ jobs:
         components: clippy
     
     - name: Check with MSRV
-      run: cargo check --verbose
+      run: |
+        cargo check --manifest-path ./Cargo.toml --lib --verbose
     
-    - name: Run clippy with MSRV
-      run: cargo clippy --all-targets --all-features -- -D warnings
+    - name: Run clippy with MSRV (library only)
+      run: |
+        cargo clippy --manifest-path ./Cargo.toml --lib --all-features -- -D warnings

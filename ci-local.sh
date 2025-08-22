@@ -234,6 +234,9 @@ run_check "Tests (includes compilation)" "cargo test --verbose"
 # Doc tests are included in 'cargo test --verbose', so no separate --doc run needed
 run_check "Documentation" "RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items --all-features"
 
+# Build examples crate with latest toolchain
+run_check "Build examples crate" "cargo build --manifest-path examples/examples-crate/Cargo.toml --verbose"
+
 # Security audit (same as GitHub Actions)
 echo "🔍 Running security audit..."
 if command -v cargo-audit &> /dev/null; then
@@ -271,9 +274,9 @@ if command -v rustup &> /dev/null; then
         echo "  • Generating new Cargo.lock with Rust 1.70.0"
         if rustup run 1.70.0 cargo generate-lockfile; then
             echo "  ✓ Cargo.lock regenerated successfully"
-            run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
-            run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
-            run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
+            run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --fix --allow-dirty --allow-staged --all-features"
+            run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --manifest-path ./Cargo.toml --lib --verbose"
+            run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --all-features -- -D warnings"
         else
             echo "  ❌ Failed to generate Cargo.lock with Rust 1.70.0"
             echo "  💡 Trying fallback: cargo update then check"
@@ -295,9 +298,9 @@ if command -v rustup &> /dev/null; then
             echo "  • Generating new Cargo.lock with Rust 1.70.0"
             if rustup run 1.70.0 cargo generate-lockfile; then
                 echo "  ✓ Cargo.lock regenerated successfully"
-                run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
-                run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
-                run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
+                run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --fix --allow-dirty --allow-staged --all-features"
+                run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --manifest-path ./Cargo.toml --lib --verbose"
+                run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --all-features -- -D warnings"
             else
                 echo "  ❌ Failed to generate Cargo.lock with Rust 1.70.0"
                 echo "  💡 Trying fallback: cargo update then check"

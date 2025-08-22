@@ -195,6 +195,9 @@ Run-Check "Tests (includes compilation)" "cargo test --verbose"
 $env:RUSTDOCFLAGS = "-D warnings"
 Run-Check "Documentation" "cargo doc --no-deps --document-private-items --all-features"
 
+# Build examples crate with latest toolchain
+Run-Check "Build examples crate" "cargo build --manifest-path examples/examples-crate/Cargo.toml --verbose"
+
 # Security audit (same as GitHub Actions)
 Write-Host "Running security audit..." -ForegroundColor Cyan
 if (Get-Command cargo-audit -ErrorAction SilentlyContinue) {
@@ -237,19 +240,19 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
 
         Write-Host "  * Generating new Cargo.lock with Rust 1.70.0" -ForegroundColor Gray
         try {
-            & rustup run 1.70.0 cargo generate-lockfile
+        & rustup run 1.70.0 cargo generate-lockfile
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "  SUCCESS: Cargo.lock regenerated successfully" -ForegroundColor Green
-                Run-Check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
-                Run-Check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
+                Run-Check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --manifest-path ./Cargo.toml --lib --verbose"
+                Run-Check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --all-features -- -D warnings"
             } else {
                 throw "generate-lockfile failed"
             }
         } catch {
             Write-Host "  WARNING: Failed to generate Cargo.lock with Rust 1.70.0" -ForegroundColor Yellow
             Write-Host "  INFO: Trying fallback: cargo update then check" -ForegroundColor Yellow
-            Run-Check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
-            Run-Check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
+                Run-Check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --manifest-path ./Cargo.toml --lib --verbose"
+                Run-Check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --all-features -- -D warnings"
         }
     } else {
         Write-Host "WARNING: Rust 1.70.0 not installed. Installing for MSRV check..." -ForegroundColor Yellow

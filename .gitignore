@@ -22,3 +22,6 @@ Cargo.lock
 .idea/
 
 .vscode
+
+# Temp LLM instructions memory
+.github/instructions/memory.instruction.md
