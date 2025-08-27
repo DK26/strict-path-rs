@@ -16,7 +16,8 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
     
     - name: Publish to crates.io
-      run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
+      # Publish the library package explicitly from the workspace
+      run: cargo publish -p jailed-path --token ${{ secrets.CRATES_IO_TOKEN }}
 
   release:
     name: Create GitHub Release

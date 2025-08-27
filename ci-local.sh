@@ -102,6 +102,32 @@ run_fix() {
     fi
 }
 
+# Try a primary MSRV command and fall back to a manifest-scoped variant if it fails
+run_check_try() {
+    local name="$1"
+    local primary_cmd="$2"
+    local fallback_cmd="$3"
+
+    echo "Running (try primary then fallback): $name"
+    echo "Primary: $primary_cmd"
+    if eval "$primary_cmd"; then
+        echo "✓ Primary succeeded"
+        echo
+        return 0
+    else
+        echo "⚠️  Primary MSRV command failed; attempting fallback..."
+        echo "Fallback: $fallback_cmd"
+        if eval "$fallback_cmd"; then
+            echo "✓ Fallback succeeded"
+            echo
+            return 0
+        else
+            echo "✗ Both primary and fallback failed for: $name"
+            exit 1
+        fi
+    fi
+}
+
 # Check if we're in the right directory
 if [[ ! -f "Cargo.toml" ]]; then
     echo "❌ Cargo.toml not found. Are you in the project root?"
@@ -207,13 +233,23 @@ echo "📄 Checking Cargo.toml..."
 check_utf8_encoding "Cargo.toml" || exit 1
 
 echo "📄 Checking Rust source files..."
-if find src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
+if find jailed-path/src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
+    find jailed-path/src -name "*.rs" -type f | while read file; do
+        check_utf8_encoding "$file" || exit 1
+    done
+    echo "✅ All Rust source files in jailed-path/src: UTF-8 encoding verified"
+elif find src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
     find src -name "*.rs" -type f | while read file; do
         check_utf8_encoding "$file" || exit 1
     done
-    echo "✅ All Rust source files: UTF-8 encoding verified"
+    echo "✅ All Rust source files in src/: UTF-8 encoding verified"
+elif find examples/src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
+    find examples/src -name "*.rs" -type f | while read file; do
+        check_utf8_encoding "$file" || exit 1
+    done
+    echo "✅ All Rust source files in examples/src: UTF-8 encoding verified"
 else
-    echo "⚠️  No Rust source files found in src/"
+    echo "⚠️  No Rust source files found in jailed-path/src, src/ or examples/src; skipping source file encoding check"
 fi
 
 echo "🎉 All file encoding checks passed!"
@@ -228,14 +264,14 @@ echo
 
 # Run all CI checks in order
 run_check "Format Check" "cargo fmt --all -- --check"
+# Lint and tests on the latest installed Rust toolchain
 run_check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warnings"
-# Skip 'cargo check' since 'cargo test' compiles everything anyway
-run_check "Tests (includes compilation)" "cargo test --verbose"
+# Explicitly build all example binaries (examples is not in workspace)
+run_check "Build Examples (bins)" "(cd examples && cargo build --bins --features with-zip)"
+# Run workspace tests for the library only
+run_check "Tests (includes compilation)" "cargo test --workspace --verbose"
 # Doc tests are included in 'cargo test --verbose', so no separate --doc run needed
 run_check "Documentation" "RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items --all-features"
-
-# Build examples crate with latest toolchain
-run_check "Build examples crate" "cargo build --manifest-path examples/examples-crate/Cargo.toml --verbose"
 
 # Security audit (same as GitHub Actions)
 echo "🔍 Running security audit..."
@@ -251,9 +287,6 @@ else
         echo "💡 To install manually: cargo install cargo-audit"
     fi
 fi
-
-# Check MSRV compatibility (same as GitHub Actions)
-echo "🔍 Checking Minimum Supported Rust Version (1.70.0)..."
 if command -v rustup &> /dev/null; then
     if rustup toolchain list | grep -q "1.70.0"; then
         echo "✓ Found Rust 1.70.0 toolchain, checking MSRV compatibility..."
@@ -264,50 +297,20 @@ if command -v rustup &> /dev/null; then
             rustup component add clippy --toolchain 1.70.0
         fi
 
-        # Regenerate Cargo.lock with MSRV to avoid version conflicts
-        echo "🔧 Regenerating Cargo.lock with MSRV Rust 1.70.0..."
-        if [[ -f "Cargo.lock" ]]; then
-            echo "  • Removing existing Cargo.lock"
-            rm -f Cargo.lock
-        fi
-
-        echo "  • Generating new Cargo.lock with Rust 1.70.0"
-        if rustup run 1.70.0 cargo generate-lockfile; then
-            echo "  ✓ Cargo.lock regenerated successfully"
-            run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --fix --allow-dirty --allow-staged --all-features"
-            run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --manifest-path ./Cargo.toml --lib --verbose"
-            run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --all-features -- -D warnings"
-        else
-            echo "  ❌ Failed to generate Cargo.lock with Rust 1.70.0"
-            echo "  💡 Trying fallback: cargo update then check"
-            run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
-            run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
-            run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
-        fi
+        # Run MSRV checks scoped to the library package only
+        run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features" || true
+        run_check_try "MSRV Check (Rust 1.70.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo check -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo check -p jailed-path --lib --locked --verbose"
+        run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
+        run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo test -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo test -p jailed-path --lib --locked --verbose"
     else
         echo "⚠️  Rust 1.70.0 not installed. Installing for MSRV check..."
         if rustup toolchain install 1.70.0; then
             echo "🔧 Installing Clippy for Rust 1.70.0..."
             rustup component add clippy --toolchain 1.70.0
-            echo "🔧 Regenerating Cargo.lock with MSRV Rust 1.70.0..."
-            if [[ -f "Cargo.lock" ]]; then
-                echo "  • Removing existing Cargo.lock"
-                rm -f Cargo.lock
-            fi
-
-            echo "  • Generating new Cargo.lock with Rust 1.70.0"
-            if rustup run 1.70.0 cargo generate-lockfile; then
-                echo "  ✓ Cargo.lock regenerated successfully"
-                run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --fix --allow-dirty --allow-staged --all-features"
-                run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --manifest-path ./Cargo.toml --lib --verbose"
-                run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --all-features -- -D warnings"
-            else
-                echo "  ❌ Failed to generate Cargo.lock with Rust 1.70.0"
-                echo "  💡 Trying fallback: cargo update then check"
-                run_fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
-                run_check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
-                run_check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
-            fi
+            run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features"
+            run_check_try "MSRV Check (Rust 1.70.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo check -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo check -p jailed-path --lib --locked --verbose"
+            run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
+            run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo test -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo test -p jailed-path --lib --locked --verbose"
         else
             echo "❌ Failed to install Rust 1.70.0. Skipping MSRV check."
             echo "💡 To install manually: rustup toolchain install 1.70.0"

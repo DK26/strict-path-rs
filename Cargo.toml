@@ -1,23 +1,21 @@
-[package]
-name = "jailed-path"
-version = "0.0.4"
-edition = "2021"
-authors = ["David Krasnitsky <dikaveman@gmail.com>"]
-description = "Prevent directory traversal with type-safe virtual path jails and safe symlinks"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/DK26/jailed-path-rs"
-homepage = "https://github.com/DK26/jailed-path-rs"
-documentation = "https://docs.rs/jailed-path"
-readme = "README.md"
-keywords = ["path", "security", "jail", "filesystem", "traversal"]
-categories = ["filesystem", "development-tools", "web-programming"]
-exclude = ["examples/**"]
-
-[dependencies]
-soft-canonicalize = "0.3.0"
-
-[dev-dependencies]
-tempfile = "3.20"
-
+## Workspace layout note
+##
+## We intentionally keep `examples/` OUT of the workspace to decouple it from
+## the library crate's MSRV (Rust 1.70). This lets us:
+##   - Enforce MSRV for the library with `--locked` on Rust 1.70 in CI
+##   - Build richer examples on latest stable with newer ecosystem crates
+##   - Avoid workspace lock/feature resolution coupling between the two
+## See `.github/workflows/ci.yml` for how CI runs the examples separately.
 [workspace]
-members = ["examples/examples-crate"]
+resolver = "2"
+members = ["jailed-path"]
+# Critical to MSRV strategy: do NOT include `examples` in the workspace.
+exclude = ["examples"]
+
+# Prefer building the main library by default (not the examples crate)
+default-members = ["jailed-path"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

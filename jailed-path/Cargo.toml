@@ -1,0 +1,23 @@
+[package]
+name = "jailed-path"
+version = "0.0.4"
+edition = "2021"
+# Minimum supported Rust version (MSRV)
+rust-version = "1.70"
+authors = ["David Krasnitsky <dikaveman@gmail.com>"]
+description = "Prevent directory traversal with type-safe virtual path jails and safe symlinks"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/DK26/jailed-path-rs"
+homepage = "https://github.com/DK26/jailed-path-rs"
+documentation = "https://docs.rs/jailed-path"
+readme = "README.md"
+keywords = ["path", "security", "jail", "filesystem", "traversal"]
+categories = ["filesystem", "development-tools", "web-programming"]
+# The path is now relative to the workspace root
+exclude = ["../examples/**"]
+
+[dependencies]
+soft-canonicalize = "0.3.0"
+
+[dev-dependencies]
+tempfile = "3.20"

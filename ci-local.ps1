@@ -75,7 +75,7 @@ function Run-Check {
         $duration = ($endTime - $startTime).TotalSeconds
         Write-Host "SUCCESS: $Name completed in $([math]::Round($duration))s" -ForegroundColor Green
         Write-Host ""
-        return $true
+        return
     } catch {
         $endTime = Get-Date
         $duration = ($endTime - $startTime).TotalSeconds
@@ -112,7 +112,51 @@ function Run-Fix {
         Write-Host "WARNING: $Name auto-fix failed after $([math]::Round($duration))s" -ForegroundColor Yellow
         Write-Host "WARNING: Continuing with CI checks anyway..." -ForegroundColor Yellow
         Write-Host ""
-        return $false
+        return
+    }
+}
+
+# Try primary MSRV command then fallback to manifest-scoped command if it fails
+function Run-Check-Try {
+    param(
+        [string]$Name,
+        [string]$Primary,
+        [string]$Fallback
+    )
+
+    Write-Host "Running (try primary then fallback): $Name" -ForegroundColor Blue
+    Write-Host "Primary: $Primary" -ForegroundColor Gray
+    $start = Get-Date
+    try {
+        Invoke-Expression $Primary
+        if ($LASTEXITCODE -eq 0) {
+            $end = Get-Date
+            $dur = ($end - $start).TotalSeconds
+            Write-Host "SUCCESS: Primary succeeded in $([math]::Round($dur))s" -ForegroundColor Green
+            Write-Host ""
+            return
+        } else {
+            throw "Primary failed"
+        }
+    } catch {
+        Write-Host "WARNING: Primary MSRV command failed; attempting fallback..." -ForegroundColor Yellow
+        Write-Host "Fallback: $Fallback" -ForegroundColor Gray
+        $start2 = Get-Date
+        try {
+            Invoke-Expression $Fallback
+            if ($LASTEXITCODE -eq 0) {
+                $end2 = Get-Date
+                $dur2 = ($end2 - $start2).TotalSeconds
+                Write-Host "SUCCESS: Fallback succeeded in $([math]::Round($dur2))s" -ForegroundColor Green
+                Write-Host ""
+                return
+            } else {
+                throw "Fallback failed"
+            }
+        } catch {
+            Write-Host "ERROR: Both primary and fallback failed for: $Name" -ForegroundColor Red
+            exit 1
+        }
     }
 }
 
@@ -162,18 +206,38 @@ Write-Host "Checking Cargo.toml..." -ForegroundColor Blue
 if (-not (Test-Utf8Encoding "Cargo.toml")) { exit 1 }
 
 Write-Host "Checking Rust source files..." -ForegroundColor Blue
-if (Test-Path "src") {
+if (Test-Path "jailed-path\src") {
+    $rustFiles = Get-ChildItem -Path "jailed-path\src" -Filter "*.rs" -Recurse
+    if ($rustFiles.Count -gt 0) {
+        foreach ($file in $rustFiles) {
+            if (-not (Test-Utf8Encoding $file.FullName)) { exit 1 }
+        }
+        Write-Host "SUCCESS: All Rust source files in jailed-path/src - UTF-8 encoding verified" -ForegroundColor Green
+    } else {
+        Write-Host "WARNING: No Rust source files found in jailed-path/src" -ForegroundColor Yellow
+    }
+} elseif (Test-Path "src") {
     $rustFiles = Get-ChildItem -Path "src" -Filter "*.rs" -Recurse
     if ($rustFiles.Count -gt 0) {
         foreach ($file in $rustFiles) {
             if (-not (Test-Utf8Encoding $file.FullName)) { exit 1 }
         }
-        Write-Host "SUCCESS: All Rust source files - UTF-8 encoding verified" -ForegroundColor Green
+        Write-Host "SUCCESS: All Rust source files in src/ - UTF-8 encoding verified" -ForegroundColor Green
     } else {
         Write-Host "WARNING: No Rust source files found in src/" -ForegroundColor Yellow
     }
+} elseif (Test-Path "examples\src") {
+    $rustFiles = Get-ChildItem -Path "examples\src" -Filter "*.rs" -Recurse
+    if ($rustFiles.Count -gt 0) {
+        foreach ($file in $rustFiles) {
+            if (-not (Test-Utf8Encoding $file.FullName)) { exit 1 }
+        }
+        Write-Host "SUCCESS: All Rust source files in examples/src - UTF-8 encoding verified" -ForegroundColor Green
+    } else {
+        Write-Host "WARNING: No Rust source files found in examples/src" -ForegroundColor Yellow
+    }
 } else {
-    Write-Host "WARNING: src/ directory not found" -ForegroundColor Yellow
+    Write-Host "WARNING: No Rust source directories found (jailed-path/src, src, examples/src) - skipping source file encoding check" -ForegroundColor Yellow
 }
 
 Write-Host "SUCCESS: All file encoding checks passed!" -ForegroundColor Green
@@ -188,15 +252,15 @@ Write-Host ""
 
 # Run all CI checks in order
 Run-Check "Format Check" "cargo fmt --all -- --check"
+# Lint and tests on the latest installed Rust toolchain
 Run-Check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warnings"
-# Skip 'cargo check' since 'cargo test' compiles everything anyway
-Run-Check "Tests (includes compilation)" "cargo test --verbose"
-# Doc tests are included in 'cargo test --verbose', so no separate --doc run needed
+# Explicitly build all example binaries (examples are not workspace members)
+Run-Check "Build Examples (bins)" "Push-Location examples; cargo build --bins --features with-zip; Pop-Location"
+# Run workspace tests for the library only
+Run-Check "Tests (includes compilation)" "cargo test --workspace --verbose"
+# Doc tests are included in 'cargo test --workspace', so no separate --doc run needed
 $env:RUSTDOCFLAGS = "-D warnings"
 Run-Check "Documentation" "cargo doc --no-deps --document-private-items --all-features"
-
-# Build examples crate with latest toolchain
-Run-Check "Build examples crate" "cargo build --manifest-path examples/examples-crate/Cargo.toml --verbose"
 
 # Security audit (same as GitHub Actions)
 Write-Host "Running security audit..." -ForegroundColor Cyan
@@ -231,29 +295,11 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
             & rustup component add clippy --toolchain 1.70.0
         }
 
-        # Regenerate Cargo.lock with MSRV to avoid version conflicts
-        Write-Host "Regenerating Cargo.lock with MSRV Rust 1.70.0..." -ForegroundColor Blue
-        if (Test-Path "Cargo.lock") {
-            Write-Host "  * Removing existing Cargo.lock" -ForegroundColor Gray
-            Remove-Item "Cargo.lock" -Force
-        }
-
-        Write-Host "  * Generating new Cargo.lock with Rust 1.70.0" -ForegroundColor Gray
-        try {
-        & rustup run 1.70.0 cargo generate-lockfile
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "  SUCCESS: Cargo.lock regenerated successfully" -ForegroundColor Green
-                Run-Check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --manifest-path ./Cargo.toml --lib --verbose"
-                Run-Check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --all-features -- -D warnings"
-            } else {
-                throw "generate-lockfile failed"
-            }
-        } catch {
-            Write-Host "  WARNING: Failed to generate Cargo.lock with Rust 1.70.0" -ForegroundColor Yellow
-            Write-Host "  INFO: Trying fallback: cargo update then check" -ForegroundColor Yellow
-                Run-Check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --manifest-path ./Cargo.toml --lib --verbose"
-                Run-Check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --manifest-path ./Cargo.toml --lib --all-features -- -D warnings"
-        }
+        Write-Host "Running MSRV checks against library package (no examples)..." -ForegroundColor Blue
+        Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
+        Run-Check-Try "MSRV Check (Rust 1.70.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo check --locked -p jailed-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo check --locked -p jailed-path --lib --verbose"
+        Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
+        Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo test --locked -p jailed-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo test --locked -p jailed-path --lib --verbose"
     } else {
         Write-Host "WARNING: Rust 1.70.0 not installed. Installing for MSRV check..." -ForegroundColor Yellow
         try {
@@ -261,30 +307,10 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "Installing Clippy for Rust 1.70.0..." -ForegroundColor Blue
                 & rustup component add clippy --toolchain 1.70.0
-                Write-Host "Regenerating Cargo.lock with MSRV Rust 1.70.0..." -ForegroundColor Blue
-                if (Test-Path "Cargo.lock") {
-                    Write-Host "  * Removing existing Cargo.lock" -ForegroundColor Gray
-                    Remove-Item "Cargo.lock" -Force
-                }
-
-                Write-Host "  * Generating new Cargo.lock with Rust 1.70.0" -ForegroundColor Gray
-                try {
-                    & rustup run 1.70.0 cargo generate-lockfile
-                    if ($LASTEXITCODE -eq 0) {
-                        Write-Host "  SUCCESS: Cargo.lock regenerated successfully" -ForegroundColor Green
-                        Run-Fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
-                        Run-Check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
-                        Run-Check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
-                    } else {
-                        throw "generate-lockfile failed"
-                    }
-                } catch {
-                    Write-Host "  WARNING: Failed to generate Cargo.lock with Rust 1.70.0" -ForegroundColor Yellow
-                    Write-Host "  INFO: Trying fallback: cargo update then check" -ForegroundColor Yellow
-                    Run-Fix "MSRV Clippy Auto-fix" "rustup run 1.70.0 cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
-                    Run-Check "MSRV Check (Rust 1.70.0)" "rustup run 1.70.0 cargo check --verbose"
-                    Run-Check "MSRV Clippy Lint" "rustup run 1.70.0 cargo clippy --all-targets --all-features -- -D warnings"
-                }
+                Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
+                Run-Check-Try "MSRV Check (Rust 1.70.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo check --locked -p jailed-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo check --locked -p jailed-path --lib --verbose"
+                Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
+                Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo test --locked -p jailed-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.70.0 cargo test --locked -p jailed-path --lib --verbose"
             } else {
                 throw "toolchain install failed"
             }
