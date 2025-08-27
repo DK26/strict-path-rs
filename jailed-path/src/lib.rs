@@ -21,23 +21,64 @@
 //! canonicalization, boundary checks, and type‑state) to remain inside a configured jail directory.
 //! `VirtualPath` wraps a `JailedPath` and therefore guarantees everything a `JailedPath` guarantees —
 //! plus a rooted, forward‑slashed virtual view (treating the jail as "/") and safe virtual
-//! operations (joins/parents/file‑name/ext) that preserve clamping.
+//! operations (joins/parents/file‑name/ext) that preserve clamping and hide the real system path.
+//! With `VirtualPath`, users are free to specify any path they like while you still guarantee it
+//! cannot leak outside the underlying jail.
 //!
 //! Construct them with `Jail::try_new(_create)` and `VirtualRoot::try_new(_create)`. Ingest
-//! untrusted paths as `VirtualPath` for UI/UX and safe joins; convert to `JailedPath` only where you
-//! perform actual I/O.
+//! untrusted paths as `VirtualPath` for UI/UX and safe joins; you can perform I/O from either type.
 //!
 //! Rule of thumb
 //! - Use `VirtualRoot::try_path_virtual(..)` to accept untrusted input and get a `VirtualPath` for
 //!   UI and safe path manipulation.
-//! - Convert to `JailedPath` via `vp.unvirtual()` only where you perform I/O or pass to APIs
-//!   requiring a system path.
-//! - For `AsRef<Path>` interop, pass `jailed_path.systempath_as_os_str()` (no allocation).
+//! - Perform I/O from either type. Choose `VirtualPath` when you want a virtual, user‑facing view;
+//!   choose `JailedPath` when you want system‑facing semantics (e.g., real path logs, interop).
+//! - For `AsRef<Path>` interop, pass `systempath_as_os_str()` from either type (no allocation).
+
+//! ### Examples: User Freedom With VirtualPath (safely clamped)
+//!
+//! ```rust
+//! # use jailed_path::{VirtualRoot, VirtualPath};
+//! # use std::io::Write;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Cloud storage per‑user jail
+//! let user_id = 42u32;
+//! let root = format!("./cloud_user_{user_id}");
+//! let vroot: VirtualRoot = VirtualRoot::try_new_create(&root)?;
+//!
+//! // User may choose ANY path (even "../../etc"), we always clamp to their jail
+//! let requested = "projects/2025/report.pdf";
+//! let vp: VirtualPath = vroot.try_path_virtual(requested)?;  // Stays inside ./cloud_user_42
+//! # // Ensure the file's parent directory exists before writing.
+//! # // (Creating parent dirs explicitly avoids `std::io::ErrorKind::NotFound`.)
+//! # let parent = vp.clone().unvirtual().systempath_parent()?;
+//! # if let Some(p) = parent { p.create_dir_all()?; }
+//! vp.write_bytes(b"user file content")?;       // I/O from VirtualPath
+//! println!("virtual: {}", vp);                 // "/projects/2025/report.pdf"
+//!
+//! # // Cleanup
+//! # std::fs::remove_dir_all(&root).ok();
+//! # Ok(()) }
+//! ```
+//!
+//! ```rust
+//! # use jailed_path::{VirtualRoot, VirtualPath};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Web/E‑mail templates resolved in a user‑scoped virtual root
+//! # let user_id = 7u32;
+//! let tpl_root = format!("./tpl_space_{user_id}");
+//! let templates: VirtualRoot = VirtualRoot::try_new_create(&tpl_root)?;
+//! let tpl: VirtualPath = templates.try_path_virtual("emails/welcome.html")?;
+//! let _ = tpl.read_to_string();
+//!
+//! # std::fs::remove_dir_all(&tpl_root).ok();
+//! # Ok(()) }
+//! ```
 //!
 //! ## Quickstart: User-Facing Virtual Paths
 //!
 //! ```rust
-//! use jailed_path::VirtualRoot;
+//! use jailed_path::{VirtualRoot, VirtualPath};
 //! use std::fs;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,8 +87,8 @@
 //! let vroot = VirtualRoot::<()>::try_new("user_data")?;
 //!
 //! // 2. Create a virtual path from user input. Traversal attacks are neutralized.
-//! let virtual_path = vroot.try_path_virtual("documents/report.pdf")?;
-//! let attack_path = vroot.try_path_virtual("../../../etc/hosts")?;
+//! let virtual_path: VirtualPath = vroot.try_path_virtual("documents/report.pdf")?;
+//! let attack_path: VirtualPath = vroot.try_path_virtual("../../../etc/hosts")?;
 //!
 //! // 3. Displaying the path is always safe and shows the virtual view.
 //! assert_eq!(virtual_path.to_string(), "/documents/report.pdf");
@@ -124,14 +165,6 @@
 //! On Windows, paths like `PROGRA~1` are DOS 8.3 short-name aliases. To prevent ambiguity,
 //! this crate rejects paths containing non-existent components that look like 8.3 short names
 //! with a dedicated error, `JailedPathError::WindowsShortName`.
-//!
-//! ## Installation
-//!
-//! Add `jailed-path` to your `Cargo.toml`:
-//! ```toml
-//! [dependencies]
-//! jailed-path = "0.1.0" # Replace with the latest version
-//! ```
 //!
 //! ## Why We Don’t Expose `Path`/`PathBuf`
 //!

@@ -102,6 +102,16 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 - Document APIs so both humans and LLMs can use them correctly and safely; emphasize misuse-resistant patterns.
 - Before removing/changing established docs, consider rationale and align with design docs; prefer discussion for non-trivial changes.
 
+### README Code Examples Policy
+
+- Prefer reusing examples from source code comments (crate docs or module docs) that are doctested and compile.
+- If you need a new README example:
+  - First implement it as a real, compiling example (e.g., under `examples/`) or a doctested snippet in source comments.
+  - Ensure it builds and passes locally (and on MSRV if applicable) before copying to README.
+  - When transposing to README, keep the example faithful to the working version; omit only noisy setup/teardown that is not essential to illustrate usage.
+  - Keep the working example around in the repo so future changes don’t drift (prefer `examples/` or doctests in `lib.rs`).
+- Never invent or paste untested snippets in README. README examples must reflect current API, follow Path handling rules (no raw `Path`/`PathBuf` leaks; use `systempath_as_os_str()` for `AsRef<Path>`), and compile when provided the minimal context.
+
 ### Path Handling Rules (Very Important)
 
 - Do not expose raw `Path`/`PathBuf` from `JailedPath`/`VirtualPath` in public APIs or examples.
