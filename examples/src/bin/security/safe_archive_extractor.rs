@@ -64,7 +64,7 @@ fn safe_extract(archive_path: &str, extract_dir: &str) -> Result<()> {
         } else {
             // It's a file, so extract its contents.
             // First, ensure the parent directory exists.
-            if let Some(parent) = match safe_path.parent_real() {
+            if let Some(parent) = match safe_path.systempath_parent() {
                 Ok(p) => p,
                 Err(_) => return Ok(()),
             } {
@@ -72,7 +72,8 @@ fn safe_extract(archive_path: &str, extract_dir: &str) -> Result<()> {
             }
 
             // Create the file and write the entry's content to it.
-            let mut outfile = fs::File::create(safe_path.unjail())?;
+            // Prefer passing &OsStr (implements AsRef<Path>) instead of taking ownership.
+            let mut outfile = fs::File::create(safe_path.systempath_as_os_str())?;
             io::copy(&mut entry, &mut outfile)?;
         }
     }

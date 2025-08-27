@@ -119,7 +119,7 @@ async fn save_uploaded_file(
     // Even if filename was "../../../etc/passwd", it's now safely contained
     safe_path.write_bytes(content)?;
 
-    println!("Saved file to: {}", safe_path.realpath_to_string());
+    println!("Saved file to: {}", safe_path.systempath_to_string());
     Ok(())
 }
 
@@ -181,7 +181,7 @@ async fn process_user_file(
     // Return result path information
     Ok(format!(
         "Processed file saved to: {}",
-        temp_path.realpath_to_string()
+        temp_path.systempath_to_string()
     ))
 }
 

@@ -82,13 +82,13 @@ fn process_and_store_data(
 
 fn archive_ingested_file(path_to_archive: &JailedPath<Ingest>) -> Result<()> {
     let archive_name = path_to_archive
-        .with_extension_real("archived")
+        .systempath_with_extension("archived")
         .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
 
     println!("  -> Archiving ingest file to: {archive_name}");
     fs::rename(
-        path_to_archive.realpath_to_string(),
-        archive_name.realpath_to_string(),
+        path_to_archive.systempath_as_os_str(),
+        archive_name.systempath_as_os_str(),
     )?;
     Ok(())
 }

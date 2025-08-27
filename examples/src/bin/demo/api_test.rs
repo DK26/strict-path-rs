@@ -31,7 +31,7 @@ fn main() -> Result<(), JailedPathError> {
                 "✓ Path traversal clamped to jail root: {}",
                 clamped_path.clone().virtualize().virtualpath_to_string()
             );
-            println!("  Real path: {}", clamped_path.realpath_to_string());
+            println!("  System path: {}", clamped_path.systempath_to_string());
         }
         Err(e) => {
             println!("✗ Unexpected error for clamped path: {e}");

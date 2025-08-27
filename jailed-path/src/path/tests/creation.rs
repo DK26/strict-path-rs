@@ -14,7 +14,10 @@ fn test_jailed_path_creation() {
 
     // Should store the path correctly
     let abs_path = jail.path().join(&test_path);
-    assert_eq!(jailed_path.realpath_to_string(), abs_path.to_string_lossy());
+    assert_eq!(
+        jailed_path.systempath_to_string(),
+        abs_path.to_string_lossy()
+    );
 }
 
 #[test]

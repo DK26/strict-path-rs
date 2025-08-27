@@ -143,12 +143,12 @@ fn create_backup(
     let mut backup_files = Vec::new();
     let source_root = source_jail.try_path(".")?;
 
-    for entry in WalkDir::new(source_root.realpath_to_string()) {
+    for entry in WalkDir::new(source_root.systempath_as_os_str()) {
         let entry = entry?;
         let entry_path = entry.path();
 
         // Get relative path from source root
-        let relative = entry_path.strip_prefix(source_root.realpath_to_string())?;
+        let relative = entry_path.strip_prefix(source_root.systempath_as_os_str())?;
         if relative.as_os_str().is_empty() {
             continue;
         }
@@ -164,7 +164,7 @@ fn create_backup(
             let backup_file = backup_jail.try_path(&backup_file_path)?;
 
             // Create parent directories if needed
-            if let Some(parent) = backup_file.parent_real()? {
+            if let Some(parent) = backup_file.systempath_parent()? {
                 parent.create_dir_all()?;
             }
 
@@ -247,7 +247,7 @@ fn restore_backup(
             let target_file = target_jail.try_path(&file_entry.relative_path)?;
 
             // Create parent directories
-            if let Some(parent) = target_file.parent_real()? {
+            if let Some(parent) = target_file.systempath_parent()? {
                 parent.create_dir_all()?;
             }
 

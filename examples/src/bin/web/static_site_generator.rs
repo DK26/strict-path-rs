@@ -407,13 +407,13 @@ fn load_templates(
     }
 
     // Walk through layout files securely
-    for entry in WalkDir::new(layouts_dir.realpath_to_string()) {
+    for entry in WalkDir::new(layouts_dir.systempath_to_string()) {
         let entry = entry?;
         if entry.file_type().is_file() {
             let path = entry.path();
             if let Some(extension) = path.extension() {
                 if extension == "html" {
-                    let relative = path.strip_prefix(layouts_dir.realpath_to_string())?;
+                    let relative = path.strip_prefix(layouts_dir.systempath_to_string())?;
                     let template_name = relative.to_string_lossy().replace('\\', "/");
 
                     // Validate the template path through jail
@@ -441,13 +441,13 @@ fn process_content_directory(
         return Ok(pages);
     }
 
-    for entry in WalkDir::new(content_dir.realpath_to_string()) {
+    for entry in WalkDir::new(content_dir.systempath_to_string()) {
         let entry = entry?;
         if entry.file_type().is_file() {
             let path = entry.path();
             if let Some(extension) = path.extension() {
                 if extension == "md" {
-                    let relative = path.strip_prefix(content_dir.realpath_to_string())?;
+                    let relative = path.strip_prefix(content_dir.systempath_to_string())?;
                     let relative_str = relative.to_string_lossy().replace('\\', "/");
 
                     // Validate through jail
@@ -534,7 +534,7 @@ fn generate_page_html(
     let output_file = output_jail.try_path(&output_path)?;
 
     // Create parent directories
-    if let Some(parent) = output_file.parent_real()? {
+    if let Some(parent) = output_file.systempath_parent()? {
         parent.create_dir_all()?;
     }
 
@@ -557,11 +557,11 @@ fn copy_theme_assets(
     let output_assets = output_jail.try_path("assets")?;
     output_assets.create_dir_all()?;
 
-    for entry in WalkDir::new(assets_dir.realpath_to_string()) {
+    for entry in WalkDir::new(assets_dir.systempath_to_string()) {
         let entry = entry?;
         if entry.file_type().is_file() {
             let path = entry.path();
-            let relative = path.strip_prefix(assets_dir.realpath_to_string())?;
+            let relative = path.strip_prefix(assets_dir.systempath_to_string())?;
             let relative_str = relative.to_string_lossy().replace('\\', "/");
 
             // Validate paths through jails
@@ -569,7 +569,7 @@ fn copy_theme_assets(
             let dest_path = output_jail.try_path(format!("assets/{relative_str}"))?;
 
             // Create parent directories
-            if let Some(parent) = dest_path.parent_real()? {
+            if let Some(parent) = dest_path.systempath_parent()? {
                 parent.create_dir_all()?;
             }
 
@@ -594,11 +594,11 @@ fn copy_static_files(
         return Ok(());
     }
 
-    for entry in WalkDir::new(static_dir.realpath_to_string()) {
+    for entry in WalkDir::new(static_dir.systempath_to_string()) {
         let entry = entry?;
         if entry.file_type().is_file() {
             let path = entry.path();
-            let relative = path.strip_prefix(static_dir.realpath_to_string())?;
+            let relative = path.strip_prefix(static_dir.systempath_to_string())?;
             let relative_str = relative.to_string_lossy().replace('\\', "/");
 
             // Validate paths through jails
@@ -606,7 +606,7 @@ fn copy_static_files(
             let dest_path = output_jail.try_path(&relative_str)?;
 
             // Create parent directories
-            if let Some(parent) = dest_path.parent_real()? {
+            if let Some(parent) = dest_path.systempath_parent()? {
                 parent.create_dir_all()?;
             }
 

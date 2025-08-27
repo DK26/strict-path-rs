@@ -18,8 +18,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Display shows virtual root (user-friendly)
     println!("User sees clean paths:");
-    println!("  Document: {user_doc}"); // Shows: /users/alice/documents/report.pdf
-    println!("  Image:    {user_image}"); // Shows: /users/alice/profile.jpg
+    println!("  Document: {}", user_doc.clone().virtualize()); // "/users/alice/documents/report.pdf"
+    println!("  Image:    {}", user_image.clone().virtualize()); // "/users/alice/profile.jpg"
     println!();
 
     // Debug shows full internal structure
@@ -40,15 +40,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Path methods still work (virtual):");
     println!(
         "  Document filename: {:?}",
-        user_doc.clone().virtualize().file_name_virtual()
+        user_doc.clone().virtualize().virtualpath_file_name()
     );
     println!(
         "  Document extension: {:?}",
-        user_doc.clone().virtualize().extension_virtual()
+        user_doc.clone().virtualize().virtualpath_extension()
     );
     println!(
         "  Document parent: {:?}",
-        user_doc.clone().virtualize().parent_virtual().unwrap()
+        user_doc.clone().virtualize().virtualpath_parent().unwrap()
     );
     println!();
 
@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match jail.try_path(attack) {
             Ok(clamped_path) => {
                 // Verify the path was clamped to jail boundary
-                assert!(clamped_path.starts_with_real(jail.path()));
+                assert!(clamped_path.starts_with_systempath(jail.path()));
                 println!(
                     "  Attack clamped: {} -> {}",
                     attack,

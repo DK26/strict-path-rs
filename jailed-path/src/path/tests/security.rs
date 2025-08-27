@@ -25,8 +25,7 @@ fn test_known_cve_patterns() {
     for pattern in attack_patterns {
         if let Ok(jailed_path) = jail.try_path(pattern) {
             let virtual_path = jailed_path.clone().virtualize();
-            let virtual_os_str = virtual_path.virtualpath_as_os_str();
-            let virtual_str = virtual_os_str.to_string_lossy();
+            let virtual_str = virtual_path.virtualpath_to_string();
 
             if !pattern.contains("....") && !pattern.contains("%2F") {
                 let is_traversal_pattern =
@@ -35,13 +34,13 @@ fn test_known_cve_patterns() {
                 if is_traversal_pattern {
                     assert!(
                         !virtual_str.contains(".."),
-                        "Attack pattern '{pattern}' not properly sanitized: {virtual_os_str:?}"
+                        "Attack pattern '{pattern}' not properly sanitized: {virtual_str}"
                     );
                 }
             }
 
             assert!(
-                jailed_path.starts_with_real(jail.path()),
+                jailed_path.starts_with_systempath(jail.path()),
                 "Attack pattern '{pattern}' escaped jail: {jailed_path:?}"
             );
         }
@@ -67,7 +66,7 @@ fn test_unicode_edge_cases() {
     for pattern in unicode_patterns {
         match jail.try_path(pattern) {
             Ok(jailed_path) => {
-                assert!(jailed_path.starts_with_real(jail.path()));
+                assert!(jailed_path.starts_with_systempath(jail.path()));
             }
             Err(_e) => {
                 // Rejections are acceptable; test ensures no panics and no escapes
@@ -112,16 +111,15 @@ fn test_long_path_handling() {
     let long_path = format!("{long_component}/{long_component}/{long_component}/{long_component}",);
 
     if let Ok(jailed_path) = jail.try_path(long_path) {
-        assert!(jailed_path.starts_with_real(jail.path()));
+        assert!(jailed_path.starts_with_systempath(jail.path()));
     }
 
     let traversal_attack = "../".repeat(10) + "etc/passwd";
     if let Ok(jailed_path) = jail.try_path(traversal_attack) {
-        assert!(jailed_path.starts_with_real(jail.path()));
+        assert!(jailed_path.starts_with_systempath(jail.path()));
         let virtual_path = jailed_path.virtualize();
-        let virtual_os_str = virtual_path.virtualpath_as_os_str();
-        let expected_path = "/etc/passwd";
-        assert_eq!(virtual_os_str.to_string_lossy(), expected_path);
+        let expected_path = "/etc/passwd".to_string();
+        assert_eq!(virtual_path.virtualpath_to_string(), expected_path);
     }
 }
 
@@ -146,7 +144,7 @@ fn test_windows_specific_attacks() {
 
     for pattern in windows_patterns {
         if let Ok(jailed_path) = jail.try_path(pattern) {
-            assert!(jailed_path.starts_with_real(jail.path()));
+            assert!(jailed_path.starts_with_systempath(jail.path()));
         }
     }
 }

@@ -110,7 +110,7 @@ fn serve_public_asset(asset_path: &JailedPath<PublicAssets>) -> Result<()> {
 /// path that has been validated by the `uploads_jail`.
 fn save_user_upload(upload_path: &JailedPath<UserUploads>, content: &[u8]) -> Result<()> {
     // Create the parent directory if it doesn't exist.
-    if let Some(parent) = upload_path.parent_real()? {
+    if let Some(parent) = upload_path.systempath_parent()? {
         parent.create_dir_all()?;
     }
     upload_path.write_bytes(content)?;

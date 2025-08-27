@@ -1,46 +1,9 @@
-# Before committing
+Please refer to `AGENTS.md` at the repository root for all operational guidance, coding and docs conventions, CI usage, API rules, and contribution practices.
 
-- If running on a Windows machine, run `.\ci-local.ps1`
-- If running on a Unix-based system, run `./ci-local.sh`
-- If WSL is available, run `bash ci-local.sh` to test also on Linux
-
-# When committing    
-
-- assume that changes I want to commit are only the staged ones and run `git diff --staged`, summarize the changes by what they mean instead of simply describing the actions taken on the code level, then write a commit message with that summary. Do not include or mention anything that is not reflected in the code diff. e.g., changes you may have made in the current session but were not evident within `git diff --staged` output
-
-# When bumping version  
-
-- run `git diff` against the last tagged release, summarize the changes:
-    - update CHANGELOG.md accordingly. Include only high level changes that can interest users
-    - update the version number in the relevant files (Cargo.toml, lib.rs, CHANGELOG.md, README.md)
-    - commit the changes with a meaningful commit message
-    - create a tag for the next release version
-    - provide a PR summary in markdown source code format so it can be copied and pasted. Do not include code examples
-
-# Documentations README.md / lib.rs  
-
-- if modifying README.md, make sure that the structure is consistent with the rest of the documentation
-- README.md purpose is to introduce our crate the best way possible and should only contain information that helps understanding why is it useful, and how to easily use it and what are its cool, most useful features  
-- changes in documentations between README.md and lib.rs, must be aligned whenever makes sense
-- assume each thing you are considering removing or changing, may have taken a lot of time and consideration to come up with. try to understand why it is there first and if you'd like to change it, have a discussion first on how to proceed
-- code examples should start from the simplest usage to more advanced use cases
-
-# Generated API documentations
-
-- when documenting APIs, make sure you make it clear to both human and LLM in the most efficient way, what it is for and how to use it correctly. The purpose is avoiding misuse of the API, especially by LLMs  
-
-# Rust Code Style
-
-- Use Clippy best practices `cargo clippy --all-targets --all-features -- -D warnings`
-- Use `rustfmt` for code formatting ` cargo fmt --all -- --check`
-- When you produce new Rust code, make sure you follow the Rust API guidelines and best practices. 
-
-# Roadmap  
-
-- Make sure our roadmap documents are reflecting accurately the implemented reality in our source code
-
-# API
-
-- You are not allowed to make up new surface APIs without discussion.  
-- You must follow the existing API design principles and patterns.  
-- As long as our crate version is below 0.1.0, do not deprecate any APIs we agree on removing. Just remove them.
+Key sections in `AGENTS.md`:
+- Local CI Parity (how to run CI locally on Windows/Unix/WSL)
+- Before Committing (commit message and staged-diff expectations)
+- Code Style (clippy, rustfmt, Rust API guidelines)
+- Documentation Guidelines (README/lib.rs/API docs alignment)
+- Path Handling Rules and API & Conversion Rules (security-critical)
+- Do / Don’t (for agents and automation)

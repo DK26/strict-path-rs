@@ -17,7 +17,7 @@ Operational guide for AI assistants, bots, and automation working in this reposi
   - `examples/`: real‑world binaries (non‑publishable), decoupled from MSRV.
   - `.github/workflows/`: CI for stable, MSRV, release, and audit.
   - `ci-local.ps1`, `ci-local.sh`: local parity CI runners (Windows/WSL/Linux).
-  - Docs: `README.md` (human intro), `API_REFERENCE.md` (concise API), `ROADMAP*.md`, `VIRTUAL_PATH_DESIGN.md`.
+  - Docs: `README.md` (human intro), `API_REFERENCE.md` (concise API).
 
 ## MSRV Policy (Library Only)
 
@@ -67,6 +67,12 @@ Operational guide for AI assistants, bots, and automation working in this reposi
   - PowerShell functions avoid returning booleans to prevent stray `True` prints.
   - Ensure `rustup` toolchain `1.70.0` and clippy component are installed for MSRV.
 
+### Before Committing
+
+- On Windows, run `./ci-local.ps1`.
+- On Unix/WSL, run `bash ci-local.sh`.
+- Assume only staged changes are intended for commit; run `git diff --staged` and write a message that summarizes intent and impact (not a mechanical diff narration). Do not mention anything not present in the staged diff.
+
 ## Coding & Dependency Guidelines
 
 - Library (`jailed-path`):
@@ -76,6 +82,67 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 - Examples (`examples`):
   - It’s OK to use newer crates; keep heavy deps optional with namespaced features.
   - Do not add `examples` back into the workspace; keep `publish = false`.
+
+### Code Style
+
+- Clippy: `cargo clippy --all-targets --all-features -- -D warnings` (MSRV job uses scoped flags; keep code clean).
+- Formatting: `cargo fmt --all -- --check`.
+- Follow Rust API Guidelines and best practices.
+
+### Linting, Doctests, and Hygiene
+
+- Do not suppress lints via `#[allow(..)]` (exception: long type names when using internal `StatedPath` in tests where unavoidable).
+- Doctests must compile and run — do not use `no_run`. Provide minimal setup and ensure teardown.
+- Tests and doctests must clean up any files or directories they create. Prefer `tempfile::tempdir()` for unit tests; remove any persistent paths at the end of doctests (e.g., `std::fs::remove_dir_all(..).ok()`).
+
+### Documentation Guidelines (README.md / lib.rs / API docs)
+
+- Keep README focused on why, core features, and simple-to-advanced examples; keep structure consistent across docs.
+- When updating README.md, align relevant sections in `jailed-path/src/lib.rs` crate docs where appropriate.
+- Document APIs so both humans and LLMs can use them correctly and safely; emphasize misuse-resistant patterns.
+- Before removing/changing established docs, consider rationale and align with design docs; prefer discussion for non-trivial changes.
+
+### Path Handling Rules (Very Important)
+
+- Do not expose raw `Path`/`PathBuf` from `JailedPath`/`VirtualPath` in public APIs or examples.
+- Avoid using std path methods (`Path::join`, `Path::parent`, etc.) on leaked paths;
+  these ignore virtual-root clamping and jail checks and can cause confusion or unsafe behavior.
+- Use explicit, jail-aware operations instead:
+  - `JailedPath::join_systempath`, `JailedPath::systempath_parent`
+  - `VirtualPath::join_virtualpath`, `VirtualPath::virtualpath_parent`
+- When passing to external APIs that accept `AsRef<Path>`, prefer borrowing the inner system path:
+  - `jailed_path.systempath_as_os_str()` (allocation-free, OS-native string, preserves data)
+- Only demonstrate ownership escape hatches in a dedicated example section:
+  - `.unvirtual()` (to go from VirtualPath -> JailedPath)
+  - `.unjail()` (to obtain an owned `PathBuf`, losing guarantees)
+  - `.unvirtual().unjail()` (explicit two-step escape)
+  Everywhere else, prefer borrowing with `systempath_as_os_str()`.
+
+### API & Conversion Rules (Important)
+
+- `JailedPath` MUST NOT implement `AsRef<Path>`/`Deref<Target = Path>` and MUST NOT expose raw `&Path`.
+- Conversions are explicit only — do not add `From`/`Into` between `JailedPath` and `VirtualPath`.
+  - `Jail::try_path(..) -> JailedPath`
+  - `JailedPath::virtualize() -> VirtualPath`
+  - `VirtualPath::unvirtual() -> JailedPath`
+  - `JailedPath::unjail() -> PathBuf` (escape hatch)
+- `Jail::path()` exposure is acceptable (jail root is not secret and does not bypass validation).
+- Jails are immutable — do not mutate the jail root after creation.
+
+### Display & String Semantics
+
+- `VirtualPath` display and `virtualpath_to_string()` are rooted (e.g., `"/a/b.txt"`); no borrowed string accessors are exposed.
+- For system-facing strings/interop use `JailedPath::systempath_*` (and `VirtualPath` delegates to the same for the underlying system path).
+- Do not reintroduce `virtualpath_to_str()` or `virtualpath_as_os_str()`.
+
+### Internal Implementation Notes
+
+- `StatedPath` is strictly internal — do not reference it in public docs, examples, or APIs.
+- Windows 8.3 short-name handling is part of the validator; platform-specific tests may exist, but keep public surface platform-agnostic.
+
+### Jail Creation
+
+- `Jail::try_new(..)` requires the directory to exist; use `Jail::try_new_create(..)` when the directory should be created automatically.
 
 ## Known Pitfalls & Gotchas
 
@@ -102,9 +169,16 @@ Operational guide for AI assistants, bots, and automation working in this reposi
   - Add examples under `examples/src/bin/<category>/…` with descriptive names.
   - Use type‑state markers in examples to demonstrate compile‑time separation of jails.
   - Reference `API_REFERENCE.md` and `VIRTUAL_PATH_DESIGN.md` when updating APIs.
+  - Prefer `systempath_as_os_str()` for `AsRef<Path>` interop; avoid leaking `Path`/`PathBuf`.
+  - Use `join_systempath` / `join_virtualpath` instead of std `Path::join`.
+  - For release/version bumps: update CHANGELOG with user-facing highlights, bump versions in Cargo.toml/lib.rs/README, tag the release, and include a concise PR summary (markdown, no code examples).
+  - When crafting commit messages, summarize the staged diff by intent and impact.
 - Don’t:
   - Reintroduce `examples` into `[workspace.members]`.
   - Move cargo flags after `--` (they won’t be recognized by cargo).
+  - Use `.unjail()` / `.unvirtual()` in examples unless demonstrating escape hatches explicitly.
+  - Invent new surface APIs without discussion; follow existing design patterns.
+  - Deprecate APIs pre-0.1.0 — remove them cleanly instead when agreed.
 
 ## When In Doubt
 

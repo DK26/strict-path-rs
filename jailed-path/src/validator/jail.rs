@@ -127,6 +127,7 @@ pub(crate) fn virtualize_to_jail<Marker>(path: impl AsRef<Path>, jail: &Jail<Mar
     jail.path().join(normalized)
 }
 
+/// A system-facing validator that holds the jail root and produces `JailedPath`.
 #[derive(Debug, Clone)]
 pub struct Jail<Marker = ()> {
     path: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
@@ -134,6 +135,7 @@ pub struct Jail<Marker = ()> {
 }
 
 impl<Marker> Jail<Marker> {
+    /// Creates a new `Jail` rooted at `jail_path` (which must already exist and be a directory).
     #[inline]
     pub fn try_new<P: AsRef<Path>>(jail_path: P) -> Result<Self> {
         let jail_path = jail_path.as_ref();
@@ -169,6 +171,7 @@ impl<Marker> Jail<Marker> {
         })
     }
 
+    /// Creates the directory if missing, then constructs a new `Jail`.
     pub fn try_new_create<P: AsRef<Path>>(root: P) -> Result<Self> {
         let root_path = root.as_ref();
         if !root_path.exists() {
@@ -178,11 +181,15 @@ impl<Marker> Jail<Marker> {
         Self::try_new(root_path)
     }
 
+    /// Validates a path against the jail boundary and returns a `JailedPath` on success.
+    ///
+    /// Accepts absolute or relative inputs; ensures the resulting path remains within the jail.
     #[inline]
     pub fn try_path(&self, candidate_path: impl AsRef<Path>) -> Result<JailedPath<Marker>> {
         validate(candidate_path, self)
     }
 
+    /// Returns the canonicalized jail root path. Exposing this is safe — validation happens in `try_path`.
     #[inline]
     pub fn path(&self) -> &StatedPath<((Raw, Canonicalized), Exists)> {
         &self.path

@@ -38,8 +38,8 @@ struct ThemeJail;
 /// It is impossible to pass a path from another jail (like the theme jail) to it.
 fn load_app_config(config_path: &JailedPath<AppConfigJail>) -> Result<String, std::io::Error> {
     println!(
-        "Attempting to load app config from real path: {}",
-        config_path.realpath_to_string()
+        "Attempting to load app config from System path: {}",
+        config_path.systempath_to_string()
     );
     config_path.read_to_string()
 }
@@ -50,8 +50,8 @@ fn load_app_config(config_path: &JailedPath<AppConfigJail>) -> Result<String, st
 /// It cannot be used to read application config files.
 fn load_theme_file(theme_path: &JailedPath<ThemeJail>) -> Result<String, std::io::Error> {
     println!(
-        "Attempting to load theme from real path: {}",
-        theme_path.realpath_to_string()
+        "Attempting to load theme from System path: {}",
+        theme_path.systempath_to_string()
     );
     theme_path.read_to_string()
 }
@@ -134,7 +134,7 @@ fn main() {
             // We can't even call the function, so we'll just print a message.
             println!(
                 "Successfully created a JailedPath: {}",
-                path_from_wrong_jail.realpath_to_string()
+                path_from_wrong_jail.systempath_to_string()
             );
             println!("However, we cannot pass it to `load_app_config` due to a type mismatch. COMPILE ERROR PREVENTED!");
         }

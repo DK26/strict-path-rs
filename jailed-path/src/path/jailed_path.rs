@@ -9,6 +9,11 @@ use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+/// A system-facing, validated filesystem path guaranteed to stay within its jail.
+///
+/// This type never exposes a raw `&Path` to avoid misuse. Use the provided
+/// `systempath_*` accessors for strings/OS strings and the safe manipulation methods
+/// which re-validate against the jail.
 #[derive(Clone)]
 pub struct JailedPath<Marker = ()> {
     path: PathBuf,
@@ -38,43 +43,63 @@ impl<Marker> JailedPath<Marker> {
         self.jail.as_ref()
     }
 
+    /// Returns the underlying system path as an owned `String`.
+    ///
+    /// For interop with APIs that accept `AsRef<Path>`, prefer
+    /// `systempath_as_os_str()` to avoid allocation.
     #[inline]
-    pub fn realpath_to_string(&self) -> String {
+    pub fn systempath_to_string(&self) -> String {
         self.path.to_string_lossy().into_owned()
     }
 
+    /// Returns the underlying system path as `&str` if valid UTF-8.
+    ///
+    /// For lossless interop on any platform, prefer `systempath_as_os_str()`.
     #[inline]
-    pub fn realpath_to_str(&self) -> Option<&str> {
+    pub fn systempath_to_str(&self) -> Option<&str> {
         self.path.to_str()
     }
 
+    /// Returns the underlying system path as `&OsStr` (lossless; implements `AsRef<Path>`).
+    ///
+    /// Use this when passing to external APIs that accept `AsRef<Path>`.
     #[inline]
-    pub fn realpath_as_os_str(&self) -> &OsStr {
+    pub fn systempath_as_os_str(&self) -> &OsStr {
         self.path.as_os_str()
     }
 
+    /// Returns a `Display` wrapper that shows the real system path.
     #[inline]
     pub fn display(&self) -> std::path::Display<'_> {
         self.path.display()
     }
 
+    /// Consumes this `JailedPath` and returns the inner `PathBuf` (escape hatch).
+    ///
+    /// Prefer borrowing via `systempath_as_os_str()` when possible.
     #[inline]
     pub fn unjail(self) -> PathBuf {
         self.path
     }
 
+    /// Converts this `JailedPath` into a user-facing `VirtualPath`.
     #[inline]
     pub fn virtualize(self) -> crate::path::virtual_path::VirtualPath<Marker> {
         crate::path::virtual_path::VirtualPath::new(self)
     }
 
+    /// Safely joins a system path segment and re-validates against the jail.
+    ///
+    /// Do not use `Path::join` on leaked paths. Always use this method to ensure
+    /// jail containment is preserved.
     #[inline]
-    pub fn join_real<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
-        let new_real = self.path.join(path);
-        crate::validator::validate(new_real, self.jail())
+    pub fn join_systempath<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
+        let new_systempath = self.path.join(path);
+        crate::validator::validate(new_systempath, self.jail())
     }
 
-    pub fn parent_real(&self) -> Result<Option<Self>> {
+    /// Returns the parent directory as a new `JailedPath`, or `None` if at the jail root.
+    pub fn systempath_parent(&self) -> Result<Option<Self>> {
         match self.path.parent() {
             Some(p) => match crate::validator::validate(p, self.jail()) {
                 Ok(p) => Ok(Some(p)),
@@ -84,93 +109,112 @@ impl<Marker> JailedPath<Marker> {
         }
     }
 
+    /// Returns a new `JailedPath` with the file name changed, re-validating against the jail.
     #[inline]
-    pub fn with_file_name_real<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
-        let new_real = self.path.with_file_name(file_name);
-        crate::validator::validate(new_real, self.jail())
+    pub fn systempath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
+        let new_systempath = self.path.with_file_name(file_name);
+        crate::validator::validate(new_systempath, self.jail())
     }
 
-    pub fn with_extension_real<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self> {
-        let rpath = self.path.as_path();
-        if rpath.file_name().is_none() {
+    /// Returns a new `JailedPath` with the extension changed, or an error if at jail root.
+    pub fn systempath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self> {
+        let system_path = self.path.as_path();
+        if system_path.file_name().is_none() {
             return Err(JailedPathError::path_escapes_boundary(
                 self.path.clone(),
                 self.jail().path().to_path_buf(),
             ));
         }
-        let new_real = rpath.with_extension(extension);
-        crate::validator::validate(new_real, self.jail())
+        let new_systempath = system_path.with_extension(extension);
+        crate::validator::validate(new_systempath, self.jail())
     }
 
+    /// Returns the file name component of the system path, if any.
     #[inline]
-    pub fn file_name_real(&self) -> Option<&OsStr> {
+    pub fn systempath_file_name(&self) -> Option<&OsStr> {
         self.path.file_name()
     }
 
+    /// Returns the file stem of the system path, if any.
     #[inline]
-    pub fn file_stem_real(&self) -> Option<&OsStr> {
+    pub fn systempath_file_stem(&self) -> Option<&OsStr> {
         self.path.file_stem()
     }
 
+    /// Returns the extension of the system path, if any.
     #[inline]
-    pub fn extension_real(&self) -> Option<&OsStr> {
+    pub fn systempath_extension(&self) -> Option<&OsStr> {
         self.path.extension()
     }
 
+    /// Returns `true` if the system path starts with the given prefix.
     #[inline]
-    pub fn starts_with_real<P: AsRef<Path>>(&self, p: P) -> bool {
+    pub fn starts_with_systempath<P: AsRef<Path>>(&self, p: P) -> bool {
         self.path.starts_with(p.as_ref())
     }
 
+    /// Returns `true` if the system path ends with the given suffix.
     #[inline]
-    pub fn ends_with_real<P: AsRef<Path>>(&self, p: P) -> bool {
+    pub fn systempath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool {
         self.path.ends_with(p.as_ref())
     }
 
+    /// Returns `true` if the system path exists.
     pub fn exists(&self) -> bool {
         self.path.exists()
     }
 
+    /// Returns `true` if the system path is a file.
     pub fn is_file(&self) -> bool {
         self.path.is_file()
     }
 
+    /// Returns `true` if the system path is a directory.
     pub fn is_dir(&self) -> bool {
         self.path.is_dir()
     }
 
+    /// Returns the metadata for the system path.
     pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
         std::fs::metadata(&self.path)
     }
 
+    /// Reads the file contents as `String`.
     pub fn read_to_string(&self) -> std::io::Result<String> {
         std::fs::read_to_string(&self.path)
     }
 
+    /// Reads the file contents as raw bytes.
     pub fn read_bytes(&self) -> std::io::Result<Vec<u8>> {
         std::fs::read(&self.path)
     }
 
+    /// Writes raw bytes to the file, creating it if it does not exist.
     pub fn write_bytes(&self, data: &[u8]) -> std::io::Result<()> {
         std::fs::write(&self.path, data)
     }
 
+    /// Writes a UTF-8 string to the file, creating it if it does not exist.
     pub fn write_string(&self, data: &str) -> std::io::Result<()> {
         std::fs::write(&self.path, data)
     }
 
+    /// Creates all directories in the system path if missing (like `std::fs::create_dir_all`).
     pub fn create_dir_all(&self) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.path)
     }
 
+    /// Removes the file at the system path.
     pub fn remove_file(&self) -> std::io::Result<()> {
         std::fs::remove_file(&self.path)
     }
 
+    /// Removes the directory at the system path.
     pub fn remove_dir(&self) -> std::io::Result<()> {
         std::fs::remove_dir(&self.path)
     }
 
+    /// Recursively removes the directory and its contents.
     pub fn remove_dir_all(&self) -> std::io::Result<()> {
         std::fs::remove_dir_all(&self.path)
     }

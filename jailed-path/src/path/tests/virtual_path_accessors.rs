@@ -8,22 +8,22 @@ fn test_virtual_path_accessors_and_prefixes() {
     let virtual_path = jailed.virtualize();
 
     // file name
-    let fname = virtual_path.file_name_virtual().expect("file name");
+    let fname = virtual_path.virtualpath_file_name().expect("file name");
     assert_eq!(fname.to_string_lossy(), "bar.txt");
 
     // file stem
-    let stem = virtual_path.file_stem_virtual().expect("file stem");
+    let stem = virtual_path.virtualpath_file_stem().expect("file stem");
     assert_eq!(stem.to_string_lossy(), "bar");
 
     // extension
-    let ext = virtual_path.extension_virtual().expect("ext");
+    let ext = virtual_path.virtualpath_extension().expect("ext");
     assert_eq!(ext.to_string_lossy(), "txt");
 
     // starts_with / ends_with (virtual)
-    assert!(virtual_path.starts_with_virtual("foo"));
-    assert!(virtual_path.ends_with_virtual("bar.txt"));
+    assert!(virtual_path.starts_with_virtualpath("foo"));
+    assert!(virtual_path.ends_with_virtualpath("bar.txt"));
 
-    // parent_virtual
-    let parent = virtual_path.parent_virtual().unwrap().unwrap();
+    // virtualpath_parent
+    let parent = virtual_path.virtualpath_parent().unwrap().unwrap();
     assert_eq!(parent.virtualpath_to_string(), "/foo");
 }

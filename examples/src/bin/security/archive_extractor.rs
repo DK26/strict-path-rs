@@ -147,7 +147,7 @@ fn extract_zip(
     extraction_jail: &Jail<ExtractionOutput>,
     cli: &Cli,
 ) -> Result<ExtractionStats, Box<dyn std::error::Error>> {
-    let file = File::open(archive_path.realpath_to_string())?;
+    let file = File::open(archive_path.systempath_as_os_str())?;
     let mut archive = zip::ZipArchive::new(file)?;
 
     let mut stats = ExtractionStats {
@@ -191,7 +191,7 @@ fn extract_zip(
                     }
                 } else {
                     // Create parent directories
-                    if let Some(parent) = safe_path.parent_real()? {
+                    if let Some(parent) = safe_path.systempath_parent()? {
                         parent.create_dir_all()?;
                     }
 
@@ -229,7 +229,7 @@ fn extract_tar(
     extraction_jail: &Jail<ExtractionOutput>,
     cli: &Cli,
 ) -> Result<ExtractionStats, Box<dyn std::error::Error>> {
-    let file = File::open(archive_path.realpath_to_string())?;
+    let file = File::open(archive_path.systempath_as_os_str())?;
     let mut archive = tar::Archive::new(file);
 
     extract_tar_entries(archive.entries()?, extraction_jail, cli)
@@ -240,7 +240,7 @@ fn extract_tar_gz(
     extraction_jail: &Jail<ExtractionOutput>,
     cli: &Cli,
 ) -> Result<ExtractionStats, Box<dyn std::error::Error>> {
-    let file = File::open(archive_path.realpath_to_string())?;
+    let file = File::open(archive_path.systempath_as_os_str())?;
     let decoder = flate2::read::GzDecoder::new(file);
     let mut archive = tar::Archive::new(decoder);
 
@@ -286,7 +286,7 @@ fn extract_tar_entries<R: Read>(
                     }
                 } else if header.entry_type().is_file() {
                     // Create parent directories
-                    if let Some(parent) = safe_path.parent_real()? {
+                    if let Some(parent) = safe_path.systempath_parent()? {
                         parent.create_dir_all()?;
                     }
 

@@ -8,15 +8,17 @@ fn test_virtual_path_join_and_parent() {
     let virtual_path = jailed.virtualize();
 
     // join (inside jail)
-    let joined = virtual_path.join_virtual("baz.txt").unwrap();
+    let joined = virtual_path.join_virtualpath("baz.txt").unwrap();
     assert_eq!(format!("{joined}"), "/foo/bar.txt/baz.txt");
 
     // join (outside jail, expect clamping)
-    let outside = virtual_path.join_virtual("../../../../etc/passwd").unwrap();
+    let outside = virtual_path
+        .join_virtualpath("../../../../etc/passwd")
+        .unwrap();
     assert_eq!(format!("{outside}"), "/etc/passwd");
 
     // parent (inside jail)
-    let parent = virtual_path.parent_virtual().unwrap();
+    let parent = virtual_path.virtualpath_parent().unwrap();
     assert!(parent.is_some());
     let actual_parent = parent.unwrap();
     assert_eq!(format!("{actual_parent}"), "/foo");
@@ -24,7 +26,7 @@ fn test_virtual_path_join_and_parent() {
     // parent (at jail root)
     let root_jailed = jail.try_path("").unwrap();
     let root_virtual = root_jailed.virtualize();
-    let parent_none = root_virtual.parent_virtual().unwrap();
+    let parent_none = root_virtual.virtualpath_parent().unwrap();
     assert!(parent_none.is_none());
 }
 
@@ -36,22 +38,24 @@ fn test_virtual_path_pathbuf_methods() {
     let virtual_path = jailed.virtualize();
 
     // with_file_name (inside jail)
-    let with_name = virtual_path.with_file_name_virtual("newname.txt").unwrap();
+    let with_name = virtual_path
+        .virtualpath_with_file_name("newname.txt")
+        .unwrap();
     assert_eq!(format!("{with_name}"), "/foo/newname.txt");
 
     // with_file_name (potential escape attempt)
     let root_jailed = jail.try_path("").unwrap();
     let root_virtual = root_jailed.virtualize();
     let escape_attempt = root_virtual
-        .with_file_name_virtual("../../etc/passwd")
+        .virtualpath_with_file_name("../../etc/passwd")
         .unwrap();
     assert_eq!(format!("{escape_attempt}"), "/etc/passwd");
 
     // with_extension (inside jail)
-    let with_ext = virtual_path.with_extension_virtual("log").unwrap();
+    let with_ext = virtual_path.virtualpath_with_extension("log").unwrap();
     assert_eq!(format!("{with_ext}"), "/foo/bar.log");
 
-    // unvirtual -> jailed -> real path suffix
+    // unvirtual -> jailed -> System path suffix
     let jailed_again = virtual_path.unvirtual();
     let inner = jailed_again.unjail();
     let expected_path = jail.path().join("foo/bar.txt");

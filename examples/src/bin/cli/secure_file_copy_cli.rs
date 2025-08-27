@@ -54,7 +54,8 @@ fn secure_copy(
     println!("  -> Secure destination: {dest_path}");
 
     // Perform the file copy.
-    fs::copy(source_path, dest_path.clone().unjail())?;
+    // Prefer passing the inner system path as &OsStr (AsRef<Path>) instead of taking ownership.
+    fs::copy(source_path, dest_path.systempath_as_os_str())?;
 
     println!("  -> Successfully copied to destination.");
     Ok(dest_path)
@@ -101,7 +102,10 @@ fn main() {
                 if copied_path.exists() {
                     println!(
                         "[Success] Verified that '{}' exists in the safe directory.",
-                        copied_path.file_name_real().unwrap().to_string_lossy()
+                        copied_path
+                            .systempath_file_name()
+                            .unwrap()
+                            .to_string_lossy()
                     );
                 } else {
                     eprintln!(

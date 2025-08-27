@@ -19,21 +19,26 @@ pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
     format!("{start}...{end}")
 }
 
+/// Errors produced by jail creation and path validation.
 #[derive(Debug)]
 pub enum JailedPathError {
+    /// The jail root is invalid (missing, not a directory, or IO error).
     InvalidJail {
         jail: PathBuf,
         source: std::io::Error,
     },
+    /// The attempted path would resolve outside the jail boundary.
     PathEscapesBoundary {
         attempted_path: PathBuf,
         jail_boundary: PathBuf,
     },
+    /// Canonicalization/resolution failed for the given path.
     PathResolutionError {
         path: PathBuf,
         source: std::io::Error,
     },
     #[cfg(windows)]
+    /// A component resembles a Windows 8.3 short name (potential ambiguity).
     WindowsShortName {
         component: std::ffi::OsString,
         original: PathBuf,

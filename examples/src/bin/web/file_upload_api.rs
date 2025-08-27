@@ -71,9 +71,9 @@ impl TenantStorage {
         println!("Tenant '{tenant_id}' uploading to virtual path: {safe_path}");
         safe_path.write_bytes(content)?;
         println!(
-            "Successfully wrote {} bytes to real path: {}",
+            "Successfully wrote {} bytes to System path: {}",
             content.len(),
-            safe_path.realpath_to_string()
+            safe_path.systempath_to_string()
         );
         Ok(())
     }

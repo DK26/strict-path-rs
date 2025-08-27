@@ -40,6 +40,6 @@ fn test_different_marker_types_are_incompatible() {
     // process_user_file(&img);
     // serve_image(&usr);
 
-    // Runtime check: their real paths differ as they live under different jails
-    assert_ne!(img.realpath_to_string(), usr.realpath_to_string());
+    // Runtime check: their System paths differ as they live under different jails
+    assert_ne!(img.systempath_to_string(), usr.systempath_to_string());
 }

@@ -73,7 +73,7 @@ fn serve_file(jail: &VirtualRoot<WebAssets>, path: &str) -> Result<Vec<u8>> {
         .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
 
     println!("  -> Virtual path: {virtual_path}");
-    println!("  -> Real path: {}", virtual_path.realpath_to_string());
+    println!("  -> System path: {}", virtual_path.systempath_to_string());
 
     // 2. Check if the resolved path actually exists and is a file.
     if !virtual_path.is_file() {

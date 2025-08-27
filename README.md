@@ -17,25 +17,34 @@
 
 **RULE: Each path that comes from an uncontrolled environment should be jailed.**
 
-**Sources requiring `JailedPath` validation:**
+### About This Crate: JailedPath and VirtualPath
 
-- 📡 **HTTP requests** - User file uploads, API endpoints, URL parameters
-- 🌐 **Web forms** - File paths in form submissions, route parameters  
-- ⚙️ **Configuration files** - User-editable config, external config sources
-- 💾 **Database content** - File paths stored in user data, content management
-- 📂 **CLI arguments** - Command-line file paths, script parameters
-- 🔌 **External APIs** - Third-party services, webhook payloads
-- 🤖 **LLM/AI output** - Generated file paths, autonomous agent decisions
-- 📨 **Inter-service communication** - Microservice requests, message queues
-- 📱 **Mobile/Desktop apps** - User document selection, drag-and-drop paths
-- 📦 **Archive contents** - ZIP/RAR/TAR file entries, embedded path strings in binary files
-- 🔧 **File format internals** - Any file that contains path strings as data
+`JailedPath` is a system‑facing filesystem path type, mathematically proven (via canonicalization, boundary checks, and type‑state) to remain inside a configured jail directory. `VirtualPath` wraps a `JailedPath` and therefore guarantees everything a `JailedPath` guarantees — plus a rooted, forward‑slashed virtual view (treating the jail as "/") and safe virtual operations (joins/parents/file‑name/ext) that preserve clamping. Construct them with `Jail::try_new(jail_path)` and `VirtualRoot::try_new(virtual_root_path)`. Ingest untrusted paths as `VirtualPath` for UI/UX and safe joins; convert to `JailedPath` only where you perform actual I/O.
 
-**The Rule**: **If the path comes from outside your direct code control → jail it with `JailedPath`.**
+### Which Type To Use (By Source)
+
+| Source                  | Typical input                  | Use `VirtualPath` for…                                   | Use `JailedPath` for…               | Notes                                                       |
+| ----------------------- | ------------------------------ | -------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------- |
+| 📡 HTTP requests         | URL path segments, file names  | Display/logging, safe virtual joins (`join_virtualpath`) | Actual file I/O after `unvirtual()` | Always clamp user paths via `VirtualRoot::try_path_virtual` |
+| 🌐 Web forms             | Form file fields, route params | User‑facing display; UI navigation                       | I/O (reads/writes)                  | Treat all form inputs as untrusted                          |
+| ⚙️ Configuration files   | Paths in config                | Optional UI display of config paths                      | Validated access to config files    | Validate each path before I/O                               |
+| 💾 Database content      | Stored file paths              | Rendering paths in UI dashboards                         | Reads/writes on stored paths        | Storage does not imply safety; validate on use              |
+| 📂 CLI arguments         | Command‑line path args         | Optional pretty printing                                 | I/O in tools/CLIs                   | Validate args before touching the FS                        |
+| 🔌 External APIs         | Webhooks, 3rd‑party payloads   | Present sanitized paths to logs                          | I/O after validation                | Never trust external systems                                |
+| 🤖 LLM/AI output         | Generated file names/paths     | Display suggestions safely                               | I/O only after validation           | LLM output is untrusted by default                          |
+| 📨 Inter‑service msgs    | Queue/event payloads           | Observability output                                     | Any file operations                 | Validate on the consumer side                               |
+| 📱 Apps (desktop/mobile) | Drag‑and‑drop, file pickers    | Show picked paths in UI                                  | Open/save operations                | Validate selected paths before I/O                          |
+| 📦 Archive contents      | Entry names from ZIP/TAR       | Progress UI, virtual joins                               | Extract/write entries               | Validate each entry to block zip‑slip                       |
+| 🔧 File format internals | Embedded path strings          | Diagnostics                                              | Any dereference of embedded paths   | Never dereference without validation                        |
+
+Rule of thumb
+- Use `VirtualRoot::try_path_virtual(..)` to accept untrusted input and get a `VirtualPath` for UI and safe path manipulation.
+- Convert to `JailedPath` via `vp.unvirtual()` only where you perform I/O or pass to APIs requiring a system path.
+- For AsRef<Path> interop, pass `jailed_path.systempath_as_os_str()` (no allocation).
 
 ---
 
-`JailedPath` is a filesystem path type **mathematically proven** to stay within directory boundaries. Unlike libraries that hope validation works, we mathematically prove it at compile time using Rust's type system. Create `JailedPath` instances by building a jail with `Jail::try_new()` and validating paths via `jail.try_path()`. This guarantees containment—even malicious input like `../../../etc/passwd` gets safely clamped.
+ 
 
 
 ## The Problem
@@ -61,7 +70,7 @@ let safe_path = jail.try_path(user_provided_path)?;  // Validates external input
 let attack_path = jail.try_path(malicious_input)?;   // Attack neutralized!
 
 safe_path.write_bytes(b"data")?;  // Safe within ./customer_uploads
-assert!(attack_path.starts_with_real(jail.path()));  // Proof: contained
+assert!(attack_path.starts_with_systempath(jail.path()));  // Proof: contained
 ```
 
 ## Mathematical Security: Functions Require Validation
@@ -143,23 +152,38 @@ fn load_config_file(config_path: &str) -> Result<String> {
 ## API Overview
 
 ```rust
-// Create jail and validate paths
+use jailed_path::{Jail, VirtualRoot};
+
+// Create jail and validate paths (system-facing)
 let jail = Jail::try_new("./safe_dir")?;                    // or try_new_create() to create dir
-let safe_path = jail.try_path("user/file.txt")?;            // Validates and contains path
+let jp = jail.try_path("user/file.txt")?;                   // JailedPath<M>
 
-// Built-in safe operations
-safe_path.read_bytes()?;                                     // File I/O
-safe_path.write_string("content")?;
-safe_path.create_dir_all()?;                                 // Directory ops
-safe_path.exists();
+// Built-in safe operations on JailedPath (I/O)
+jp.read_bytes()?;                                            // File I/O
+jp.write_string("content")?;
+jp.create_dir_all()?;                                        // Directory ops
+assert!(jp.exists());
 
-// Path display
-println!("{}", safe_path);                                   // Virtual: "/user/file.txt"
-safe_path.realpath_to_string();                                  // Real: "./safe_dir/user/file.txt"
+// Display and real system path accessors (system-facing)
+println!("{}", jp);                                          // System path: "<abs>/safe_dir/user/file.txt"
+let s = jp.systempath_to_string();                           // Real system path string
 
-// Safe path manipulation
-safe_path.parent();                                          // Returns Option<JailedPath>
-safe_path.join("subfile.txt");                               // Returns Option<JailedPath>
+// Safe system-path manipulation on JailedPath
+let parent = jp.systempath_parent()?;                        // Result<Option<JailedPath>>
+let joined = jp.join_systempath("subfile.txt")?;            // Result<JailedPath>
+
+// Create virtual root and virtual path (user-facing)
+let vroot = VirtualRoot::try_new("./safe_dir")?;
+let vp = vroot.try_path_virtual("user/file.txt")?;          // VirtualPath<M>
+println!("{}", vp);                                          // Virtual path: "/user/file.txt"
+
+// Virtual path manipulation on VirtualPath
+let vparent = vp.virtualpath_parent()?;                      // Result<Option<VirtualPath>>
+let vsibling = vp.join_virtualpath("subfile.txt")?;         // Result<VirtualPath>
+
+// Convert between virtual and system-facing
+let back_to_jp = vp.unvirtual();                             // VirtualPath -> JailedPath
+let vp2 = back_to_jp.virtualize();                           // JailedPath -> VirtualPath
 ```
 
 ## Windows Security

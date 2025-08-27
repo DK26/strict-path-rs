@@ -8,6 +8,12 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
+/// A user-facing path clamped to the virtual root of a jail.
+///
+/// Display and `virtualpath_to_string()` show a rooted, forward-slashed path
+/// (e.g., `"/a/b.txt"`). Use virtual manipulation methods to compose paths
+/// while preserving clamping, and convert to `JailedPath` with `unvirtual()`
+/// for system-facing I/O.
 #[derive(Clone, Debug)]
 pub struct VirtualPath<Marker = ()> {
     inner: JailedPath<Marker>,
@@ -18,7 +24,7 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub(crate) fn new(jailed_path: JailedPath<Marker>) -> Self {
         fn compute_virtual<Marker>(
-            real: &std::path::Path,
+            system_path: &std::path::Path,
             jail: &validator::jail::Jail<Marker>,
         ) -> std::path::PathBuf {
             use std::ffi::OsString;
@@ -41,10 +47,10 @@ impl<Marker> VirtualPath<Marker> {
                 p.to_path_buf()
             }
 
-            let real_norm = strip_verbatim(real);
+            let system_norm = strip_verbatim(system_path);
             let jail_norm = strip_verbatim(jail.path());
 
-            if let Ok(stripped) = real_norm.strip_prefix(&jail_norm) {
+            if let Ok(stripped) = system_norm.strip_prefix(&jail_norm) {
                 let mut cleaned = std::path::PathBuf::new();
                 for comp in stripped.components() {
                     if let Component::Normal(name) = comp {
@@ -60,7 +66,7 @@ impl<Marker> VirtualPath<Marker> {
                 return cleaned;
             }
 
-            let mut real_comps: Vec<_> = real_norm
+            let mut systempath_comps: Vec<_> = system_norm
                 .components()
                 .filter(|c| !matches!(c, Component::Prefix(_) | Component::RootDir))
                 .collect();
@@ -85,16 +91,16 @@ impl<Marker> VirtualPath<Marker> {
                 a == b
             }
 
-            while !real_comps.is_empty()
+            while !systempath_comps.is_empty()
                 && !jail_comps.is_empty()
-                && comp_eq(&real_comps[0], &jail_comps[0])
+                && comp_eq(&systempath_comps[0], &jail_comps[0])
             {
-                real_comps.remove(0);
+                systempath_comps.remove(0);
                 jail_comps.remove(0);
             }
 
             let mut vb = std::path::PathBuf::new();
-            for c in real_comps {
+            for c in systempath_comps {
                 if let Component::Normal(name) = c {
                     let s = name.to_string_lossy();
                     let cleaned = s.replace(['\n', ';'], "_");
@@ -116,52 +122,47 @@ impl<Marker> VirtualPath<Marker> {
         }
     }
 
+    /// Converts this `VirtualPath` back into a system-facing `JailedPath`.
     #[inline]
     pub fn unvirtual(self) -> JailedPath<Marker> {
         self.inner
     }
 
-    pub fn jail(&self) -> &crate::validator::jail::Jail<Marker> {
-        self.inner.jail()
-    }
-
+    /// Returns the rooted, forward-slashed virtual path string for UI/display.
     pub fn virtualpath_to_string(&self) -> String {
         format!("{}", self.display())
     }
 
     #[inline]
-    pub fn virtualpath_to_str(&self) -> Option<&str> {
-        self.virtual_path.to_str()
+    // Note: We intentionally do not expose borrowed &str/&OsStr virtual accessors to
+    // avoid confusion; use `virtualpath_to_string()` or Display for rooted output.
+    /// Returns the underlying system path as an owned `String` (delegates to `JailedPath`).
+    pub fn systempath_to_string(&self) -> String {
+        self.inner.systempath_to_string()
     }
 
+    /// Returns the underlying system path as `&str` if valid UTF-8 (delegates to `JailedPath`).
     #[inline]
-    pub fn virtualpath_as_os_str(&self) -> &OsStr {
-        self.virtual_path.as_os_str()
+    pub fn systempath_to_str(&self) -> Option<&str> {
+        self.inner.systempath_to_str()
     }
 
+    /// Returns the underlying system path as `&OsStr` for `AsRef<Path>` interop.
     #[inline]
-    pub fn realpath_to_string(&self) -> String {
-        self.inner.realpath_to_string()
+    pub fn systempath_as_os_str(&self) -> &OsStr {
+        self.inner.systempath_as_os_str()
     }
 
+    /// Safely joins a virtual path segment, clamps traversal, and re-validates.
     #[inline]
-    pub fn realpath_to_str(&self) -> Option<&str> {
-        self.inner.realpath_to_str()
-    }
-
-    #[inline]
-    pub fn realpath_as_os_str(&self) -> &OsStr {
-        self.inner.realpath_as_os_str()
-    }
-
-    #[inline]
-    pub fn join_virtual<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
+    pub fn join_virtualpath<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_virtual = self.virtual_path.join(path);
         let virtualized = validator::virtualize_to_jail(new_virtual, self.inner.jail());
         validator::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
     }
 
-    pub fn parent_virtual(&self) -> Result<Option<Self>> {
+    /// Returns the parent virtual path, or `None` if at the virtual root.
+    pub fn virtualpath_parent(&self) -> Result<Option<Self>> {
         match self.virtual_path.parent() {
             Some(p) => {
                 let virtualized = validator::virtualize_to_jail(p, self.inner.jail());
@@ -174,14 +175,16 @@ impl<Marker> VirtualPath<Marker> {
         }
     }
 
+    /// Returns a new `VirtualPath` with the file name changed, preserving clamping.
     #[inline]
-    pub fn with_file_name_virtual<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
+    pub fn virtualpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
         let new_virtual = self.virtual_path.with_file_name(file_name);
         let virtualized = validator::virtualize_to_jail(new_virtual, self.inner.jail());
         validator::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
     }
 
-    pub fn with_extension_virtual<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self> {
+    /// Returns a new `VirtualPath` with the extension changed, preserving clamping.
+    pub fn virtualpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self> {
         if self.virtual_path.file_name().is_none() {
             return Err(JailedPathError::path_escapes_boundary(
                 self.virtual_path.clone(),
@@ -193,91 +196,109 @@ impl<Marker> VirtualPath<Marker> {
         validator::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
     }
 
+    /// Returns the file name component of the virtual path, if any.
     #[inline]
-    pub fn file_name_virtual(&self) -> Option<&OsStr> {
+    pub fn virtualpath_file_name(&self) -> Option<&OsStr> {
         self.virtual_path.file_name()
     }
 
+    /// Returns the file stem of the virtual path, if any.
     #[inline]
-    pub fn file_stem_virtual(&self) -> Option<&OsStr> {
+    pub fn virtualpath_file_stem(&self) -> Option<&OsStr> {
         self.virtual_path.file_stem()
     }
 
+    /// Returns the extension of the virtual path, if any.
     #[inline]
-    pub fn extension_virtual(&self) -> Option<&OsStr> {
+    pub fn virtualpath_extension(&self) -> Option<&OsStr> {
         self.virtual_path.extension()
     }
 
+    /// Returns `true` if the virtual path starts with the given prefix (virtual semantics).
     #[inline]
-    pub fn starts_with_virtual<P: AsRef<Path>>(&self, p: P) -> bool {
+    pub fn starts_with_virtualpath<P: AsRef<Path>>(&self, p: P) -> bool {
         self.virtual_path.starts_with(p)
     }
 
+    /// Returns `true` if the virtual path ends with the given suffix (virtual semantics).
     #[inline]
-    pub fn ends_with_virtual<P: AsRef<Path>>(&self, p: P) -> bool {
+    pub fn ends_with_virtualpath<P: AsRef<Path>>(&self, p: P) -> bool {
         self.virtual_path.ends_with(p)
     }
 
+    /// Returns a Display wrapper that shows a rooted virtual path (e.g., `"/a/b.txt"`).
     #[inline]
     pub fn display(&self) -> VirtualPathDisplay<'_, Marker> {
         VirtualPathDisplay(self)
     }
 
+    /// Returns `true` if the underlying system path exists.
     #[inline]
     pub fn exists(&self) -> bool {
         self.inner.exists()
     }
 
+    /// Returns `true` if the underlying system path is a file.
     #[inline]
     pub fn is_file(&self) -> bool {
         self.inner.is_file()
     }
 
+    /// Returns `true` if the underlying system path is a directory.
     #[inline]
     pub fn is_dir(&self) -> bool {
         self.inner.is_dir()
     }
 
+    /// Returns metadata for the underlying system path.
     #[inline]
     pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
         self.inner.metadata()
     }
 
+    /// Reads the file contents as `String` from the underlying system path.
     #[inline]
     pub fn read_to_string(&self) -> std::io::Result<String> {
         self.inner.read_to_string()
     }
 
+    /// Reads the file contents as raw bytes from the underlying system path.
     #[inline]
     pub fn read_bytes(&self) -> std::io::Result<Vec<u8>> {
         self.inner.read_bytes()
     }
 
+    /// Writes raw bytes to the underlying system path.
     #[inline]
     pub fn write_bytes(&self, data: &[u8]) -> std::io::Result<()> {
         self.inner.write_bytes(data)
     }
 
+    /// Writes a UTF-8 string to the underlying system path.
     #[inline]
     pub fn write_string(&self, data: &str) -> std::io::Result<()> {
         self.inner.write_string(data)
     }
 
+    /// Creates all directories in the underlying system path if missing.
     #[inline]
     pub fn create_dir_all(&self) -> std::io::Result<()> {
         self.inner.create_dir_all()
     }
 
+    /// Removes the file at the underlying system path.
     #[inline]
     pub fn remove_file(&self) -> std::io::Result<()> {
         self.inner.remove_file()
     }
 
+    /// Removes the directory at the underlying system path.
     #[inline]
     pub fn remove_dir(&self) -> std::io::Result<()> {
         self.inner.remove_dir()
     }
 
+    /// Recursively removes the directory and its contents at the underlying system path.
     #[inline]
     pub fn remove_dir_all(&self) -> std::io::Result<()> {
         self.inner.remove_dir_all()
