@@ -1,5 +1,5 @@
 use anyhow::Result;
-use jailed_path::VirtualRoot;
+use jailed_path::{VirtualPath, VirtualRoot};
 use std::fs;
 
 // Marker type for our web assets jail
@@ -33,7 +33,7 @@ fn main() -> Result<()> {
             "
 Request: {req_path}"
         );
-        match serve_file(&web_jail, req_path) {
+        match resolve_and_serve(&web_jail, req_path) {
             Ok(content) => {
                 println!("  -> Served {} bytes.", content.len());
                 // In a real server, you'd send this as the HTTP response body.
@@ -63,24 +63,25 @@ Request: {req_path}"
 ///
 /// # Returns
 /// The file content as bytes, or an `io::Error` if the file cannot be served.
-fn serve_file(jail: &VirtualRoot<WebAssets>, path: &str) -> Result<Vec<u8>> {
+fn resolve_and_serve(jail: &VirtualRoot<WebAssets>, path: &str) -> Result<Vec<u8>> {
     println!("  Attempting to resolve: {path}");
 
     // 1. Validate the requested path against the virtual root.
     // This clamps the path, so `../` traversal is neutralized.
     let virtual_path = jail
-        .try_path_virtual(path)
+        .try_virtual_path(path)
         .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
 
     println!("  -> Virtual path: {virtual_path}");
     println!("  -> System path: {}", virtual_path.systempath_to_string());
 
-    // 2. Check if the resolved path actually exists and is a file.
-    if !virtual_path.is_file() {
+    // 2. Perform serving via a function that requires VirtualPath
+    serve_vpath(&virtual_path)
+}
+
+fn serve_vpath(path: &VirtualPath<WebAssets>) -> Result<Vec<u8>> {
+    if !path.is_file() {
         return Err(anyhow::anyhow!("File not found or is a directory."));
     }
-
-    // 3. Read the file content.
-    // We can now safely perform the I/O operation.
-    Ok(virtual_path.read_bytes()?)
+    Ok(path.read_bytes()?)
 }

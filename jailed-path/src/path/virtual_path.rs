@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 /// (e.g., `"/a/b.txt"`). Use virtual manipulation methods to compose paths
 /// while preserving clamping, and convert to `JailedPath` with `unvirtual()`
 /// for system-facing I/O.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct VirtualPath<Marker = ()> {
     inner: JailedPath<Marker>,
     virtual_path: PathBuf,
@@ -155,7 +155,7 @@ impl<Marker> VirtualPath<Marker> {
 
     /// Safely joins a virtual path segment, clamps traversal, and re-validates.
     #[inline]
-    pub fn join_virtualpath<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
+    pub fn virtualpath_join<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_virtual = self.virtual_path.join(path);
         let virtualized = validator::virtualize_to_jail(new_virtual, self.inner.jail());
         validator::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
@@ -216,13 +216,13 @@ impl<Marker> VirtualPath<Marker> {
 
     /// Returns `true` if the virtual path starts with the given prefix (virtual semantics).
     #[inline]
-    pub fn starts_with_virtualpath<P: AsRef<Path>>(&self, p: P) -> bool {
+    pub fn virtualpath_starts_with<P: AsRef<Path>>(&self, p: P) -> bool {
         self.virtual_path.starts_with(p)
     }
 
     /// Returns `true` if the virtual path ends with the given suffix (virtual semantics).
     #[inline]
-    pub fn ends_with_virtualpath<P: AsRef<Path>>(&self, p: P) -> bool {
+    pub fn virtualpath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool {
         self.virtual_path.ends_with(p)
     }
 
@@ -336,6 +336,17 @@ impl<Marker> fmt::Display for VirtualPath<Marker> {
     }
 }
 
+impl<Marker> fmt::Debug for VirtualPath<Marker> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("VirtualPath")
+            .field("system_path", &self.inner.systempath_to_string())
+            .field("virtual", &self.virtualpath_to_string())
+            .field("jail", &self.inner.jail().path().as_ref())
+            .field("marker", &std::any::type_name::<Marker>())
+            .finish()
+    }
+}
+
 impl<Marker> PartialEq for VirtualPath<Marker> {
     fn eq(&self, other: &Self) -> bool {
         self.virtual_path == other.virtual_path
@@ -347,5 +358,15 @@ impl<Marker> Eq for VirtualPath<Marker> {}
 impl<Marker> Hash for VirtualPath<Marker> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.virtual_path.hash(state);
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<Marker> serde::Serialize for VirtualPath<Marker> {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.virtualpath_to_string())
     }
 }

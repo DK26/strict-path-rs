@@ -155,7 +155,7 @@ fn create_volume(
     volume_path.create_dir_all()?;
 
     // Create data subdirectory (this is where container data goes)
-    let data_dir = volume_path.join_systempath("_data")?;
+    let data_dir = volume_path.systempath_join("_data")?;
     data_dir.create_dir_all()?;
 
     // Create volume metadata
@@ -169,7 +169,7 @@ fn create_volume(
         description: None,
     };
 
-    let metadata_file = volume_path.join_systempath("metadata.json")?;
+    let metadata_file = volume_path.systempath_join("metadata.json")?;
     let metadata_content = serde_json::to_string_pretty(&metadata)?;
     metadata_file.write_string(&metadata_content)?;
 
@@ -192,7 +192,7 @@ fn setup_volume_quota(
     // In a real implementation, you'd set filesystem quotas here
     println!("🔒 Setting up {size_mb}MB quota for volume");
 
-    let quota_file = data_dir.join_systempath(".quota")?;
+    let quota_file = data_dir.systempath_join(".quota")?;
     quota_file.write_string(&format!("max_size_mb={size_mb}"))?;
 
     Ok(())
@@ -222,7 +222,7 @@ fn list_volumes(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     for volume_name in sample_volumes {
         if let Ok(volume_path) = volumes_jail.try_path(volume_name) {
             if volume_path.exists() {
-                let metadata_file = volume_path.join_systempath("metadata.json")?;
+                let metadata_file = volume_path.systempath_join("metadata.json")?;
                 if metadata_file.exists() {
                     let metadata_content = metadata_file.read_to_string()?;
                     if let Ok(metadata) = serde_json::from_str::<VolumeMetadata>(&metadata_content)
@@ -277,7 +277,7 @@ fn backup_volume(
         return Err(format!("Volume '{volume_name}' not found").into());
     }
 
-    let data_dir = volume_path.join_systempath("_data")?;
+    let data_dir = volume_path.systempath_join("_data")?;
     if !data_dir.exists() {
         return Err("Volume data directory not found".into());
     }
@@ -287,7 +287,7 @@ fn backup_volume(
     backup_path.create_dir_all()?;
 
     // Copy volume data securely
-    let backup_data_dir = backup_path.join_systempath("data")?;
+    let backup_data_dir = backup_path.systempath_join("data")?;
     backup_data_dir.create_dir_all()?;
 
     let mut file_count = 0;
@@ -300,9 +300,9 @@ fn backup_volume(
     // Simulate copying files (in real implementation, use walkdir)
     let sample_files = vec!["config.json", "logs/app.log", "uploads/image.jpg"];
     for file_path in sample_files {
-        if let Ok(source_file) = data_dir.join_systempath(file_path) {
+        if let Ok(source_file) = data_dir.systempath_join(file_path) {
             if source_file.exists() {
-                let dest_file = backup_data_dir.join_systempath(file_path)?;
+                let dest_file = backup_data_dir.systempath_join(file_path)?;
 
                 // Create parent directories
                 if let Some(parent) = dest_file.systempath_parent()? {
@@ -329,7 +329,7 @@ fn backup_volume(
         compression: "none".to_string(),
     };
 
-    let metadata_file = backup_path.join_systempath("backup.json")?;
+    let metadata_file = backup_path.systempath_join("backup.json")?;
     let metadata_content = serde_json::to_string_pretty(&backup_metadata)?;
     metadata_file.write_string(&metadata_content)?;
 
@@ -357,13 +357,13 @@ fn restore_volume(
         return Err(format!("Backup '{backup_name}' not found").into());
     }
 
-    let backup_data_dir = backup_path.join_systempath("data")?;
+    let backup_data_dir = backup_path.systempath_join("data")?;
     if !backup_data_dir.exists() {
         return Err("Backup data directory not found".into());
     }
 
     // Load backup metadata
-    let metadata_file = backup_path.join_systempath("backup.json")?;
+    let metadata_file = backup_path.systempath_join("backup.json")?;
     let metadata_content = metadata_file.read_to_string()?;
     let backup_metadata: BackupMetadata = serde_json::from_str(&metadata_content)?;
 
@@ -371,7 +371,7 @@ fn restore_volume(
     let volume_path = volumes_jail.try_path(volume_name)?;
     volume_path.create_dir_all()?;
 
-    let data_dir = volume_path.join_systempath("_data")?;
+    let data_dir = volume_path.systempath_join("_data")?;
 
     // Clear existing data (in production, you'd want confirmation)
     if data_dir.exists() {
@@ -386,9 +386,9 @@ fn restore_volume(
     // In a real implementation, you'd iterate through backup directory
     let sample_files = vec!["config.json", "logs/app.log", "uploads/image.jpg"];
     for file_path in sample_files {
-        if let Ok(source_file) = backup_data_dir.join_systempath(file_path) {
+        if let Ok(source_file) = backup_data_dir.systempath_join(file_path) {
             if source_file.exists() {
-                let dest_file = data_dir.join_systempath(file_path)?;
+                let dest_file = data_dir.systempath_join(file_path)?;
 
                 // Create parent directories
                 if let Some(parent) = dest_file.systempath_parent()? {
@@ -413,7 +413,7 @@ fn restore_volume(
         description: Some(format!("Restored from backup '{backup_name}'")),
     };
 
-    let volume_metadata_file = volume_path.join_systempath("metadata.json")?;
+    let volume_metadata_file = volume_path.systempath_join("metadata.json")?;
     let volume_metadata_content = serde_json::to_string_pretty(&volume_metadata)?;
     volume_metadata_file.write_string(&volume_metadata_content)?;
 
@@ -445,11 +445,11 @@ fn clone_volume(
 
     // Create destination volume
     dest_path.create_dir_all()?;
-    let dest_data_dir = dest_path.join_systempath("_data")?;
+    let dest_data_dir = dest_path.systempath_join("_data")?;
     dest_data_dir.create_dir_all()?;
 
     // Copy source data
-    let source_data_dir = source_path.join_systempath("_data")?;
+    let source_data_dir = source_path.systempath_join("_data")?;
     if source_data_dir.exists() {
         // In a real implementation, you'd recursively copy all files
         println!("📁 Copying volume data...");
@@ -457,9 +457,9 @@ fn clone_volume(
         // Simulate copying (use walkdir in real implementation)
         let sample_files = vec!["config.json", "data.db", "cache/index.html"];
         for file_path in sample_files {
-            if let Ok(source_file) = source_data_dir.join_systempath(file_path) {
+            if let Ok(source_file) = source_data_dir.systempath_join(file_path) {
                 if source_file.exists() {
-                    let dest_file = dest_data_dir.join_systempath(file_path)?;
+                    let dest_file = dest_data_dir.systempath_join(file_path)?;
 
                     // Create parent directories
                     if let Some(parent) = dest_file.systempath_parent()? {
@@ -475,7 +475,7 @@ fn clone_volume(
     }
 
     // Copy and update metadata
-    let source_metadata_file = source_path.join_systempath("metadata.json")?;
+    let source_metadata_file = source_path.systempath_join("metadata.json")?;
     if source_metadata_file.exists() {
         let metadata_content = source_metadata_file.read_to_string()?;
         let mut metadata: VolumeMetadata = serde_json::from_str(&metadata_content)?;
@@ -487,7 +487,7 @@ fn clone_volume(
         metadata.container_count = 0;
         metadata.description = Some(format!("Cloned from '{source_name}'"));
 
-        let dest_metadata_file = dest_path.join_systempath("metadata.json")?;
+        let dest_metadata_file = dest_path.systempath_join("metadata.json")?;
         let updated_metadata_content = serde_json::to_string_pretty(&metadata)?;
         dest_metadata_file.write_string(&updated_metadata_content)?;
     }
@@ -512,7 +512,7 @@ fn inspect_volume(
     }
 
     // Load and display metadata
-    let metadata_file = volume_path.join_systempath("metadata.json")?;
+    let metadata_file = volume_path.systempath_join("metadata.json")?;
     if metadata_file.exists() {
         let metadata_content = metadata_file.read_to_string()?;
         let metadata: VolumeMetadata = serde_json::from_str(&metadata_content)?;
@@ -538,9 +538,9 @@ fn inspect_volume(
     }
 
     // Inspect specific path or root
-    let data_dir = volume_path.join_systempath("_data")?;
+    let data_dir = volume_path.systempath_join("_data")?;
     let inspect_target = if let Some(path) = inspect_path {
-        data_dir.join_systempath(&path)?
+        data_dir.systempath_join(&path)?
     } else {
         data_dir
     };
@@ -592,7 +592,7 @@ fn cleanup_volumes(cli: &Cli, older_than_days: u64) -> Result<(), Box<dyn std::e
     for volume_name in sample_volumes {
         if let Ok(volume_path) = volumes_jail.try_path(volume_name) {
             if volume_path.exists() {
-                let metadata_file = volume_path.join_systempath("metadata.json")?;
+                let metadata_file = volume_path.systempath_join("metadata.json")?;
                 if metadata_file.exists() {
                     let metadata_content = metadata_file.read_to_string()?;
                     if let Ok(metadata) = serde_json::from_str::<VolumeMetadata>(&metadata_content)
@@ -606,7 +606,7 @@ fn cleanup_volumes(cli: &Cli, older_than_days: u64) -> Result<(), Box<dyn std::e
                             );
 
                             // Calculate size before removal (simplified)
-                            let data_dir = volume_path.join_systempath("_data")?;
+                            let data_dir = volume_path.systempath_join("_data")?;
                             if data_dir.exists() {
                                 // In real implementation, calculate directory size
                                 cleaned_size += 100 * 1024 * 1024; // Simulate 100MB

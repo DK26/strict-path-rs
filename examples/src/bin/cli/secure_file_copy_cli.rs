@@ -17,18 +17,13 @@ struct SafeDestination;
 
 // --- File Copy Logic ---
 
-/// Securely copies a file to a destination directory.
+/// Securely copies a file to a destination path inside the jail.
 ///
-/// # Arguments
-/// * `source_path` - The path to the source file.
-/// * `dest_jail` - The jail representing the safe destination directory.
-///
-/// # Returns
-/// An `io::Result` containing the `JailedPath` of the copied file on success.
-fn secure_copy(
+/// Signature encodes the guarantee: destination must be a JailedPath.
+fn copy_to(
     source_path: &Path,
-    dest_jail: &Jail<SafeDestination>,
-) -> io::Result<JailedPath<SafeDestination>> {
+    dest_path: &JailedPath<SafeDestination>,
+) -> io::Result<()> {
     if !source_path.is_file() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -39,26 +34,13 @@ fn secure_copy(
         ));
     }
 
-    // Get the file name from the source path.
-    let file_name = source_path.file_name().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidInput, "Source path has no file name.")
-    })?;
-
     println!("[Copy] Preparing to copy '{}'", source_path.display());
-
-    // Create a safe destination path within the jail.
-    let dest_path = dest_jail
-        .try_path(file_name)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-
     println!("  -> Secure destination: {dest_path}");
 
-    // Perform the file copy.
-    // Prefer passing the inner system path as &OsStr (AsRef<Path>) instead of taking ownership.
+    // Perform the file copy using `AsRef<Path>` interop via &OsStr.
     fs::copy(source_path, dest_path.systempath_as_os_str())?;
-
     println!("  -> Successfully copied to destination.");
-    Ok(dest_path)
+    Ok(())
 }
 
 // --- Main Application Logic ---
@@ -97,20 +79,34 @@ fn main() {
     // --- Process each source file ---
     for source_str in source_files {
         let source_path = Path::new(source_str);
-        match secure_copy(source_path, &dest_jail) {
-            Ok(copied_path) => {
-                if copied_path.exists() {
+        // Build destination path inside the jail from the source filename
+        let file_name = match source_path.file_name() {
+            Some(n) => n,
+            None => {
+                eprintln!("[Error] Source path has no file name: {}", source_path.display());
+                continue;
+            }
+        };
+        let dest_path = match dest_jail.try_path(file_name) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("[Error] Invalid destination path: {e}");
+                continue;
+            }
+        };
+
+        match copy_to(source_path, &dest_path) {
+            Ok(()) => {
+                if dest_path.exists() {
                     println!(
                         "[Success] Verified that '{}' exists in the safe directory.",
-                        copied_path
+                        dest_path
                             .systempath_file_name()
                             .unwrap()
                             .to_string_lossy()
                     );
                 } else {
-                    eprintln!(
-                        "[Error] File copy reported success, but destination '{copied_path}' does not exist."
-                    );
+                    eprintln!("[Error] File copy reported success, but destination '{}' does not exist.", dest_path.systempath_to_string());
                 }
             }
             Err(e) => {

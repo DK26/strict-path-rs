@@ -268,8 +268,9 @@ run_check "Format Check" "cargo fmt --all -- --check"
 run_check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warnings"
 # Explicitly build all example binaries (examples is not in workspace)
 run_check "Build Examples (bins)" "(cd examples && cargo build --bins --features with-zip)"
+run_check "Clippy Examples (bins)" "(cd examples && cargo clippy --bins --features with-zip -- -D warnings)"
 # Run workspace tests for the library only
-run_check "Tests (includes compilation)" "cargo test --workspace --verbose"
+run_check "Tests (library all features)" "cargo test -p jailed-path --all-features --verbose"
 # Doc tests are included in 'cargo test --verbose', so no separate --doc run needed
 run_check "Documentation" "RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items --all-features"
 

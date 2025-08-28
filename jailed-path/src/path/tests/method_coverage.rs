@@ -33,15 +33,15 @@ fn test_jailed_path_accessors_and_manipulation() {
     );
 
     // Starts/ends checks
-    assert!(file.starts_with_systempath(jail.path()));
+    assert!(file.systempath_starts_with(jail.path()));
     assert!(file.systempath_ends_with("file.txt"));
 
     // Parent
     let parent = file.systempath_parent().unwrap().unwrap();
     assert!(parent.systempath_ends_with("dir"));
 
-    // join_systempath (appends relative component)
-    let joined = file.join_systempath("sibling.log").unwrap();
+    // systempath_join (appends relative component)
+    let joined = file.systempath_join("sibling.log").unwrap();
     assert!(joined.systempath_ends_with("file.txt/sibling.log"));
 
     // with file name/extension
@@ -105,13 +105,13 @@ fn test_virtual_path_components_and_checks() {
     assert_eq!(vp.virtualpath_extension().unwrap().to_string_lossy(), "txt");
 
     // Starts/ends checks
-    assert!(vp.starts_with_virtualpath("a"));
-    assert!(vp.ends_with_virtualpath("b.txt"));
+    assert!(vp.virtualpath_starts_with("a"));
+    assert!(vp.virtualpath_ends_with("b.txt"));
 
     // Virtual path manipulation
     let vparent = vp.virtualpath_parent().unwrap().unwrap();
     assert_eq!(vparent.virtualpath_to_string(), "/a");
-    let vsib = vp.join_virtualpath("c.log").unwrap();
+    let vsib = vp.virtualpath_join("c.log").unwrap();
     assert_eq!(vsib.virtualpath_to_string(), "/a/b.txt/c.log");
 
     // Cross accessors should match

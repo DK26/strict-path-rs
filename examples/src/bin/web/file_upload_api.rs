@@ -15,7 +15,7 @@
 //! Run the example with: `cargo run --example file_upload_api`
 
 use anyhow::Result;
-use jailed_path::Jail;
+use jailed_path::{VirtualPath, VirtualRoot};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -25,7 +25,7 @@ const UPLOAD_BASE_DIR: &str = "multi_tenant_uploads";
 /// Represents our multi-tenant file storage system.
 struct TenantStorage {
     base_path: String,
-    tenant_jails: HashMap<String, Jail<()>>,
+    tenant_roots: HashMap<String, VirtualRoot<()>>,
 }
 
 impl TenantStorage {
@@ -34,76 +34,54 @@ impl TenantStorage {
         // Create the base directory for all uploads.
         fs::create_dir_all(base_path).expect("Failed to create base upload directory");
         println!("Initialized storage base at: {base_path}");
-        Self {
-            base_path: base_path.to_string(),
-            tenant_jails: HashMap::new(),
-        }
+        Self { base_path: base_path.to_string(), tenant_roots: HashMap::new() }
     }
 
-    /// Retrieves or creates a jail for a specific tenant.
+    /// Retrieves or creates a virtual root for a specific tenant.
     /// This ensures that all operations for a tenant are confined to their directory.
-    fn get_or_create_tenant_jail(
+    fn get_or_create_tenant_root(
         &mut self,
         tenant_id: &str,
-    ) -> Result<Jail<()>, jailed_path::JailedPathError> {
-        if let Some(jail) = self.tenant_jails.get(tenant_id) {
-            return Ok(jail.clone());
+    ) -> Result<VirtualRoot<()>, jailed_path::JailedPathError> {
+        if let Some(vr) = self.tenant_roots.get(tenant_id) {
+            return Ok(vr.clone());
         }
 
         let tenant_dir = Path::new(&self.base_path).join(tenant_id);
-        // Use `try_new_create` to create the directory if it doesn't exist.
-        let jail = Jail::<()>::try_new_create(tenant_dir)?;
-        self.tenant_jails
-            .insert(tenant_id.to_string(), jail.clone());
+        // Create virtual root (creates directory if needed via try_new_create on inner jail)
+        let vroot = VirtualRoot::<()>::try_new_create(tenant_dir)?;
+        self.tenant_roots.insert(tenant_id.to_string(), vroot.clone());
         println!(
-            "Created jail for tenant '{}' at: {}",
+            "Created vroot for tenant '{}' at: {}",
             tenant_id,
-            jail.path().display()
+            vroot.path().display()
         );
-        Ok(jail)
+        Ok(vroot)
     }
 
-    /// Simulates a file upload.
-    fn upload_file(&mut self, tenant_id: &str, filename: &str, content: &[u8]) -> Result<()> {
-        let jail = self.get_or_create_tenant_jail(tenant_id)?;
-        // Safely resolve the user-provided filename within the tenant's jail.
-        let safe_path = jail.try_path(filename)?;
-        println!("Tenant '{tenant_id}' uploading to virtual path: {safe_path}");
-        safe_path.write_bytes(content)?;
+    /// Upload to a VirtualPath for the tenant (encodes guarantees in the signature).
+    fn upload_file_vpath(&self, tenant_id: &str, vp: &VirtualPath<()>, content: &[u8]) -> Result<()> {
+        println!("Tenant '{tenant_id}' uploading to: {vp}");
+        if let Some(parent) = vp.virtualpath_parent()? { parent.create_dir_all()?; }
+        vp.write_bytes(content)?;
         println!(
             "Successfully wrote {} bytes to System path: {}",
             content.len(),
-            safe_path.systempath_to_string()
+            vp.systempath_to_string()
         );
         Ok(())
     }
 
-    /// Reads a file for a tenant.
-    fn read_file(&mut self, tenant_id: &str, filename: &str) -> Result<Vec<u8>> {
-        let jail = match self.get_or_create_tenant_jail(tenant_id) {
-            Ok(j) => j,
-            Err(_) => return Ok(Vec::new()),
-        };
-        let safe_path = match jail.try_path(filename) {
-            Ok(p) => p,
-            Err(_) => return Ok(Vec::new()),
-        };
-        println!("Tenant '{tenant_id}' reading from virtual path: {safe_path}");
-        Ok(safe_path.read_bytes()?)
+    /// Read from a VirtualPath for the tenant.
+    fn read_file_vpath(&self, tenant_id: &str, vp: &VirtualPath<()>) -> Result<Vec<u8>> {
+        println!("Tenant '{tenant_id}' reading from: {vp}");
+        Ok(vp.read_bytes()?)
     }
 
-    /// Deletes a file for a tenant.
-    fn delete_file(&mut self, tenant_id: &str, filename: &str) -> Result<()> {
-        let jail = match self.get_or_create_tenant_jail(tenant_id) {
-            Ok(j) => j,
-            Err(_) => return Ok(()),
-        };
-        let safe_path = match jail.try_path(filename) {
-            Ok(p) => p,
-            Err(_) => return Ok(()),
-        };
-        println!("Tenant '{tenant_id}' deleting virtual path: {safe_path}");
-        safe_path.remove_file()?;
+    /// Delete a file at a VirtualPath for the tenant.
+    fn delete_file_vpath(&self, tenant_id: &str, vp: &VirtualPath<()>) -> Result<()> {
+        println!("Tenant '{tenant_id}' deleting: {vp}");
+        vp.remove_file()?;
         Ok(())
     }
 }
@@ -113,13 +91,23 @@ fn main() -> Result<()> {
     let mut storage = TenantStorage::new(UPLOAD_BASE_DIR);
 
     println!("\n--- Scenario 1: Tenant 'acme' uploads a valid file ---");
-    if let Err(e) = storage.upload_file("acme", "invoice.pdf", b"PDF content for acme") {
-        eprintln!("Upload failed: {e}");
+    if let Ok(vroot) = storage.get_or_create_tenant_root("acme") {
+        let dest = vroot.try_virtual_path("invoice.pdf")?;
+        if let Err(e) = storage.upload_file_vpath("acme", &dest, b"PDF content for acme") {
+            eprintln!("Upload failed: {e}");
+        }
+    } else {
+        eprintln!("Upload failed: could not create jail for tenant 'acme'");
     }
 
     println!("\n--- Scenario 2: Tenant 'globex' uploads a valid file ---");
-    if let Err(e) = storage.upload_file("globex", "report.docx", b"DOCX content for globex") {
-        eprintln!("Upload failed: {e}");
+    if let Ok(vroot) = storage.get_or_create_tenant_root("globex") {
+        let dest = vroot.try_virtual_path("report.docx")?;
+        if let Err(e) = storage.upload_file_vpath("globex", &dest, b"DOCX content for globex") {
+            eprintln!("Upload failed: {e}");
+        }
+    } else {
+        eprintln!("Upload failed: could not create jail for tenant 'globex'");
     }
 
     println!(
@@ -129,39 +117,30 @@ fn main() -> Result<()> {
     // Instead of reaching `multi_tenant_uploads/globex/report.docx`,
     // it will resolve to `multi_tenant_uploads/acme/globex/report.docx`.
     let malicious_path = "../globex/report.docx";
-    match storage.read_file("acme", malicious_path) {
-        Ok(_) => println!("Read succeeded unexpectedly (but was safely contained)."),
-        Err(e) => {
-            println!("Read failed as expected: {e}");
-        }
+    if let Ok(vroot) = storage.get_or_create_tenant_root("acme") {
+        let safe = vroot.try_virtual_path(malicious_path)?; // clamped inside 'acme'
+        let _ = storage.read_file_vpath("acme", &safe);
+        println!("Read attempted at clamped path: {safe}");
     }
 
     println!("\n--- Scenario 4: Tenant 'acme' tries to write into 'globex' directory ---");
     // This will also be clamped. The file will be written inside acme's directory.
-    if let Err(e) = storage.upload_file("acme", "../globex/new_file.txt", b"Trying to break out") {
-        eprintln!("Upload failed: {e}");
-    } else {
-        // Verify that the file was created inside acme's jail, not globex's.
-        let expected_path = Path::new(UPLOAD_BASE_DIR)
-            .join("acme")
-            .join("globex")
-            .join("new_file.txt");
-        assert!(expected_path.exists());
-        println!(
-            "Attack neutralized: File created at '{}' instead of in globex's directory.",
-            expected_path.display()
-        );
+    if let Ok(vroot) = storage.get_or_create_tenant_root("acme") {
+        let safe = vroot.try_virtual_path("../globex/new_file.txt")?; // clamped inside 'acme'
+        storage
+            .upload_file_vpath("acme", &safe, b"Trying to break out")
+            .ok();
+        println!("Attack neutralized: File created at '{safe}'");
     }
 
     println!("\n--- Scenario 5: Tenant 'globex' deletes their own file securely ---");
-    if let Err(e) = storage.delete_file("globex", "report.docx") {
-        eprintln!("Delete failed: {e}");
-    } else {
-        let expected_path = Path::new(UPLOAD_BASE_DIR)
-            .join("globex")
-            .join("report.docx");
-        assert!(!expected_path.exists());
-        println!("Successfully deleted '{}'", expected_path.display());
+    if let Ok(vroot) = storage.get_or_create_tenant_root("globex") {
+        let path = vroot.try_virtual_path("report.docx")?;
+        if let Err(e) = storage.delete_file_vpath("globex", &path) {
+            eprintln!("Delete failed: {e}");
+        } else {
+            println!("Successfully deleted '{path}'");
+        }
     }
 
     // Clean up the created directory

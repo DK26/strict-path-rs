@@ -27,7 +27,7 @@ fn test_jailed_path_collections() {
 fn test_jailed_path_display_formatting() {
     let temp = tempfile::tempdir().unwrap();
     let vroot = crate::validator::virtual_root::VirtualRoot::<()>::try_new(temp.path()).unwrap();
-    let vpath = vroot.try_path_virtual("path/file.txt").unwrap();
+    let vpath = vroot.try_virtual_path("path/file.txt").unwrap();
 
     let display_output = format!("{vpath}");
     assert_eq!(display_output, "/path/file.txt");

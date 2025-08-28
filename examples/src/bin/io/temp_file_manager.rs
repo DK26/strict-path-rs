@@ -91,7 +91,7 @@ fn main() -> Result<()> {
     match temp_manager.new_temp_file(malicious_path_str, "malicious content") {
         Ok(contained_path) => {
             println!("  -> Contained path: {contained_path}");
-            if contained_path.starts_with_systempath(temp_manager.jail.path()) {
+            if contained_path.systempath_starts_with(temp_manager.jail.path()) {
                 println!("[Verify] OK: Malicious path was successfully contained within the jail.");
             } else {
                 eprintln!("[Verify] FAIL: Malicious path escaped the jail.");

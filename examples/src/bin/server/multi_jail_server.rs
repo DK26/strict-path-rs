@@ -14,7 +14,7 @@
 //! user-generated path can't be used to access a public asset, and vice-versa.
 
 use anyhow::Result;
-use jailed_path::{JailedPath, VirtualRoot};
+use jailed_path::{VirtualPath, VirtualRoot};
 use std::fs;
 
 // --- Marker Types for Security Contexts ---
@@ -56,11 +56,10 @@ fn handle_request(
         Request::GetAsset(path) => {
             println!("[Request] Get public asset: {path}");
             // This request is for a public asset, so we use the `public_jail`.
-            let asset_path = public_jail.try_path_virtual(&path)?;
+            let asset_path = public_jail.try_virtual_path(&path)?;
 
-            // The `serve_public_asset` function requires a `JailedPath<PublicAssets>`,
-            // which we can only get from the `public_jail`.
-            serve_public_asset(&asset_path.unvirtual())?;
+            // Serve via a function that accepts VirtualPath (virtual view supports I/O)
+            serve_public_asset(&asset_path)?;
         }
         Request::UploadFile {
             user,
@@ -75,11 +74,10 @@ fn handle_request(
             // This request is for a user upload, so we use the `uploads_jail`.
             // We can create a user-specific subdirectory within the jail.
             let user_upload_path =
-                uploads_jail.try_path_virtual(format!("user_{}/{}", user.id, filename))?;
+                uploads_jail.try_virtual_path(format!("user_{}/{}", user.id, filename))?;
 
-            // The `save_user_upload` function requires a `JailedPath<UserUploads>`,
-            // which we can only get from the `uploads_jail`.
-            save_user_upload(&user_upload_path.unvirtual(), &content)?;
+            // Save via a function that accepts VirtualPath (type enforces correct jail)
+            save_user_upload(&user_upload_path, &content)?;
         }
     }
     Ok(())
@@ -91,7 +89,7 @@ fn handle_request(
 ///
 /// This function's signature guarantees that it can only ever be called with a
 /// path that has been validated by the `public_jail`.
-fn serve_public_asset(asset_path: &JailedPath<PublicAssets>) -> Result<()> {
+fn serve_public_asset(asset_path: &VirtualPath<PublicAssets>) -> Result<()> {
     if !asset_path.is_file() {
         return Err(anyhow::anyhow!("Asset not found."));
     }
@@ -108,9 +106,9 @@ fn serve_public_asset(asset_path: &JailedPath<PublicAssets>) -> Result<()> {
 ///
 /// This function's signature guarantees that it can only ever be called with a
 /// path that has been validated by the `uploads_jail`.
-fn save_user_upload(upload_path: &JailedPath<UserUploads>, content: &[u8]) -> Result<()> {
+fn save_user_upload(upload_path: &VirtualPath<UserUploads>, content: &[u8]) -> Result<()> {
     // Create the parent directory if it doesn't exist.
-    if let Some(parent) = upload_path.systempath_parent()? {
+    if let Some(parent) = upload_path.virtualpath_parent()? {
         parent.create_dir_all()?;
     }
     upload_path.write_bytes(content)?;

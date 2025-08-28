@@ -4,4 +4,6 @@ mod marker;
 mod method_coverage;
 mod methods;
 mod security;
+mod serde;
+mod virtual_display;
 mod virtual_path_accessors;

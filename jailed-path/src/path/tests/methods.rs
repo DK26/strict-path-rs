@@ -8,12 +8,12 @@ fn test_virtual_path_join_and_parent() {
     let virtual_path = jailed.virtualize();
 
     // join (inside jail)
-    let joined = virtual_path.join_virtualpath("baz.txt").unwrap();
+    let joined = virtual_path.virtualpath_join("baz.txt").unwrap();
     assert_eq!(format!("{joined}"), "/foo/bar.txt/baz.txt");
 
     // join (outside jail, expect clamping)
     let outside = virtual_path
-        .join_virtualpath("../../../../etc/passwd")
+        .virtualpath_join("../../../../etc/passwd")
         .unwrap();
     assert_eq!(format!("{outside}"), "/etc/passwd");
 

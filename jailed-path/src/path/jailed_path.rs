@@ -93,7 +93,7 @@ impl<Marker> JailedPath<Marker> {
     /// Do not use `Path::join` on leaked paths. Always use this method to ensure
     /// jail containment is preserved.
     #[inline]
-    pub fn join_systempath<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
+    pub fn systempath_join<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_systempath = self.path.join(path);
         crate::validator::validate(new_systempath, self.jail())
     }
@@ -149,7 +149,7 @@ impl<Marker> JailedPath<Marker> {
 
     /// Returns `true` if the system path starts with the given prefix.
     #[inline]
-    pub fn starts_with_systempath<P: AsRef<Path>>(&self, p: P) -> bool {
+    pub fn systempath_starts_with<P: AsRef<Path>>(&self, p: P) -> bool {
         self.path.starts_with(p.as_ref())
     }
 
@@ -220,6 +220,16 @@ impl<Marker> JailedPath<Marker> {
     }
 }
 
+#[cfg(feature = "serde")]
+impl<Marker> serde::Serialize for JailedPath<Marker> {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.systempath_to_string())
+    }
+}
+
 impl<Marker> fmt::Display for JailedPath<Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.path.display())
@@ -231,6 +241,7 @@ impl<Marker> fmt::Debug for JailedPath<Marker> {
         f.debug_struct("JailedPath")
             .field("path", &self.path)
             .field("jail", &self.jail().path())
+            .field("marker", &std::any::type_name::<Marker>())
             .finish()
     }
 }

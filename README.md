@@ -30,10 +30,13 @@ let jail = Jail::try_new_create("safe_directory")?;  // Creates dir if needed
 // 2. Validate any external path
 let safe_path = jail.try_path("user/input/file.txt")?;
 
-// 3. Use normal file operations - guaranteed safe
-safe_path.read_to_string()?;
-safe_path.write_string("content")?;
-safe_path.create_dir_all()?;
+// 3. Prefer encoding guarantees in function signatures
+fn store_report(path: &jailed_path::JailedPath) -> std::io::Result<()> {
+    // Implement your logic; `path` is proven inside the jail
+    path.write_string("content")
+}
+
+store_report(&safe_path)?; // Type system enforces correct usage
 ```
 
 
@@ -49,7 +52,7 @@ safe_path.create_dir_all()?;
 
 **Core Security Principle: Jail Every External Path**
 
-Any path from untrusted sources (HTTP, CLI, config, DB, LLMs, archives) must be validated into a `JailedPath` before I/O.
+Any path from untrusted sources (HTTP, CLI, config, DB, LLMs, archives) must be validated into a jail‑enforced type (`JailedPath` or `VirtualPath`) before I/O.
 
 ## 🚀 **Simple Examples**
 
@@ -64,7 +67,7 @@ let jail = Jail::try_new("uploads")?;
 let safe_path = jail.try_path(user_input)?;  // ✅ Attack neutralized!
 
 safe_path.write_bytes(b"data")?;  // Guaranteed safe within ./uploads/
-assert!(safe_path.starts_with_systempath(jail.path()));  // Mathematical proof
+assert!(safe_path.systempath_starts_with(jail.path()));  // Mathematical proof
 ```
 
 ### The Old Way vs. The New Way
@@ -87,10 +90,15 @@ let storage = VirtualRoot::try_new(format!("/srv/users/{user_id}"))?;
 
 // User requests any path - we clamp it safely
 let user_request = "photos/vacation/beach.jpg";  // or "../../../secrets" (blocked!)
-let vpath = storage.try_path_virtual(user_request)?;
+let vpath = storage.try_virtual_path(user_request)?;
 
-println!("User sees: {}", vpath);           // "/photos/vacation/beach.jpg"
-vpath.write_bytes(image_data)?;              // Stored safely in their sandbox
+// Recommended pattern: accept `VirtualPath` in function signatures
+fn save_image(path: &jailed_path::VirtualPath) -> std::io::Result<()> {
+    path.write_bytes(b"...image bytes...")
+}
+
+save_image(&vpath)?;            // Type system guarantees correctness
+println!("User sees: {}", vpath); // Virtual root path
 ```
 
 ## 🚨 **What External Paths Need Jailing**
@@ -112,21 +120,21 @@ If it comes from outside your program's direct control, jail it.
 
 ## 🎯 **When to Use Each Type**
 
-| Source                  | Typical Input                  | Use VirtualPath For                                      | Use JailedPath For        | Notes                                                       |
-| ----------------------- | ------------------------------ | -------------------------------------------------------- | ------------------------- | ----------------------------------------------------------- |
-| 🌐 HTTP requests         | URL path segments, file names  | Display/logging, safe virtual joins (`join_virtualpath`) | System-facing interop/I/O | Always clamp user paths via `VirtualRoot::try_path_virtual` |
-| 🌍 Web forms             | Form file fields, route params | User-facing display; UI navigation                       | System-facing interop/I/O | Treat all form inputs as untrusted                          |
-| ⚙️ Configuration files   | Paths in config                | Optional UI display of config paths                      | System-facing interop/I/O | Validate each path before I/O                               |
-| 💾 Database content      | Stored file paths              | Rendering paths in UI dashboards                         | System-facing interop/I/O | Storage does not imply safety; validate on use              |
-| 📂 CLI arguments         | Command-line path args         | Optional pretty printing                                 | System-facing interop/I/O | Validate args before touching the FS                        |
-| 🔌 External APIs         | Webhooks, 3rd-party payloads   | Present sanitized paths to logs                          | System-facing interop/I/O | Never trust external systems                                |
-| 🤖 LLM/AI output         | Generated file names/paths     | Display suggestions safely                               | System-facing interop/I/O | LLM output is untrusted by default                          |
-| 📨 Inter-service msgs    | Queue/event payloads           | Observability output                                     | System-facing interop/I/O | Validate on the consumer side                               |
-| 📱 Apps (desktop/mobile) | Drag-and-drop, file pickers    | Show picked paths in UI                                  | System-facing interop/I/O | Validate selected paths before I/O                          |
-| 📦 Archive contents      | Entry names from ZIP/TAR       | Progress UI, virtual joins                               | System-facing interop/I/O | Validate each entry to block zip-slip                       |
-| 🔧 File format internals | Embedded path strings          | Diagnostics                                              | System-facing interop/I/O | Never dereference without validation                        |
+| Source                  | Typical Input                  | Use VirtualPath For                                          | Use JailedPath For                      | Notes                                                       |
+| ----------------------- | ------------------------------ | ------------------------------------------------------------ | --------------------------------------- | ----------------------------------------------------------- |
+| 🌐 HTTP requests         | URL path segments, file names  | Display/logging, safe virtual joins, and I/O within the jail | System-facing interop/I/O (alternative) | Always clamp user paths via `VirtualRoot::try_virtual_path` |
+| 🌍 Web forms             | Form file fields, route params | User-facing display; UI navigation; I/O within the jail      | System-facing interop/I/O (alternative) | Treat all form inputs as untrusted                          |
+| ⚙️ Configuration files   | Paths in config                | UI display and I/O within the jail                           | System-facing interop/I/O (alternative) | Validate each path before I/O                               |
+| 💾 Database content      | Stored file paths              | Rendering paths in UI dashboards; I/O within the jail        | System-facing interop/I/O (alternative) | Storage does not imply safety; validate on use              |
+| 📂 CLI arguments         | Command-line path args         | Pretty printing; I/O within the jail                         | System-facing interop/I/O (alternative) | Validate args before touching the FS                        |
+| 🔌 External APIs         | Webhooks, 3rd-party payloads   | Present sanitized paths to logs; I/O within the jail         | System-facing interop/I/O (alternative) | Never trust external systems                                |
+| 🤖 LLM/AI output         | Generated file names/paths     | Display suggestions; I/O within the jail                     | System-facing interop/I/O (alternative) | LLM output is untrusted by default                          |
+| 📨 Inter-service msgs    | Queue/event payloads           | Observability output; I/O within the jail                    | System-facing interop/I/O (alternative) | Validate on the consumer side                               |
+| 📱 Apps (desktop/mobile) | Drag-and-drop, file pickers    | Show picked paths in UI; I/O within the jail                 | System-facing interop/I/O (alternative) | Validate selected paths before I/O                          |
+| 📦 Archive contents      | Entry names from ZIP/TAR       | Progress UI, virtual joins, and I/O within the jail          | System-facing interop/I/O (alternative) | Validate each entry to block zip-slip                       |
+| 🔧 File format internals | Embedded path strings          | Diagnostics and I/O within the jail                          | System-facing interop/I/O (alternative) | Never dereference without validation                        |
 
-**Rule of thumb**: Use `VirtualPath` for user-facing operations and display. Use `JailedPath` for actual I/O and system integration.
+Note: This is not “JailedPath vs VirtualPath.” `VirtualPath` conceptually extends `JailedPath` with a virtual-root view and restricted, jail-aware operations. Both support I/O; choose based on whether you need virtual, user-facing semantics or raw system-facing semantics.
 
 ## 🌟 **Advanced Examples**
 
@@ -148,8 +156,8 @@ fn process_upload(path: &JailedPath<UserFiles>) { /* ... */ }
 let assets_vroot: VirtualRoot<WebAssets> = VirtualRoot::try_new("public")?;
 let uploads_vroot: VirtualRoot<UserFiles> = VirtualRoot::try_new("user_data")?;
 
-let css: VirtualPath<WebAssets> = assets_vroot.try_path_virtual("style.css")?;
-let doc: VirtualPath<UserFiles> = uploads_vroot.try_path_virtual("report.pdf")?;
+let css: VirtualPath<WebAssets> = assets_vroot.try_virtual_path("style.css")?;
+let doc: VirtualPath<UserFiles> = uploads_vroot.try_virtual_path("report.pdf")?;
 
 // Convert to the system-facing type only where the function requires it
 serve_asset(&css.unvirtual());         // ✅ Correct context
@@ -180,7 +188,7 @@ for entry in zip_archive.entries() {
 ```rust
 // User chooses any path - always safe
 let user_storage = VirtualRoot::try_new(format!("/cloud/user_{id}"))?;
-let file_path = user_storage.try_path_virtual(&user_requested_path)?;
+let file_path = user_storage.try_virtual_path(&user_requested_path)?;
 file_path.write_bytes(upload_data)?;
 ```
 
@@ -224,39 +232,103 @@ safe_path.create_dir_all()?;
 let jail = Jail::try_new("directory")?;
 let path = jail.try_path("file.txt")?;
 
-// File I/O
-path.read_bytes()?;
-path.write_string("data")?;
-path.exists();
+// Prefer signatures that require `JailedPath`
+fn read_file(p: &jailed_path::JailedPath) -> std::io::Result<Vec<u8>> { p.read_bytes() }
+fn write_file(p: &jailed_path::JailedPath, s: &str) -> std::io::Result<()> { p.write_string(s) }
+let _ = read_file(&path)?; write_file(&path, "data")?;
 
 // Safe path operations
-path.join_systempath("subdir")?;
+path.systempath_join("subdir")?;
 path.systempath_parent()?;
 
 // External API interop
 external_function(path.systempath_as_os_str());  // No allocation
 ```
 
+### Concept Comparison
+
+| Feature              | `Path`/`PathBuf`          | `JailedPath`                                 | `VirtualPath`                                     |
+| -------------------- | ------------------------- | -------------------------------------------- | ------------------------------------------------- |
+| Join behavior        | `Path::join` (can escape) | `systempath_join` (validated)                | `virtualpath_join` (clamped)                      |
+| Display behavior     | OS path                   | OS path                                      | Virtual root path                                 |
+| Boundary guarantee   | None                      | Jailed (cannot escape)                       | Jailed (virtual view)                             |
+| Input permissiveness | Any path (no checks)      | Only paths inside the jail                   | Any input; always clamped to the jail             |
+| Typical use          | Low-level, unvalidated    | Anything you'd do with `Path`, but jail‑safe | User‑facing paths and the same I/O (virtual view) |
+
 ### User-Facing Virtual Paths (VirtualPath)
 ```rust
 let vroot = VirtualRoot::try_new("directory")?;
-let vpath = vroot.try_path_virtual("file.txt")?;
+let vpath = vroot.try_virtual_path("file.txt")?;
 
 println!("{}", vpath);  // "/file.txt" (rooted view)
 
-// Virtual operations
-vpath.join_virtualpath("subdir")?;
-vpath.virtualpath_parent()?;
+// Prefer signatures that require `VirtualPath`
+fn serve(p: &jailed_path::VirtualPath) -> std::io::Result<Vec<u8>> { p.read_bytes() }
+let _ = serve(&vpath)?;
 
-// Convert to system path for I/O
-vpath.unvirtual().read_bytes()?;
+// Explicit names make intent obvious even without types in scope:
+// p.join(..)              -> unsafe std join (can escape the jail) — avoid on untrusted inputs
+// path.systempath_join(..)-> safe system-path join (validated not to escape)
+// vpath.virtualpath_join(..)-> safe virtual join (clamped to the virtual root)
+// The same naming applies to other ops: parent/with_file_name/with_extension/starts_with/ends_with.
 ```
+
+### Switching Views: Upgrade or Downgrade
+- Stay in one dimension for most flows:
+  - Virtual dimension: `VirtualPath` + `virtualpath_*` operations and direct I/O
+  - System dimension: `JailedPath` + `systempath_*` operations and direct I/O
+- Edge cases: switch views explicitly
+  - Upgrade: `JailedPath::virtualize()` to get virtual-root behavior for display/joins
+  - Downgrade: `VirtualPath::unvirtual()` to get a system-facing value for interop
+- Debug vs Display
+  - `Display` for `VirtualPath` shows a rooted path like "/a/b.txt" (user-facing)
+  - `Debug` for `VirtualPath` is verbose and developer-facing (shows system path, virtual view, jail context, and marker type)
+  - `Debug` for `Jail` and `VirtualRoot` shows the root path and marker type (developer-facing); `Display` shows the real root path
+
 
 ## 📖 **Advanced Usage**
 
 For complete API reference, see our [API_REFERENCE.md](API_REFERENCE.md).
 
 For underlying path resolution without jailing, see [`soft-canonicalize`](https://crates.io/crates/soft-canonicalize).
+
+## 🔌 Integrations
+
+- Serde (feature `serde`):
+  - `JailedPath` and `VirtualPath` implement `Serialize`.
+  - Deserialize into a `String`, then validate with a jail/virtual root:
+    - `#[derive(serde::Deserialize)] struct Payload { file: String }`
+    - `let p: Payload = serde_json::from_str(body)?;`
+    - `let jp = jail.try_path(&p.file)?;` or `let vp = vroot.try_virtual_path(&p.file)?;`
+  - Or use context helpers for deserialization: `serde_ext::WithJail(&jail)` / `serde_ext::WithVirtualRoot(&vroot)` with a serde Deserializer when you deserialize single values with context.
+
+- Axum AppState + Extractors:
+  - Store `VirtualRoot<Marker>` in state; validate `Path<String>` to `VirtualPath` per request.
+  - Handlers and helpers accept `&VirtualPath<Marker>` or `&JailedPath<Marker>` so types enforce correctness.
+  - See `examples/src/bin/web/axum_static_server.rs` for a minimal custom extractor and a JSON route.
+
+- app-path (config dirs):
+  - Use `app_path::app_path!("config", env = "APP_CONFIG_DIR")` to locate a config directory relative to the executable with an env override.
+  - Create a jail there: `let cfg = Jail::try_new_create(cfg_dir)?;` and operate via `JailedPath`.
+
+## 🧭 Markers (Type Inference)
+
+- Default marker: `Marker = ()` for all types; inference usually works once a value is bound.
+- If inference needs help, annotate the `let` or use an empty turbofish.
+- Keep it readable: avoid turbofish unless it clarifies intent or is required.
+
+```rust
+// Inferred default marker
+let vroot: VirtualRoot = VirtualRoot::try_new("user_data")?;
+let vpath: VirtualPath = vroot.try_virtual_path("a.txt")?;
+
+// When inference needs help
+let vroot = VirtualRoot::<()>::try_new("user_data")?; // or: let vroot: VirtualRoot<()> = ...
+
+// Custom marker
+struct UserFiles;
+let uploads: VirtualRoot<UserFiles> = VirtualRoot::try_new("uploads")?;
+```
 
 ## 📄 **License**
 

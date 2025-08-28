@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use std::path::Path;
 
 /// A user-facing virtual root that produces `VirtualPath` values.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct VirtualRoot<Marker = ()> {
     jail: Jail<Marker>,
     _marker: PhantomData<Marker>,
@@ -35,7 +35,7 @@ impl<Marker> VirtualRoot<Marker> {
 
     /// Produces a clamped `VirtualPath` from user input; always preserves the virtual root.
     #[inline]
-    pub fn try_path_virtual<P: AsRef<Path>>(
+    pub fn try_virtual_path<P: AsRef<Path>>(
         &self,
         candidate_path: P,
     ) -> Result<VirtualPath<Marker>> {
@@ -60,5 +60,14 @@ impl<Marker> std::fmt::Display for VirtualRoot<Marker> {
 impl<Marker> AsRef<Path> for VirtualRoot<Marker> {
     fn as_ref(&self) -> &Path {
         self.path()
+    }
+}
+
+impl<Marker> std::fmt::Debug for VirtualRoot<Marker> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VirtualRoot")
+            .field("root", &self.path())
+            .field("marker", &std::any::type_name::<Marker>())
+            .finish()
     }
 }

@@ -128,7 +128,7 @@ pub(crate) fn virtualize_to_jail<Marker>(path: impl AsRef<Path>, jail: &Jail<Mar
 }
 
 /// A system-facing validator that holds the jail root and produces `JailedPath`.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Jail<Marker = ()> {
     path: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
     _marker: PhantomData<Marker>,
@@ -201,5 +201,14 @@ impl<Marker> AsRef<Path> for Jail<Marker> {
     fn as_ref(&self) -> &Path {
         // StatedPath implements AsRef<Path>, so forward to it
         self.path.as_ref()
+    }
+}
+
+impl<Marker> std::fmt::Debug for Jail<Marker> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Jail")
+            .field("root", &self.path.as_ref())
+            .field("marker", &std::any::type_name::<Marker>())
+            .finish()
     }
 }

@@ -20,8 +20,8 @@ fn test_virtual_path_accessors_and_prefixes() {
     assert_eq!(ext.to_string_lossy(), "txt");
 
     // starts_with / ends_with (virtual)
-    assert!(virtual_path.starts_with_virtualpath("foo"));
-    assert!(virtual_path.ends_with_virtualpath("bar.txt"));
+    assert!(virtual_path.virtualpath_starts_with("foo"));
+    assert!(virtual_path.virtualpath_ends_with("bar.txt"));
 
     // virtualpath_parent
     let parent = virtual_path.virtualpath_parent().unwrap().unwrap();

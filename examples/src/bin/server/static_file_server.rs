@@ -16,7 +16,7 @@
 //!    - `http://localhost:8080/` (serves the file, defaults to index.html)
 //!    - `http://localhost:8080/../../../../etc/passwd` (attempted attack, serves index.html instead)
 
-use jailed_path::VirtualRoot;
+use jailed_path::{VirtualPath, VirtualRoot};
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -49,9 +49,9 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
     println!("Request for path: {requested_path}");
 
     // Use the virtual root to safely resolve the requested path.
-    // This is the core security step. `try_path_virtual` will contain any
+    // This is the core security step. `try_virtual_path` will contain any
     // traversal attempts within the `PUBLIC_DIR`.
-    let virtual_path = match vroot.try_path_virtual(requested_path) {
+    let virtual_path = match vroot.try_virtual_path(requested_path) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("Path validation error: {e}");
@@ -63,11 +63,8 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
 
     println!("Safely resolved virtual path: {virtual_path}");
 
-    // Convert the user-facing VirtualPath to a system-facing JailedPath for I/O.
-    let jailed_path = virtual_path.unvirtual();
-
-    let (status_line, contents) = if jailed_path.is_file() {
-        match jailed_path.read_to_string() {
+    let (status_line, contents) = if virtual_path.is_file() {
+        match serve_vpath(&virtual_path) {
             Ok(contents) => ("HTTP/1.1 200 OK", contents),
             Err(_) => (
                 "HTTP/1.1 500 Internal Server Error",
@@ -88,6 +85,10 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
 
     stream.write_all(response.as_bytes()).ok();
     stream.flush().ok();
+}
+
+fn serve_vpath(p: &VirtualPath) -> std::io::Result<String> {
+    p.read_to_string()
 }
 
 /// Sets up the file system environment for the example.
@@ -117,12 +118,26 @@ fn main() -> std::io::Result<()> {
     setup_environment()?;
 
     // 2. Create a VirtualRoot. This defines the "jail" for our web server.
-    // All file access will be confined to the `PUBLIC_DIR`.
     let vroot = VirtualRoot::try_new(PUBLIC_DIR).expect("Failed to create virtual root");
     println!(
         "Jailed file server root to: {}",
         vroot.path().to_string_lossy()
     );
+
+    // In CI or when RUN_SERVER is not set, run a quick offline simulation
+    if std::env::var("RUN_SERVER").is_err() {
+        for path in ["index.html", "assets/style.css", "../../etc/passwd"] {
+            match vroot.try_virtual_path(path) {
+                Ok(vp) => match serve_vpath(&vp) {
+                    Ok(body) => println!("Offline demo: {} -> {} bytes", vp, body.len()),
+                    Err(_) => println!("Offline demo: {} not found", vp),
+                },
+                Err(e) => println!("Offline demo: invalid path '{}': {e}", path),
+            }
+        }
+        fs::remove_dir_all(PUBLIC_DIR).ok();
+        return Ok(())
+    }
 
     // 3. Start the TCP listener.
     let listener = TcpListener::bind("127.0.0.1:8080")?;

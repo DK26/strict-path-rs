@@ -73,10 +73,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for attack in attacks {
         match jail.try_path(attack) {
             Ok(clamped_path) => {
-                // Verify the path was clamped to jail boundary
-                assert!(clamped_path.starts_with_systempath(jail.path()));
+                let contained = clamped_path.systempath_starts_with(jail.path());
                 println!(
-                    "  Attack clamped: {} -> {}",
+                    "  Attack {}: {} -> {}",
+                    if contained { "clamped" } else { "not-clamped" },
                     attack,
                     clamped_path.virtualize().virtualpath_to_string()
                 );

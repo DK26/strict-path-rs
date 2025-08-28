@@ -15,7 +15,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use jailed_path::Jail;
+use jailed_path::{Jail, JailedPath};
 use uuid::Uuid;
 
 // Type markers for different storage contexts
@@ -42,6 +42,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         uploads_jail,
         temp_jail,
     };
+
+    // In CI or when EXAMPLES_RUN_SERVER is not set, run a quick offline simulation
+    if std::env::var("EXAMPLES_RUN_SERVER").is_err() {
+        let filename = format!("{}.txt", uuid::Uuid::new_v4());
+        let safe_dest = state
+            .uploads_jail
+            .try_path(&filename)?;
+        save_uploaded_file(&safe_dest, b"demo content").await?;
+        println!("Offline demo: saved {}", safe_dest.systempath_to_string());
+        return Ok(())
+    }
 
     let app = Router::new()
         .route("/", get(upload_form))
@@ -99,7 +110,12 @@ async fn handle_upload(
     let filename = format!("{}.txt", Uuid::new_v4());
     let file_content = body.as_bytes();
 
-    match save_uploaded_file(&state.uploads_jail, &filename, file_content).await {
+    // Validate the requested destination and pass a JailedPath to the saver
+    let safe_dest = match state.uploads_jail.try_path(&filename) {
+        Ok(p) => p,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid path: {e}")),
+    };
+    match save_uploaded_file(&safe_dest, file_content).await {
         Ok(_) => (StatusCode::OK, format!("File uploaded as {filename}")),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -109,17 +125,11 @@ async fn handle_upload(
 }
 
 async fn save_uploaded_file(
-    jail: &Jail<UserUploads>,
-    filename: &str,
+    path: &JailedPath<UserUploads>,
     content: &[u8],
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Critical security: validate external filename through jail
-    let safe_path = jail.try_path(filename)?;
-
-    // Even if filename was "../../../etc/passwd", it's now safely contained
-    safe_path.write_bytes(content)?;
-
-    println!("Saved file to: {}", safe_path.systempath_to_string());
+    path.write_bytes(content)?;
+    println!("Saved file to: {}", path.systempath_to_string());
     Ok(())
 }
 
@@ -127,24 +137,24 @@ async fn serve_uploaded_file(
     State(state): State<AppState>,
     Path(filename): Path<String>,
 ) -> impl IntoResponse {
-    match serve_user_file(&state.uploads_jail, &filename).await {
+    // Validate then serve via a function that encodes guarantees
+    let safe_path = match state.uploads_jail.try_path(&filename) {
+        Ok(p) => p,
+        Err(_) => return (StatusCode::NOT_FOUND, "File not found".to_string()),
+    };
+    match serve_user_file(&safe_path).await {
         Ok(content) => (StatusCode::OK, content),
         Err(_) => (StatusCode::NOT_FOUND, "File not found".to_string()),
     }
 }
 
 async fn serve_user_file(
-    jail: &Jail<UserUploads>,
-    filename: &str,
+    path: &JailedPath<UserUploads>,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    // Secure file serving - path is validated and contained
-    let safe_path = jail.try_path(filename)?;
-
-    if !safe_path.exists() {
+    if !path.exists() {
         return Err("File not found".into());
     }
-
-    let content = safe_path.read_to_string()?;
+    let content = path.read_to_string()?;
     Ok(content)
 }
 
@@ -166,7 +176,7 @@ async fn process_user_file(
     temp_jail: &Jail<TempFiles>,
     filename: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    // Load from secure uploads area
+    // Validate the source path and pass typed paths into helpers
     let source_path = uploads_jail.try_path(filename)?;
     let content = source_path.read_to_string()?;
 
