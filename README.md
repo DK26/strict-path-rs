@@ -54,6 +54,17 @@ store_report(&safe_path)?; // Type system enforces correct usage
 
 Any path from untrusted sources (HTTP, CLI, config, DB, LLMs, archives) must be validated into a jail‑enforced type (`JailedPath` or `VirtualPath`) before I/O.
 
+## ⚠️ **Security Limitations**
+
+This library operates at the **path level**, not the operating system level. While it provides strong protection against path traversal attacks using symlinks and standard directory navigation, it **cannot protect against** certain privileged operations:
+
+- **Hard Links**: If a file is hard-linked outside the jailed path, accessing it through the jail will still reach the original file data. Hard links create multiple filesystem entries pointing to the same inode.
+- **Mount Points**: If a filesystem mount is introduced (by a system administrator or attacker with sufficient privileges) that redirects a path within the jail to an external location, this library cannot detect or prevent access through that mount.
+
+**Important**: These attack vectors require **high system privileges** (typically root/administrator access) to execute. If an attacker has such privileges on your system, they can bypass most application-level security measures anyway. This library effectively protects against the much more common and practical symlink-based traversal attacks that don't require special privileges.
+
+Our symlink resolution via [`soft-canonicalize`](https://crates.io/crates/soft-canonicalize) handles the most accessible attack vectors that malicious users can create without elevated system access.
+
 ## 🚀 **Simple Examples**
 
 ### Basic Usage
