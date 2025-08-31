@@ -106,7 +106,7 @@ fn main() {
                             .to_string_lossy()
                     );
                 } else {
-                    eprintln!("[Error] File copy reported success, but destination '{}' does not exist.", dest_path.systempath_to_string());
+                    eprintln!("[Error] File copy reported success, but destination '{}' does not exist.", dest_path.systempath_to_string_lossy());
                 }
             }
             Err(e) => {

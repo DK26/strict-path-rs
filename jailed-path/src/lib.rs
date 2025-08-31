@@ -72,7 +72,7 @@
 //!
 //! fn save_doc(p: &VirtualPath) -> std::io::Result<()> { p.write_bytes(b"user file content") }
 //! save_doc(&vp)?; // Compiler enforces correct usage via the type
-//! println!("virtual: {}", vp);
+//! println!("virtual: {vp}");
 //!
 //! # // Cleanup
 //! # std::fs::remove_dir_all(&root).ok();
@@ -142,7 +142,7 @@
 //!
 //! | Use Case                               | Type                       | Example                                                     |
 //! | -------------------------------------- | -------------------------- | ----------------------------------------------------------- |
-//! | Displaying a path in a UI or log       | `VirtualPath`              | `println!("File: {}", virtual_path);`                       |
+//! | Displaying a path in a UI or log       | `VirtualPath`              | `println!("File: {virtual_path}");`                       |
 //! | Manipulating a path based on user view | `VirtualPath`              | `virtual_path.virtualpath_parent()`                         |
 //! | Reading or writing a file              | `VirtualPath` or `JailedPath` | `virtual_path.read_bytes()?` or `jailed_path.read_bytes()?` |
 //! | Integrating with an external API       | Either (borrow `&OsStr`)   | `external_api(virtual_path.systempath_as_os_str())`         |
@@ -233,7 +233,7 @@
 //!   Use `systempath_join`/`systempath_parent` and `virtualpath_join`/`virtualpath_parent`.
 //! - Avoid `.unvirtual()`/`.unjail()` unless you explicitly need ownership for interop.
 //!   Prefer borrowing with `systempath_as_os_str()`.
-//! - Virtual strings are rooted. For UI/logging, use `format!("{}", vp)` or `vp.virtualpath_to_string()`.
+//! - Virtual strings are rooted. For UI/logging, use `format!("{vp}")` or `vp.virtualpath_to_string_lossy()`.
 //!   No borrowed `&str` accessors are exposed for virtual paths.
 //! - Creating a jail: `Jail::try_new(..)` requires the directory to exist.
 //!   Use `Jail::try_new_create(..)` if it may be missing.
@@ -314,7 +314,7 @@ pub mod serde_ext {
     //! let vroot: VirtualRoot = VirtualRoot::try_new(td.path())?;
     //! let mut de = serde_json::Deserializer::from_str("\"a/b.txt\"");
     //! let vp: VirtualPath = WithVirtualRoot(&vroot).deserialize(&mut de)?;
-    //! assert_eq!(vp.virtualpath_to_string(), "/a/b.txt");
+    //! assert_eq!(vp.virtualpath_to_string_lossy(), "/a/b.txt");
     //! # Ok(()) }
     //! ```
 

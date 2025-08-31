@@ -25,5 +25,5 @@ fn test_virtual_path_accessors_and_prefixes() {
 
     // virtualpath_parent
     let parent = virtual_path.virtualpath_parent().unwrap().unwrap();
-    assert_eq!(parent.virtualpath_to_string(), "/foo");
+    assert_eq!(parent.virtualpath_to_string_lossy(), "/foo");
 }

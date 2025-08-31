@@ -179,7 +179,7 @@ fn create_volume(
     }
 
     println!("✅ Volume '{volume_name}' created successfully");
-    println!("   Path: {}", volume_path.systempath_to_string());
+    println!("   Path: {}", volume_path.systempath_to_string_lossy());
     println!("   ID: {}", metadata.id);
 
     Ok(())
@@ -336,7 +336,7 @@ fn backup_volume(
     println!("✅ Backup '{backup_name}' created successfully");
     println!("   Files: {file_count}");
     println!("   Size: {total_size} bytes");
-    println!("   Path: {}", backup_path.systempath_to_string());
+    println!("   Path: {}", backup_path.systempath_to_string_lossy());
 
     Ok(())
 }

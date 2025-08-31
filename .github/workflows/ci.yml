@@ -116,11 +116,11 @@ jobs:
         cd examples
         cargo build --bins --features with-zip
 
-    - name: Clippy examples (bins)
-      # Enforce the same lint quality bar on demos
+    - name: Clippy examples (all targets)
+      # Enforce the same lint quality bar on demos across bins/tests/benches
       run: |
         cd examples
-        cargo clippy --bins --features with-zip -- -D warnings
+        cargo clippy --all-targets --features with-zip -- -D warnings
 
     - name: Show clippy fixes (if check failed)  
       if: failure()

@@ -25,7 +25,7 @@ fn test_known_cve_patterns() {
     for pattern in attack_patterns {
         if let Ok(jailed_path) = jail.try_path(pattern) {
             let virtual_path = jailed_path.clone().virtualize();
-            let virtual_str = virtual_path.virtualpath_to_string();
+            let virtual_str = virtual_path.virtualpath_to_string_lossy();
 
             if !pattern.contains("....") && !pattern.contains("%2F") {
                 let is_traversal_pattern =
@@ -119,7 +119,7 @@ fn test_long_path_handling() {
         assert!(jailed_path.systempath_starts_with(jail.path()));
         let virtual_path = jailed_path.virtualize();
         let expected_path = "/etc/passwd".to_string();
-        assert_eq!(virtual_path.virtualpath_to_string(), expected_path);
+        assert_eq!(virtual_path.virtualpath_to_string_lossy(), expected_path);
     }
 }
 

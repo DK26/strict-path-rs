@@ -67,7 +67,7 @@ impl TenantStorage {
         println!(
             "Successfully wrote {} bytes to System path: {}",
             content.len(),
-            vp.systempath_to_string()
+            vp.systempath_to_string_lossy()
         );
         Ok(())
     }

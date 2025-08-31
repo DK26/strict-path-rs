@@ -34,7 +34,10 @@ fn test_try_path_and_try_virtual_path_roundtrip() {
     assert!(jp.systempath_starts_with(jail.path()));
 
     let vp = vroot.try_virtual_path("alpha/beta.txt").unwrap();
-    assert_eq!(vp.virtualpath_to_string(), "/alpha/beta.txt");
+    assert_eq!(vp.virtualpath_to_string_lossy(), "/alpha/beta.txt");
     // Conversions are explicit and consistent
-    assert_eq!(vp.systempath_to_string(), jp.systempath_to_string());
+    assert_eq!(
+        vp.systempath_to_string_lossy(),
+        jp.systempath_to_string_lossy()
+    );
 }

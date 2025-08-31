@@ -66,6 +66,6 @@ mod serde_tests {
             .deserialize(&mut de)
             .unwrap();
         // Traversal is clamped to the virtual root
-        assert_eq!(vp.virtualpath_to_string(), "/etc/hosts");
+        assert_eq!(vp.virtualpath_to_string_lossy(), "/etc/hosts");
     }
 }

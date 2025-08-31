@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .uploads_jail
             .try_path(&filename)?;
         save_uploaded_file(&safe_dest, b"demo content").await?;
-        println!("Offline demo: saved {}", safe_dest.systempath_to_string());
+        println!("Offline demo: saved {}", safe_dest.systempath_to_string_lossy());
         return Ok(())
     }
 
@@ -129,7 +129,7 @@ async fn save_uploaded_file(
     content: &[u8],
 ) -> Result<(), Box<dyn std::error::Error>> {
     path.write_bytes(content)?;
-    println!("Saved file to: {}", path.systempath_to_string());
+    println!("Saved file to: {}", path.systempath_to_string_lossy());
     Ok(())
 }
 
@@ -191,7 +191,7 @@ async fn process_user_file(
     // Return result path information
     Ok(format!(
         "Processed file saved to: {}",
-        temp_path.systempath_to_string()
+        temp_path.systempath_to_string_lossy()
     ))
 }
 

@@ -14,7 +14,7 @@ fn test_jailed_path_accessors_and_manipulation() {
     // Basic accessors
     assert!(file.systempath_to_str().is_some());
     assert_eq!(
-        file.systempath_to_string(),
+        file.systempath_to_string_lossy(),
         file.systempath_as_os_str().to_string_lossy()
     );
 
@@ -94,7 +94,7 @@ fn test_virtual_path_components_and_checks() {
     let vp = jp.clone().virtualize();
 
     // Virtual display/string is rooted
-    assert_eq!(vp.virtualpath_to_string(), "/a/b.txt");
+    assert_eq!(vp.virtualpath_to_string_lossy(), "/a/b.txt");
 
     // Virtual components
     assert_eq!(
@@ -110,12 +110,15 @@ fn test_virtual_path_components_and_checks() {
 
     // Virtual path manipulation
     let vparent = vp.virtualpath_parent().unwrap().unwrap();
-    assert_eq!(vparent.virtualpath_to_string(), "/a");
+    assert_eq!(vparent.virtualpath_to_string_lossy(), "/a");
     let vsib = vp.virtualpath_join("c.log").unwrap();
-    assert_eq!(vsib.virtualpath_to_string(), "/a/b.txt/c.log");
+    assert_eq!(vsib.virtualpath_to_string_lossy(), "/a/b.txt/c.log");
 
     // Cross accessors should match
-    assert_eq!(vp.systempath_to_string(), jp.systempath_to_string());
+    assert_eq!(
+        vp.systempath_to_string_lossy(),
+        jp.systempath_to_string_lossy()
+    );
     assert_eq!(
         vp.systempath_as_os_str().to_string_lossy(),
         jp.systempath_as_os_str().to_string_lossy()

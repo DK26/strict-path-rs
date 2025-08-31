@@ -18,8 +18,9 @@ Top-level exports
 ## Quick Recipes
 - Create jail (create dir if missing) and validate: `let jail = Jail::try_new_create("./safe")?; let jp = jail.try_path("a/b.txt")?;`
 - Prefer signatures that require `JailedPath`: `fn serve(p: &JailedPath) -> io::Result<Vec<u8>> { p.read_bytes() }`
-- Virtual user path: `let vroot = VirtualRoot::try_new("./safe")?; let vp = vroot.try_virtual_path("a/b.txt")?; println!("{}", vp); // "/a/b.txt"`
+- Virtual user path: `let vroot = VirtualRoot::try_new("./safe")?; let vp = vroot.try_virtual_path("a/b.txt")?; println!("{vp}"); // "/a/b.txt"`
 - Prefer signatures that require `VirtualPath`: `fn serve(p: &VirtualPath) -> io::Result<Vec<u8>> { p.read_bytes() }`
+- AsRef<Path> interop (no allocation): `std::fs::copy(src.systempath_as_os_str(), dst.systempath_as_os_str())?; // src/dst: &JailedPath or &VirtualPath`
 
 Markers and type inference
 - All core types are generic over a `Marker` with a default of `()`.
@@ -46,7 +47,7 @@ Jail<Marker>
 JailedPath<Marker>
 - unjail(self) -> PathBuf  // consumes — escape hatch (avoid)
 - virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
-- systempath_to_string(&self) -> String
+- systempath_to_string_lossy(&self) -> Cow<'_, str>
 - systempath_to_str(&self) -> Option<&str>
 - systempath_as_os_str(&self) -> &OsStr
 - display(&self) -> std::path::Display<'_>
@@ -80,8 +81,8 @@ VirtualRoot<Marker>
 
 VirtualPath<Marker>
 - unvirtual(self) -> JailedPath<Marker>  // downgrade to system view (interop)
-- virtualpath_to_string(&self) -> String
-- systempath_to_string(&self) -> String
+- virtualpath_to_string_lossy(&self) -> Cow<'_, str>
+- systempath_to_string_lossy(&self) -> Cow<'_, str>
 - systempath_to_str(&self) -> Option<&str>
 - systempath_as_os_str(&self) -> &OsStr
 - virtualpath_join<P: AsRef<Path>>(&self, path: P) -> Result<Self>
@@ -105,6 +106,8 @@ Short usage rules (1-line each)
   `jailed_path.systempath_as_os_str()` rather than leaking a `Path`/`PathBuf`.
 - Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
   clamping or jail checks. Use `systempath_join` / `virtualpath_parent` instead.
+ - Do not convert `JailedPath` -> `VirtualPath` just to print; for UI flows start with `VirtualRoot::try_virtual_path(..)` and keep a `VirtualPath`.
+ - `*_to_string_lossy()` returns `Cow<'_, str>`; call `.into_owned()` only when an owned `String` is required.
  
 Naming rationale (quick scan aid)
 - We name methods by their dimension so intent is obvious at a glance.
@@ -124,8 +127,15 @@ Display/Debug
 ## Pitfalls (And How To Avoid)
 - Do not expose raw `Path`/`PathBuf` from `JailedPath`/`VirtualPath`; prefer `systempath_as_os_str()`.
 - Use jail-aware joins/parents; never call std `Path::join` on a leaked path.
-- Virtual strings are rooted. Use `Display` or `virtualpath_to_string()` for UI/logging.
+- Virtual strings are rooted. Use `Display` or `virtualpath_to_string_lossy()` for UI/logging.
 - Use `Jail::try_new_create(..)` when the jail directory might not exist.
+
+Common anti-patterns (LLM quick check)
+- Passing strings to `AsRef<Path>` APIs (e.g., `*_to_string_lossy().as_ref()`): use `systempath_as_os_str()`.
+- Converting `JailedPath` -> `VirtualPath` only to print: start with a `VirtualPath` for UI or print the `JailedPath` directly for system logs.
+- Using `Path::join`/`Path::parent` on leaked paths: use `systempath_*` / `virtualpath_*` ops.
+- Forcing ownership: avoid `.into_owned()` on `Cow` unless an owned `String` is required.
+- Bare `{}` in format strings: prefer captured identifiers like `"{path}"` (bind a short local if needed).
 
 Where to read the code
 - `src/lib.rs`, `src/validator/jail.rs`, `src/validator/virtual_root.rs`, `src/path/jailed_path.rs`, `src/path/virtual_path.rs`, `src/error/mod.rs`

@@ -38,13 +38,14 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 - Stable CI explicitly builds examples:
   - `cd examples && cargo build --bins --features with-zip` (local-only optional feature sets like `with-aws`, `with-app-path` may be enabled by developers but are not required in CI).
   - Demo projects must not require external services during CI. Provide offline simulations and guard servers or network calls behind env toggles (e.g., `EXAMPLES_RUN_SERVER=1`, `RUN_SERVER=1`, `EXAMPLES_S3_RUN=1`). Default behavior is offline/mock.
-  - Demo projects must pass clippy with `-D warnings` on stable (`cd examples && cargo clippy --bins -- -D warnings`).
+  - Demo projects must pass clippy with `-D warnings` on stable (lint all targets: `cd examples && cargo clippy --all-targets -- -D warnings`).
 
 ### Docs vs. Demo Projects (Very Important)
 
 - Crate docs/README/lib.rs examples: teach the API. Keep them minimal, assertion-backed where helpful, and encode guarantees in function signatures (`&JailedPath<..>` / `&VirtualPath<..>`). These are doctested snippets.
 - `examples/` subcrate: real‑world demo projects. No assertions in the flow; show realistic control paths and I/O. Use the type system in function signatures to encode guarantees, but avoid thin wrappers that mirror built‑ins — favor purposeful functions and coherent flows.
 - Don’t over‑engineer demos. Keep them idiomatic and focused on integrating the API into a plausible application scenario.
+ - Do not convert a `JailedPath` to `VirtualPath` just to print a user-facing path. For UI/display flows, construct a `VirtualPath` from a `VirtualRoot` and keep it; for system logs/interop, print the `JailedPath` directly.
 
 ## Why Split Examples From The Workspace?
 
@@ -96,6 +97,21 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 - Clippy: `cargo clippy --all-targets --all-features -- -D warnings` (MSRV job uses scoped flags; keep code clean).
 - Formatting: `cargo fmt --all -- --check`.
 - Follow Rust API Guidelines and best practices.
+- String formatting (Rust 1.58+): Never use bare `{}`. Always use captured identifiers: `format!("{path}")`, `println!("{vp}")`, `write!(f, "{item:?}")`. If no identifier exists, bind a short local and then use it (e.g., `let bytes = data.len(); println!("{bytes}")`). Prefer locals + captured identifiers when expressions are long or repeated.
+- `*_to_string_lossy()` returns `Cow<'_, str>`; call `.into_owned()` only when an owned `String` is required.
+- AsRef<Path> interop: never pass strings; use `systempath_as_os_str()` (allocation‑free, OS‑native) from `JailedPath`/`VirtualPath`.
+
+### Anti-Patterns (Question First)
+
+- JailedPath -> VirtualPath for printing: Converting just to display a virtual string is a smell. Prefer starting with `VirtualRoot::try_virtual_path(..)` and keeping a `VirtualPath` for user-facing flows, or print the `JailedPath` (system view) directly. Ask whether to refactor the flow to the correct dimension.
+- String interop to AsRef<Path>: Passing `*_to_string_lossy()`, `*_to_str()`, or `PathBuf` where `AsRef<Path>` is expected. Use `systempath_as_os_str()` instead. Ask before changing signatures or behavior.
+- std path ops on leaked paths: Using `Path::join`/`Path::parent`/etc. on values outside the jail types. Replace with jail-aware ops (`systempath_*` / `virtualpath_*`). Confirm scope of refactor.
+- Formatting with bare {}: Use captured identifiers (`"{name}"`). If found, ask whether to update to locals + captured identifiers for readability or keep as-is if it’s truly a one-off expression.
+- Forcing ownership from `Cow`: Calling `.into_owned()` on `*_to_string_lossy()` without a hard requirement for `String`. Ask if borrowing is acceptable; avoid extra allocations in hot paths.
+- Leaky trait impls: Implementing `AsRef<Path>`, `Deref<Target = Path>`, or implicit `From/Into` conversions for jail types. These are forbidden; ask before any API surface changes that could weaken invariants.
+- Escape hatches in examples: Using `.unvirtual()` / `.unjail()` outside a dedicated “escape hatches” section. Ask before introducing such flows.
+- Exposing system paths in UI/JSON unintentionally: Prefer virtual paths for user-facing output. Ask when system paths are included for observability.
+- Examples relying on external services by default: Must be guarded with env toggles and default to offline/mock. Ask before adding network dependencies.
 
 ### Linting, Doctests, and Hygiene
 
@@ -124,7 +140,7 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 
 - Prefer reusing examples from source code comments (crate docs or module docs) that are doctested and compile.
 - Examples must encode guarantees in function signatures: accept `&JailedPath<Marker>` / `&VirtualPath<Marker>` (or structs containing them) rather than operating on raw inputs. Treat built‑in I/O methods as convenience; do not present them as the primary security mechanism.
-- When demonstrating expected output or behavior, present it using assertions (e.g., `assert_eq!(vpath.virtualpath_to_string(), "/a/b.txt");`) rather than comments like `// prints: ...`, whenever feasible. This keeps examples truthful, prevents drift, and proves behavior in doctests/CI.
+- When demonstrating expected output or behavior, present it using assertions (e.g., `assert_eq!(vpath.virtualpath_to_string_lossy(), "/a/b.txt");`) rather than comments like `// prints: ...`, whenever feasible. This keeps examples truthful, prevents drift, and proves behavior in doctests/CI.
 - If you need a new README example:
   - First implement it as a real, compiling example (e.g., under `examples/`) or a doctested snippet in source comments.
   - Ensure it builds and passes locally (and on MSRV if applicable) before copying to README.
@@ -152,6 +168,19 @@ Operational guide for AI assistants, bots, and automation working in this reposi
   - `.unjail()` (to obtain an owned `PathBuf`, losing guarantees)
   - `.unvirtual().unjail()` (explicit two-step escape)
   Everywhere else, prefer borrowing with `systempath_as_os_str()`.
+
+### Preferred vs. Anti-Patterns
+
+- Preferred: `fs::copy(src.systempath_as_os_str(), dst.systempath_as_os_str())`
+  - Anti-pattern: `fs::copy(src.systempath_to_string_lossy().as_ref(), ..)` (string interop; loses fidelity/allocates).
+- Preferred: `let vp = vroot.try_virtual_path("a/b.txt")?; println!("{vp}");`
+  - Anti-pattern: `jp.clone().virtualize()` just to print; start with `VirtualPath` for UI flows.
+- Preferred: `jp.systempath_join("child.txt")?` or `vp.virtualpath_join("child.txt")?`
+  - Anti-pattern: `leaked_path.join("child.txt")` (std join ignores jail/virtual semantics).
+- Preferred: Borrow `Cow<'_, str>` from `*_to_string_lossy()`; convert only when required
+  - Anti-pattern: Calling `.into_owned()` eagerly with no `String` requirement.
+- Preferred: Small locals + captured identifiers for readability
+  - Anti-pattern: Bare `{}` or long inline expressions; use `let bytes = data.len(); println!("{bytes}")`.
 
 ### Naming Rationale (Explicit Ops)
 

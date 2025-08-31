@@ -43,13 +43,16 @@ impl<Marker> JailedPath<Marker> {
         self.jail.as_ref()
     }
 
-    /// Returns the underlying system path as an owned `String`.
+    /// Returns the underlying system path as a lossy UTF-8 string.
+    ///
+    /// Mirrors `Path::to_string_lossy()` by returning `Cow<'_, str>` so valid UTF-8
+    /// can be borrowed without allocation.
     ///
     /// For interop with APIs that accept `AsRef<Path>`, prefer
     /// `systempath_as_os_str()` to avoid allocation.
     #[inline]
-    pub fn systempath_to_string(&self) -> String {
-        self.path.to_string_lossy().into_owned()
+    pub fn systempath_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+        self.path.to_string_lossy()
     }
 
     /// Returns the underlying system path as `&str` if valid UTF-8.
@@ -226,7 +229,7 @@ impl<Marker> serde::Serialize for JailedPath<Marker> {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.systempath_to_string())
+        serializer.serialize_str(self.systempath_to_string_lossy().as_ref())
     }
 }
 

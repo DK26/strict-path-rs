@@ -39,7 +39,7 @@ struct ThemeJail;
 fn load_app_config(config_path: &JailedPath<AppConfigJail>) -> Result<String, std::io::Error> {
     println!(
         "Attempting to load app config from System path: {}",
-        config_path.systempath_to_string()
+        config_path.systempath_to_string_lossy()
     );
     config_path.read_to_string()
 }
@@ -51,7 +51,7 @@ fn load_app_config(config_path: &JailedPath<AppConfigJail>) -> Result<String, st
 fn load_theme_file(theme_path: &JailedPath<ThemeJail>) -> Result<String, std::io::Error> {
     println!(
         "Attempting to load theme from System path: {}",
-        theme_path.systempath_to_string()
+        theme_path.systempath_to_string_lossy()
     );
     theme_path.read_to_string()
 }
@@ -134,7 +134,7 @@ fn main() {
             // We can't even call the function, so we'll just print a message.
             println!(
                 "Successfully created a JailedPath: {}",
-                path_from_wrong_jail.systempath_to_string()
+                path_from_wrong_jail.systempath_to_string_lossy()
             );
             println!("However, we cannot pass it to `load_app_config` due to a type mismatch. COMPILE ERROR PREVENTED!");
         }

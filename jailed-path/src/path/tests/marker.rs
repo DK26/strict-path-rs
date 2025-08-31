@@ -41,5 +41,8 @@ fn test_different_marker_types_are_incompatible() {
     // serve_image(&usr);
 
     // Runtime check: their System paths differ as they live under different jails
-    assert_ne!(img.systempath_to_string(), usr.systempath_to_string());
+    assert_ne!(
+        img.systempath_to_string_lossy(),
+        usr.systempath_to_string_lossy()
+    );
 }

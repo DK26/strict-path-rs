@@ -1,25 +1,25 @@
-use jailed_path::{Jail, JailedPath};
+use jailed_path::{VirtualRoot, VirtualPath};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a temporary directory for our example
     std::fs::create_dir_all("example_storage/users/alice/documents")?;
 
-    // Create a validator for user files
+    // Create a virtual root for user files (user-facing)
     #[derive(Clone, Debug)]
     struct UserFiles;
-    let jail: Jail<UserFiles> = Jail::try_new("example_storage")?;
+    let vroot: VirtualRoot<UserFiles> = VirtualRoot::try_new("example_storage")?;
 
-    // Validate and create jailed paths
-    let user_doc: JailedPath<UserFiles> = jail.try_path("users/alice/documents/report.pdf")?;
-    let user_image: JailedPath<UserFiles> = jail.try_path("users/alice/profile.jpg")?;
+    // Validate and create virtual paths directly
+    let user_doc: VirtualPath<UserFiles> = vroot.try_virtual_path("users/alice/documents/report.pdf")?;
+    let user_image: VirtualPath<UserFiles> = vroot.try_virtual_path("users/alice/profile.jpg")?;
 
     println!("=== Virtual Root Display Demo ===");
     println!();
 
     // Display shows virtual root (user-friendly)
     println!("User sees clean paths:");
-    println!("  Document: {}", user_doc.clone().virtualize()); // "/users/alice/documents/report.pdf"
-    println!("  Image:    {}", user_image.clone().virtualize()); // "/users/alice/profile.jpg"
+    println!("  Document: {user_doc}"); // "/users/alice/documents/report.pdf"
+    println!("  Image:    {user_image}"); // "/users/alice/profile.jpg"
     println!();
 
     // Debug shows full internal structure
@@ -28,27 +28,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Image:    {user_image:?}");
     println!();
 
-    // Jail root is accessible if needed
-    println!("Jail root: {}", jail.path().to_string_lossy());
-    println!(
-        "User jail root: {}",
-        user_doc.clone().virtualize().virtualpath_to_string()
-    );
+    // Underlying real root is accessible if needed
+    println!("Jail root: {}", vroot.path().to_string_lossy());
     println!();
 
     // Still works with the explicit virtual APIs
     println!("Path methods still work (virtual):");
     println!(
         "  Document filename: {:?}",
-        user_doc.clone().virtualize().virtualpath_file_name()
+        user_doc.virtualpath_file_name()
     );
     println!(
         "  Document extension: {:?}",
-        user_doc.clone().virtualize().virtualpath_extension()
+        user_doc.virtualpath_extension()
     );
     println!(
         "  Document parent: {:?}",
-        user_doc.clone().virtualize().virtualpath_parent().unwrap()
+        user_doc.virtualpath_parent().unwrap()
     );
     println!();
 
@@ -71,14 +67,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for attack in attacks {
-        match jail.try_path(attack) {
+        match vroot.try_virtual_path(attack) {
             Ok(clamped_path) => {
-                let contained = clamped_path.systempath_starts_with(jail.path());
                 println!(
-                    "  Attack {}: {} -> {}",
-                    if contained { "clamped" } else { "not-clamped" },
+                    "  Attack clamped: {} -> {}",
                     attack,
-                    clamped_path.virtualize().virtualpath_to_string()
+                    clamped_path.virtualpath_to_string_lossy()
                 );
             }
             Err(e) => println!("  Unexpected error for {attack}: {e}"),

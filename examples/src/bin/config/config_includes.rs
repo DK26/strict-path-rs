@@ -42,11 +42,10 @@ fn load_config(vroot: &VirtualRoot<ConfigRoot>, entry: &str) -> Result<HashMap<S
 
 fn load_config_from_vpath(
     file: &VirtualPath<ConfigRoot>,
-    visited: &mut std::collections::HashSet<String>,
+    visited: &mut std::collections::HashSet<VirtualPath<ConfigRoot>>,
 ) -> Result<HashMap<String, String>> {
-    let key = file.virtualpath_to_string();
-    if !visited.insert(key.clone()) {
-        return Err(anyhow::anyhow!("Include loop detected at {}", key));
+    if !visited.insert(file.clone()) {
+        return Err(anyhow::anyhow!("Include loop detected at {file}"));
     }
 
     let content = match file.read_to_string() {

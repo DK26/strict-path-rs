@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 /// A user-facing path clamped to the virtual root of a jail.
 ///
-/// Display and `virtualpath_to_string()` show a rooted, forward-slashed path
+/// Display and `virtualpath_to_string_lossy()` show a rooted, forward-slashed path
 /// (e.g., `"/a/b.txt"`). Use virtual manipulation methods to compose paths
 /// while preserving clamping, and convert to `JailedPath` with `unvirtual()`
 /// for system-facing I/O.
@@ -129,16 +129,40 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// Returns the rooted, forward-slashed virtual path string for UI/display.
-    pub fn virtualpath_to_string(&self) -> String {
-        format!("{}", self.display())
+    ///
+    /// Returns `Cow<'_, str>` and avoids allocation when possible (e.g., on
+    /// Unix when the underlying string is valid UTF-8 and already rooted).
+    pub fn virtualpath_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+        use std::borrow::Cow;
+
+        let s_lossy = self.virtual_path.to_string_lossy();
+
+        #[cfg(windows)]
+        {
+            let normalized = s_lossy.replace('\\', "/");
+            if normalized.starts_with('/') {
+                Cow::Owned(normalized)
+            } else {
+                Cow::Owned(format!("/{normalized}"))
+            }
+        }
+
+        #[cfg(not(windows))]
+        {
+            if s_lossy.starts_with('/') {
+                s_lossy
+            } else {
+                Cow::Owned(format!("/{s_lossy}"))
+            }
+        }
     }
 
     #[inline]
     // Note: We intentionally do not expose borrowed &str/&OsStr virtual accessors to
-    // avoid confusion; use `virtualpath_to_string()` or Display for rooted output.
-    /// Returns the underlying system path as an owned `String` (delegates to `JailedPath`).
-    pub fn systempath_to_string(&self) -> String {
-        self.inner.systempath_to_string()
+    // avoid confusion; use `virtualpath_to_string_lossy()` or Display for rooted output.
+    /// Returns the underlying system path as a lossy UTF-8 string (delegates to `JailedPath`).
+    pub fn systempath_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+        self.inner.systempath_to_string_lossy()
     }
 
     /// Returns the underlying system path as `&str` if valid UTF-8 (delegates to `JailedPath`).
@@ -339,8 +363,8 @@ impl<Marker> fmt::Display for VirtualPath<Marker> {
 impl<Marker> fmt::Debug for VirtualPath<Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("VirtualPath")
-            .field("system_path", &self.inner.systempath_to_string())
-            .field("virtual", &self.virtualpath_to_string())
+            .field("system_path", &self.inner.systempath_to_string_lossy())
+            .field("virtual", &self.virtualpath_to_string_lossy())
             .field("jail", &self.inner.jail().path().as_ref())
             .field("marker", &std::any::type_name::<Marker>())
             .finish()
@@ -367,6 +391,6 @@ impl<Marker> serde::Serialize for VirtualPath<Marker> {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.virtualpath_to_string())
+        serializer.serialize_str(self.virtualpath_to_string_lossy().as_ref())
     }
 }

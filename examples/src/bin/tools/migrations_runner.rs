@@ -65,6 +65,8 @@ fn create_backup(target: &JailedPath<BackupDir>) -> Result<()> {
 fn apply_migration(script: &JailedPath<MigrationsDir>) -> Result<()> {
     let sql = script.read_to_string()?;
     // Simulate applying SQL to a database
-    println!("▶ Applying {} ({} bytes)", script.systempath_to_string(), sql.len());
+    let file = script.systempath_to_string_lossy();
+    let bytes = sql.len();
+    println!("▶ Applying {file} ({bytes} bytes)");
     Ok(())
 }

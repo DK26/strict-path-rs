@@ -1,4 +1,4 @@
-use jailed_path::{Jail, JailedPathError};
+use jailed_path::{VirtualRoot, JailedPathError};
 
 fn main() -> Result<(), JailedPathError> {
     // Get the current directory as our path jail
@@ -8,15 +8,15 @@ fn main() -> Result<(), JailedPathError> {
         current_dir.display()
     );
 
-    // Create a path validator
-    let jail: Jail = Jail::try_new(&current_dir)?;
+    // Create a virtual root for user-facing paths
+    let vroot: VirtualRoot = VirtualRoot::try_new(&current_dir)?;
 
     // Test valid path
-    match jail.try_path("Cargo.toml") {
+    match vroot.try_virtual_path("Cargo.toml") {
         Ok(jailed_path) => {
             println!(
                 "✓ Valid path: {}",
-                jailed_path.virtualize().virtualpath_to_string()
+                jailed_path.virtualpath_to_string_lossy()
             );
         }
         Err(e) => {
@@ -25,13 +25,13 @@ fn main() -> Result<(), JailedPathError> {
     }
 
     // Test path with directory traversal (gets clamped to jail root)
-    match jail.try_path("../../../sensitive.txt") {
+    match vroot.try_virtual_path("../../../sensitive.txt") {
         Ok(clamped_path) => {
             println!(
                 "✓ Path traversal clamped to jail root: {}",
-                clamped_path.clone().virtualize().virtualpath_to_string()
+                clamped_path.virtualpath_to_string_lossy()
             );
-            println!("  System path: {}", clamped_path.systempath_to_string());
+            println!("  System path: {}", clamped_path.systempath_to_string_lossy());
         }
         Err(e) => {
             println!("✗ Unexpected error for clamped path: {e}");
