@@ -145,7 +145,7 @@ fn create_volume(
     let volumes_jail: Jail<DockerVolumes> = Jail::try_new_create(&cli.volumes_root)?;
 
     // Validate volume name (security: prevent directory traversal in volume names)
-    let volume_path = volumes_jail.try_path(volume_name)?;
+    let volume_path = volumes_jail.systempath_join(volume_name)?;
 
     if volume_path.exists() {
         return Err(format!("Volume '{volume_name}' already exists").into());
@@ -202,7 +202,7 @@ fn list_volumes(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     println!("📋 Listing Docker volumes in: {}", cli.volumes_root);
 
     let volumes_jail: Jail<DockerVolumes> = Jail::try_new(&cli.volumes_root)?;
-    let volumes_root = volumes_jail.try_path(".")?;
+    let volumes_root = volumes_jail.systempath_join(".")?;
 
     if !volumes_root.exists() {
         println!("No volumes directory found. Create some volumes first.");
@@ -220,7 +220,7 @@ fn list_volumes(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "-".repeat(80));
 
     for volume_name in sample_volumes {
-        if let Ok(volume_path) = volumes_jail.try_path(volume_name) {
+        if let Ok(volume_path) = volumes_jail.systempath_join(volume_name) {
             if volume_path.exists() {
                 let metadata_file = volume_path.systempath_join("metadata.json")?;
                 if metadata_file.exists() {
@@ -272,7 +272,7 @@ fn backup_volume(
     let backups_jail: Jail<VolumeBackups> = Jail::try_new_create(&cli.backups_root)?;
 
     // Validate source volume path
-    let volume_path = volumes_jail.try_path(volume_name)?;
+    let volume_path = volumes_jail.systempath_join(volume_name)?;
     if !volume_path.exists() {
         return Err(format!("Volume '{volume_name}' not found").into());
     }
@@ -283,7 +283,7 @@ fn backup_volume(
     }
 
     // Create backup directory
-    let backup_path = backups_jail.try_path(&backup_name)?;
+    let backup_path = backups_jail.systempath_join(&backup_name)?;
     backup_path.create_dir_all()?;
 
     // Copy volume data securely
@@ -305,9 +305,7 @@ fn backup_volume(
                 let dest_file = backup_data_dir.systempath_join(file_path)?;
 
                 // Create parent directories
-                if let Some(parent) = dest_file.systempath_parent()? {
-                    parent.create_dir_all()?;
-                }
+                dest_file.create_parent_dir_all()?;
 
                 let content = source_file.read_bytes()?;
                 dest_file.write_bytes(&content)?;
@@ -352,7 +350,7 @@ fn restore_volume(
     let backups_jail: Jail<VolumeBackups> = Jail::try_new(&cli.backups_root)?;
 
     // Validate backup exists
-    let backup_path = backups_jail.try_path(backup_name)?;
+    let backup_path = backups_jail.systempath_join(backup_name)?;
     if !backup_path.exists() {
         return Err(format!("Backup '{backup_name}' not found").into());
     }
@@ -368,7 +366,7 @@ fn restore_volume(
     let backup_metadata: BackupMetadata = serde_json::from_str(&metadata_content)?;
 
     // Prepare volume directory
-    let volume_path = volumes_jail.try_path(volume_name)?;
+    let volume_path = volumes_jail.systempath_join(volume_name)?;
     volume_path.create_dir_all()?;
 
     let data_dir = volume_path.systempath_join("_data")?;
@@ -391,9 +389,7 @@ fn restore_volume(
                 let dest_file = data_dir.systempath_join(file_path)?;
 
                 // Create parent directories
-                if let Some(parent) = dest_file.systempath_parent()? {
-                    parent.create_dir_all()?;
-                }
+                dest_file.create_parent_dir_all()?;
 
                 let content = source_file.read_bytes()?;
                 dest_file.write_bytes(&content)?;
@@ -432,13 +428,13 @@ fn clone_volume(
     let volumes_jail: Jail<DockerVolumes> = Jail::try_new(&cli.volumes_root)?;
 
     // Validate source volume
-    let source_path = volumes_jail.try_path(source_name)?;
+    let source_path = volumes_jail.systempath_join(source_name)?;
     if !source_path.exists() {
         return Err(format!("Source volume '{source_name}' not found").into());
     }
 
     // Check destination doesn't exist
-    let dest_path = volumes_jail.try_path(dest_name)?;
+    let dest_path = volumes_jail.systempath_join(dest_name)?;
     if dest_path.exists() {
         return Err(format!("Destination volume '{dest_name}' already exists").into());
     }
@@ -462,9 +458,7 @@ fn clone_volume(
                     let dest_file = dest_data_dir.systempath_join(file_path)?;
 
                     // Create parent directories
-                    if let Some(parent) = dest_file.systempath_parent()? {
-                        parent.create_dir_all()?;
-                    }
+                    dest_file.create_parent_dir_all()?;
 
                     let content = source_file.read_bytes()?;
                     dest_file.write_bytes(&content)?;
@@ -505,7 +499,7 @@ fn inspect_volume(
     println!("🔍 Inspecting volume: {volume_name}");
 
     let volumes_jail: Jail<DockerVolumes> = Jail::try_new(&cli.volumes_root)?;
-    let volume_path = volumes_jail.try_path(volume_name)?;
+    let volume_path = volumes_jail.systempath_join(volume_name)?;
 
     if !volume_path.exists() {
         return Err(format!("Volume '{volume_name}' not found").into());
@@ -590,7 +584,7 @@ fn cleanup_volumes(cli: &Cli, older_than_days: u64) -> Result<(), Box<dyn std::e
     let sample_volumes = vec!["old-cache", "temp-data", "legacy-logs"];
 
     for volume_name in sample_volumes {
-        if let Ok(volume_path) = volumes_jail.try_path(volume_name) {
+        if let Ok(volume_path) = volumes_jail.systempath_join(volume_name) {
             if volume_path.exists() {
                 let metadata_file = volume_path.systempath_join("metadata.json")?;
                 if metadata_file.exists() {
@@ -628,3 +622,6 @@ fn cleanup_volumes(cli: &Cli, older_than_days: u64) -> Result<(), Box<dyn std::e
 
     Ok(())
 }
+
+
+

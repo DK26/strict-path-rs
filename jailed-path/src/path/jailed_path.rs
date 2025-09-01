@@ -32,7 +32,9 @@ impl<Marker> JailedPath<Marker> {
             _marker: PhantomData,
         }
     }
+}
 
+impl<Marker> JailedPath<Marker> {
     #[inline]
     pub(crate) fn path(&self) -> &Path {
         &self.path
@@ -205,6 +207,39 @@ impl<Marker> JailedPath<Marker> {
     /// Creates all directories in the system path if missing (like `std::fs::create_dir_all`).
     pub fn create_dir_all(&self) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.path)
+    }
+
+    /// Creates the directory at the system path (non-recursive, like `std::fs::create_dir`).
+    ///
+    /// Fails if the parent directory does not exist. Use `create_dir_all` to
+    /// create missing parent directories recursively.
+    pub fn create_dir(&self) -> std::io::Result<()> {
+        std::fs::create_dir(&self.path)
+    }
+
+    /// Creates only the immediate parent directory of this system path (non-recursive).
+    ///
+    /// Returns `Ok(())` if at the jail root (no parent). Fails if the parent's
+    /// parent is missing. Use `create_parent_dir_all` to create the full chain.
+    pub fn create_parent_dir(&self) -> std::io::Result<()> {
+        match self.systempath_parent() {
+            Ok(Some(parent)) => parent.create_dir(),
+            Ok(None) => Ok(()),
+            Err(JailedPathError::PathEscapesBoundary { .. }) => Ok(()),
+            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+        }
+    }
+
+    /// Recursively creates all missing directories up to the immediate parent of this system path.
+    ///
+    /// Returns `Ok(())` if at the jail root (no parent).
+    pub fn create_parent_dir_all(&self) -> std::io::Result<()> {
+        match self.systempath_parent() {
+            Ok(Some(parent)) => parent.create_dir_all(),
+            Ok(None) => Ok(()),
+            Err(JailedPathError::PathEscapesBoundary { .. }) => Ok(()),
+            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+        }
     }
 
     /// Removes the file at the system path.

@@ -47,7 +47,7 @@ fn safe_extract(archive_path: &str, extract_dir: &str) -> Result<()> {
         // 4. Validate the entry's path against the jail.
         // This is the crucial security step. Any traversal paths will be
         // neutralized here.
-        let safe_path = match jail.try_path(&entry_name) {
+        let safe_path = match jail.systempath_join(&entry_name) {
             Ok(path) => path,
             Err(e) => {
                 println!("  -> Skipping malicious or invalid path: {entry_name} ({e})");
@@ -62,14 +62,8 @@ fn safe_extract(archive_path: &str, extract_dir: &str) -> Result<()> {
             // It's a directory, so create it.
             safe_path.create_dir_all()?;
         } else {
-            // It's a file, so extract its contents.
-            // First, ensure the parent directory exists.
-            if let Some(parent) = match safe_path.systempath_parent() {
-                Ok(p) => p,
-                Err(_) => return Ok(()),
-            } {
-                parent.create_dir_all()?;
-            }
+            // It's a file; ensure the parent directory exists (recursive)
+            safe_path.create_parent_dir_all()?;
 
             // Create the file and write the entry's content to it.
             // Prefer passing &OsStr (implements AsRef<Path>) instead of taking ownership.
@@ -146,3 +140,6 @@ fn main() -> Result<()> {
     fs::remove_dir_all(extract_dir).ok();
     Ok(())
 }
+
+
+

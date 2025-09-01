@@ -6,9 +6,9 @@ fn test_jailed_path_accessors_and_manipulation() {
     let jail: Jail = Jail::try_new(temp.path()).unwrap();
 
     // Create a file and directories inside the jail to exercise I/O/metadata too.
-    let dir = jail.try_path("dir").unwrap();
+    let dir = jail.systempath_join("dir").unwrap();
     dir.create_dir_all().unwrap();
-    let file = jail.try_path("dir/file.txt").unwrap();
+    let file = jail.systempath_join("dir/file.txt").unwrap();
     file.write_string("hello").unwrap();
 
     // Basic accessors
@@ -51,7 +51,7 @@ fn test_jailed_path_accessors_and_manipulation() {
     assert!(changed_ext.systempath_ends_with("dir/file.bak"));
 
     // Error case: cannot apply extension at jail root (no file name)
-    let root = jail.try_path("").unwrap();
+    let root = jail.systempath_join("").unwrap();
     let err = root.systempath_with_extension("x").unwrap_err();
     match err {
         JailedPathError::PathEscapesBoundary { .. } => {}
@@ -70,18 +70,18 @@ fn test_jailed_path_accessors_and_manipulation() {
     assert_eq!(bytes, b"hello");
 
     // Removal APIs
-    let tmp_sub = jail.try_path("dir/tmp").unwrap();
+    let tmp_sub = jail.systempath_join("dir/tmp").unwrap();
     tmp_sub.create_dir_all().unwrap();
-    let tmp_file = jail.try_path("dir/tmp/note.txt").unwrap();
+    let tmp_file = jail.systempath_join("dir/tmp/note.txt").unwrap();
     tmp_file.write_string("bye").unwrap();
     assert!(tmp_file.exists());
     tmp_file.remove_file().unwrap();
     assert!(!tmp_file.exists());
     tmp_sub.remove_dir().unwrap();
     assert!(!tmp_sub.exists());
-    let deep_dir = jail.try_path("deep/a/b").unwrap();
+    let deep_dir = jail.systempath_join("deep/a/b").unwrap();
     deep_dir.create_dir_all().unwrap();
-    let deep_root = jail.try_path("deep").unwrap();
+    let deep_root = jail.systempath_join("deep").unwrap();
     deep_root.remove_dir_all().unwrap();
     assert!(!deep_root.exists());
 }
@@ -90,7 +90,7 @@ fn test_jailed_path_accessors_and_manipulation() {
 fn test_virtual_path_components_and_checks() {
     let temp = tempfile::tempdir().unwrap();
     let jail: Jail = Jail::try_new(temp.path()).unwrap();
-    let jp = jail.try_path("a/b.txt").unwrap();
+    let jp = jail.systempath_join("a/b.txt").unwrap();
     let vp = jp.clone().virtualize();
 
     // Virtual display/string is rooted
@@ -125,8 +125,11 @@ fn test_virtual_path_components_and_checks() {
     );
 
     // Delegated I/O operations from VirtualPath
-    let vfile = jail.try_path("delegated/x.txt").unwrap().virtualize();
-    let vdir = jail.try_path("delegated").unwrap().virtualize();
+    let vfile = jail
+        .systempath_join("delegated/x.txt")
+        .unwrap()
+        .virtualize();
+    let vdir = jail.systempath_join("delegated").unwrap().virtualize();
     vdir.create_dir_all().unwrap();
     vfile.write_bytes(b"vdata").unwrap();
     assert!(vfile.exists());

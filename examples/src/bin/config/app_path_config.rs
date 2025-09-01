@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg_jail: Jail<AppCfg> = Jail::try_new_create(&cfg_dir)?;
 
     // Write a sample config
-    let path: JailedPath<AppCfg> = cfg_jail.try_path("app.yaml")?;
+    let path: JailedPath<AppCfg> = cfg_jail.systempath_join("app.yaml")?;
     path.write_string("host: 127.0.0.1\nport: 8080\n")?;
     println!("Wrote config to {}", path.systempath_to_string());
 
@@ -38,3 +38,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_file(path.systempath_as_os_str()).ok();
     Ok(())
 }
+
+
+

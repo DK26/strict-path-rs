@@ -18,11 +18,20 @@ fn main() -> Result<()> {
     let web_jail = VirtualRoot::<WebAssets>::try_new("web_root")
         .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
 
+    // --- One-liner Pattern Example ---
+    // Quick validation and serving in a single chain
+    println!("=== One-liner example ===");
+    match web_jail.virtualpath_join("/index.html")
+        .and_then(|vp| vp.read_to_string()) {
+        Ok(content) => println!("One-liner served: {} chars", content.len()),
+        Err(e) => println!("One-liner failed: {e}"),
+    }
+
     // --- Simulate HTTP Requests ---
     // These would come from a web framework like Axum, Actix, etc.
     let requests = [
         "/index.html",
-        "/assets/style.css",
+        "/assets/style.css", 
         "/../../../../etc/passwd", // A malicious request
         "/does_not_exist.html",
     ];
@@ -69,7 +78,7 @@ fn resolve_and_serve(jail: &VirtualRoot<WebAssets>, path: &str) -> Result<Vec<u8
     // 1. Validate the requested path against the virtual root.
     // This clamps the path, so `../` traversal is neutralized.
     let virtual_path = jail
-        .try_virtual_path(path)
+        .virtualpath_join(path)
         .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
 
     println!("  -> Virtual path: {virtual_path}");
@@ -85,3 +94,6 @@ fn serve_vpath(path: &VirtualPath<WebAssets>) -> Result<Vec<u8>> {
     }
     Ok(path.read_bytes()?)
 }
+
+
+

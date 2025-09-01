@@ -115,7 +115,7 @@ fn init_site(project_path: &str) -> Result<(), Box<dyn std::error::Error>> {
         "static",
     ];
     for dir in dirs {
-        let dir_path = project_jail.try_path(dir)?;
+        let dir_path = project_jail.systempath_join(dir)?;
         dir_path.create_dir_all()?;
         println!("📁 Created: {dir}");
     }
@@ -129,7 +129,7 @@ fn init_site(project_path: &str) -> Result<(), Box<dyn std::error::Error>> {
         theme: "default".to_string(),
     };
 
-    let config_path = project_jail.try_path("site.yaml")?;
+    let config_path = project_jail.systempath_join("site.yaml")?;
     let config_content = serde_yaml::to_string(&config)?;
     config_path.write_string(&config_content)?;
     println!("⚙️  Created: site.yaml");
@@ -163,7 +163,7 @@ This is the home page of your new static site. Edit this file in `src/pages/inde
 - Static asset management
 "#;
 
-    let index_path = project_jail.try_path("src/pages/index.md")?;
+    let index_path = project_jail.systempath_join("src/pages/index.md")?;
     index_path.write_string(index_content)?;
 
     // Sample blog post
@@ -189,7 +189,7 @@ When building static sites, it's important to validate all file paths to prevent
 This generator uses `jailed-path` to ensure all content stays within designated boundaries.
 "#;
 
-    let post_path = project_jail.try_path("src/posts/first-post.md")?;
+    let post_path = project_jail.systempath_join("src/posts/first-post.md")?;
     post_path.write_string(post_content)?;
 
     println!("📄 Created sample content");
@@ -225,7 +225,7 @@ fn create_default_theme(
 </body>
 </html>"#;
 
-    let base_path = project_jail.try_path("themes/default/layouts/base.html")?;
+    let base_path = project_jail.systempath_join("themes/default/layouts/base.html")?;
     base_path.write_string(base_layout)?;
 
     // Page layout
@@ -238,7 +238,7 @@ fn create_default_theme(
 </article>
 {% endblock %}"#;
 
-    let page_path = project_jail.try_path("themes/default/layouts/page.html")?;
+    let page_path = project_jail.systempath_join("themes/default/layouts/page.html")?;
     page_path.write_string(page_layout)?;
 
     // Post layout
@@ -266,7 +266,7 @@ fn create_default_theme(
 </article>
 {% endblock %}"#;
 
-    let post_path = project_jail.try_path("themes/default/layouts/post.html")?;
+    let post_path = project_jail.systempath_join("themes/default/layouts/post.html")?;
     post_path.write_string(post_layout)?;
 
     // Basic CSS
@@ -329,7 +329,7 @@ pre {
 }
 "#;
 
-    let css_path = project_jail.try_path("themes/default/assets/style.css")?;
+    let css_path = project_jail.systempath_join("themes/default/assets/style.css")?;
     css_path.write_string(css_content)?;
 
     println!("🎨 Created default theme");
@@ -390,7 +390,7 @@ fn build_site(
 fn load_site_config(
     source_jail: &Jail<SourceContent>,
 ) -> Result<SiteConfig, Box<dyn std::error::Error>> {
-    let config_path = source_jail.try_path("site.yaml")?;
+    let config_path = source_jail.systempath_join("site.yaml")?;
     let config_content = config_path.read_to_string()?;
     let config: SiteConfig = serde_yaml::from_str(&config_content)?;
     Ok(config)
@@ -400,7 +400,7 @@ fn load_templates(
     tera: &mut Tera,
     theme_jail: &Jail<ThemeAssets>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let layouts_dir = theme_jail.try_path("layouts")?;
+    let layouts_dir = theme_jail.systempath_join("layouts")?;
 
     if !layouts_dir.exists() {
         return Err("Theme layouts directory not found".into());
@@ -418,7 +418,7 @@ fn load_templates(
 
                     // Validate the template path through jail
                     let template_path_str = format!("layouts/{template_name}");
-                    let template_path = theme_jail.try_path(&template_path_str)?;
+                    let template_path = theme_jail.systempath_join(&template_path_str)?;
                     let content = template_path.read_to_string()?;
 
                     tera.add_raw_template(&template_name, &content)?;
@@ -435,7 +435,7 @@ fn process_content_directory(
     dir_name: &str,
 ) -> Result<Vec<Page>, Box<dyn std::error::Error>> {
     let mut pages = Vec::new();
-    let content_dir = source_jail.try_path(dir_name)?;
+    let content_dir = source_jail.systempath_join(dir_name)?;
 
     if !content_dir.exists() {
         return Ok(pages);
@@ -452,7 +452,7 @@ fn process_content_directory(
 
                     // Validate through jail
                     let content_path_str = format!("{dir_name}/{relative_str}");
-                    let content_path = source_jail.try_path(&content_path_str)?;
+                    let content_path = source_jail.systempath_join(&content_path_str)?;
 
                     let page = process_markdown_file(&content_path, &relative_str)?;
                     pages.push(page);
@@ -531,12 +531,10 @@ fn generate_page_html(
         output_path = "index.html".to_string();
     }
 
-    let output_file = output_jail.try_path(&output_path)?;
+    let output_file = output_jail.systempath_join(&output_path)?;
 
     // Create parent directories
-    if let Some(parent) = output_file.systempath_parent()? {
-        parent.create_dir_all()?;
-    }
+    output_file.create_parent_dir_all()?;
 
     output_file.write_string(&html)?;
     println!("📝 Generated: {output_path}");
@@ -548,13 +546,13 @@ fn copy_theme_assets(
     theme_jail: &Jail<ThemeAssets>,
     output_jail: &Jail<OutputSite>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let assets_dir = theme_jail.try_path("assets")?;
+    let assets_dir = theme_jail.systempath_join("assets")?;
 
     if !assets_dir.exists() {
         return Ok(());
     }
 
-    let output_assets = output_jail.try_path("assets")?;
+    let output_assets = output_jail.systempath_join("assets")?;
     output_assets.create_dir_all()?;
 
     for entry in WalkDir::new(assets_dir.systempath_as_os_str()) {
@@ -565,13 +563,11 @@ fn copy_theme_assets(
             let relative_str = relative.to_string_lossy().replace('\\', "/");
 
             // Validate paths through jails
-            let source_path = theme_jail.try_path(format!("assets/{relative_str}"))?;
-            let dest_path = output_jail.try_path(format!("assets/{relative_str}"))?;
+            let source_path = theme_jail.systempath_join(format!("assets/{relative_str}"))?;
+            let dest_path = output_jail.systempath_join(format!("assets/{relative_str}"))?;
 
             // Create parent directories
-            if let Some(parent) = dest_path.systempath_parent()? {
-                parent.create_dir_all()?;
-            }
+            dest_path.create_parent_dir_all()?;
 
             // Copy file
             let content = source_path.read_bytes()?;
@@ -588,7 +584,7 @@ fn copy_static_files(
     source_jail: &Jail<SourceContent>,
     output_jail: &Jail<OutputSite>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let static_dir = source_jail.try_path("static")?;
+    let static_dir = source_jail.systempath_join("static")?;
 
     if !static_dir.exists() {
         return Ok(());
@@ -602,13 +598,11 @@ fn copy_static_files(
             let relative_str = relative.to_string_lossy().replace('\\', "/");
 
             // Validate paths through jails
-            let source_path = source_jail.try_path(format!("static/{relative_str}"))?;
-            let dest_path = output_jail.try_path(&relative_str)?;
+            let source_path = source_jail.systempath_join(format!("static/{relative_str}"))?;
+            let dest_path = output_jail.systempath_join(&relative_str)?;
 
             // Create parent directories
-            if let Some(parent) = dest_path.systempath_parent()? {
-                parent.create_dir_all()?;
-            }
+            dest_path.create_parent_dir_all()?;
 
             // Copy file
             let content = source_path.read_bytes()?;
@@ -629,7 +623,7 @@ fn serve_site(output_path: &str, port: u16) -> Result<(), Box<dyn std::error::Er
     // In a real implementation, you'd start an HTTP server here
     // This is just a placeholder showing secure path validation
     let output_jail: Jail<OutputSite> = Jail::try_new(output_path)?;
-    let index_file = output_jail.try_path("index.html")?;
+    let index_file = output_jail.systempath_join("index.html")?;
 
     if index_file.exists() {
         println!("✅ Found index.html - site ready to serve");
@@ -645,3 +639,6 @@ fn serve_site(output_path: &str, port: u16) -> Result<(), Box<dyn std::error::Er
 
     Ok(())
 }
+
+
+

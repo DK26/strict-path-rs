@@ -56,7 +56,7 @@ fn handle_request(
         Request::GetAsset(path) => {
             println!("[Request] Get public asset: {path}");
             // This request is for a public asset, so we use the `public_jail`.
-            let asset_path = public_jail.try_virtual_path(&path)?;
+            let asset_path = public_jail.virtualpath_join(&path)?;
 
             // Serve via a function that accepts VirtualPath (virtual view supports I/O)
             serve_public_asset(&asset_path)?;
@@ -74,7 +74,7 @@ fn handle_request(
             // This request is for a user upload, so we use the `uploads_jail`.
             // We can create a user-specific subdirectory within the jail.
             let user_upload_path =
-                uploads_jail.try_virtual_path(format!("user_{}/{}", user.id, filename))?;
+                uploads_jail.virtualpath_join(format!("user_{}/{}", user.id, filename))?;
 
             // Save via a function that accepts VirtualPath (type enforces correct jail)
             save_user_upload(&user_upload_path, &content)?;
@@ -108,9 +108,7 @@ fn serve_public_asset(asset_path: &VirtualPath<PublicAssets>) -> Result<()> {
 /// path that has been validated by the `uploads_jail`.
 fn save_user_upload(upload_path: &VirtualPath<UserUploads>, content: &[u8]) -> Result<()> {
     // Create the parent directory if it doesn't exist.
-    if let Some(parent) = upload_path.virtualpath_parent()? {
-        parent.create_dir_all()?;
-    }
+    upload_path.create_parent_dir_all()?;
     upload_path.write_bytes(content)?;
     println!("  -> Saved upload: {upload_path}");
     if upload_path.exists() {
@@ -173,3 +171,6 @@ fn main() -> Result<()> {
     fs::remove_dir_all("user_data").ok();
     Ok(())
 }
+
+
+

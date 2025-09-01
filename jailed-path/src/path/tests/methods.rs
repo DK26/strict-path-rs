@@ -4,7 +4,7 @@ use crate::validator::jail::Jail;
 fn test_virtual_path_join_and_parent() {
     let temp = tempfile::tempdir().unwrap();
     let jail = Jail::<()>::try_new(temp.path()).unwrap();
-    let jailed = jail.try_path("foo/bar.txt").unwrap();
+    let jailed = jail.systempath_join("foo/bar.txt").unwrap();
     let virtual_path = jailed.virtualize();
 
     // join (inside jail)
@@ -24,7 +24,7 @@ fn test_virtual_path_join_and_parent() {
     assert_eq!(format!("{actual_parent}"), "/foo");
 
     // parent (at jail root)
-    let root_jailed = jail.try_path("").unwrap();
+    let root_jailed = jail.systempath_join("").unwrap();
     let root_virtual = root_jailed.virtualize();
     let parent_none = root_virtual.virtualpath_parent().unwrap();
     assert!(parent_none.is_none());
@@ -34,7 +34,7 @@ fn test_virtual_path_join_and_parent() {
 fn test_virtual_path_pathbuf_methods() {
     let temp = tempfile::tempdir().unwrap();
     let jail = Jail::<()>::try_new(temp.path()).unwrap();
-    let jailed = jail.try_path("foo/bar.txt").unwrap();
+    let jailed = jail.systempath_join("foo/bar.txt").unwrap();
     let virtual_path = jailed.virtualize();
 
     // with_file_name (inside jail)
@@ -44,7 +44,7 @@ fn test_virtual_path_pathbuf_methods() {
     assert_eq!(format!("{with_name}"), "/foo/newname.txt");
 
     // with_file_name (potential escape attempt)
-    let root_jailed = jail.try_path("").unwrap();
+    let root_jailed = jail.systempath_join("").unwrap();
     let root_virtual = root_jailed.virtualize();
     let escape_attempt = root_virtual
         .virtualpath_with_file_name("../../etc/passwd")

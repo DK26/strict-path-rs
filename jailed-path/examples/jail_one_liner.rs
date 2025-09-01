@@ -7,12 +7,12 @@ use jailed_path::Jail;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create directory if missing, validate path, and write in one chain
     Jail::<()>::try_new_create("quick/safe")?
-        .try_path("hello.txt")?
+        .systempath_join("hello.txt")?
         .write_string("hello from jailed-path\n")?;
 
     // Read back using the same chain
     let bytes = Jail::<()>::try_new("quick/safe")?
-        .try_path("hello.txt")?
+        .systempath_join("hello.txt")?
         .read_bytes()?;
     println!("One-liner JailedPath: read {} bytes", bytes.len());
 

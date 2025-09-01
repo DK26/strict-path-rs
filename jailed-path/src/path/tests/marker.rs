@@ -33,8 +33,8 @@ fn test_different_marker_types_are_incompatible() {
     let jail_images = crate::validator::jail::Jail::<ImageResource>::try_new(temp.path()).unwrap();
     let jail_user = crate::validator::jail::Jail::<UserData>::try_new(temp.path()).unwrap();
 
-    let img = jail_images.try_path("img/logo.png").unwrap();
-    let usr = jail_user.try_path("user/profile.txt").unwrap();
+    let img = jail_images.systempath_join("img/logo.png").unwrap();
+    let usr = jail_user.systempath_join("user/profile.txt").unwrap();
 
     // The following lines are intentionally commented: they should not compile
     // process_user_file(&img);

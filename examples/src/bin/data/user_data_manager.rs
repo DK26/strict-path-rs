@@ -44,7 +44,7 @@ fn main() -> Result<()> {
     println!("\n--- Processing Complete ---");
 
     // --- Verification //
-    let _stored_file = storage_jail.try_path("user1_config.txt.processed").unwrap();
+    let _stored_file = storage_jail.systempath_join("user1_config.txt.processed").unwrap();
 
     println!("\nDemonstrated compile-time safety (see code comments).");
 
@@ -60,7 +60,7 @@ fn process_and_store_data(
     file_name: &str,
 ) -> Result<JailedPath<Storage>> {
     let ingest_path = ingest_jail
-        .try_path(file_name)
+        .systempath_join(file_name)
         .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
     println!("  -> Validated ingest path: {ingest_path}");
 
@@ -69,7 +69,7 @@ fn process_and_store_data(
 
     let stored_file_name = format!("{file_name}.processed");
     let storage_path = storage_jail
-        .try_path(stored_file_name)
+        .systempath_join(stored_file_name)
         .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
     println!("  -> Target storage path: {storage_path}");
 
@@ -92,3 +92,6 @@ fn archive_ingested_file(path_to_archive: &JailedPath<Ingest>) -> Result<()> {
     )?;
     Ok(())
 }
+
+
+

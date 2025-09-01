@@ -87,7 +87,7 @@ fn main() {
                 continue;
             }
         };
-        let dest_path = match dest_jail.try_path(file_name) {
+        let dest_path = match dest_jail.systempath_join(file_name) {
             Ok(p) => p,
             Err(e) => {
                 eprintln!("[Error] Invalid destination path: {e}");
@@ -123,3 +123,6 @@ fn main() {
     // To clean up, you could add:
     // fs::remove_dir_all(dest_dir).unwrap();
 }
+
+
+

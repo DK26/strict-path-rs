@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let filename = format!("{}.txt", uuid::Uuid::new_v4());
         let safe_dest = state
             .uploads_jail
-            .try_path(&filename)?;
+            .systempath_join(&filename)?;
         save_uploaded_file(&safe_dest, b"demo content").await?;
         println!("Offline demo: saved {}", safe_dest.systempath_to_string_lossy());
         return Ok(())
@@ -111,7 +111,7 @@ async fn handle_upload(
     let file_content = body.as_bytes();
 
     // Validate the requested destination and pass a JailedPath to the saver
-    let safe_dest = match state.uploads_jail.try_path(&filename) {
+    let safe_dest = match state.uploads_jail.systempath_join(&filename) {
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid path: {e}")),
     };
@@ -138,7 +138,7 @@ async fn serve_uploaded_file(
     Path(filename): Path<String>,
 ) -> impl IntoResponse {
     // Validate then serve via a function that encodes guarantees
-    let safe_path = match state.uploads_jail.try_path(&filename) {
+    let safe_path = match state.uploads_jail.systempath_join(&filename) {
         Ok(p) => p,
         Err(_) => return (StatusCode::NOT_FOUND, "File not found".to_string()),
     };
@@ -177,7 +177,7 @@ async fn process_user_file(
     filename: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     // Validate the source path and pass typed paths into helpers
-    let source_path = uploads_jail.try_path(filename)?;
+    let source_path = uploads_jail.systempath_join(filename)?;
     let content = source_path.read_to_string()?;
 
     // Process the content (example: convert to uppercase)
@@ -185,7 +185,7 @@ async fn process_user_file(
 
     // Save processed version to temp area with different jail type
     let temp_filename = format!("processed_{filename}");
-    let temp_path = temp_jail.try_path(temp_filename)?;
+    let temp_path = temp_jail.systempath_join(temp_filename)?;
     temp_path.write_string(&processed)?;
 
     // Return result path information
@@ -197,3 +197,6 @@ async fn process_user_file(
 
 // Helper function to demonstrate secure file operations
 // cleanup_old_files removed; it was unused in this example.
+
+
+

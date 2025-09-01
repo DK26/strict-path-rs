@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or("Invalid archive filename")?;
-    let archive_path = input_jail.try_path(archive_filename)?;
+    let archive_path = input_jail.systempath_join(archive_filename)?;
 
     if !archive_path.exists() {
         return Err(format!("Archive file not found: {}", cli.archive).into());
@@ -179,7 +179,7 @@ fn extract_zip(
         let entry_path = zip_file.name().to_string();
 
         // CRITICAL SECURITY: Validate path through jail - prevents zip slip
-        match extraction_jail.try_path(&entry_path) {
+        match extraction_jail.systempath_join(&entry_path) {
             Ok(safe_path) => {
                 progress.set_message(format!("Extracting: {entry_path}"));
 
@@ -191,9 +191,7 @@ fn extract_zip(
                     }
                 } else {
                     // Create parent directories
-                    if let Some(parent) = safe_path.systempath_parent()? {
-                        parent.create_dir_all()?;
-                    }
+                    safe_path.create_parent_dir_all()?;
 
                     // Extract file content
                     let mut content = Vec::new();
@@ -274,7 +272,7 @@ fn extract_tar_entries<R: Read>(
         let entry_path = entry.path()?.to_string_lossy().to_string();
 
         // CRITICAL SECURITY: Validate path through jail - prevents tar slip
-        match extraction_jail.try_path(&entry_path) {
+        match extraction_jail.systempath_join(&entry_path) {
             Ok(safe_path) => {
                 let header = entry.header();
 
@@ -286,9 +284,7 @@ fn extract_tar_entries<R: Read>(
                     }
                 } else if header.entry_type().is_file() {
                     // Create parent directories
-                    if let Some(parent) = safe_path.systempath_parent()? {
-                        parent.create_dir_all()?;
-                    }
+                    safe_path.create_parent_dir_all()?;
 
                     // Extract file content
                     let mut content = Vec::new();
@@ -315,3 +311,6 @@ fn extract_tar_entries<R: Read>(
 
     Ok(stats)
 }
+
+
+

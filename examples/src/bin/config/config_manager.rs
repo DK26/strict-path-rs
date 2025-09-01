@@ -27,7 +27,7 @@ impl ConfigManager {
     pub fn get_config(&self, name: &str) -> Result<HashMap<String, String>> {
         let config_path = self
             .config_jail
-            .try_path(name)
+            .systempath_join(name)
             .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
 
         if !config_path.exists() {
@@ -73,3 +73,6 @@ fn main() -> Result<()> {
 
     Ok(())
 }
+
+
+

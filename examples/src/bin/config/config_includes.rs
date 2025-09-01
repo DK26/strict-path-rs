@@ -35,7 +35,7 @@ fn main() -> Result<()> {
 }
 
 fn load_config(vroot: &VirtualRoot<ConfigRoot>, entry: &str) -> Result<HashMap<String, String>> {
-    let start = vroot.try_virtual_path(entry)?;
+    let start = vroot.virtualpath_join(entry)?;
     let mut visited = std::collections::HashSet::new();
     load_config_from_vpath(&start, &mut visited)
 }
@@ -79,3 +79,6 @@ fn load_config_from_vpath(
     }
     Ok(map)
 }
+
+
+

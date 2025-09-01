@@ -107,11 +107,11 @@ fn init_backup_destination(dest_path: &str) -> Result<(), Box<dyn std::error::Er
     let backup_jail: Jail<BackupDestination> = Jail::try_new_create(dest_path)?;
 
     // Create metadata directory
-    let metadata_dir = backup_jail.try_path("_metadata")?;
+    let metadata_dir = backup_jail.systempath_join("_metadata")?;
     metadata_dir.create_dir_all()?;
 
     // Create initial registry
-    let registry_path = backup_jail.try_path("_metadata/registry.json")?;
+    let registry_path = backup_jail.systempath_join("_metadata/registry.json")?;
     let empty_registry: HashMap<String, String> = HashMap::new();
     let registry_content = serde_json::to_string_pretty(&empty_registry)?;
     registry_path.write_string(&registry_content)?;
@@ -136,12 +136,12 @@ fn create_backup(
 
     // Create backup directory
     let backup_dir_path = format!("backups/{backup_name}");
-    let backup_dir = backup_jail.try_path(&backup_dir_path)?;
+    let backup_dir = backup_jail.systempath_join(&backup_dir_path)?;
     backup_dir.create_dir_all()?;
 
     // Collect files to backup
     let mut backup_files = Vec::new();
-    let source_root = source_jail.try_path(".")?;
+    let source_root = source_jail.systempath_join(".")?;
 
     for entry in WalkDir::new(source_root.systempath_as_os_str()) {
         let entry = entry?;
@@ -156,17 +156,15 @@ fn create_backup(
         let relative_str = relative.to_string_lossy().to_string();
 
         // Validate the relative path through source jail
-        let source_file = source_jail.try_path(&relative_str)?;
+        let source_file = source_jail.systempath_join(&relative_str)?;
 
         if source_file.is_file() {
             // Copy file to backup location
             let backup_file_path = format!("{backup_dir_path}/{relative_str}");
-            let backup_file = backup_jail.try_path(&backup_file_path)?;
+            let backup_file = backup_jail.systempath_join(&backup_file_path)?;
 
             // Create parent directories if needed
-            if let Some(parent) = backup_file.systempath_parent()? {
-                parent.create_dir_all()?;
-            }
+            backup_file.create_parent_dir_all()?;
 
             // Copy file content
             let content = source_file.read_bytes()?;
@@ -181,7 +179,7 @@ fn create_backup(
             println!("  Backed up: {relative_str}");
         } else if source_file.is_dir() {
             let backup_dir_path_new = format!("{backup_dir_path}/{relative_str}");
-            let backup_subdir = backup_jail.try_path(&backup_dir_path_new)?;
+            let backup_subdir = backup_jail.systempath_join(&backup_dir_path_new)?;
             backup_subdir.create_dir_all()?;
 
             backup_files.push(BackupFileEntry {
@@ -201,7 +199,7 @@ fn create_backup(
     };
 
     let manifest_path = format!("_metadata/{backup_name}.json");
-    let manifest_file = backup_jail.try_path(manifest_path)?;
+    let manifest_file = backup_jail.systempath_join(manifest_path)?;
     let manifest_content = serde_json::to_string_pretty(&manifest)?;
     manifest_file.write_string(&manifest_content)?;
 
@@ -225,7 +223,7 @@ fn restore_backup(
 
     // Load manifest
     let manifest_path = format!("_metadata/{backup_name}.json");
-    let manifest_file = backup_jail.try_path(&manifest_path)?;
+    let manifest_file = backup_jail.systempath_join(&manifest_path)?;
     let manifest_content = manifest_file.read_to_string()?;
     let manifest: BackupManifest = serde_json::from_str(&manifest_content)?;
 
@@ -240,16 +238,14 @@ fn restore_backup(
         if file_entry.is_file {
             // Read from backup
             let backup_file_path = format!("backups/{}/{}", backup_name, file_entry.relative_path);
-            let backup_file = backup_jail.try_path(&backup_file_path)?;
+            let backup_file = backup_jail.systempath_join(&backup_file_path)?;
             let content = backup_file.read_bytes()?;
 
             // Write to target (securely validated path)
-            let target_file = target_jail.try_path(&file_entry.relative_path)?;
+            let target_file = target_jail.systempath_join(&file_entry.relative_path)?;
 
             // Create parent directories
-            if let Some(parent) = target_file.systempath_parent()? {
-                parent.create_dir_all()?;
-            }
+            target_file.create_parent_dir_all()?;
 
             target_file.write_bytes(&content)?;
             println!(
@@ -258,7 +254,7 @@ fn restore_backup(
             );
         } else {
             // Create directory
-            let target_dir = target_jail.try_path(&file_entry.relative_path)?;
+            let target_dir = target_jail.systempath_join(&file_entry.relative_path)?;
             target_dir.create_dir_all()?;
             println!("  Created directory: {}", file_entry.relative_path);
         }
@@ -270,7 +266,7 @@ fn restore_backup(
 
 fn list_backups(dest_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let backup_jail: Jail<BackupDestination> = Jail::try_new(dest_path)?;
-    let metadata_dir = backup_jail.try_path("_metadata")?;
+    let metadata_dir = backup_jail.systempath_join("_metadata")?;
 
     if !metadata_dir.exists() {
         println!("No backups found. Initialize the backup destination first.");
@@ -290,7 +286,7 @@ fn list_backups(dest_path: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     for name in manifest_examples {
         let manifest_path = format!("_metadata/{name}.json");
-        if let Ok(manifest_file) = backup_jail.try_path(&manifest_path) {
+        if let Ok(manifest_file) = backup_jail.systempath_join(&manifest_path) {
             if manifest_file.exists() {
                 let content = manifest_file.read_to_string()?;
                 if let Ok(manifest) = serde_json::from_str::<BackupManifest>(&content) {
@@ -308,3 +304,6 @@ fn list_backups(dest_path: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+
+

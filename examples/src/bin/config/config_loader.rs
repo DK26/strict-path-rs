@@ -98,7 +98,7 @@ fn main() {
 
     println!("\n--- Scenario 1: Loading valid app config ---");
     let app_config_filename = "app.conf";
-    match config_jail.try_path(app_config_filename) {
+    match config_jail.systempath_join(app_config_filename) {
         Ok(safe_config_path) => match load_app_config(&safe_config_path) {
             Ok(content) => println!("Successfully loaded app.conf:\n---\n{content}\n---"),
             Err(e) => eprintln!("Error reading config: {e}"),
@@ -108,7 +108,7 @@ fn main() {
 
     println!("\n--- Scenario 2: Loading valid theme ---");
     let theme_filename = "dark.css"; // Imagine this comes from user input
-    match theme_jail.try_path(theme_filename) {
+    match theme_jail.systempath_join(theme_filename) {
         Ok(safe_theme_path) => match load_theme_file(&safe_theme_path) {
             Ok(content) => println!("Successfully loaded dark.css:\n---\n{content}\n---"),
             Err(e) => eprintln!("Error reading theme: {e}"),
@@ -118,7 +118,7 @@ fn main() {
 
     println!("\n--- Scenario 3: Attempting to cross-load a theme as a config ---");
     let malicious_theme_filename = "dark.css";
-    match config_jail.try_path(malicious_theme_filename) {
+    match config_jail.systempath_join(malicious_theme_filename) {
         Ok(path_from_wrong_jail) => {
             // The following line would cause a compile error, demonstrating the power
             // of type-safe jails. Uncomment it to see for yourself!
@@ -149,3 +149,6 @@ fn main() {
     fs::remove_dir_all("example_config").ok();
     fs::remove_dir_all("example_themes").ok();
 }
+
+
+

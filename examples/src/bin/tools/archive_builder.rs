@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = fs::File::create(tar_path)?;
     let mut builder = Builder::new(file);
 
-    let root = src.try_path(".")?;
+    let root = src.systempath_join(".")?;
     for entry in WalkDir::new(root.systempath_as_os_str()) {
         let entry = entry?;
         let p = entry.path();
@@ -38,20 +38,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let rel_str = rel.to_string_lossy().to_string();
 
         // Validate relative path back through the jail (defense-in-depth)
-        let sp = match src.try_path(&rel_str) {
+        let sp = match src.systempath_join(&rel_str) {
             Ok(p) => p,
             Err(_) => continue,
         };
 
         if sp.is_dir() {
             // Add directory entry (optional; tar can infer)
-            let vp: VirtualPath<Source> = vroot.try_virtual_path(&rel_str)?;
+            let vp: VirtualPath<Source> = vroot.virtualpath_join(&rel_str)?;
             builder.append_dir(vp.to_string(), sp.systempath_as_os_str())?;
             continue;
         }
 
         // Compute virtual (relative) name for the archive entry
-        let vp: VirtualPath<Source> = vroot.try_virtual_path(&rel_str)?;
+        let vp: VirtualPath<Source> = vroot.virtualpath_join(&rel_str)?;
         let mut f = fs::File::open(sp.systempath_as_os_str())?;
         builder.append_file(vp.to_string(), &mut f)?;
         println!("Added: {vp}");
@@ -64,3 +64,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_dir_all("archive_src").ok();
     Ok(())
 }
+
+
+

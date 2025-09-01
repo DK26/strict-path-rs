@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    let root = jail.try_path(".")?;
+    let root = jail.systempath_join(".")?;
     for entry in WalkDir::new(root.systempath_as_os_str()) {
         let entry = entry?;
         let p = entry.path();
@@ -50,9 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => continue,
         };
         let rel_str = rel.to_string_lossy().to_string();
-        let jp = jail.try_path(&rel_str)?;
+        let jp = jail.systempath_join(&rel_str)?;
         if jp.is_file() {
-            let vp: VirtualPath<Src> = vroot.try_virtual_path(&rel_str)?;
+            let vp: VirtualPath<Src> = vroot.virtualpath_join(&rel_str)?;
             let key_part = vp.to_string().trim_start_matches('/');
             let key = if prefix.is_empty() {
                 key_part.to_string()
@@ -72,3 +72,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_dir_all("mirror_src").ok();
     Ok(())
 }
+
+
+

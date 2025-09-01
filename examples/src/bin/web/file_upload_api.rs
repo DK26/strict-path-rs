@@ -62,7 +62,7 @@ impl TenantStorage {
     /// Upload to a VirtualPath for the tenant (encodes guarantees in the signature).
     fn upload_file_vpath(&self, tenant_id: &str, vp: &VirtualPath<()>, content: &[u8]) -> Result<()> {
         println!("Tenant '{tenant_id}' uploading to: {vp}");
-        if let Some(parent) = vp.virtualpath_parent()? { parent.create_dir_all()?; }
+        vp.create_parent_dir_all()?;
         vp.write_bytes(content)?;
         println!(
             "Successfully wrote {} bytes to System path: {}",
@@ -92,7 +92,7 @@ fn main() -> Result<()> {
 
     println!("\n--- Scenario 1: Tenant 'acme' uploads a valid file ---");
     if let Ok(vroot) = storage.get_or_create_tenant_root("acme") {
-        let dest = vroot.try_virtual_path("invoice.pdf")?;
+        let dest = vroot.virtualpath_join("invoice.pdf")?;
         if let Err(e) = storage.upload_file_vpath("acme", &dest, b"PDF content for acme") {
             eprintln!("Upload failed: {e}");
         }
@@ -102,7 +102,7 @@ fn main() -> Result<()> {
 
     println!("\n--- Scenario 2: Tenant 'globex' uploads a valid file ---");
     if let Ok(vroot) = storage.get_or_create_tenant_root("globex") {
-        let dest = vroot.try_virtual_path("report.docx")?;
+        let dest = vroot.virtualpath_join("report.docx")?;
         if let Err(e) = storage.upload_file_vpath("globex", &dest, b"DOCX content for globex") {
             eprintln!("Upload failed: {e}");
         }
@@ -118,7 +118,7 @@ fn main() -> Result<()> {
     // it will resolve to `multi_tenant_uploads/acme/globex/report.docx`.
     let malicious_path = "../globex/report.docx";
     if let Ok(vroot) = storage.get_or_create_tenant_root("acme") {
-        let safe = vroot.try_virtual_path(malicious_path)?; // clamped inside 'acme'
+        let safe = vroot.virtualpath_join(malicious_path)?; // clamped inside 'acme'
         let _ = storage.read_file_vpath("acme", &safe);
         println!("Read attempted at clamped path: {safe}");
     }
@@ -126,7 +126,7 @@ fn main() -> Result<()> {
     println!("\n--- Scenario 4: Tenant 'acme' tries to write into 'globex' directory ---");
     // This will also be clamped. The file will be written inside acme's directory.
     if let Ok(vroot) = storage.get_or_create_tenant_root("acme") {
-        let safe = vroot.try_virtual_path("../globex/new_file.txt")?; // clamped inside 'acme'
+        let safe = vroot.virtualpath_join("../globex/new_file.txt")?; // clamped inside 'acme'
         storage
             .upload_file_vpath("acme", &safe, b"Trying to break out")
             .ok();
@@ -135,7 +135,7 @@ fn main() -> Result<()> {
 
     println!("\n--- Scenario 5: Tenant 'globex' deletes their own file securely ---");
     if let Ok(vroot) = storage.get_or_create_tenant_root("globex") {
-        let path = vroot.try_virtual_path("report.docx")?;
+        let path = vroot.virtualpath_join("report.docx")?;
         if let Err(e) = storage.delete_file_vpath("globex", &path) {
             eprintln!("Delete failed: {e}");
         } else {
@@ -148,3 +148,6 @@ fn main() -> Result<()> {
     println!("\nCleaned up base directory.");
     Ok(())
 }
+
+
+

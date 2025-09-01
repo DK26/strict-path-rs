@@ -49,9 +49,9 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
     println!("Request for path: {requested_path}");
 
     // Use the virtual root to safely resolve the requested path.
-    // This is the core security step. `try_virtual_path` will contain any
+    // This is the core security step. `virtualpath_join` will contain any
     // traversal attempts within the `PUBLIC_DIR`.
-    let virtual_path = match vroot.try_virtual_path(requested_path) {
+    let virtual_path = match vroot.virtualpath_join(requested_path) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("Path validation error: {e}");
@@ -127,7 +127,7 @@ fn main() -> std::io::Result<()> {
     // In CI or when RUN_SERVER is not set, run a quick offline simulation
     if std::env::var("RUN_SERVER").is_err() {
         for path in ["index.html", "assets/style.css", "../../etc/passwd"] {
-            match vroot.try_virtual_path(path) {
+            match vroot.virtualpath_join(path) {
                 Ok(vp) => match serve_vpath(&vp) {
                     Ok(body) => println!("Offline demo: {} -> {} bytes", vp, body.len()),
                     Err(_) => println!("Offline demo: {} not found", vp),
@@ -160,3 +160,6 @@ fn main() -> std::io::Result<()> {
 
     Ok(())
 }
+
+
+

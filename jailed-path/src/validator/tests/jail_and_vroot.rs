@@ -25,15 +25,15 @@ fn test_virtual_root_try_new_create_and_path() {
 }
 
 #[test]
-fn test_try_path_and_try_virtual_path_roundtrip() {
+fn test_systempath_join_and_virtualpath_join_roundtrip() {
     let tmp = tempfile::tempdir().unwrap();
     let jail = Jail::<()>::try_new(tmp.path()).unwrap();
     let vroot = VirtualRoot::<()>::try_new(tmp.path()).unwrap();
 
-    let jp = jail.try_path("alpha/beta.txt").unwrap();
+    let jp = jail.systempath_join("alpha/beta.txt").unwrap();
     assert!(jp.systempath_starts_with(jail.path()));
 
-    let vp = vroot.try_virtual_path("alpha/beta.txt").unwrap();
+    let vp = vroot.virtualpath_join("alpha/beta.txt").unwrap();
     assert_eq!(vp.virtualpath_to_string_lossy(), "/alpha/beta.txt");
     // Conversions are explicit and consistent
     assert_eq!(

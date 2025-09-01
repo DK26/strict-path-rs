@@ -310,6 +310,41 @@ impl<Marker> VirtualPath<Marker> {
         self.inner.create_dir_all()
     }
 
+    /// Creates the directory at this virtual location (non-recursive).
+    ///
+    /// Mirrors `std::fs::create_dir` and fails if the parent does not exist.
+    #[inline]
+    pub fn create_dir(&self) -> std::io::Result<()> {
+        self.inner.create_dir()
+    }
+
+    /// Creates only the immediate parent directory of this virtual path (non-recursive).
+    ///
+    /// Acts in the virtual dimension: the parent is derived via `virtualpath_parent()`
+    /// and then created on the underlying system path. Returns `Ok(())` at virtual root.
+    #[inline]
+    pub fn create_parent_dir(&self) -> std::io::Result<()> {
+        match self.virtualpath_parent() {
+            Ok(Some(parent)) => parent.create_dir(),
+            Ok(None) => Ok(()),
+            Err(crate::JailedPathError::PathEscapesBoundary { .. }) => Ok(()),
+            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+        }
+    }
+
+    /// Recursively creates all missing directories up to the immediate parent of this virtual path.
+    ///
+    /// Acts in the virtual dimension; returns `Ok(())` at virtual root.
+    #[inline]
+    pub fn create_parent_dir_all(&self) -> std::io::Result<()> {
+        match self.virtualpath_parent() {
+            Ok(Some(parent)) => parent.create_dir_all(),
+            Ok(None) => Ok(()),
+            Err(crate::JailedPathError::PathEscapesBoundary { .. }) => Ok(()),
+            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+        }
+    }
+
     /// Removes the file at the underlying system path.
     #[inline]
     pub fn remove_file(&self) -> std::io::Result<()> {

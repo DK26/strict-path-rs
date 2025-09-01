@@ -36,12 +36,12 @@ fn main() -> Result<()> {
 
     // Backup
     let backup_name = format!("backup_{}.sql", chrono::Utc::now().format("%Y%m%d%H%M%S"));
-    let backup_path = bak.try_path(backup_name)?;
+    let backup_path = bak.systempath_join(backup_name)?;
     create_backup(&backup_path)?;
 
     // Apply migrations
     for script in plan {
-        let script_path = mig.try_path(script)?;
+        let script_path = mig.systempath_join(script)?;
         apply_migration(&script_path)?;
     }
 
@@ -54,9 +54,7 @@ fn main() -> Result<()> {
 
 // Signatures encode guarantees: only operates on the backups jail
 fn create_backup(target: &JailedPath<BackupDir>) -> Result<()> {
-    if let Some(parent) = target.systempath_parent()? {
-        parent.create_dir_all()?;
-    }
+    target.create_parent_dir_all()?;
     target.write_string("-- simulated backup\n-- (write real dump here)")?;
     Ok(())
 }
@@ -70,3 +68,6 @@ fn apply_migration(script: &JailedPath<MigrationsDir>) -> Result<()> {
     println!("▶ Applying {file} ({bytes} bytes)");
     Ok(())
 }
+
+
+

@@ -14,6 +14,17 @@
 //! virtual operations; choose `JailedPath` when you need an explicitly system-facing value or logs
 //! that show the real on-disk path. You can convert between them explicitly.
 //!
+//! ## Filter vs Sandbox: Conceptual Difference
+//!
+//! **`JailedPath` acts like a security filter** — it validates that a specific path is safe and
+//! within boundaries, but operates on the actual filesystem paths. It's perfect when you need to
+//! ensure safety while maintaining system-level path semantics.
+//!
+//! **`VirtualPath` acts like a complete sandbox** — it encapsulates the filtering (via the underlying
+//! `JailedPath`) while presenting a virtualized, user-friendly view where the jail root appears as "/".
+//! Users can specify any path they want, and it gets automatically clamped to stay safe, making it
+//! ideal for user-facing applications where you want to hide the underlying filesystem structure.
+//!
 //! The core security guarantee is that all paths are mathematically proven to stay within their
 //! designated boundaries, neutralizing traversal attacks like `../../../etc/passwd`.
 //!
@@ -31,7 +42,7 @@
 //! untrusted paths as `VirtualPath` for UI/UX and safe joins; perform I/O from either type.
 //!
 //! Guidance
-//! - Accept untrusted input via `VirtualRoot::try_virtual_path(..)` to obtain a `VirtualPath`.
+//! - Accept untrusted input via `VirtualRoot::virtualpath_join(..)` to obtain a `VirtualPath`.
 //! - Perform I/O directly on `VirtualPath` or on `JailedPath`. Unvirtualize only when you need a
 //!   `JailedPath` explicitly (e.g., for a signature that requires it or for system-facing logs).
 //! - For `AsRef<Path>` interop, pass `systempath_as_os_str()` from either type (no allocation).
@@ -47,12 +58,13 @@
 //! - All public types are generic over a `Marker` with a default of `()`.
 //! - Inference usually works once a value is bound:
 //!   - `let vroot: VirtualRoot = VirtualRoot::try_new("root")?;`
-//!   - `let vp = vroot.try_virtual_path("a.txt")?; // inferred as VirtualPath<()>`
+//!   - `let vp = vroot.virtualpath_join("a.txt")?; // inferred as VirtualPath<()>`
 //! - When inference needs help, annotate the type or use an empty turbofish:
 //!   - `let vroot: VirtualRoot<()> = VirtualRoot::try_new("root")?;`
 //!   - `let vroot = VirtualRoot::<()>::try_new("root")?;`
 //! - With custom markers, annotate as needed:
 //!   - `struct UserFiles; let vroot: VirtualRoot<UserFiles> = VirtualRoot::try_new("uploads")?;`
+//!   - `let uploads = VirtualRoot::try_new::<UserFiles>("uploads")?;`
 
 //! ### Examples: Encode Guarantees in Signatures
 //!
@@ -66,9 +78,9 @@
 //!
 //! // Accept untrusted input, then pass VirtualPath by reference to functions
 //! let requested = "projects/2025/report.pdf";
-//! let vp: VirtualPath = vroot.try_virtual_path(requested)?;  // Stays inside ./cloud_user_42
+//! let vp: VirtualPath = vroot.virtualpath_join(requested)?;  // Stays inside ./cloud_user_42
 //! // Ensure parent directory exists before writing
-//! if let Some(parent) = vp.virtualpath_parent()? { parent.create_dir_all()?; }
+//! vp.create_parent_dir_all()?;
 //!
 //! fn save_doc(p: &VirtualPath) -> std::io::Result<()> { p.write_bytes(b"user file content") }
 //! save_doc(&vp)?; // Compiler enforces correct usage via the type
@@ -86,7 +98,7 @@
 //! # let user_id = 7u32;
 //! let tpl_root = format!("./tpl_space_{user_id}");
 //! let templates: VirtualRoot = VirtualRoot::try_new_create(&tpl_root)?;
-//! let tpl: VirtualPath = templates.try_virtual_path("emails/welcome.html")?;
+//! let tpl: VirtualPath = templates.virtualpath_join("emails/welcome.html")?;
 //! fn render(p: &VirtualPath) -> std::io::Result<String> { p.read_to_string() }
 //! let _ = render(&tpl);
 //!
@@ -106,8 +118,8 @@
 //! let vroot = VirtualRoot::<()>::try_new("user_data")?;
 //!
 //! // 2. Create a virtual path from user input. Traversal attacks are neutralized.
-//! let virtual_path: VirtualPath = vroot.try_virtual_path("documents/report.pdf")?;
-//! let attack_path: VirtualPath = vroot.try_virtual_path("../../../etc/hosts")?;
+//! let virtual_path: VirtualPath = vroot.virtualpath_join("documents/report.pdf")?;
+//! let attack_path: VirtualPath = vroot.virtualpath_join("../../../etc/hosts")?;
 //!
 //! // 3. Displaying the path is always safe and shows the virtual view.
 //! assert_eq!(virtual_path.to_string(), "/documents/report.pdf");
@@ -137,6 +149,29 @@
 //! - `Display` for `VirtualPath` shows a rooted virtual path (e.g., "/a/b.txt") for user-facing output.
 //! - `Debug` for `VirtualPath` is developer-facing and verbose (derived): it includes the inner
 //!   `JailedPath` (system path and jail root) and the virtual view for diagnostics.
+//!
+//! ### Example: Display vs Debug
+//! ```rust
+//! # use jailed_path::{VirtualRoot, VirtualPath};
+//! # use std::fs;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # fs::create_dir_all("vp_demo")?;
+//! let vroot: VirtualRoot = VirtualRoot::try_new("vp_demo")?;
+//! let vp: VirtualPath = vroot.virtualpath_join("users/alice/report.txt")?;
+//!
+//! // Display is user-facing, rooted, forward-slashed
+//! assert_eq!(vp.to_string(), "/users/alice/report.txt");
+//!
+//! // Debug is developer-facing and verbose
+//! let dbg = format!("{:?}", vp);
+//! assert!(dbg.contains("VirtualPath"));
+//! assert!(dbg.contains("system_path"));
+//! assert!(dbg.contains("virtual"));
+//!
+//! # fs::remove_dir_all("vp_demo").ok();
+//! # Ok(()) }
+//! ```
 //!
 //! ## When to Use Which Type
 //!
@@ -168,8 +203,8 @@
 //! let assets_vroot: VirtualRoot<StaticAssets> = VirtualRoot::try_new("assets")?;
 //! let uploads_vroot: VirtualRoot<UserUploads> = VirtualRoot::try_new("uploads")?;
 //!
-//! let css_file: VirtualPath<StaticAssets> = assets_vroot.try_virtual_path("style.css")?;
-//! let user_file: VirtualPath<UserUploads> = uploads_vroot.try_virtual_path("avatar.jpg")?;
+//! let css_file: VirtualPath<StaticAssets> = assets_vroot.virtualpath_join("style.css")?;
+//! let user_file: VirtualPath<UserUploads> = uploads_vroot.virtualpath_join("avatar.jpg")?;
 //!
 //! serve_asset(&css_file.unvirtual())?; // ✅ Correct type
 //! // serve_asset(&user_file.unvirtual())?; // ❌ Compile error: wrong marker type!
@@ -220,6 +255,10 @@
 //! - `join` danger: `std::path::Path::join` has no notion of a virtual root. Joining an
 //!   absolute path, or a path with enough `..` components, can override or conceptually
 //!   escape the intended root. That undermines the guarantees of `JailedPath`/`VirtualPath`.
+//!   **Critical:** `std::path::Path::join("/absolute")` completely replaces the base path,
+//!   making it the #1 cause of path traversal vulnerabilities. Our `systempath_join` validates
+//!   the result stays within jail bounds, while `virtualpath_join` clamps absolute paths
+//!   to the virtual root.
 //!   Use `JailedPath::systempath_join(...)` or `VirtualPath::virtualpath_join(...)` instead.
 //! - `parent` ambiguity: `Path::parent` ignores jail/virtual semantics; our
 //!   `systempath_parent()` and `virtualpath_parent()` preserve the correct behavior.
@@ -254,8 +293,8 @@
 //!   Use `systempath_as_os_str()` when an external API needs `AsRef<Path>`.
 //! - Do not call `Path::join`/`Path::parent` on leaked paths — they ignore jail/virtual semantics.
 //!   Use `systempath_join`/`systempath_parent` and `virtualpath_join`/`virtualpath_parent`.
-//! - Avoid `.unvirtual()`/`.unjail()` unless you explicitly need ownership for interop.
-//!   Prefer borrowing with `systempath_as_os_str()`.
+//! - Avoid `.unvirtual()`/`.unjail()` unless you explicitly need ownership for the specific type.
+//!   Prefer borrowing with `systempath_as_os_str()` for interop.
 //! - Virtual strings are rooted. For UI/logging, use `format!("{vp}")` or `vp.virtualpath_to_string_lossy()`.
 //!   No borrowed `&str` accessors are exposed for virtual paths.
 //! - Creating a jail: `Jail::try_new(..)` requires the directory to exist.
@@ -274,7 +313,7 @@
 //! # fn external_api<P: AsRef<std::path::Path>>(_p: P) {}
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let jail = Jail::try_new_create("./safe")?;
-//! let jp = jail.try_path("file.txt")?;
+//! let jp = jail.systempath_join("file.txt")?;
 //!
 //! // Preferred: borrow as &OsStr (implements AsRef<Path>)
 //! external_api(jp.systempath_as_os_str());
@@ -358,7 +397,7 @@ pub mod serde_ext {
             D: serde::Deserializer<'de>,
         {
             let s = String::deserialize(deserializer)?;
-            self.0.try_path(s).map_err(serde::de::Error::custom)
+            self.0.systempath_join(s).map_err(serde::de::Error::custom)
         }
     }
 
@@ -372,7 +411,7 @@ pub mod serde_ext {
             D: serde::Deserializer<'de>,
         {
             let s = String::deserialize(deserializer)?;
-            self.0.try_virtual_path(s).map_err(serde::de::Error::custom)
+            self.0.virtualpath_join(s).map_err(serde::de::Error::custom)
         }
     }
 }

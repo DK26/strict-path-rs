@@ -1,7 +1,7 @@
 //! VirtualPath‑Only Server Simulation
 //!
 //! Demonstrates serving files using only `VirtualPath` for I/O.
-//! - All user input is validated via `VirtualRoot::try_virtual_path(..)`.
+//! - All user input is validated via `VirtualRoot::virtualpath_join(..)`.
 //! - Serving functions accept `&VirtualPath<_>` so the compiler enforces correct usage.
 
 use jailed_path::{VirtualPath, VirtualRoot};
@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let requests = ["/index.html", "/css/app.css", "/../../etc/passwd"];
 
     for req in requests {
-        match vroot.try_virtual_path(req) {
+        match vroot.virtualpath_join(req) {
             Ok(vp) => {
                 println!("→ {vp}"); // Virtual root path (user‑facing)
                 match serve_asset(&vp) {
@@ -45,3 +45,6 @@ fn serve_asset(p: &VirtualPath<Assets>) -> std::io::Result<String> {
     }
     p.read_to_string()
 }
+
+
+

@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // In CI or when EXAMPLES_RUN_SERVER is not set, run a quick offline simulation
     if std::env::var("EXAMPLES_RUN_SERVER").is_err() {
-        let vp = vroot.try_virtual_path("index.html")?;
+        let vp = vroot.virtualpath_join("index.html")?;
         let body = serve_vp(&vp)?;
         println!("Offline demo: {} bytes from {}", body.len(), vp);
         fs::remove_dir_all("axum_assets").ok();
@@ -54,7 +54,7 @@ async fn serve(
     State(vroot): State<VirtualRoot<Assets>>,
     Path(path): Path<String>,
 ) -> impl IntoResponse {
-    match vroot.try_virtual_path(&path) {
+    match vroot.virtualpath_join(&path) {
         Ok(vp) => match serve_vp(&vp) {
             Ok(body) => (StatusCode::OK, body),
             Err(_) => (StatusCode::NOT_FOUND, String::from("Not found")),
@@ -84,7 +84,7 @@ async fn serve_json(
     State(vroot): State<VirtualRoot<Assets>>,
     Path(path): Path<String>,
 ) -> impl IntoResponse {
-    match vroot.try_virtual_path(&path) {
+    match vroot.virtualpath_join(&path) {
         Ok(vp) => {
             let info = PathInfo { path: vp.clone(), system: vp.systempath_to_string_lossy().into_owned() };
             let value = serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"error":"serialize"}));
@@ -93,3 +93,6 @@ async fn serve_json(
         Err(_) => (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":"invalid path"}))),
     }
 }
+
+
+

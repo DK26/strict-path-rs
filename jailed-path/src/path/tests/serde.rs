@@ -9,7 +9,7 @@ mod serde_tests {
     fn serialize_jailed_and_virtual() {
         let td = tempfile::tempdir().unwrap();
         let jail = Jail::<()>::try_new(td.path()).unwrap();
-        let jp: JailedPath = jail.try_path("a/b.txt").unwrap();
+        let jp: JailedPath = jail.systempath_join("a/b.txt").unwrap();
         let vp: VirtualPath = jp.clone().virtualize();
 
         let jp_json = serde_json::to_string(&jp).unwrap();

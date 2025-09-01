@@ -47,7 +47,7 @@ impl TempFileManager {
 
         let temp_path = self
             .jail
-            .try_path(file_name)
+            .systempath_join(file_name)
             .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
 
         temp_path.write_string(content)?;
@@ -116,3 +116,6 @@ fn main() -> Result<()> {
 
     Ok(())
 }
+
+
+

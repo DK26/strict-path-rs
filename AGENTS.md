@@ -26,6 +26,9 @@ Operational guide for AI assistants, bots, and automation working in this reposi
   - `CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo check --locked -p jailed-path --lib --verbose`
   - `CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings`
   - `CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo test --locked -p jailed-path --lib --verbose`
+  - Examples:
+    - API usage examples: `cargo run --example <name>` (from main crate root)
+    - Demo projects: `cd examples && cargo run --bin <name>` (from examples subcrate)
 - Local scripts mirror the same MSRV behavior (see `ci-local.ps1`/`.sh`).
 
 ## Examples Policy (Non‑MSRV)
@@ -46,6 +49,28 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 - `examples/` subcrate: real‑world demo projects. No assertions in the flow; show realistic control paths and I/O. Use the type system in function signatures to encode guarantees, but avoid thin wrappers that mirror built‑ins — favor purposeful functions and coherent flows.
 - Don’t over‑engineer demos. Keep them idiomatic and focused on integrating the API into a plausible application scenario.
  - Do not convert a `JailedPath` to `VirtualPath` just to print a user-facing path. For UI/display flows, construct a `VirtualPath` from a `VirtualRoot` and keep it; for system logs/interop, print the `JailedPath` directly.
+
+### Examples Directory Structure (Critical)
+
+**Two distinct types of examples with different locations:**
+
+#### 1. API Usage Examples → `jailed-path/examples/`
+- **Purpose**: Teach the API with minimal, focused code
+- **Location**: `jailed-path/examples/*.rs` (main crate examples directory)
+- **Run with**: `cargo run --example <name>` (from main crate root)
+- **Content**: One-liners, basic usage patterns, API demonstrations
+
+#### 2. Real Demo Projects → `examples/src/bin/`
+- **Purpose**: Complete, realistic applications showing integration
+- **Location**: `examples/src/bin/<category>/<name>.rs` (separate examples crate)
+- **Run with**: `cargo run --bin <name>` (from examples/ directory)
+- **Content**: Web servers, CLI tools, security demos, real-world scenarios
+
+**Key Rules:**
+- ✅ **API usage examples** go in `jailed-path/examples/` (main crate)
+- ✅ **Demo projects** go in `examples/src/bin/<category>/` (examples subcrate)
+- ❌ **Never mix them** - snippets don't belong in `examples/src/bin/`
+- ❌ **Never move demo projects** to main crate examples
 
 ## Why Split Examples From The Workspace?
 
@@ -103,7 +128,7 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 
 ### Anti-Patterns (Question First)
 
-- JailedPath -> VirtualPath for printing: Converting just to display a virtual string is a smell. Prefer starting with `VirtualRoot::try_virtual_path(..)` and keeping a `VirtualPath` for user-facing flows, or print the `JailedPath` (system view) directly. Ask whether to refactor the flow to the correct dimension.
+- JailedPath -> VirtualPath for printing: Converting just to display a virtual string is a smell. Prefer starting with `VirtualRoot::virtualpath_join(..)` and keeping a `VirtualPath` for user-facing flows, or print the `JailedPath` (system view) directly. Ask whether to refactor the flow to the correct dimension.
 - String interop to AsRef<Path>: Passing `*_to_string_lossy()`, `*_to_str()`, or `PathBuf` where `AsRef<Path>` is expected. Use `systempath_as_os_str()` instead. Ask before changing signatures or behavior.
 - std path ops on leaked paths: Using `Path::join`/`Path::parent`/etc. on values outside the jail types. Replace with jail-aware ops (`systempath_*` / `virtualpath_*`). Confirm scope of refactor.
 - Formatting with bare {}: Use captured identifiers (`"{name}"`). If found, ask whether to update to locals + captured identifiers for readability or keep as-is if it’s truly a one-off expression.
@@ -173,7 +198,7 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 
 - Preferred: `fs::copy(src.systempath_as_os_str(), dst.systempath_as_os_str())`
   - Anti-pattern: `fs::copy(src.systempath_to_string_lossy().as_ref(), ..)` (string interop; loses fidelity/allocates).
-- Preferred: `let vp = vroot.try_virtual_path("a/b.txt")?; println!("{vp}");`
+- Preferred: `let vp = vroot.virtualpath_join("a/b.txt")?; println!("{vp}");`
   - Anti-pattern: `jp.clone().virtualize()` just to print; start with `VirtualPath` for UI flows.
 - Preferred: `jp.systempath_join("child.txt")?` or `vp.virtualpath_join("child.txt")?`
   - Anti-pattern: `leaked_path.join("child.txt")` (std join ignores jail/virtual semantics).
@@ -188,6 +213,9 @@ Operational guide for AI assistants, bots, and automation working in this reposi
   - `Path::join(..)` or `xpath.join(..)`: unsafe std join (can escape the jail); avoid on untrusted inputs.
   - `JailedPath::systempath_join(..)`: safe system-path join (validated to not escape the jail).
   - `VirtualPath::virtualpath_join(..)`: safe virtual join (clamped to the virtual root).
+- **CRITICAL SECURITY DISTINCTION**: `std::path::Path::join("/absolute")` completely replaces the base path, making it the #1 cause of path traversal vulnerabilities. Our types prevent this:
+  - `systempath_join("/absolute")`: validates the result stays within jail bounds, returns error if not.
+  - `virtualpath_join("/absolute")`: clamps absolute paths to virtual root (e.g., "/etc/passwd" → "/").
 - The same pattern holds for other operations: `systempath_parent`/`virtualpath_parent`, `systempath_with_file_name`/`virtualpath_with_file_name`, `systempath_with_extension`/`virtualpath_with_extension`, `systempath_starts_with`/`virtualpath_starts_with`, etc.
 - This convention helps reviewers spot API abuse without hunting for type declarations in scope.
 
@@ -195,7 +223,7 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 
 - `JailedPath` MUST NOT implement `AsRef<Path>`/`Deref<Target = Path>` and MUST NOT expose raw `&Path`.
 - Conversions are explicit only — do not add `From`/`Into` between `JailedPath` and `VirtualPath`.
-  - `Jail::try_path(..) -> JailedPath`
+  - `Jail::systempath_join(..) -> JailedPath`
   - `JailedPath::virtualize() -> VirtualPath`
   - `VirtualPath::unvirtual() -> JailedPath`
   - `JailedPath::unjail() -> PathBuf` (escape hatch)
@@ -241,18 +269,21 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 
 - Do:
   - Keep MSRV isolated to the library; build examples only on stable.
-  - Add examples under `examples/src/bin/<category>/…` with descriptive names.
+  - Add demo projects under `examples/src/bin/<category>/…` with descriptive names.
+  - Add API usage examples under `jailed-path/examples/*.rs` for teaching the API.
 - Use type‑state markers in examples to demonstrate compile‑time separation of jails.
-  - Note on inference: core types default to `Marker = ()`. Let-bindings often suffice for inference (e.g., `let vroot: VirtualRoot = ...; let vp = vroot.try_virtual_path("a.txt")?;`). When the compiler needs help, prefer adding an explicit type or an empty turbofish (`VirtualRoot::<()>::try_new(..)`). Avoid turbofish unless necessary or clearer.
+  - Note on inference: core types default to `Marker = ()`. Let-bindings often suffice for inference (e.g., `let vroot: VirtualRoot = ...; let vp = vroot.virtualpath_join("a.txt")?;`). When the compiler needs help, prefer adding an explicit type or an empty turbofish (`VirtualRoot::<()>::try_new(..)`). Avoid turbofish unless necessary or clearer.
   - Reference `API_REFERENCE.md` when updating APIs.
   - Prefer `systempath_as_os_str()` for `AsRef<Path>` interop; avoid leaking `Path`/`PathBuf`.
   - Use `systempath_join` / `virtualpath_join` instead of std `Path::join`.
   - For release/version bumps: update CHANGELOG with user-facing highlights, bump versions in Cargo.toml/lib.rs/README, tag the release, and include a concise PR summary (markdown, no code examples).
   - When crafting commit messages, summarize the staged diff by intent and impact.
-- Don’t:
+- Don't:
   - Reintroduce `examples` into `[workspace.members]`.
-  - Move cargo flags after `--` (they won’t be recognized by cargo).
+  - Move cargo flags after `--` (they won't be recognized by cargo).
   - Use `.unjail()` / `.unvirtual()` in examples unless demonstrating escape hatches explicitly.
+  - Put API usage examples in `examples/src/bin/` - they belong in `jailed-path/examples/`.
+  - Put demo projects in `jailed-path/examples/` - they belong in `examples/src/bin/<category>/`.
   - Invent new surface APIs without discussion; follow existing design patterns.
   - Deprecate APIs pre-0.1.0 — remove them cleanly instead when agreed.
 
@@ -263,3 +294,5 @@ Operational guide for AI assistants, bots, and automation working in this reposi
   - Keeps examples compiling on stable.
   - Passes clippy/doc builds with `-D warnings` and keeps CI green on all OSes.
   - Aligns with the repository’s documentation and design files.
+
+

@@ -2,7 +2,7 @@ use jailed_path::{Jail, JailedPathError};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Test error chaining with try_path (the detailed error method)
+    // Test error chaining with systempath_join (the detailed error method)
     #[cfg(windows)]
     let nonexistent_path = "C:\\NonExistent\\Path";
     #[cfg(not(windows))]
@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Validator created successfully!");
 
             // Try to validate a path - this is the only way to check validity
-            match jail.try_path("../../../sensitive.txt") {
+            match jail.systempath_join("../../../sensitive.txt") {
                 Ok(_) => println!("Unexpected success!"),
                 Err(e) => println!("Correctly blocked traversal: {e}"),
             }
@@ -74,3 +74,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Error handling test completed!");
     Ok(())
 }
+
+
+
