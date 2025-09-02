@@ -265,6 +265,29 @@ Operational guide for AI assistants, bots, and automation working in this reposi
   - `CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings`
   - `CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo test --locked -p jailed-path --lib`
 
+## Security Testing & CVE Validation
+
+When asked to update security tests, you must:
+
+1. **Research Related CVEs**: Search for known CVEs online that describe vulnerabilities related to the same field of expertise as our crate (path traversal, directory traversal, file system security, symlink attacks, path canonicalization issues, etc.), regardless of programming language or specific implementation.
+
+2. **Validate Test Coverage**: Examine our existing test suite to verify it covers the exact vulnerability patterns described in those CVEs. Focus on:
+   - Path traversal attempts using various encoding schemes
+   - Symlink-based attacks and resolution bypasses  
+   - Windows-specific vulnerabilities (8.3 short names, UNC paths, device names)
+   - Unicode normalization attacks and encoding bypasses
+   - Race conditions in path resolution
+   - Platform-specific path handling edge cases
+
+3. **Create Missing Tests**: If our test suite doesn't cover specific CVE patterns, create new tests that verify our API correctly prevents those exact vulnerable behaviors. Tests should:
+   - Use realistic attack vectors from the CVE descriptions
+   - Verify that our `JailedPath` and `VirtualPath` types properly reject malicious inputs
+   - Cover both the positive case (legitimate paths work) and negative case (attacks are blocked)
+   - Include appropriate assertions that demonstrate the security guarantee
+   - Follow our existing test patterns and use `tempfile::tempdir()` for isolation
+
+4. **Document Security Rationale**: When adding security tests, include comments explaining which CVE or vulnerability class the test addresses, so future maintainers understand the security context.
+
 ## Do / Don’t (For Agents)
 
 - Do:

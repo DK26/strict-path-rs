@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Windows: Introduced `JailedPathError::WindowsShortName { component, original, checked_at }` returned when a DOS 8.3 short filename component (e.g., `PROGRA~1`) is detected in a non-existent path segment. This enables callers to implement their own recovery (e.g., prompting for a full long name) instead of treating it as a generic resolution error.
+- **Enhanced Security Documentation**: Added comprehensive CVE protection documentation highlighting specific vulnerabilities addressed (CVE-2025-8088, CVE-2022-21658, Windows 8.3 CVEs) and emphasizing the security depth beyond simple string comparison
+- **Security Foundation Messaging**: Updated README, crate docs, and API reference to emphasize the soft-canonicalize foundation and real-world vulnerability protection
 
 ### Security
 

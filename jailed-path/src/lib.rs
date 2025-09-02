@@ -41,6 +41,17 @@
 //! Construct them with `Jail::try_new(_create)` and `VirtualRoot::try_new(_create)`. Ingest
 //! untrusted paths as `VirtualPath` for UI/UX and safe joins; perform I/O from either type.
 //!
+//! ## Security Foundation
+//!
+//! Built on [`soft-canonicalize`](https://crates.io/crates/soft-canonicalize), this crate inherits 
+//! protection against documented CVEs including:
+//! - **CVE-2025-8088** (NTFS ADS path traversal), **CVE-2022-21658** (TOCTOU attacks)
+//! - **CVE-2019-9855, CVE-2020-12279** and others (Windows 8.3 short name vulnerabilities)  
+//! - Path traversal, symlink attacks, Unicode normalization bypasses, and race conditions
+//!
+//! This isn't simple string comparison—paths are fully canonicalized and boundary-checked 
+//! against known attack patterns from real-world vulnerabilities.
+//!
 //! Guidance
 //! - Accept untrusted input via `VirtualRoot::virtualpath_join(..)` to obtain a `VirtualPath`.
 //! - Perform I/O directly on `VirtualPath` or on `JailedPath`. Unvirtualize only when you need a

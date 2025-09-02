@@ -14,6 +14,37 @@
 
 Never worry about `../../../etc/passwd` again. Jailed-path provides compile-time guarantees that external paths stay exactly where you want them.
 
+## 🔓 **Why Path Security Is Hard**
+
+Directory traversal vulnerabilities are **everywhere**. Getting path validation right yourself means:
+
+- Understanding platform-specific canonicalization quirks (Windows 8.3 names, case sensitivity, path separators)
+- Handling symlinks safely without race conditions
+- Staying current with new attack vectors and CVEs
+- Carrying complex validation logic to every new project
+- Convincing security auditors you got it right (again)
+
+**We solve this once, correctly, so you don't have to.**
+
+## 🛡️ **Automatic Protection Against Known Vulnerabilities**
+
+This crate inherits protection against documented CVEs and attack patterns through our [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs) foundation:
+
+### **Recently Addressed CVEs**
+- **CVE-2025-8088** (WinRAR-style ADS Attacks): NTFS Alternate Data Stream path traversal prevention
+- **CVE-2022-21658** (Race Conditions): TOCTOU attack protection during path resolution
+- **CVE-2019-9855, CVE-2020-12279, CVE-2017-17793** and others: Windows 8.3 short name vulnerabilities
+
+### **Core Attack Vector Protection**
+- **Path Traversal** (`../`, `..\\`, URL-encoded variants, Unicode bypasses)
+- **Symlink Attacks** (symlink bombs, jail breaks, resolution edge cases)
+- **Windows-Specific** (8.3 short names like `PROGRA~1`, UNC paths, NTFS ADS)
+- **Unicode Normalization** (encoding bypasses, zero-width characters, mixed separators)
+- **Race Conditions** (TOCTOU in path resolution, atomic filesystem changes)
+- **Archive Extraction** (zip slip, tar slip vulnerabilities, malicious entry names)
+
+Your next security audit becomes: *"We use jailed-path."* ✅
+
 ## ⚡ **Installation & Quick Start**
 
 ```toml
@@ -43,6 +74,8 @@ store_report(&safe_path)?; // Type system enforces correct usage
 
 ## 🛡️ **Security Features**
 
+- **Beyond Simple Path Comparison**: This isn't just string matching - paths are fully resolved to their absolute, canonical form and rigorously boundary-checked against known attack patterns
+- **CVE-Aware Protection**: Our validation algorithms are informed by real-world CVEs and directory traversal vulnerabilities across multiple programming languages and platforms
 - **Mathematical Guarantees**: Paths are canonicalized and boundary-checked - impossible to escape the jail
 - **Type Safety**: Marker types prevent mixing different storage contexts at compile time
 - **Windows Security**: Handles DOS 8.3 short names (`PROGRA~1`) as potential attack vectors
@@ -196,6 +229,54 @@ serve_asset(&css.unvirtual());         // ✅ Correct context
 ```
 
 Your IDE and compiler become security guards.
+
+### Drop-In Replacement Patterns
+
+Transform vulnerable code with minimal changes:
+
+**File Operations:**
+```rust
+// ❌ Vulnerable - direct user input to filesystem
+use std::fs;
+let user_path = get_user_input(); // Could be "../../../etc/passwd"
+fs::write(user_path, data)?; // 🚨 Security disaster
+
+// ✅ Protected - automatic validation
+use jailed_path::Jail;
+let jail = Jail::try_new_create("uploads")?;
+let safe_path = jail.systempath_join(get_user_input())?; // Attack blocked
+safe_path.write_bytes(data)?; // ✅ Guaranteed safe
+```
+
+**Working with `tempfile`:**
+```rust
+// ❌ Vulnerable - temp directory + user paths
+use tempfile::tempdir;
+let temp = tempdir()?;
+let user_file = temp.path().join(user_input); // 🚨 Can escape tempdir
+fs::write(user_file, data)?;
+
+// ✅ Protected - jailed temp operations
+use jailed_path::Jail;
+let jail = Jail::try_new(tempdir()?.path())?;
+let safe_file = jail.systempath_join(user_input)?; // ✅ Cannot escape
+safe_file.write_bytes(data)?;
+```
+
+**App Configuration with `app_path`:**
+```rust
+// ❌ Vulnerable - app dirs + user paths
+use app_path::AppPath;
+let app_dir = AppPath::new("MyApp").get_app_dir();
+let config_file = app_dir.join(user_config_name); // 🚨 Potential escape
+fs::write(config_file, settings)?;
+
+// ✅ Protected - jailed app directories  
+use jailed_path::Jail;
+let jail = Jail::try_new_create(AppPath::new("MyApp").get_app_dir())?;
+let safe_config = jail.systempath_join(user_config_name)?; // ✅ Validated
+safe_config.write_string(&settings)?;
+```
 
 ### Web Server File Serving
 ```rust

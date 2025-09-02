@@ -2,6 +2,10 @@
 
 Provides safe, validated filesystem paths inside a confined directory (jail).
 
+## Security Foundation
+
+Built on `soft-canonicalize` with protection against documented CVEs (CVE-2025-8088, CVE-2022-21658, Windows 8.3 vulnerabilities, etc.). Provides mathematical guarantees via canonicalization and boundary checking—not simple string comparison.
+
 **Conceptual Models:**
 - `JailedPath` = **Proven-safe system path**: a validated path that's guaranteed safe for I/O operations
 - `VirtualPath` = **User-friendly wrapper**: same safety as `JailedPath` but with virtual "/" root display and virtual path operations

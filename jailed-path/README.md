@@ -1,4 +1,3 @@
-```markdown
 # jailed-path
 
 [![Crates.io](https://img.shields.io/crates/v/jailed-path.svg)](https://crates.io/crates/jailed-path)
@@ -10,7 +9,25 @@
 
 **Prevent directory traversal with type-safe virtual path jails and safe symlinks**
 
-... (README content moved from repository root) ...
+## Security Foundation
+
+Built on [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs) with protection against documented CVEs including CVE-2025-8088 (NTFS ADS attacks), CVE-2022-21658 (TOCTOU), Windows 8.3 short name vulnerabilities, and more. This isn't simple string comparison—paths are fully canonicalized and boundary-checked against real-world attack patterns.
+
+## Full Documentation
+
+For complete documentation, examples, and API reference, see the [repository README](../README.md).
+
+## Quick Start
+
+```rust
+use jailed_path::Jail;
+
+// Create a jail and validate any external path
+let jail = Jail::try_new_create("safe_directory")?;
+let safe_path = jail.systempath_join("user/input/file.txt")?;
+safe_path.write_string("content")?; // Guaranteed safe
+```
+
+## License
 
 MIT OR Apache-2.0
-```
