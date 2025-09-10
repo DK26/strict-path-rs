@@ -1,8 +1,8 @@
 ## Workspace layout note
 ##
 ## We intentionally keep `examples/` OUT of the workspace to decouple it from
-## the library crate's MSRV (Rust 1.70). This lets us:
-##   - Enforce MSRV for the library with `--locked` on Rust 1.70 in CI
+## the library crate's MSRV (Rust 1.71). This lets us:
+##   - Enforce MSRV for the library with `--locked` on Rust 1.71 in CI
 ##   - Build richer examples on latest stable with newer ecosystem crates
 ##   - Avoid workspace lock/feature resolution coupling between the two
 ## See `.github/workflows/ci.yml` for how CI runs the examples separately.

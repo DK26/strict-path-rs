@@ -176,7 +176,998 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="chapter-1"><a class="header" href="#chapter-1">Chapter 1</a></h1>
+                        <h1 id="getting-started-with-jailed-path"><a class="header" href="#getting-started-with-jailed-path">Getting Started with jailed-path</a></h1>
+<h2 id="what-is-jailed-path"><a class="header" href="#what-is-jailed-path">What is jailed-path?</a></h2>
+<p>Have you ever worried about users trying to access files they shouldn't? Like when someone enters <code>../../../etc/passwd</code> to try to escape from a safe directory? That's called a "directory traversal" attack, and it's surprisingly common.</p>
+<p><strong>jailed-path</strong> solves this problem by creating "jails" - safe boundaries that paths cannot escape from. Think of it like a sandbox for file paths.</p>
+<h2 id="why-should-you-care"><a class="header" href="#why-should-you-care">Why Should You Care?</a></h2>
+<p>Directory traversal vulnerabilities are everywhere:</p>
+<ul>
+<li>Web applications where users upload files</li>
+<li>CLI tools that accept file paths as arguments</li>
+<li>Any application that processes user-provided paths</li>
+<li>Systems that extract archives (ZIP files, etc.)</li>
+</ul>
+<p>Getting path security wrong can expose your entire filesystem to attackers. With jailed-path, the Rust compiler helps ensure you can't make these mistakes.</p>
+<h2 id="your-first-jail"><a class="header" href="#your-first-jail">Your First Jail</a></h2>
+<p>Let's start with a simple example. Say you're building a web app where users can upload and download their files, but you want to keep them contained in a specific directory:</p>
+<pre><pre class="playground"><code class="language-rust">use jailed_path::Jail;
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create a jail in the "user_files" directory
+    // This creates the directory if it doesn't exist
+    let jail = Jail::try_new_create("user_files")?;
+    
+    // Now any path we validate through this jail will be contained
+    // within the "user_files" directory
+    
+    // This is SAFE - creates "user_files/documents/report.txt"
+    let safe_path = jail.jailed_join("documents/report.txt")?;
+    
+    // This would FAIL - can't escape the jail!
+    // let bad_path = jail.jailed_join("../../../etc/passwd")?; // Error!
+    
+    println!("Safe path: {}", safe_path.as_path().display());
+    
+    Ok(())
+}</code></pre></pre>
+<h2 id="what-just-happened"><a class="header" href="#what-just-happened">What Just Happened?</a></h2>
+<ol>
+<li><strong>Created a jail</strong>: <code>Jail::try_new_create("user_files")</code> sets up a safe boundary</li>
+<li><strong>Validated a path</strong>: <code>jail.jailed_join("documents/report.txt")</code> checks the path is safe</li>
+<li><strong>Got protection</strong>: Any attempt to escape the jail (like <code>../../../etc/passwd</code>) fails immediately</li>
+</ol>
+<p>The magic is that once you have a <code>JailedPath</code>, you <em>know</em> it's safe. The type system guarantees it.</p>
+<h2 id="working-with-jailed-paths"><a class="header" href="#working-with-jailed-paths">Working with Jailed Paths</a></h2>
+<p>Once you have a <code>JailedPath</code>, you can use it for file operations:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use jailed_path::Jail;
+use std::fs;
+
+fn save_user_file() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let jail = Jail::try_new_create("uploads")?;
+    
+    // User wants to save to "my-document.txt"
+    let user_input = "my-document.txt";
+    let safe_path = jail.jailed_join(user_input)?;
+    
+    // Write some content safely
+    fs::write(&amp;safe_path, "Hello, world!")?;
+    
+    // Read it back
+    let content = fs::read_to_string(&amp;safe_path)?;
+    println!("File contains: {}", content);
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="type-safety-the-secret-sauce"><a class="header" href="#type-safety-the-secret-sauce">Type Safety: The Secret Sauce</a></h2>
+<p>Here's where jailed-path gets really clever. You can write functions that <em>only</em> accept safe paths:</p>
+<pre><pre class="playground"><code class="language-rust">use jailed_path::JailedPath;
+use std::fs;
+
+// This function can ONLY be called with safe paths
+fn process_user_file(path: &amp;JailedPath) -&gt; Result&lt;String, std::io::Error&gt; {
+    // We know this path is safe - no need to validate again
+    fs::read_to_string(path)
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let jail = Jail::try_new_create("safe_area")?;
+    let safe_path = jail.jailed_join("user-data.txt")?;
+    
+    // This works - safe_path is a JailedPath
+    let content = process_user_file(&amp;safe_path)?;
+    
+    // This won't compile - can't pass an unsafe path!
+    // let unsafe_path = std::path::Path::new("/etc/passwd");
+    // let content = process_user_file(unsafe_path); // Compilation error!
+    
+    Ok(())
+}</code></pre></pre>
+<p>This means once you set up your jails correctly, the compiler prevents you from accidentally using unsafe paths.</p>
+<h2 id="virtual-paths-user-friendly-sandboxes"><a class="header" href="#virtual-paths-user-friendly-sandboxes">Virtual Paths: User-Friendly Sandboxes</a></h2>
+<p>Sometimes you want to give users the illusion that they have their own private filesystem, starting from <code>/</code>. That's what <code>VirtualPath</code> is for:</p>
+<pre><pre class="playground"><code class="language-rust">use jailed_path::VirtualRoot;
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create a virtual root that maps to "user_123_files" on disk
+    let vroot = VirtualRoot::try_new_create("user_123_files")?;
+    
+    // User thinks they're working from "/"
+    let user_path = vroot.virtual_join("/documents/my-file.txt")?;
+    
+    // But it actually maps to "user_123_files/documents/my-file.txt"
+    println!("User sees: /documents/my-file.txt");
+    println!("Actually stored at: {}", user_path.as_path().display());
+    
+    Ok(())
+}</code></pre></pre>
+<p>This is perfect for multi-user applications where each user should feel like they have their own filesystem.</p>
+<h2 id="api-summary"><a class="header" href="#api-summary">API Summary</a></h2>
+<p>That's really all you need to know! The core API is simple:</p>
+<h3 id="creating-safe-boundaries"><a class="header" href="#creating-safe-boundaries">Creating Safe Boundaries</a></h3>
+<ul>
+<li><code>Jail::try_new(path)</code> - Use existing directory as jail (fails if not found)</li>
+<li><code>Jail::try_new_create(path)</code> - Create directory if needed (for setup/initialization)</li>
+<li><code>VirtualRoot::try_new(path)</code> - Virtual filesystem root (expects existing directory)</li>
+<li><code>VirtualRoot::try_new_create(path)</code> - Create virtual root if needed (for user storage)</li>
+</ul>
+<h3 id="validating-paths"><a class="header" href="#validating-paths">Validating Paths</a></h3>
+<ul>
+<li><code>jail.jailed_join(user_path)</code> - Returns <code>JailedPath</code> or error</li>
+<li><code>vroot.virtual_join(user_path)</code> - Returns <code>VirtualPath</code> or error</li>
+</ul>
+<h3 id="using-safe-paths"><a class="header" href="#using-safe-paths">Using Safe Paths</a></h3>
+<ul>
+<li>Both <code>JailedPath</code> and <code>VirtualPath</code> work with standard file operations</li>
+<li>They implement <code>AsRef&lt;Path&gt;</code> so you can pass them to <code>fs::read</code>, <code>fs::write</code>, etc.</li>
+<li>The type system prevents using unvalidated paths</li>
+</ul>
+<h2 id="common-patterns"><a class="header" href="#common-patterns">Common Patterns</a></h2>
+<h3 id="web-file-upload"><a class="header" href="#web-file-upload">Web File Upload</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use jailed_path::Jail;
+
+fn handle_file_upload(filename: &amp;str, content: &amp;[u8]) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let uploads_jail = Jail::try_new_create("uploads")?;
+    let safe_path = uploads_jail.jailed_join(filename)?;
+    std::fs::write(&amp;safe_path, content)?;
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="configuration-files"><a class="header" href="#configuration-files">Configuration Files</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use jailed_path::Jail;
+
+fn load_config(config_name: &amp;str) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
+    let config_jail = Jail::try_new("config")?;  // Expect config dir to exist
+    let config_path = config_jail.jailed_join(config_name)?;
+    let content = std::fs::read_to_string(&amp;config_path)?;
+    Ok(content)
+}
+
+fn setup_user_storage(user_id: u32) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create user directory structure if it doesn't exist
+    let user_jail = Jail::try_new_create(&amp;format!("users/{}", user_id))?;
+    let documents = user_jail.jailed_join("documents")?;
+    std::fs::create_dir_all(&amp;documents)?;
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="whats-next"><a class="header" href="#whats-next">What's Next?</a></h2>
+<ul>
+<li><strong>Real-World Examples</strong>: See complete applications using jailed-path</li>
+<li><strong>Understanding Type-History</strong>: Learn how the internal security works (for contributors)</li>
+</ul>
+<p>The key rule: <strong>always validate external paths through a jail before using them</strong>. Whether it's user input, configuration files, or data from external sources - if you didn't create the path yourself, put it in jail first!</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="real-world-examples"><a class="header" href="#real-world-examples">Real-World Examples</a></h1>
+<p>This chapter shows practical, real-world scenarios where jailed-path helps secure your applications. Each example includes complete, runnable code that you can adapt to your own projects.</p>
+<h2 id="web-file-upload-service"><a class="header" href="#web-file-upload-service">Web File Upload Service</a></h2>
+<p>Let's build a simple file upload service that allows users to upload files safely:</p>
+<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
+use std::fs;
+use std::io::{self, Write};
+
+struct FileUploadService {
+    uploads_jail: Jail,
+}
+
+impl FileUploadService {
+    fn new() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Create a jail for uploaded files
+        let uploads_jail = Jail::try_new_create("user_uploads")?;
+        Ok(Self { uploads_jail })
+    }
+    
+    fn upload_file(&amp;self, filename: &amp;str, content: &amp;[u8]) -&gt; Result&lt;JailedPath, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Validate the filename is safe
+        let safe_path = self.uploads_jail.jailed_join(filename)?;
+        
+        // Create parent directories if needed
+        if let Some(parent) = safe_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        
+        // Write the file safely
+        fs::write(&amp;safe_path, content)?;
+        
+        println!("✅ File uploaded safely to: {}", safe_path.as_path().display());
+        Ok(safe_path)
+    }
+    
+    fn list_files(&amp;self) -&gt; Result&lt;Vec&lt;JailedPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+        let mut files = Vec::new();
+        
+        // Only iterate within the jail
+        for entry in fs::read_dir(&amp;self.uploads_jail)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                // Validate each path through the jail
+                let safe_path = self.uploads_jail.jailed_join(entry.file_name())?;
+                files.push(safe_path);
+            }
+        }
+        
+        Ok(files)
+    }
+    
+    fn download_file(&amp;self, filename: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Validate the requested filename
+        let safe_path = self.uploads_jail.jailed_join(filename)?;
+        
+        // Read and return the file content
+        let content = fs::read(&amp;safe_path)?;
+        Ok(content)
+    }
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let service = FileUploadService::new()?;
+    
+    // Simulate user uploads - these are all SAFE
+    service.upload_file("document.txt", b"Hello, world!")?;
+    service.upload_file("reports/january.pdf", b"PDF content here")?;
+    service.upload_file("images/photo.jpg", b"JPEG data")?;
+    
+    // These would FAIL with directory traversal protection:
+    // service.upload_file("../../../etc/passwd", b"attack")?;  // ❌ Blocked!
+    // service.upload_file("..\\windows\\system32\\evil.exe", b"malware")?;  // ❌ Blocked!
+    
+    // List uploaded files
+    println!("📁 Uploaded files:");
+    for file in service.list_files()? {
+        println!("  - {}", file.as_path().display());
+    }
+    
+    // Download a file
+    let content = service.download_file("document.txt")?;
+    println!("📄 Downloaded: {}", String::from_utf8_lossy(&amp;content));
+    
+    Ok(())
+}</code></pre></pre>
+<h2 id="configuration-file-manager"><a class="header" href="#configuration-file-manager">Configuration File Manager</a></h2>
+<p>Here's how to safely handle user configuration files:</p>
+<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
+use serde::{Deserialize, Serialize};
+use std::fs;
+
+#[derive(Serialize, Deserialize, Debug)]
+struct AppConfig {
+    theme: String,
+    language: String,
+    auto_save: bool,
+}
+
+impl Default for AppConfig {
+    fn default() -&gt; Self {
+        Self {
+            theme: "dark".to_string(),
+            language: "en".to_string(),
+            auto_save: true,
+        }
+    }
+}
+
+struct ConfigManager {
+    config_jail: Jail,
+}
+
+impl ConfigManager {
+    fn new() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Create a jail for configuration files
+        let config_jail = Jail::try_new_create("app_config")?;
+        Ok(Self { config_jail })
+    }
+    
+    fn load_config(&amp;self, config_name: &amp;str) -&gt; Result&lt;AppConfig, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Ensure the config file name is safe
+        let config_path = self.config_jail.jailed_join(config_name)?;
+        
+        // Load config or create default
+        if config_path.exists() {
+            let content = fs::read_to_string(&amp;config_path)?;
+            let config: AppConfig = serde_json::from_str(&amp;content)?;
+            println!("📖 Loaded config from: {}", config_path.as_path().display());
+            Ok(config)
+        } else {
+            println!("🆕 Creating default config at: {}", config_path.as_path().display());
+            let default_config = AppConfig::default();
+            self.save_config(config_name, &amp;default_config)?;
+            Ok(default_config)
+        }
+    }
+    
+    fn save_config(&amp;self, config_name: &amp;str, config: &amp;AppConfig) -&gt; Result&lt;JailedPath, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Validate the config file path
+        let config_path = self.config_jail.jailed_join(config_name)?;
+        
+        // Serialize and save
+        let content = serde_json::to_string_pretty(config)?;
+        fs::write(&amp;config_path, content)?;
+        
+        println!("💾 Saved config to: {}", config_path.as_path().display());
+        Ok(config_path)
+    }
+    
+    fn list_configs(&amp;self) -&gt; Result&lt;Vec&lt;String&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+        let mut configs = Vec::new();
+        
+        for entry in fs::read_dir(&amp;self.config_jail)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                if let Some(name) = entry.file_name().to_str() {
+                    if name.ends_with(".json") {
+                        configs.push(name.to_string());
+                    }
+                }
+            }
+        }
+        
+        Ok(configs)
+    }
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let config_manager = ConfigManager::new()?;
+    
+    // Load or create user config
+    let mut user_config = config_manager.load_config("user.json")?;
+    println!("Current config: {:#?}", user_config);
+    
+    // Modify and save
+    user_config.theme = "light".to_string();
+    user_config.auto_save = false;
+    config_manager.save_config("user.json", &amp;user_config)?;
+    
+    // Create a different profile
+    let admin_config = AppConfig {
+        theme: "admin".to_string(),
+        language: "en".to_string(),
+        auto_save: true,
+    };
+    config_manager.save_config("admin.json", &amp;admin_config)?;
+    
+    // List all configs
+    println!("📋 Available configs: {:?}", config_manager.list_configs()?);
+    
+    // These attempts would be blocked:
+    // config_manager.load_config("../../../etc/passwd")?;  // ❌ Blocked!
+    // config_manager.save_config("..\\windows\\evil.json", &amp;user_config)?;  // ❌ Blocked!
+    
+    Ok(())
+}</code></pre></pre>
+<h2 id="multi-user-document-storage-with-virtualpath"><a class="header" href="#multi-user-document-storage-with-virtualpath">Multi-User Document Storage with VirtualPath</a></h2>
+<p>For applications where each user should feel like they have their own filesystem:</p>
+<pre><pre class="playground"><code class="language-rust">use jailed_path::{VirtualRoot, VirtualPath};
+use std::fs;
+use std::collections::HashMap;
+
+struct DocumentStore {
+    user_roots: HashMap&lt;String, VirtualRoot&gt;,
+}
+
+impl DocumentStore {
+    fn new() -&gt; Self {
+        Self {
+            user_roots: HashMap::new(),
+        }
+    }
+    
+    fn get_user_root(&amp;mut self, username: &amp;str) -&gt; Result&lt;&amp;VirtualRoot, Box&lt;dyn std::error::Error&gt;&gt; {
+        if !self.user_roots.contains_key(username) {
+            // Each user gets their own isolated storage
+            let user_dir = format!("user_data_{}", username);
+            let vroot = VirtualRoot::try_new_create(&amp;user_dir)?;
+            self.user_roots.insert(username.to_string(), vroot);
+            println!("🏠 Created virtual root for user: {}", username);
+        }
+        
+        Ok(self.user_roots.get(username).unwrap())
+    }
+    
+    fn save_document(&amp;mut self, username: &amp;str, virtual_path: &amp;str, content: &amp;str) -&gt; Result&lt;VirtualPath, Box&lt;dyn std::error::Error&gt;&gt; {
+        let user_root = self.get_user_root(username)?;
+        
+        // User thinks they're saving to their own filesystem starting from "/"
+        let doc_path = user_root.virtual_join(virtual_path)?;
+        
+        // Create parent directories if needed
+        if let Some(parent) = doc_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        
+        // Save the document
+        fs::write(&amp;doc_path, content)?;
+        
+        println!("📝 User {} saved document to: {}", username, virtual_path);
+        println!("    (Actually stored at: {})", doc_path.as_path().display());
+        
+        Ok(doc_path)
+    }
+    
+    fn load_document(&amp;mut self, username: &amp;str, virtual_path: &amp;str) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
+        let user_root = self.get_user_root(username)?;
+        let doc_path = user_root.virtual_join(virtual_path)?;
+        
+        let content = fs::read_to_string(&amp;doc_path)?;
+        println!("📖 User {} loaded document from: {}", username, virtual_path);
+        
+        Ok(content)
+    }
+    
+    fn list_user_documents(&amp;mut self, username: &amp;str) -&gt; Result&lt;Vec&lt;String&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+        let user_root = self.get_user_root(username)?;
+        let mut docs = Vec::new();
+        
+        fn collect_files(dir: &amp;std::path::Path, base: &amp;std::path::Path, docs: &amp;mut Vec&lt;String&gt;) -&gt; std::io::Result&lt;()&gt; {
+            for entry in fs::read_dir(dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                
+                if path.is_file() {
+                    if let Ok(relative) = path.strip_prefix(base) {
+                        if let Some(path_str) = relative.to_str() {
+                            docs.push(format!("/{}", path_str.replace("\\", "/")));
+                        }
+                    }
+                } else if path.is_dir() {
+                    collect_files(&amp;path, base, docs)?;
+                }
+            }
+            Ok(())
+        }
+        
+        collect_files(user_root.as_path(), user_root.as_path(), &amp;mut docs)?;
+        Ok(docs)
+    }
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let mut store = DocumentStore::new();
+    
+    // Alice saves some documents
+    store.save_document("alice", "/reports/quarterly.txt", "Q1 revenue was strong")?;
+    store.save_document("alice", "/notes/meeting.md", "# Meeting Notes\n- Discuss new features")?;
+    store.save_document("alice", "/drafts/proposal.doc", "Project proposal draft")?;
+    
+    // Bob saves his documents (completely separate from Alice)
+    store.save_document("bob", "/code/main.rs", "fn main() { println!(\"Hello!\"); }")?;
+    store.save_document("bob", "/docs/readme.txt", "My awesome project")?;
+    
+    // Charlie tries to access Alice's files - this is blocked at the path level
+    // store.save_document("charlie", "/../alice/reports/quarterly.txt", "hacked")?;  // ❌ Blocked!
+    
+    // Each user can access their own files
+    println!("📄 Alice's quarterly report: {}", store.load_document("alice", "/reports/quarterly.txt")?);
+    println!("💻 Bob's code: {}", store.load_document("bob", "/code/main.rs")?);
+    
+    // List each user's documents
+    println!("📁 Alice's documents: {:?}", store.list_user_documents("alice")?);
+    println!("📁 Bob's documents: {:?}", store.list_user_documents("bob")?);
+    
+    Ok(())
+}</code></pre></pre>
+<h2 id="archive-extraction-with-safety"><a class="header" href="#archive-extraction-with-safety">Archive Extraction with Safety</a></h2>
+<p>Safely extract ZIP files and other archives without zip-slip vulnerabilities:</p>
+<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
+use std::fs;
+use std::io::Write;
+
+struct SafeArchiveExtractor {
+    extraction_jail: Jail,
+}
+
+impl SafeArchiveExtractor {
+    fn new(extract_to: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        let extraction_jail = Jail::try_new_create(extract_to)?;
+        Ok(Self { extraction_jail })
+    }
+    
+    fn extract_entry(&amp;self, entry_path: &amp;str, content: &amp;[u8]) -&gt; Result&lt;JailedPath, Box&lt;dyn std::error::Error&gt;&gt; {
+        // This automatically prevents zip-slip attacks
+        let safe_path = self.extraction_jail.jailed_join(entry_path)?;
+        
+        // Create parent directories
+        if let Some(parent) = safe_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        
+        // Write the file
+        fs::write(&amp;safe_path, content)?;
+        
+        println!("📦 Extracted: {} -&gt; {}", entry_path, safe_path.as_path().display());
+        Ok(safe_path)
+    }
+    
+    fn extract_mock_zip(&amp;self) -&gt; Result&lt;Vec&lt;JailedPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Simulate extracting a ZIP file with various entries
+        let entries = vec![
+            ("readme.txt", b"Welcome to our software!"),
+            ("src/main.rs", b"fn main() { println!(\"Hello!\"); }"),
+            ("docs/api.md", b"# API Documentation"),
+            ("config/settings.json", b"{ \"debug\": true }"),
+            
+            // These malicious entries would be automatically blocked:
+            // ("../../../etc/passwd", b"hacked"),           // ❌ Blocked!
+            // ("..\\windows\\system32\\evil.exe", b"malware"), // ❌ Blocked!
+            // ("/absolute/path/hack.txt", b"bad"),          // ❌ Blocked!
+        ];
+        
+        let mut extracted_files = Vec::new();
+        
+        for (entry_path, content) in entries {
+            match self.extract_entry(entry_path, content) {
+                Ok(safe_path) =&gt; extracted_files.push(safe_path),
+                Err(e) =&gt; println!("⚠️  Blocked malicious entry '{}': {}", entry_path, e),
+            }
+        }
+        
+        Ok(extracted_files)
+    }
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let extractor = SafeArchiveExtractor::new("extracted_files")?;
+    
+    println!("🗃️  Extracting archive safely...");
+    let extracted = extractor.extract_mock_zip()?;
+    
+    println!("\n✅ Successfully extracted {} files:", extracted.len());
+    for file in &amp;extracted {
+        println!("   📄 {}", file.as_path().display());
+    }
+    
+    // Verify we can read the extracted files
+    for file in &amp;extracted {
+        if file.as_path().extension().and_then(|s| s.to_str()) == Some("txt") {
+            let content = fs::read_to_string(file)?;
+            println!("📖 {}: {}", file.as_path().display(), content.trim());
+        }
+    }
+    
+    Ok(())
+}</code></pre></pre>
+<h2 id="cli-tool-with-safe-path-handling"><a class="header" href="#cli-tool-with-safe-path-handling">CLI Tool with Safe Path Handling</a></h2>
+<p>A command-line tool that processes user-provided file paths safely:</p>
+<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
+use std::env;
+use std::fs;
+
+struct SafeFileProcessor {
+    working_jail: Jail,
+}
+
+impl SafeFileProcessor {
+    fn new(working_directory: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Create or validate the working directory
+        let working_jail = Jail::try_new_create(working_directory)?;
+        println!("🔒 Working directory jail: {}", working_jail.as_path().display());
+        Ok(Self { working_jail })
+    }
+    
+    fn process_file(&amp;self, relative_path: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+        // Validate the user-provided path
+        let safe_path = self.working_jail.jailed_join(relative_path)?;
+        
+        if !safe_path.exists() {
+            return Err(format!("File not found: {}", relative_path).into());
+        }
+        
+        // Process the file (example: count lines)
+        let content = fs::read_to_string(&amp;safe_path)?;
+        let line_count = content.lines().count();
+        let word_count = content.split_whitespace().count();
+        let char_count = content.chars().count();
+        
+        println!("📊 Statistics for {}:", relative_path);
+        println!("   Lines: {}", line_count);
+        println!("   Words: {}", word_count);
+        println!("   Characters: {}", char_count);
+        
+        Ok(())
+    }
+    
+    fn create_sample_files(&amp;self) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+        // Create some sample files for testing
+        let samples = vec![
+            ("sample1.txt", "Hello world!\nThis is a test file.\nWith multiple lines."),
+            ("data/sample2.txt", "Another file\nwith some content\nfor processing."),
+            ("docs/readme.md", "# Sample Project\n\nThis is a sample markdown file."),
+        ];
+        
+        for (path, content) in samples {
+            let safe_path = self.working_jail.jailed_join(path)?;
+            if let Some(parent) = safe_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(&amp;safe_path, content)?;
+            println!("📝 Created: {}", path);
+        }
+        
+        Ok(())
+    }
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let args: Vec&lt;String&gt; = env::args().collect();
+    
+    if args.len() &lt; 2 {
+        println!("Usage: {} &lt;file-path&gt;", args[0]);
+        println!("       {} --create-samples", args[0]);
+        return Ok(());
+    }
+    
+    // Set up our safe processor
+    let processor = SafeFileProcessor::new("workspace")?;
+    
+    if args[1] == "--create-samples" {
+        processor.create_sample_files()?;
+        println!("✅ Sample files created in workspace/");
+        return Ok(());
+    }
+    
+    // Process the user-specified file
+    let file_path = &amp;args[1];
+    
+    match processor.process_file(file_path) {
+        Ok(()) =&gt; println!("✅ File processed successfully!"),
+        Err(e) =&gt; {
+            println!("❌ Error processing file: {}", e);
+            
+            if file_path.contains("..") || file_path.starts_with('/') || file_path.contains('\\') {
+                println!("💡 Tip: Use relative paths within the workspace directory only.");
+                println!("   Trying to escape the workspace? That's not allowed! 🔒");
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+// Example usage:
+// cargo run -- --create-samples
+// cargo run -- sample1.txt                    # ✅ Works
+// cargo run -- data/sample2.txt              # ✅ Works  
+// cargo run -- ../../../etc/passwd           # ❌ Blocked!
+// cargo run -- /absolute/path/hack.txt       # ❌ Blocked!</code></pre></pre>
+<h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
+<p>These examples show how jailed-path helps in real scenarios:</p>
+<ol>
+<li><strong>Web uploads</strong>: Users can't escape the upload directory</li>
+<li><strong>Configuration</strong>: Config files stay in their designated area</li>
+<li><strong>Multi-user</strong>: Each user gets isolated storage that feels like their own filesystem</li>
+<li><strong>Archive extraction</strong>: Automatic protection against zip-slip attacks</li>
+<li><strong>CLI tools</strong>: User-provided paths are validated safely</li>
+</ol>
+<p>The common pattern is:</p>
+<ol>
+<li>Create a <code>Jail</code> or <code>VirtualRoot</code> for your safe area</li>
+<li>Always validate external paths through <code>jailed_join()</code> or <code>virtual_join()</code></li>
+<li>Use the resulting <code>JailedPath</code> or <code>VirtualPath</code> for file operations</li>
+<li>Let the compiler enforce that only validated paths are used</li>
+</ol>
+<p>This makes your code both secure and maintainable - security isn't something you have to remember to check, it's built into the type system!</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="using-jailed-path-with-archive-extractors"><a class="header" href="#using-jailed-path-with-archive-extractors">Using jailed-path with archive extractors</a></h1>
+<p>Archive formats (ZIP, TAR, etc.) embed file names provided by untrusted sources. Treat each entry name as hostile and validate it through VirtualRoot or Jail before any filesystem I/O.</p>
+<h2 id="recommended-patterns"><a class="header" href="#recommended-patterns">Recommended patterns</a></h2>
+<ul>
+<li>Prefer VirtualRoot for extraction pipelines: it accepts any input and clamps it to the jail. This makes batch extraction resilient and user-friendly.</li>
+<li>Use create_parent_dir_all() before writes to avoid TOCTOU-style parent creation races in your own code. Our operations re-validate boundaries internally.</li>
+<li>Do not concatenate paths manually. Always join via vroot.virtual_join(name) or jail.jailed_join(name).</li>
+<li>Treat absolute, UNC, drive-relative, or namespace-prefixed paths as untrusted inputs. The virtual join will clamp these to the virtual root.</li>
+<li>On Windows, NTFS Alternate Data Streams (ADS) like "file.txt:stream" are handled safely. Writes remain within the jail or are cleanly rejected by the OS.</li>
+</ul>
+<h2 id="minimal-example-zip-like-flow"><a class="header" href="#minimal-example-zip-like-flow">Minimal example (ZIP-like flow)</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use jailed_path::VirtualRoot;
+
+fn extract_all&lt;M: Default&gt;(dest: &amp;std::path::Path, entries: impl IntoIterator&lt;Item=(String, Vec&lt;u8&gt;)&gt;) -&gt; std::io::Result&lt;()&gt; {
+    let vroot: VirtualRoot&lt;M&gt; = VirtualRoot::try_new_create(dest)?;
+
+    for (name, data) in entries {
+        // 1) Safely map entry name to a jailed path (clamped on escape attempts)
+        let vpath = match vroot.virtual_join(&amp;name) {
+            Ok(v) =&gt; v,
+            Err(_) =&gt; continue, // cleanly reject this entry, log if needed
+        };
+
+        // 2) Ensure parent directories exist (inside the jail)
+        vpath.create_parent_dir_all()?;
+
+        // 3) Perform the write safely
+        vpath.write_bytes(&amp;data)?;
+    }
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="anti-patterns-dont-do-this"><a class="header" href="#anti-patterns-dont-do-this">Anti-patterns (don’t do this)</a></h2>
+<ul>
+<li>Building paths with format!/push/join on std::path::Path without validation</li>
+<li>Stripping "../" by string replacement</li>
+<li>Allowing absolute paths through to the OS</li>
+<li>Treating encoded/unicode tricks (URL-encoded, dot lookalikes) as pre-sanitized</li>
+</ul>
+<h2 id="testing-advice"><a class="header" href="#testing-advice">Testing advice</a></h2>
+<ul>
+<li>Add corpus entries with: "../", "..\", absolute paths, UNC/\?\ prefixes, drive-relative ("C:..\foo"), unicode lookalikes, long paths.</li>
+<li>On Windows, include ADS cases like "decoy.txt:..\..\evil.exe" and reserved names.</li>
+<li>Assert that successful joins produce paths contained within the jail and failed joins are clean, with no creation outside the jail.</li>
+</ul>
+<h2 id="notes-on-behavior"><a class="header" href="#notes-on-behavior">Notes on behavior</a></h2>
+<ul>
+<li>Virtual joins clamp traversal lexically to the virtual root; system-facing escapes (e.g., via symlinks/junctions) are rejected during resolution.</li>
+<li>We do not normalize Unicode; you can store/display NFC or NFD forms as-is. Both are contained safely.</li>
+<li>Hard links and privileged mount tricks are outside the scope of path-level protections (see README limitations).</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="design--internals"><a class="header" href="#design--internals">Design &amp; Internals</a></h1>
+<blockquote>
+<p><strong>⚠️ CONTRIBUTOR DOCUMENTATION</strong><br />
+This section is for contributors, library developers, and curious developers who want to understand how jailed-path works internally.</p>
+</blockquote>
+<p>If you're just using jailed-path in your project, you probably want:</p>
+<ul>
+<li><a href="./chapter_1.html">Getting Started</a> - Learn the basic API</li>
+<li><a href="./examples.html">Real-World Examples</a> - See practical usage patterns</li>
+</ul>
+<h2 id="whats-in-this-section"><a class="header" href="#whats-in-this-section">What's in This Section</a></h2>
+<p>This section covers the internal design decisions and patterns that make jailed-path secure and maintainable:</p>
+<h3 id="type-history-design-pattern"><a class="header" href="#type-history-design-pattern">Type-History Design Pattern</a></h3>
+<p>The core security mechanism that uses Rust's type system to enforce that paths go through required validation steps in the correct order. This prevents accidentally using unvalidated paths and makes security guarantees compile-time checked rather than runtime hopes.</p>
+<p><a href="./type_history_design.html">Read about Type-History →</a></p>
+<h2 id="for-contributors"><a class="header" href="#for-contributors">For Contributors</a></h2>
+<p>If you're contributing to jailed-path, understanding these internals will help you:</p>
+<ul>
+<li>Maintain the security guarantees</li>
+<li>Add new features safely</li>
+<li>Understand why certain design decisions were made</li>
+<li>Write tests that verify the type-level constraints</li>
+</ul>
+<p>The design patterns used here can also be applied to other security-critical Rust libraries where you need compile-time guarantees about data processing pipelines.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="type-history-design-pattern-1"><a class="header" href="#type-history-design-pattern-1">Type-History Design Pattern</a></h1>
+<h2 id="the-problem-were-solving"><a class="header" href="#the-problem-were-solving">The Problem We're Solving</a></h2>
+<p>Imagine you're writing code that needs to safely process data through multiple steps. You need to:</p>
+<ol>
+<li>Take raw input from an untrusted source</li>
+<li>Clean/sanitize it</li>
+<li>Validate it meets requirements</li>
+<li>Transform it to final form</li>
+<li>Only then use it for critical operations</li>
+</ol>
+<p>The problem? It's really easy to forget a step, or do them in the wrong order. And if you mess up, you might have bugs, security vulnerabilities, or data corruption.</p>
+<p><strong>What if the compiler could remember which steps you've completed and enforce the correct order?</strong></p>
+<p>That's exactly what the Type-History pattern does.</p>
+<h2 id="type-history-in-simple-terms"><a class="header" href="#type-history-in-simple-terms">Type-History in Simple Terms</a></h2>
+<p>The Type-History pattern is like having a checklist that follows your data around. Each time you complete a step, you get a new "stamp" on your checklist. Functions can then require that certain stamps are present before they'll work with your data.</p>
+<p>Here's a simple example with strings:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// These are our "stamps"
+struct Raw;          // Just created, no processing yet
+struct Trimmed;      // Whitespace has been removed
+struct Validated;    // Content has been checked
+
+// This is our wrapper that carries both data and stamps
+struct ProcessedString&lt;History&gt; {
+    content: String,
+    _stamps: std::marker::PhantomData&lt;History&gt;, // Invisible stamps
+}
+
+// Start with a raw string
+impl ProcessedString&lt;Raw&gt; {
+    fn new(s: String) -&gt; Self {
+        ProcessedString { 
+            content: s, 
+            _stamps: std::marker::PhantomData 
+        }
+    }
+}
+
+// Any string can be trimmed, adding a "Trimmed" stamp
+impl&lt;H&gt; ProcessedString&lt;H&gt; {
+    fn trim(self) -&gt; ProcessedString&lt;(H, Trimmed)&gt; {
+        ProcessedString {
+            content: self.content.trim().to_string(),
+            _stamps: std::marker::PhantomData,
+        }
+    }
+}
+
+// Only trimmed strings can be validated
+impl&lt;H&gt; ProcessedString&lt;(H, Trimmed)&gt; {
+    fn validate(self) -&gt; Result&lt;ProcessedString&lt;((H, Trimmed), Validated)&gt;, &amp;'static str&gt; {
+        if self.content.is_empty() {
+            Err("String cannot be empty")
+        } else {
+            Ok(ProcessedString {
+                content: self.content,
+                _stamps: std::marker::PhantomData,
+            })
+        }
+    }
+}
+
+// This function only accepts fully processed strings
+fn save_to_database(s: &amp;ProcessedString&lt;((Raw, Trimmed), Validated)&gt;) {
+    // We know this string has been trimmed AND validated
+    println!("Safely saving: {}", s.content);
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Now look what happens when you use it:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// This works - we follow the correct steps
+let s = ProcessedString::new("  hello world  ".to_string())
+    .trim()           // Now has (Raw, Trimmed) stamps
+    .validate()?;     // Now has ((Raw, Trimmed), Validated) stamps
+
+save_to_database(&amp;s); // ✅ Compiles fine
+
+// This won't compile - we skipped trimming!
+let bad = ProcessedString::new("hello".to_string())
+    .validate()?;     // This line itself won't compile!
+
+// This won't compile either - missing validation
+let also_bad = ProcessedString::new("hello".to_string())
+    .trim();
+save_to_database(&amp;also_bad); // ❌ Compilation error
+<span class="boring">}</span></code></pre></pre>
+<h2 id="other-applications-of-type-history"><a class="header" href="#other-applications-of-type-history">Other Applications of Type-History</a></h2>
+<p>The Type-History pattern is useful anywhere you have multi-step data processing that must be done correctly:</p>
+<h3 id="network-request-processing"><a class="header" href="#network-request-processing">Network Request Processing</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Raw;
+struct Authenticated;
+struct RateLimited;
+struct Validated;
+
+struct Request&lt;H&gt; {
+    data: RequestData,
+    _history: PhantomData&lt;H&gt;,
+}
+
+// Must authenticate, then rate-limit, then validate
+fn handle_request(req: &amp;Request&lt;(((Raw, Authenticated), RateLimited), Validated)&gt;) {
+    // We know this request is safe to process
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="financial-transaction-processing"><a class="header" href="#financial-transaction-processing">Financial Transaction Processing</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Raw;
+struct AmountValidated;
+struct FundsChecked;
+struct Authorized;
+
+struct Transaction&lt;H&gt; {
+    amount: Decimal,
+    from: AccountId,
+    to: AccountId,
+    _history: PhantomData&lt;H&gt;,
+}
+
+// Critical: must validate amount, check funds, get authorization
+fn execute_transfer(tx: &amp;Transaction&lt;(((Raw, AmountValidated), FundsChecked), Authorized)&gt;) {
+    // Guaranteed to be safe for execution
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="database-query-building"><a class="header" href="#database-query-building">Database Query Building</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Raw;
+struct Sanitized;
+struct Parameterized;
+struct Validated;
+
+struct Query&lt;H&gt; {
+    sql: String,
+    params: Vec&lt;Value&gt;,
+    _history: PhantomData&lt;H&gt;,
+}
+
+// Must sanitize inputs, parameterize query, validate syntax
+fn execute_query(q: &amp;Query&lt;(((Raw, Sanitized), Parameterized), Validated)&gt;) {
+    // Safe from SQL injection
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="how-this-applies-to-jailed-path"><a class="header" href="#how-this-applies-to-jailed-path">How This Applies to jailed-path</a></h2>
+<p>For file paths, security is critical. We need to ensure that every path goes through the right checks in the right order:</p>
+<ol>
+<li><strong>Canonicalize</strong>: Resolve <code>.</code>, <code>..</code>, symlinks, etc.</li>
+<li><strong>Boundary Check</strong>: Make sure the path is within our jail</li>
+<li><strong>Existence Check</strong>: Verify the path actually exists (if needed)</li>
+</ol>
+<p>Using Type-History, we can make it impossible to use a path that hasn't been properly validated:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// These are the stamps for paths
+struct Raw;               // Fresh from user input
+struct Canonicalized;     // Cleaned up and resolved
+struct BoundaryChecked;   // Verified to be within jail bounds
+struct Exists;           // Confirmed to exist on filesystem
+
+// Our internal path wrapper (you rarely see this directly)
+struct PathHistory&lt;History&gt; {
+    path: PathBuf,
+    _stamps: std::marker::PhantomData&lt;History&gt;,
+}
+
+// Only canonicalized AND boundary-checked paths can be used for I/O
+fn safe_file_operation(path: &amp;PathHistory&lt;((Raw, Canonicalized), BoundaryChecked)&gt;) {
+    // We KNOW this path is safe to use
+    std::fs::read_to_string(&amp;path.path).unwrap();
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="reading-the-type-signatures"><a class="header" href="#reading-the-type-signatures">Reading the Type Signatures</a></h2>
+<p>The stamp history is written as nested tuples. Read them left-to-right to see the sequence:</p>
+<ul>
+<li><code>PathHistory&lt;Raw&gt;</code> = Just created, no processing</li>
+<li><code>PathHistory&lt;(Raw, Canonicalized)&gt;</code> = Created, then canonicalized</li>
+<li><code>PathHistory&lt;((Raw, Canonicalized), BoundaryChecked)&gt;</code> = Created, then canonicalized, then boundary-checked</li>
+</ul>
+<p>It's like reading a receipt that shows every step that was completed.</p>
+<h2 id="why-not-just-use-booleans"><a class="header" href="#why-not-just-use-booleans">Why Not Just Use Booleans?</a></h2>
+<p>You might wonder: "Why not just have a struct with boolean fields like <code>is_canonicalized</code> and <code>is_boundary_checked</code>?"</p>
+<p>The problem with booleans is that they can lie:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ❌ With booleans, you can fake it
+struct UnsafePath {
+    path: PathBuf,
+    is_canonicalized: bool,    // I can set this to `true`
+    is_boundary_checked: bool, // even if I never actually did the checks!
+}
+
+let fake_safe = UnsafePath {
+    path: PathBuf::from("../../../etc/passwd"),
+    is_canonicalized: true,    // Lies!
+    is_boundary_checked: true, // More lies!
+};
+<span class="boring">}</span></code></pre></pre>
+<p>With Type-History, you literally cannot create a value with the wrong stamps unless you actually performed the operations. The type system enforces honesty.</p>
+<h2 id="the-public-api-hides-the-complexity"><a class="header" href="#the-public-api-hides-the-complexity">The Public API Hides the Complexity</a></h2>
+<p>Users of jailed-path never see <code>PathHistory</code> directly. Instead, they work with simple types like <code>JailedPath</code> and <code>VirtualPath</code>. But internally, these types contain properly stamped paths:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// What users see
+pub struct JailedPath&lt;Marker&gt; {
+    // What's hidden inside: a path that's been through the full validation pipeline
+    inner: PathHistory&lt;((Raw, Canonicalized), BoundaryChecked)&gt;,
+    // ... other fields
+}
+
+// Users just call simple methods
+let jail = Jail::try_new_create("safe_dir")?;
+let safe_path = jail.jailed_join("user_file.txt")?; // Returns JailedPath
+
+// But the type system guarantees this path is safe to use
+<span class="boring">}</span></code></pre></pre>
+<h2 id="benefits-of-this-approach"><a class="header" href="#benefits-of-this-approach">Benefits of This Approach</a></h2>
+<ol>
+<li><strong>Impossible to Forget Steps</strong>: The compiler prevents you from skipping required processing</li>
+<li><strong>Self-Documenting Code</strong>: Function signatures clearly show what processing is required</li>
+<li><strong>Refactor-Safe</strong>: If you change the processing pipeline, the compiler finds all places that need updates</li>
+<li><strong>Zero Runtime Cost</strong>: All the type checking happens at compile time - no performance overhead</li>
+<li><strong>Audit-Friendly</strong>: Security reviewers can see exactly what guarantees each function requires</li>
+</ol>
+<h2 id="when-to-use-type-history"><a class="header" href="#when-to-use-type-history">When to Use Type-History</a></h2>
+<p>This pattern is overkill for simple cases, but it's valuable when:</p>
+<ul>
+<li>Security is critical (like file path validation)</li>
+<li>You have a multi-step process that must be done in order</li>
+<li>Skipping steps could cause bugs or vulnerabilities</li>
+<li>You want to encode important guarantees in the type system</li>
+<li>Multiple functions need different combinations of processing steps</li>
+</ul>
+<h2 id="wrapping-up"><a class="header" href="#wrapping-up">Wrapping Up</a></h2>
+<p>The Type-History pattern might seem complex at first, but it's really just a way to make the compiler remember what you've done and enforce what you need to do. It turns potential runtime errors into compile-time guarantees.</p>
+<p>In jailed-path, this means that once you have a <code>JailedPath</code> or <code>VirtualPath</code>, you can be 100% confident it's safe to use - the type system guarantees it went through all the necessary security checks.</p>
+<p>For most users of jailed-path, you don't need to understand these internals. Just know that the library uses advanced type system features to make it impossible to accidentally create security vulnerabilities. The compiler has your back!</p>
 
                     </main>
 

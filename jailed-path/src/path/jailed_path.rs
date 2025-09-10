@@ -1,5 +1,5 @@
 // Content copied from original src/path/jailed_path.rs
-use crate::validator::stated_path::{BoundaryChecked, Canonicalized, Raw, StatedPath};
+use crate::validator::path_history::{BoundaryChecked, Canonicalized, PathHistory, Raw};
 use crate::{JailedPathError, Result};
 use std::cmp::Ordering;
 use std::ffi::OsStr;
@@ -12,11 +12,11 @@ use std::sync::Arc;
 /// A system-facing, validated filesystem path guaranteed to stay within its jail.
 ///
 /// This type never exposes a raw `&Path` to avoid misuse. Use the provided
-/// `systempath_*` accessors for strings/OS strings and the safe manipulation methods
+/// `jailedpath_*` accessors for strings/OS strings and the safe manipulation methods
 /// which re-validate against the jail.
 #[derive(Clone)]
 pub struct JailedPath<Marker = ()> {
-    path: PathBuf,
+    path: PathHistory<((Raw, Canonicalized), BoundaryChecked)>,
     jail: Arc<crate::validator::jail::Jail<Marker>>,
     _marker: PhantomData<Marker>,
 }
@@ -24,44 +24,37 @@ pub struct JailedPath<Marker = ()> {
 impl<Marker> JailedPath<Marker> {
     pub(crate) fn new(
         jail: Arc<crate::validator::jail::Jail<Marker>>,
-        validated_path: StatedPath<((Raw, Canonicalized), BoundaryChecked)>,
+        validated_path: PathHistory<((Raw, Canonicalized), BoundaryChecked)>,
     ) -> Self {
         Self {
-            path: validated_path.into_inner(),
+            path: validated_path,
             jail,
             _marker: PhantomData,
         }
     }
-}
 
-impl<Marker> JailedPath<Marker> {
+    #[inline]
+    pub(crate) fn jail(&self) -> &crate::validator::jail::Jail<Marker> {
+        &self.jail
+    }
+
     #[inline]
     pub(crate) fn path(&self) -> &Path {
         &self.path
     }
 
-    #[inline]
-    pub(crate) fn jail(&self) -> &crate::validator::jail::Jail<Marker> {
-        self.jail.as_ref()
-    }
-
-    /// Returns the underlying system path as a lossy UTF-8 string.
-    ///
-    /// Mirrors `Path::to_string_lossy()` by returning `Cow<'_, str>` so valid UTF-8
-    /// can be borrowed without allocation.
-    ///
     /// For interop with APIs that accept `AsRef<Path>`, prefer
-    /// `systempath_as_os_str()` to avoid allocation.
+    /// `interop_path()` to avoid allocation.
     #[inline]
-    pub fn systempath_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+    pub fn jailedpath_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
         self.path.to_string_lossy()
     }
 
     /// Returns the underlying system path as `&str` if valid UTF-8.
     ///
-    /// For lossless interop on any platform, prefer `systempath_as_os_str()`.
+    /// For lossless interop on any platform, prefer `interop_path()`.
     #[inline]
-    pub fn systempath_to_str(&self) -> Option<&str> {
+    pub fn jailedpath_to_str(&self) -> Option<&str> {
         self.path.to_str()
     }
 
@@ -69,22 +62,22 @@ impl<Marker> JailedPath<Marker> {
     ///
     /// Use this when passing to external APIs that accept `AsRef<Path>`.
     #[inline]
-    pub fn systempath_as_os_str(&self) -> &OsStr {
+    pub fn interop_path(&self) -> &OsStr {
         self.path.as_os_str()
     }
 
     /// Returns a `Display` wrapper that shows the real system path.
     #[inline]
-    pub fn display(&self) -> std::path::Display<'_> {
+    pub fn jailedpath_display(&self) -> std::path::Display<'_> {
         self.path.display()
     }
 
     /// Consumes this `JailedPath` and returns the inner `PathBuf` (escape hatch).
     ///
-    /// Prefer borrowing via `systempath_as_os_str()` when possible.
+    /// Prefer borrowing via `interop_path()` when possible.
     #[inline]
     pub fn unjail(self) -> PathBuf {
-        self.path
+        self.path.into_inner()
     }
 
     /// Converts this `JailedPath` into a user-facing `VirtualPath`.
@@ -98,15 +91,15 @@ impl<Marker> JailedPath<Marker> {
     /// Do not use `Path::join` on leaked paths. Always use this method to ensure
     /// jail containment is preserved.
     #[inline]
-    pub fn systempath_join<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
+    pub fn jailed_join<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_systempath = self.path.join(path);
-        crate::validator::validate(new_systempath, self.jail())
+        self.jail.jailed_join(new_systempath)
     }
 
     /// Returns the parent directory as a new `JailedPath`, or `None` if at the jail root.
-    pub fn systempath_parent(&self) -> Result<Option<Self>> {
+    pub fn jailedpath_parent(&self) -> Result<Option<Self>> {
         match self.path.parent() {
-            Some(p) => match crate::validator::validate(p, self.jail()) {
+            Some(p) => match self.jail.jailed_join(p) {
                 Ok(p) => Ok(Some(p)),
                 Err(e) => Err(e),
             },
@@ -116,51 +109,51 @@ impl<Marker> JailedPath<Marker> {
 
     /// Returns a new `JailedPath` with the file name changed, re-validating against the jail.
     #[inline]
-    pub fn systempath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
+    pub fn jailedpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
         let new_systempath = self.path.with_file_name(file_name);
-        crate::validator::validate(new_systempath, self.jail())
+        self.jail.jailed_join(new_systempath)
     }
 
     /// Returns a new `JailedPath` with the extension changed, or an error if at jail root.
-    pub fn systempath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self> {
-        let system_path = self.path.as_path();
+    pub fn jailedpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self> {
+        let system_path = &self.path;
         if system_path.file_name().is_none() {
             return Err(JailedPathError::path_escapes_boundary(
-                self.path.clone(),
-                self.jail().path().to_path_buf(),
+                self.path.to_path_buf(),
+                self.jail.path().to_path_buf(),
             ));
         }
         let new_systempath = system_path.with_extension(extension);
-        crate::validator::validate(new_systempath, self.jail())
+        self.jail.jailed_join(new_systempath)
     }
 
     /// Returns the file name component of the system path, if any.
     #[inline]
-    pub fn systempath_file_name(&self) -> Option<&OsStr> {
+    pub fn jailedpath_file_name(&self) -> Option<&OsStr> {
         self.path.file_name()
     }
 
     /// Returns the file stem of the system path, if any.
     #[inline]
-    pub fn systempath_file_stem(&self) -> Option<&OsStr> {
+    pub fn jailedpath_file_stem(&self) -> Option<&OsStr> {
         self.path.file_stem()
     }
 
     /// Returns the extension of the system path, if any.
     #[inline]
-    pub fn systempath_extension(&self) -> Option<&OsStr> {
+    pub fn jailedpath_extension(&self) -> Option<&OsStr> {
         self.path.extension()
     }
 
     /// Returns `true` if the system path starts with the given prefix.
     #[inline]
-    pub fn systempath_starts_with<P: AsRef<Path>>(&self, p: P) -> bool {
+    pub fn jailedpath_starts_with<P: AsRef<Path>>(&self, p: P) -> bool {
         self.path.starts_with(p.as_ref())
     }
 
     /// Returns `true` if the system path ends with the given suffix.
     #[inline]
-    pub fn systempath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool {
+    pub fn jailedpath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool {
         self.path.ends_with(p.as_ref())
     }
 
@@ -222,7 +215,7 @@ impl<Marker> JailedPath<Marker> {
     /// Returns `Ok(())` if at the jail root (no parent). Fails if the parent's
     /// parent is missing. Use `create_parent_dir_all` to create the full chain.
     pub fn create_parent_dir(&self) -> std::io::Result<()> {
-        match self.systempath_parent() {
+        match self.jailedpath_parent() {
             Ok(Some(parent)) => parent.create_dir(),
             Ok(None) => Ok(()),
             Err(JailedPathError::PathEscapesBoundary { .. }) => Ok(()),
@@ -234,7 +227,7 @@ impl<Marker> JailedPath<Marker> {
     ///
     /// Returns `Ok(())` if at the jail root (no parent).
     pub fn create_parent_dir_all(&self) -> std::io::Result<()> {
-        match self.systempath_parent() {
+        match self.jailedpath_parent() {
             Ok(Some(parent)) => parent.create_dir_all(),
             Ok(None) => Ok(()),
             Err(JailedPathError::PathEscapesBoundary { .. }) => Ok(()),
@@ -264,13 +257,7 @@ impl<Marker> serde::Serialize for JailedPath<Marker> {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(self.systempath_to_string_lossy().as_ref())
-    }
-}
-
-impl<Marker> fmt::Display for JailedPath<Marker> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.path.display())
+        serializer.serialize_str(self.jailedpath_to_string_lossy().as_ref())
     }
 }
 
@@ -278,7 +265,7 @@ impl<Marker> fmt::Debug for JailedPath<Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("JailedPath")
             .field("path", &self.path)
-            .field("jail", &self.jail().path())
+            .field("jail", &self.jail.path())
             .field("marker", &std::any::type_name::<Marker>())
             .finish()
     }
@@ -287,7 +274,7 @@ impl<Marker> fmt::Debug for JailedPath<Marker> {
 impl<Marker> PartialEq for JailedPath<Marker> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.path == other.path
+        self.path.as_ref() == other.path.as_ref()
     }
 }
 
@@ -316,12 +303,19 @@ impl<Marker> Ord for JailedPath<Marker> {
 
 impl<T: AsRef<Path>, Marker> PartialEq<T> for JailedPath<Marker> {
     fn eq(&self, other: &T) -> bool {
-        self.path == other.as_ref()
+        self.path.as_ref() == other.as_ref()
     }
 }
 
 impl<T: AsRef<Path>, Marker> PartialOrd<T> for JailedPath<Marker> {
     fn partial_cmp(&self, other: &T) -> Option<Ordering> {
-        Some(self.path.as_path().cmp(other.as_ref()))
+        Some(self.path.as_ref().cmp(other.as_ref()))
+    }
+}
+
+impl<Marker> PartialEq<crate::path::virtual_path::VirtualPath<Marker>> for JailedPath<Marker> {
+    #[inline]
+    fn eq(&self, other: &crate::path::virtual_path::VirtualPath<Marker>) -> bool {
+        self.path.as_ref() == other.as_unvirtual().interop_path()
     }
 }

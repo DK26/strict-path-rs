@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 1 - The Complete JailedPath Guide</title>
+        <title>Getting Started - The Complete JailedPath Guide</title>
 
 
         <!-- Custom HTML head -->
@@ -175,13 +175,183 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="chapter-1"><a class="header" href="#chapter-1">Chapter 1</a></h1>
+                        <h1 id="getting-started-with-jailed-path"><a class="header" href="#getting-started-with-jailed-path">Getting Started with jailed-path</a></h1>
+<h2 id="what-is-jailed-path"><a class="header" href="#what-is-jailed-path">What is jailed-path?</a></h2>
+<p>Have you ever worried about users trying to access files they shouldn't? Like when someone enters <code>../../../etc/passwd</code> to try to escape from a safe directory? That's called a "directory traversal" attack, and it's surprisingly common.</p>
+<p><strong>jailed-path</strong> solves this problem by creating "jails" - safe boundaries that paths cannot escape from. Think of it like a sandbox for file paths.</p>
+<h2 id="why-should-you-care"><a class="header" href="#why-should-you-care">Why Should You Care?</a></h2>
+<p>Directory traversal vulnerabilities are everywhere:</p>
+<ul>
+<li>Web applications where users upload files</li>
+<li>CLI tools that accept file paths as arguments</li>
+<li>Any application that processes user-provided paths</li>
+<li>Systems that extract archives (ZIP files, etc.)</li>
+</ul>
+<p>Getting path security wrong can expose your entire filesystem to attackers. With jailed-path, the Rust compiler helps ensure you can't make these mistakes.</p>
+<h2 id="your-first-jail"><a class="header" href="#your-first-jail">Your First Jail</a></h2>
+<p>Let's start with a simple example. Say you're building a web app where users can upload and download their files, but you want to keep them contained in a specific directory:</p>
+<pre><pre class="playground"><code class="language-rust">use jailed_path::Jail;
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create a jail in the "user_files" directory
+    // This creates the directory if it doesn't exist
+    let jail = Jail::try_new_create("user_files")?;
+    
+    // Now any path we validate through this jail will be contained
+    // within the "user_files" directory
+    
+    // This is SAFE - creates "user_files/documents/report.txt"
+    let safe_path = jail.jailed_join("documents/report.txt")?;
+    
+    // This would FAIL - can't escape the jail!
+    // let bad_path = jail.jailed_join("../../../etc/passwd")?; // Error!
+    
+    println!("Safe path: {}", safe_path.as_path().display());
+    
+    Ok(())
+}</code></pre></pre>
+<h2 id="what-just-happened"><a class="header" href="#what-just-happened">What Just Happened?</a></h2>
+<ol>
+<li><strong>Created a jail</strong>: <code>Jail::try_new_create("user_files")</code> sets up a safe boundary</li>
+<li><strong>Validated a path</strong>: <code>jail.jailed_join("documents/report.txt")</code> checks the path is safe</li>
+<li><strong>Got protection</strong>: Any attempt to escape the jail (like <code>../../../etc/passwd</code>) fails immediately</li>
+</ol>
+<p>The magic is that once you have a <code>JailedPath</code>, you <em>know</em> it's safe. The type system guarantees it.</p>
+<h2 id="working-with-jailed-paths"><a class="header" href="#working-with-jailed-paths">Working with Jailed Paths</a></h2>
+<p>Once you have a <code>JailedPath</code>, you can use it for file operations:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use jailed_path::Jail;
+use std::fs;
+
+fn save_user_file() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let jail = Jail::try_new_create("uploads")?;
+    
+    // User wants to save to "my-document.txt"
+    let user_input = "my-document.txt";
+    let safe_path = jail.jailed_join(user_input)?;
+    
+    // Write some content safely
+    fs::write(&amp;safe_path, "Hello, world!")?;
+    
+    // Read it back
+    let content = fs::read_to_string(&amp;safe_path)?;
+    println!("File contains: {}", content);
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="type-safety-the-secret-sauce"><a class="header" href="#type-safety-the-secret-sauce">Type Safety: The Secret Sauce</a></h2>
+<p>Here's where jailed-path gets really clever. You can write functions that <em>only</em> accept safe paths:</p>
+<pre><pre class="playground"><code class="language-rust">use jailed_path::JailedPath;
+use std::fs;
+
+// This function can ONLY be called with safe paths
+fn process_user_file(path: &amp;JailedPath) -&gt; Result&lt;String, std::io::Error&gt; {
+    // We know this path is safe - no need to validate again
+    fs::read_to_string(path)
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let jail = Jail::try_new_create("safe_area")?;
+    let safe_path = jail.jailed_join("user-data.txt")?;
+    
+    // This works - safe_path is a JailedPath
+    let content = process_user_file(&amp;safe_path)?;
+    
+    // This won't compile - can't pass an unsafe path!
+    // let unsafe_path = std::path::Path::new("/etc/passwd");
+    // let content = process_user_file(unsafe_path); // Compilation error!
+    
+    Ok(())
+}</code></pre></pre>
+<p>This means once you set up your jails correctly, the compiler prevents you from accidentally using unsafe paths.</p>
+<h2 id="virtual-paths-user-friendly-sandboxes"><a class="header" href="#virtual-paths-user-friendly-sandboxes">Virtual Paths: User-Friendly Sandboxes</a></h2>
+<p>Sometimes you want to give users the illusion that they have their own private filesystem, starting from <code>/</code>. That's what <code>VirtualPath</code> is for:</p>
+<pre><pre class="playground"><code class="language-rust">use jailed_path::VirtualRoot;
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create a virtual root that maps to "user_123_files" on disk
+    let vroot = VirtualRoot::try_new_create("user_123_files")?;
+    
+    // User thinks they're working from "/"
+    let user_path = vroot.virtual_join("/documents/my-file.txt")?;
+    
+    // But it actually maps to "user_123_files/documents/my-file.txt"
+    println!("User sees: /documents/my-file.txt");
+    println!("Actually stored at: {}", user_path.as_path().display());
+    
+    Ok(())
+}</code></pre></pre>
+<p>This is perfect for multi-user applications where each user should feel like they have their own filesystem.</p>
+<h2 id="api-summary"><a class="header" href="#api-summary">API Summary</a></h2>
+<p>That's really all you need to know! The core API is simple:</p>
+<h3 id="creating-safe-boundaries"><a class="header" href="#creating-safe-boundaries">Creating Safe Boundaries</a></h3>
+<ul>
+<li><code>Jail::try_new(path)</code> - Use existing directory as jail (fails if not found)</li>
+<li><code>Jail::try_new_create(path)</code> - Create directory if needed (for setup/initialization)</li>
+<li><code>VirtualRoot::try_new(path)</code> - Virtual filesystem root (expects existing directory)</li>
+<li><code>VirtualRoot::try_new_create(path)</code> - Create virtual root if needed (for user storage)</li>
+</ul>
+<h3 id="validating-paths"><a class="header" href="#validating-paths">Validating Paths</a></h3>
+<ul>
+<li><code>jail.jailed_join(user_path)</code> - Returns <code>JailedPath</code> or error</li>
+<li><code>vroot.virtual_join(user_path)</code> - Returns <code>VirtualPath</code> or error</li>
+</ul>
+<h3 id="using-safe-paths"><a class="header" href="#using-safe-paths">Using Safe Paths</a></h3>
+<ul>
+<li>Both <code>JailedPath</code> and <code>VirtualPath</code> work with standard file operations</li>
+<li>They implement <code>AsRef&lt;Path&gt;</code> so you can pass them to <code>fs::read</code>, <code>fs::write</code>, etc.</li>
+<li>The type system prevents using unvalidated paths</li>
+</ul>
+<h2 id="common-patterns"><a class="header" href="#common-patterns">Common Patterns</a></h2>
+<h3 id="web-file-upload"><a class="header" href="#web-file-upload">Web File Upload</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use jailed_path::Jail;
+
+fn handle_file_upload(filename: &amp;str, content: &amp;[u8]) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let uploads_jail = Jail::try_new_create("uploads")?;
+    let safe_path = uploads_jail.jailed_join(filename)?;
+    std::fs::write(&amp;safe_path, content)?;
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="configuration-files"><a class="header" href="#configuration-files">Configuration Files</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use jailed_path::Jail;
+
+fn load_config(config_name: &amp;str) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
+    let config_jail = Jail::try_new("config")?;  // Expect config dir to exist
+    let config_path = config_jail.jailed_join(config_name)?;
+    let content = std::fs::read_to_string(&amp;config_path)?;
+    Ok(content)
+}
+
+fn setup_user_storage(user_id: u32) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create user directory structure if it doesn't exist
+    let user_jail = Jail::try_new_create(&amp;format!("users/{}", user_id))?;
+    let documents = user_jail.jailed_join("documents")?;
+    std::fs::create_dir_all(&amp;documents)?;
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="whats-next"><a class="header" href="#whats-next">What's Next?</a></h2>
+<ul>
+<li><strong>Real-World Examples</strong>: See complete applications using jailed-path</li>
+<li><strong>Understanding Type-History</strong>: Learn how the internal security works (for contributors)</li>
+</ul>
+<p>The key rule: <strong>always validate external paths through a jail before using them</strong>. Whether it's user input, configuration files, or data from external sources - if you didn't create the path yourself, put it in jail first!</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
 
+                            <a rel="next prefetch" href="examples.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -190,6 +360,9 @@
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
 
+                    <a rel="next prefetch" href="examples.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
             </nav>
 
         </div>

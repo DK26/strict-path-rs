@@ -36,16 +36,16 @@ fn main() -> Result<()> {
 
     // Backup
     let backup_name = format!("backup_{}.sql", chrono::Utc::now().format("%Y%m%d%H%M%S"));
-    let backup_path = bak.systempath_join(backup_name)?;
+    let backup_path = bak.jailed_join(backup_name)?;
     create_backup(&backup_path)?;
 
     // Apply migrations
     for script in plan {
-        let script_path = mig.systempath_join(script)?;
+        let script_path = mig.jailed_join(script)?;
         apply_migration(&script_path)?;
     }
 
-    println!("✅ Migrations complete. Backups at: {}", bak.path().display());
+    println!("✅ Migrations complete. Backups at: {}", bak.jailedpath_display());
 
     // Cleanup demo dirs (in real life, keep them)
     fs::remove_dir_all("example_db").ok();
@@ -63,7 +63,7 @@ fn create_backup(target: &JailedPath<BackupDir>) -> Result<()> {
 fn apply_migration(script: &JailedPath<MigrationsDir>) -> Result<()> {
     let sql = script.read_to_string()?;
     // Simulate applying SQL to a database
-    let file = script.systempath_to_string_lossy();
+    let file = script.jailedpath_to_string_lossy();
     let bytes = sql.len();
     println!("▶ Applying {file} ({bytes} bytes)");
     Ok(())

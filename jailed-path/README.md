@@ -24,7 +24,7 @@ use jailed_path::Jail;
 
 // Create a jail and validate any external path
 let jail = Jail::try_new_create("safe_directory")?;
-let safe_path = jail.systempath_join("user/input/file.txt")?;
+let safe_path = jail.jailed_join("user/input/file.txt")?;
 safe_path.write_string("content")?; // Guaranteed safe
 ```
 

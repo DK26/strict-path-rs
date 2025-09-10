@@ -70,12 +70,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Validate input archive exists and is readable
     let input_jail: Jail<ArchiveInput> =
-        Jail::try_new(Path::new(&cli.archive).parent().unwrap_or(Path::new(".")))?;
+        Jail::try_new_create(Path::new(&cli.archive).parent().unwrap_or(Path::new(".")))?;
     let archive_filename = Path::new(&cli.archive)
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or("Invalid archive filename")?;
-    let archive_path = input_jail.systempath_join(archive_filename)?;
+    let archive_path = input_jail.jailed_join(archive_filename)?;
 
     if !archive_path.exists() {
         return Err(format!("Archive file not found: {}", cli.archive).into());
@@ -147,7 +147,7 @@ fn extract_zip(
     extraction_jail: &Jail<ExtractionOutput>,
     cli: &Cli,
 ) -> Result<ExtractionStats, Box<dyn std::error::Error>> {
-    let file = File::open(archive_path.systempath_as_os_str())?;
+    let file = File::open(archive_path.interop_path())?;
     let mut archive = zip::ZipArchive::new(file)?;
 
     let mut stats = ExtractionStats {
@@ -179,7 +179,7 @@ fn extract_zip(
         let entry_path = zip_file.name().to_string();
 
         // CRITICAL SECURITY: Validate path through jail - prevents zip slip
-        match extraction_jail.systempath_join(&entry_path) {
+        match extraction_jail.jailed_join(&entry_path) {
             Ok(safe_path) => {
                 progress.set_message(format!("Extracting: {entry_path}"));
 
@@ -227,7 +227,7 @@ fn extract_tar(
     extraction_jail: &Jail<ExtractionOutput>,
     cli: &Cli,
 ) -> Result<ExtractionStats, Box<dyn std::error::Error>> {
-    let file = File::open(archive_path.systempath_as_os_str())?;
+    let file = File::open(archive_path.interop_path())?;
     let mut archive = tar::Archive::new(file);
 
     extract_tar_entries(archive.entries()?, extraction_jail, cli)
@@ -238,7 +238,7 @@ fn extract_tar_gz(
     extraction_jail: &Jail<ExtractionOutput>,
     cli: &Cli,
 ) -> Result<ExtractionStats, Box<dyn std::error::Error>> {
-    let file = File::open(archive_path.systempath_as_os_str())?;
+    let file = File::open(archive_path.interop_path())?;
     let decoder = flate2::read::GzDecoder::new(file);
     let mut archive = tar::Archive::new(decoder);
 
@@ -272,7 +272,7 @@ fn extract_tar_entries<R: Read>(
         let entry_path = entry.path()?.to_string_lossy().to_string();
 
         // CRITICAL SECURITY: Validate path through jail - prevents tar slip
-        match extraction_jail.systempath_join(&entry_path) {
+        match extraction_jail.jailed_join(&entry_path) {
             Ok(safe_path) => {
                 let header = entry.header();
 

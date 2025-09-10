@@ -2,7 +2,7 @@
 //
 // Demonstrates resolving include directives safely using VirtualRoot/VirtualPath.
 // Each `include path` is resolved relative to the including file’s virtual parent
-// via `virtualpath_join`, so traversal attempts cannot escape the config root.
+// via `virtual_join`, so traversal attempts cannot escape the config root.
 
 use anyhow::Result;
 use jailed_path::{VirtualPath, VirtualRoot};
@@ -24,7 +24,7 @@ fn main() -> Result<()> {
     // Outside file shouldn't be reachable
     fs::write("outside.conf", b"hacked = true\n")?;
 
-    let vroot: VirtualRoot<ConfigRoot> = VirtualRoot::try_new("cfg_root")?;
+    let vroot: VirtualRoot<ConfigRoot> = VirtualRoot::try_new_create("cfg_root")?;
     let cfg = load_config(&vroot, "base.conf")?;
     println!("Loaded keys: {:?}", cfg.keys().collect::<Vec<_>>());
 
@@ -35,7 +35,7 @@ fn main() -> Result<()> {
 }
 
 fn load_config(vroot: &VirtualRoot<ConfigRoot>, entry: &str) -> Result<HashMap<String, String>> {
-    let start = vroot.virtualpath_join(entry)?;
+    let start = vroot.virtual_join(entry)?;
     let mut visited = std::collections::HashSet::new();
     load_config_from_vpath(&start, &mut visited)
 }
@@ -45,7 +45,8 @@ fn load_config_from_vpath(
     visited: &mut std::collections::HashSet<VirtualPath<ConfigRoot>>,
 ) -> Result<HashMap<String, String>> {
     if !visited.insert(file.clone()) {
-        return Err(anyhow::anyhow!("Include loop detected at {file}"));
+        let where_at = file.virtualpath_display();
+        return Err(anyhow::anyhow!("Include loop detected at {where_at}"));
     }
 
     let content = match file.read_to_string() {
@@ -67,7 +68,7 @@ fn load_config_from_vpath(
                 Some(v) => v,
                 None => file.clone(),
             };
-            let include_vp = match vparent.virtualpath_join(include_rel) {
+            let include_vp = match vparent.virtual_join(include_rel) {
                 Ok(v) => v,
                 Err(_) => continue,
             };

@@ -1,15 +1,14 @@
 #[cfg(feature = "serde")]
 mod serde_tests {
-    use crate::validator::jail::Jail;
-    use crate::validator::virtual_root::VirtualRoot;
     use crate::{path::jailed_path::JailedPath, path::virtual_path::VirtualPath};
+    use crate::{Jail, VirtualRoot};
     use serde::de::DeserializeSeed;
 
     #[test]
     fn serialize_jailed_and_virtual() {
         let td = tempfile::tempdir().unwrap();
         let jail = Jail::<()>::try_new(td.path()).unwrap();
-        let jp: JailedPath = jail.systempath_join("a/b.txt").unwrap();
+        let jp: JailedPath = jail.jailed_join("a/b.txt").unwrap();
         let vp: VirtualPath = jp.clone().virtualize();
 
         let jp_json = serde_json::to_string(&jp).unwrap();
@@ -37,7 +36,7 @@ mod serde_tests {
         let jp: JailedPath = crate::serde_ext::WithJail(&jail)
             .deserialize(&mut de)
             .unwrap();
-        assert!(jp.systempath_starts_with(jail.path()));
+        assert!(jp.jailedpath_starts_with(jail.interop_path()));
     }
 
     #[test]
@@ -59,7 +58,7 @@ mod serde_tests {
     #[test]
     fn deserialize_with_context_virtual() {
         let td = tempfile::tempdir().unwrap();
-        let vroot = VirtualRoot::<()>::try_new(td.path()).unwrap();
+        let vroot: VirtualRoot = VirtualRoot::try_new(td.path()).unwrap();
 
         let mut de = serde_json::Deserializer::from_str("\"../../etc/hosts\"");
         let vp: VirtualPath = crate::serde_ext::WithVirtualRoot(&vroot)

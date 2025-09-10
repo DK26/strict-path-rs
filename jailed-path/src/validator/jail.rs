@@ -1,7 +1,7 @@
 // Content copied from original src/validator/jail.rs
 use crate::error::JailedPathError;
 use crate::path::jailed_path::JailedPath;
-use crate::validator::stated_path::*;
+use crate::validator::path_history::*;
 use crate::Result;
 
 #[cfg(windows)]
@@ -11,7 +11,7 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 
-#[cfg(feature = "system-jails")]
+#[cfg(feature = "tempdir")]
 use tempfile::TempDir;
 
 #[cfg(windows)]
@@ -30,7 +30,19 @@ fn is_potential_83_short_name(os: &OsStr) -> bool {
     }
 }
 
-pub(crate) fn validate<Marker>(
+/// Canonicalize a candidate path and enforce the jail boundary, returning a `JailedPath`.
+///
+/// What this does:
+/// - Windows prefilter: rejects DOS 8.3 short-name segments (e.g., `PROGRA~1`) in relative inputs
+///   to avoid aliasing-based escapes before any filesystem calls.
+/// - Input interpretation: absolute inputs are validated as-is; relative inputs are joined under
+///   the jail root.
+/// - Resolution: canonicalizes the composed path, fully resolving `.`/`..`, symlinks/junctions,
+///   and platform prefixes.
+/// - Boundary enforcement: verifies the canonicalized result is strictly within the jail's
+///   canonicalized root; rejects any resolution that would escape the boundary.
+/// - Returns: a `JailedPath<Marker>` that borrows the jail and holds the validated system path.
+pub(crate) fn canonicalize_and_enforce_jail_boundary<Marker>(
     path: impl AsRef<Path>,
     jail: &Jail<Marker>,
 ) -> Result<JailedPath<Marker>> {
@@ -64,17 +76,17 @@ pub(crate) fn validate<Marker>(
         jail.path().join(path.as_ref())
     };
 
-    let validated_path = StatedPath::<Raw>::new(target_path)
+    let validated_path = PathHistory::<Raw>::new(target_path)
         .canonicalize()?
-        .boundary_check(jail.path())?;
+        .boundary_check(&jail.path)?;
 
     Ok(JailedPath::new(Arc::new(jail.clone()), validated_path))
 }
 
 /// A system-facing validator that holds the jail root and produces `JailedPath`.
 pub struct Jail<Marker = ()> {
-    path: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
-    #[cfg(feature = "system-jails")]
+    path: Arc<PathHistory<((Raw, Canonicalized), Exists)>>,
+    #[cfg(feature = "tempdir")]
     _temp_dir: Option<Arc<TempDir>>,
     _marker: PhantomData<Marker>,
 }
@@ -83,18 +95,76 @@ impl<Marker> Clone for Jail<Marker> {
     fn clone(&self) -> Self {
         Self {
             path: self.path.clone(),
-            #[cfg(feature = "system-jails")]
+            #[cfg(feature = "tempdir")]
             _temp_dir: self._temp_dir.clone(),
             _marker: PhantomData,
         }
     }
 }
 
+impl<Marker> PartialEq for Jail<Marker> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.path() == other.path()
+    }
+}
+
+impl<Marker> Eq for Jail<Marker> {}
+
+impl<Marker> std::hash::Hash for Jail<Marker> {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.path().hash(state);
+    }
+}
+
+impl<Marker> PartialOrd for Jail<Marker> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<Marker> Ord for Jail<Marker> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.path().cmp(other.path())
+    }
+}
+
+impl<Marker> PartialEq<crate::validator::virtual_root::VirtualRoot<Marker>> for Jail<Marker> {
+    #[inline]
+    fn eq(&self, other: &crate::validator::virtual_root::VirtualRoot<Marker>) -> bool {
+        self.path() == other.path()
+    }
+}
+
+impl<Marker> PartialEq<Path> for Jail<Marker> {
+    #[inline]
+    fn eq(&self, other: &Path) -> bool {
+        self.path() == other
+    }
+}
+
+impl<Marker> PartialEq<std::path::PathBuf> for Jail<Marker> {
+    #[inline]
+    fn eq(&self, other: &std::path::PathBuf) -> bool {
+        self.eq(other.as_path())
+    }
+}
+
+impl<Marker> PartialEq<&std::path::Path> for Jail<Marker> {
+    #[inline]
+    fn eq(&self, other: &&std::path::Path) -> bool {
+        self.eq(*other)
+    }
+}
+
 impl<Marker> Jail<Marker> {
     /// Private constructor that allows setting the temp_dir during construction
-    #[cfg(feature = "system-jails")]
+    #[cfg(feature = "tempdir")]
     fn new_with_temp_dir(
-        path: Arc<StatedPath<((Raw, Canonicalized), Exists)>>,
+        path: Arc<PathHistory<((Raw, Canonicalized), Exists)>>,
         temp_dir: Option<Arc<TempDir>>,
     ) -> Self {
         Self {
@@ -108,7 +178,7 @@ impl<Marker> Jail<Marker> {
     #[inline]
     pub fn try_new<P: AsRef<Path>>(jail_path: P) -> Result<Self> {
         let jail_path = jail_path.as_ref();
-        let raw = StatedPath::<Raw>::new(jail_path);
+        let raw = PathHistory::<Raw>::new(jail_path);
 
         let canonicalized = raw.canonicalize()?;
 
@@ -134,11 +204,11 @@ impl<Marker> Jail<Marker> {
             ));
         }
 
-        #[cfg(feature = "system-jails")]
+        #[cfg(feature = "tempdir")]
         {
             Ok(Self::new_with_temp_dir(Arc::new(verified_exists), None))
         }
-        #[cfg(not(feature = "system-jails"))]
+        #[cfg(not(feature = "tempdir"))]
         {
             Ok(Self {
                 path: Arc::new(verified_exists),
@@ -161,15 +231,60 @@ impl<Marker> Jail<Marker> {
     ///
     /// Accepts absolute or relative inputs; ensures the resulting path remains within the jail.
     #[inline]
-    pub fn systempath_join(&self, candidate_path: impl AsRef<Path>) -> Result<JailedPath<Marker>> {
-        validate(candidate_path, self)
+    pub fn jailed_join(&self, candidate_path: impl AsRef<Path>) -> Result<JailedPath<Marker>> {
+        canonicalize_and_enforce_jail_boundary(candidate_path, self)
     }
 
-    /// Returns the canonicalized jail root path. Exposing this is safe — validation happens in `systempath_join`.
+    /// Returns the canonicalized jail root path. Kept crate-private to avoid leaking raw path.
     #[inline]
-    pub fn path(&self) -> &StatedPath<((Raw, Canonicalized), Exists)> {
+    pub(crate) fn path(&self) -> &Path {
+        self.path.as_ref()
+    }
+
+    /// Internal: returns the canonicalized PathHistory of the jail root for boundary checks.
+    #[inline]
+    pub(crate) fn stated_path(&self) -> &PathHistory<((Raw, Canonicalized), Exists)> {
         &self.path
     }
+
+    /// Returns true if the jail root exists.
+    ///
+    /// This is always true for a constructed Jail, but we query the filesystem for robustness.
+    #[inline]
+    pub fn exists(&self) -> bool {
+        self.path.exists()
+    }
+
+    /// Returns the jail root path for interop with `AsRef<Path>` APIs.
+    ///
+    /// This provides allocation-free, OS-native string access to the jail root
+    /// for use with standard library APIs that accept `AsRef<Path>`.
+    #[inline]
+    pub fn interop_path(&self) -> &std::ffi::OsStr {
+        self.path.as_os_str()
+    }
+
+    /// Returns a Display wrapper that shows the jail root system path.
+    #[inline]
+    pub fn jailedpath_display(&self) -> std::path::Display<'_> {
+        self.path().display()
+    }
+
+    /// Converts this `Jail` into a `VirtualRoot`.
+    ///
+    /// This creates a virtual root view of the jail, allowing virtual path operations
+    /// that treat the jail root as the virtual filesystem root "/".
+    #[inline]
+    pub fn virtualize(self) -> crate::VirtualRoot<Marker> {
+        crate::VirtualRoot {
+            jail: self,
+            #[cfg(feature = "tempdir")]
+            _temp_dir: None,
+            _marker: PhantomData,
+        }
+    }
+
+    // Note: Do not add new crate-private helpers unless necessary; use existing flows.
 
     // Convenience constructors for system and temporary directories
 
@@ -181,17 +296,17 @@ impl<Marker> Jail<Marker> {
     ///
     /// # Example
     /// ```
-    /// # #[cfg(feature = "system-jails")] {
+    /// # #[cfg(feature = "dirs")] {
     /// use jailed_path::Jail;
     ///
     /// // Validate config file paths
     /// let config_jail = Jail::<()>::try_new_config("myapp")?;
-    /// let user_config = config_jail.systempath_join("settings.toml")?; // Validate path
-    /// std::fs::write(user_config.systempath_as_os_str(), "key = value")?; // Direct access
+    /// let user_config = config_jail.jailed_join("settings.toml")?; // Validate path
+    /// std::fs::write(user_config.interop_path(), "key = value")?; // Direct access
     /// # }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    #[cfg(feature = "system-jails")]
+    #[cfg(feature = "dirs")]
     pub fn try_new_config(app_name: &str) -> Result<Self> {
         let config_dir = dirs::config_dir()
             .ok_or_else(|| crate::JailedPathError::InvalidJail {
@@ -210,7 +325,7 @@ impl<Marker> Jail<Marker> {
     /// Creates `~/.local/share/{app_name}` on Linux, `~/Library/Application Support/{app_name}` on macOS,
     /// or `%APPDATA%\{app_name}` on Windows.
     /// The application directory is created if it doesn't exist.
-    #[cfg(feature = "system-jails")]
+    #[cfg(feature = "dirs")]
     pub fn try_new_data(app_name: &str) -> Result<Self> {
         let data_dir = dirs::data_dir()
             .ok_or_else(|| crate::JailedPathError::InvalidJail {
@@ -229,7 +344,7 @@ impl<Marker> Jail<Marker> {
     /// Creates `~/.cache/{app_name}` on Linux, `~/Library/Caches/{app_name}` on macOS,
     /// or `%LOCALAPPDATA%\{app_name}` on Windows.
     /// The application directory is created if it doesn't exist.
-    #[cfg(feature = "system-jails")]
+    #[cfg(feature = "dirs")]
     pub fn try_new_cache(app_name: &str) -> Result<Self> {
         let cache_dir = dirs::cache_dir()
             .ok_or_else(|| crate::JailedPathError::InvalidJail {
@@ -250,21 +365,21 @@ impl<Marker> Jail<Marker> {
     ///
     /// # Example
     /// ```
-    /// # #[cfg(feature = "system-jails")] {
+    /// # #[cfg(feature = "tempdir")] {
     /// use jailed_path::Jail;
     ///
     /// // Get a validated temp directory path directly
     /// let temp_root = Jail::<()>::try_new_temp()?;
     /// let user_input = "uploads/document.pdf";
-    /// let validated_path = temp_root.systempath_join(user_input)?; // Returns JailedPath
+    /// let validated_path = temp_root.jailed_join(user_input)?; // Returns JailedPath
     /// // Ensure parent directories exist before writing
     /// validated_path.create_parent_dir_all()?;
-    /// std::fs::write(validated_path.systempath_as_os_str(), b"content")?; // Direct filesystem access
+    /// std::fs::write(validated_path.interop_path(), b"content")?; // Direct filesystem access
     /// // temp_root is dropped here, directory gets cleaned up automatically
     /// # }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    #[cfg(feature = "system-jails")]
+    #[cfg(feature = "tempdir")]
     pub fn try_new_temp() -> Result<Self> {
         let temp_dir = tempfile::tempdir().map_err(|e| crate::JailedPathError::InvalidJail {
             jail: "temp".into(),
@@ -272,7 +387,7 @@ impl<Marker> Jail<Marker> {
         })?;
 
         let temp_path = temp_dir.path();
-        let raw = StatedPath::<Raw>::new(temp_path);
+        let raw = PathHistory::<Raw>::new(temp_path);
         let canonicalized = raw.canonicalize()?;
         let verified_exists =
             canonicalized
@@ -298,18 +413,18 @@ impl<Marker> Jail<Marker> {
     ///
     /// # Example
     /// ```
-    /// # #[cfg(feature = "system-jails")] {
+    /// # #[cfg(feature = "tempdir")] {
     /// use jailed_path::Jail;
     ///
     /// // Get a validated temp directory path with session prefix
     /// let upload_root = Jail::<()>::try_new_temp_with_prefix("upload_batch")?;
-    /// let user_file = upload_root.systempath_join("user_document.pdf")?; // Validate path
+    /// let user_file = upload_root.jailed_join("user_document.pdf")?; // Validate path
     /// // Process validated path with direct filesystem operations
     /// // upload_root is dropped here, directory gets cleaned up automatically
     /// # }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    #[cfg(feature = "system-jails")]
+    #[cfg(feature = "tempdir")]
     pub fn try_new_temp_with_prefix(prefix: &str) -> Result<Self> {
         let temp_dir = tempfile::Builder::new()
             .prefix(prefix)
@@ -320,7 +435,7 @@ impl<Marker> Jail<Marker> {
             })?;
 
         let temp_path = temp_dir.path();
-        let raw = StatedPath::<Raw>::new(temp_path);
+        let raw = PathHistory::<Raw>::new(temp_path);
         let canonicalized = raw.canonicalize()?;
         let verified_exists =
             canonicalized
@@ -346,7 +461,7 @@ impl<Marker> Jail<Marker> {
     ///
     /// # Example
     /// ```
-    /// # #[cfg(feature = "portable-jails")] {
+    /// # #[cfg(feature = "app-path")] {
     /// use jailed_path::Jail;
     ///
     /// // Creates ./config/ relative to executable
@@ -357,7 +472,7 @@ impl<Marker> Jail<Marker> {
     /// # }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    #[cfg(feature = "portable-jails")]
+    #[cfg(feature = "app-path")]
     pub fn try_new_app_path(subdir: &str, env_override: Option<&str>) -> Result<Self> {
         let app_path = app_path::AppPath::try_with_override(subdir, env_override).map_err(|e| {
             crate::JailedPathError::InvalidJail {
@@ -373,7 +488,7 @@ impl<Marker> Jail<Marker> {
 impl<Marker> AsRef<Path> for Jail<Marker> {
     #[inline]
     fn as_ref(&self) -> &Path {
-        // StatedPath implements AsRef<Path>, so forward to it
+        // PathHistory implements AsRef<Path>, so forward to it
         self.path.as_ref()
     }
 }

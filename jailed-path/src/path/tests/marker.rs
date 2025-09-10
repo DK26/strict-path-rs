@@ -33,8 +33,8 @@ fn test_different_marker_types_are_incompatible() {
     let jail_images = crate::validator::jail::Jail::<ImageResource>::try_new(temp.path()).unwrap();
     let jail_user = crate::validator::jail::Jail::<UserData>::try_new(temp.path()).unwrap();
 
-    let img = jail_images.systempath_join("img/logo.png").unwrap();
-    let usr = jail_user.systempath_join("user/profile.txt").unwrap();
+    let img = jail_images.jailed_join("img/logo.png").unwrap();
+    let usr = jail_user.jailed_join("user/profile.txt").unwrap();
 
     // The following lines are intentionally commented: they should not compile
     // process_user_file(&img);
@@ -42,7 +42,7 @@ fn test_different_marker_types_are_incompatible() {
 
     // Runtime check: their System paths differ as they live under different jails
     assert_ne!(
-        img.systempath_to_string_lossy(),
-        usr.systempath_to_string_lossy()
+        img.jailedpath_to_string_lossy(),
+        usr.jailedpath_to_string_lossy()
     );
 }

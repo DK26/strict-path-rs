@@ -29,8 +29,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "my-bucket".to_string());
     let prefix = std::env::var("S3_PREFIX").unwrap_or_default();
 
-    let jail: Jail<Src> = Jail::try_new("mirror_src")?;
-    let vroot: VirtualRoot<Src> = VirtualRoot::try_new("mirror_src")?;
+    let jail: Jail<Src> = Jail::try_new_create("mirror_src")?;
+    let vroot: VirtualRoot<Src> = VirtualRoot::try_new_create("mirror_src")?;
 
     // Use a mock unless explicitly enabled with EXAMPLES_S3_RUN=1
     let use_real = std::env::var("EXAMPLES_S3_RUN").ok().as_deref() == Some("1");
@@ -41,30 +41,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    let root = jail.systempath_join(".")?;
-    for entry in WalkDir::new(root.systempath_as_os_str()) {
+    let root = jail.jailed_join(".")?;
+    for entry in WalkDir::new(root.interop_path()) {
         let entry = entry?;
         let p = entry.path();
-        let rel = match p.strip_prefix(root.systempath_as_os_str()) {
+        let rel = match p.strip_prefix(root.interop_path()) {
             Ok(r) if !r.as_os_str().is_empty() => r,
             _ => continue,
         };
         let rel_str = rel.to_string_lossy().to_string();
-        let jp = jail.systempath_join(&rel_str)?;
+        let jp = jail.jailed_join(&rel_str)?;
         if jp.is_file() {
-            let vp: VirtualPath<Src> = vroot.virtualpath_join(&rel_str)?;
-            let key_part = vp.to_string().trim_start_matches('/');
+            let vp: VirtualPath<Src> = vroot.virtual_join(&rel_str)?;
+            let key_part_owned = vp.virtualpath_to_string_lossy().into_owned();
+            let key_part = key_part_owned.trim_start_matches('/');
             let key = if prefix.is_empty() {
                 key_part.to_string()
             } else {
                 format!("{}/{}", prefix.trim_end_matches('/'), key_part)
             };
             if let Some(ref s3c) = s3 {
-                let body = ByteStream::from_path(jp.systempath_as_os_str()).await?;
+                let body = ByteStream::from_path(jp.interop_path()).await?;
                 s3c.put_object().bucket(&bucket).key(&key).body(body).send().await?;
                 println!("Uploaded s3://{}/{}", bucket, key);
             } else {
-                println!("MOCK upload s3://{}/{} from {}", bucket, key, jp.systempath_to_string());
+                let src_disp = jp.jailedpath_display();
+                println!("MOCK upload s3://{bucket}/{key} from {src_disp}");
             }
         }
     }

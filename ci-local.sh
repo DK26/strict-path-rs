@@ -289,37 +289,37 @@ else
     fi
 fi
 if command -v rustup &> /dev/null; then
-    if rustup toolchain list | grep -q "1.70.0"; then
-        echo "✓ Found Rust 1.70.0 toolchain, checking MSRV compatibility..."
+    if rustup toolchain list | grep -q "1.71.0"; then
+        echo "✓ Found Rust 1.71.0 toolchain, checking MSRV compatibility..."
 
         # Ensure Clippy is installed for MSRV
-        if ! rustup component list --toolchain 1.70.0 | grep -q "clippy.*(installed)"; then
-            echo "🔧 Installing Clippy for Rust 1.70.0..."
-            rustup component add clippy --toolchain 1.70.0
+        if ! rustup component list --toolchain 1.71.0 | grep -q "clippy.*(installed)"; then
+            echo "🔧 Installing Clippy for Rust 1.71.0..."
+            rustup component add clippy --toolchain 1.71.0
         fi
 
         # Run MSRV checks scoped to the library package only
-        run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features" || true
-        run_check_try "MSRV Check (Rust 1.70.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo check -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo check -p jailed-path --lib --locked --verbose"
-        run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
-        run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo test -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo test -p jailed-path --lib --locked --verbose"
+        run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features" || true
+        run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p jailed-path --lib --locked --verbose"
+        run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
+        run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p jailed-path --lib --locked --verbose"
     else
-        echo "⚠️  Rust 1.70.0 not installed. Installing for MSRV check..."
-        if rustup toolchain install 1.70.0; then
-            echo "🔧 Installing Clippy for Rust 1.70.0..."
-            rustup component add clippy --toolchain 1.70.0
-            run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features"
-            run_check_try "MSRV Check (Rust 1.70.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo check -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo check -p jailed-path --lib --locked --verbose"
-            run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
-            run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo test -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo test -p jailed-path --lib --locked --verbose"
-        else
-            echo "❌ Failed to install Rust 1.70.0. Skipping MSRV check."
-            echo "💡 To install manually: rustup toolchain install 1.70.0"
+        echo "⚠️  Rust 1.71.0 not installed. Installing for MSRV check..."
+        if rustup toolchain install 1.71.0; then
+            echo "🔧 Installing Clippy for Rust 1.71.0..."
+            rustup component add clippy --toolchain 1.71.0
+            run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features"
+            run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p jailed-path --lib --locked --verbose"
+            run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
+            run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p jailed-path --lib --locked --verbose"
+    else
+        echo "❌ Failed to install Rust 1.71.0. Skipping MSRV check."
+        echo "💡 To install manually: rustup toolchain install 1.71.0"
         fi
     fi
 else
     echo "⚠️  rustup not found. Skipping MSRV check."
-    echo "💡 MSRV check requires rustup to install Rust 1.70.0"
+    echo "💡 MSRV check requires rustup to install Rust 1.71.0"
 fi
 
 echo "🎉 All CI checks passed!"

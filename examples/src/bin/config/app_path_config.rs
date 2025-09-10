@@ -25,9 +25,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg_jail: Jail<AppCfg> = Jail::try_new_create(&cfg_dir)?;
 
     // Write a sample config
-    let path: JailedPath<AppCfg> = cfg_jail.systempath_join("app.yaml")?;
+    let path: JailedPath<AppCfg> = cfg_jail.jailed_join("app.yaml")?;
     path.write_string("host: 127.0.0.1\nport: 8080\n")?;
-    println!("Wrote config to {}", path.systempath_to_string());
+    let disp = path.jailedpath_display();
+    println!("Wrote config to {disp}");
 
     // Read it back via a function that encodes guarantees in the signature
     fn read_cfg(p: &JailedPath<AppCfg>) -> std::io::Result<String> { p.read_to_string() }
@@ -35,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Config loaded ({} bytes)", content.len());
 
     // Cleanup demo file (in real apps, keep config)
-    fs::remove_file(path.systempath_as_os_str()).ok();
+    fs::remove_file(path.interop_path()).ok();
     Ok(())
 }
 

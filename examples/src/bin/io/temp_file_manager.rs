@@ -36,7 +36,7 @@ impl TempFileManager {
 
         println!(
             "[TempManager] Created temporary jail at: {}",
-            jail.path().display()
+            jail.jailedpath_display()
         );
         Ok(Self { jail })
     }
@@ -47,19 +47,23 @@ impl TempFileManager {
 
         let temp_path = self
             .jail
-            .systempath_join(file_name)
+            .jailed_join(file_name)
             .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
 
         temp_path.write_string(content)?;
 
-        println!("  -> Wrote {} bytes to {}", content.len(), temp_path);
+        println!(
+            "  -> Wrote {} bytes to {}",
+            content.len(),
+            temp_path.jailedpath_display()
+        );
         Ok(temp_path)
     }
 
     /// Cleans up the entire temporary directory.
     pub fn cleanup(&self) -> Result<()> {
         println!("[TempManager] Cleaning up temporary directory...");
-        fs::remove_dir_all(self.jail.path())?;
+        fs::remove_dir_all(self.jail.interop_path())?;
         Ok(())
     }
 }
@@ -90,8 +94,11 @@ fn main() -> Result<()> {
     println!("[TempManager] Attempting to create a malicious file at: {malicious_path_str}");
     match temp_manager.new_temp_file(malicious_path_str, "malicious content") {
         Ok(contained_path) => {
-            println!("  -> Contained path: {contained_path}");
-            if contained_path.systempath_starts_with(temp_manager.jail.path()) {
+            println!(
+                "  -> Contained path: {}",
+                contained_path.jailedpath_display()
+            );
+            if contained_path.jailedpath_starts_with(temp_manager.jail.interop_path()) {
                 println!("[Verify] OK: Malicious path was successfully contained within the jail.");
             } else {
                 eprintln!("[Verify] FAIL: Malicious path escaped the jail.");
@@ -106,7 +113,7 @@ fn main() -> Result<()> {
 
     // --- Clean up ---
     temp_manager.cleanup()?;
-    if !temp_manager.jail.path().exists() {
+    if !temp_manager.jail.exists() {
         println!("[Verify] OK: Temporary directory successfully removed.");
     } else {
         eprintln!("[Verify] FAIL: Temporary directory was not removed.");
@@ -116,6 +123,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-
-
-

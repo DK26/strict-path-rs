@@ -56,7 +56,7 @@ fn handle_request(
         Request::GetAsset(path) => {
             println!("[Request] Get public asset: {path}");
             // This request is for a public asset, so we use the `public_jail`.
-            let asset_path = public_jail.virtualpath_join(&path)?;
+            let asset_path = public_jail.virtual_join(&path)?;
 
             // Serve via a function that accepts VirtualPath (virtual view supports I/O)
             serve_public_asset(&asset_path)?;
@@ -66,7 +66,8 @@ fn handle_request(
             filename,
             content,
         } => {
-            println!("[Request] Upload file: {} for user {}", filename, user.id);
+            let uid = user.id;
+            println!("[Request] Upload file: {filename} for user {uid}");
             if !user.is_authenticated {
                 return Err(anyhow::anyhow!("User is not authenticated."));
             }
@@ -74,7 +75,7 @@ fn handle_request(
             // This request is for a user upload, so we use the `uploads_jail`.
             // We can create a user-specific subdirectory within the jail.
             let user_upload_path =
-                uploads_jail.virtualpath_join(format!("user_{}/{}", user.id, filename))?;
+                uploads_jail.virtual_join(format!("user_{}/{}", user.id, filename))?;
 
             // Save via a function that accepts VirtualPath (type enforces correct jail)
             save_user_upload(&user_upload_path, &content)?;
@@ -94,11 +95,9 @@ fn serve_public_asset(asset_path: &VirtualPath<PublicAssets>) -> Result<()> {
         return Err(anyhow::anyhow!("Asset not found."));
     }
     let content = asset_path.read_to_string()?;
-    println!(
-        "  -> Served asset: {}, content: \"{}\"",
-        asset_path,
-        content.trim()
-    );
+    let asset = asset_path.virtualpath_display();
+    let snippet = content.trim();
+    println!("  -> Served asset: {asset}, content: \"{snippet}\"");
     Ok(())
 }
 
@@ -110,7 +109,8 @@ fn save_user_upload(upload_path: &VirtualPath<UserUploads>, content: &[u8]) -> R
     // Create the parent directory if it doesn't exist.
     upload_path.create_parent_dir_all()?;
     upload_path.write_bytes(content)?;
-    println!("  -> Saved upload: {upload_path}");
+    let path = upload_path.virtualpath_display();
+    println!("  -> Saved upload: {path}");
     if upload_path.exists() {
         println!("  -> Verified: Upload exists on disk.");
     } else {

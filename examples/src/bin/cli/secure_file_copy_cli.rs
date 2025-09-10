@@ -20,10 +20,7 @@ struct SafeDestination;
 /// Securely copies a file to a destination path inside the jail.
 ///
 /// Signature encodes the guarantee: destination must be a JailedPath.
-fn copy_to(
-    source_path: &Path,
-    dest_path: &JailedPath<SafeDestination>,
-) -> io::Result<()> {
+fn copy_to(source_path: &Path, dest_path: &JailedPath<SafeDestination>) -> io::Result<()> {
     if !source_path.is_file() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -34,11 +31,12 @@ fn copy_to(
         ));
     }
 
-    println!("[Copy] Preparing to copy '{}'", source_path.display());
-    println!("  -> Secure destination: {dest_path}");
-
+    let src_disp = source_path.display();
+    let dst_disp = dest_path.jailedpath_display();
+    println!("[Copy] Preparing to copy '{src_disp}'");
+    println!("  -> Secure destination: {dst_disp}");
     // Perform the file copy using `AsRef<Path>` interop via &OsStr.
-    fs::copy(source_path, dest_path.systempath_as_os_str())?;
+    fs::copy(source_path, dest_path.interop_path())?;
     println!("  -> Successfully copied to destination.");
     Ok(())
 }
@@ -73,7 +71,8 @@ fn main() {
     };
 
     println!("--- Secure File Copy Utility ---");
-    println!("Destination jail: {}", dest_jail.path().display());
+    let jail_disp = dest_jail.jailedpath_display();
+    println!("Destination jail: {jail_disp}");
     println!("---------------------------------");
 
     // --- Process each source file ---
@@ -83,11 +82,14 @@ fn main() {
         let file_name = match source_path.file_name() {
             Some(n) => n,
             None => {
-                eprintln!("[Error] Source path has no file name: {}", source_path.display());
+                eprintln!(
+                    "[Error] Source path has no file name: {}",
+                    source_path.display()
+                );
                 continue;
             }
         };
-        let dest_path = match dest_jail.systempath_join(file_name) {
+        let dest_path = match dest_jail.jailed_join(file_name) {
             Ok(p) => p,
             Err(e) => {
                 eprintln!("[Error] Invalid destination path: {e}");
@@ -98,15 +100,16 @@ fn main() {
         match copy_to(source_path, &dest_path) {
             Ok(()) => {
                 if dest_path.exists() {
-                    println!(
-                        "[Success] Verified that '{}' exists in the safe directory.",
-                        dest_path
-                            .systempath_file_name()
-                            .unwrap()
-                            .to_string_lossy()
-                    );
+                    let name = dest_path
+                        .jailedpath_file_name()
+                        .unwrap()
+                        .to_string_lossy();
+                    println!("[Success] Verified that '{name}' exists in the safe directory.");
                 } else {
-                    eprintln!("[Error] File copy reported success, but destination '{}' does not exist.", dest_path.systempath_to_string_lossy());
+                    let dst = dest_path.jailedpath_display();
+                    eprintln!(
+                        "[Error] File copy reported success, but destination '{dst}' does not exist."
+                    );
                 }
             }
             Err(e) => {
@@ -123,6 +126,3 @@ fn main() {
     // To clean up, you could add:
     // fs::remove_dir_all(dest_dir).unwrap();
 }
-
-
-

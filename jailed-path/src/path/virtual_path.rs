@@ -2,6 +2,8 @@
 use crate::error::JailedPathError;
 use crate::path::jailed_path::JailedPath;
 use crate::validator;
+use crate::validator::jail::Jail;
+use crate::validator::path_history::{Canonicalized, PathHistory};
 use crate::Result;
 use std::ffi::OsStr;
 use std::fmt;
@@ -10,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 /// A user-facing path clamped to the virtual root of a jail.
 ///
-/// Display and `virtualpath_to_string_lossy()` show a rooted, forward-slashed path
+/// `virtualpath_display()` and `virtualpath_to_string_lossy()` show a rooted, forward-slashed path
 /// (e.g., `"/a/b.txt"`). Use virtual manipulation methods to compose paths
 /// while preserving clamping, and convert to `JailedPath` with `unvirtual()`
 /// for system-facing I/O.
@@ -18,6 +20,14 @@ use std::path::{Path, PathBuf};
 pub struct VirtualPath<Marker = ()> {
     inner: JailedPath<Marker>,
     virtual_path: PathBuf,
+}
+
+#[inline]
+fn clamp<Marker, H>(
+    jail: &Jail<Marker>,
+    anchored: PathHistory<(H, Canonicalized)>,
+) -> crate::Result<crate::path::jailed_path::JailedPath<Marker>> {
+    jail.jailed_join(anchored.into_inner())
 }
 
 impl<Marker> VirtualPath<Marker> {
@@ -66,7 +76,7 @@ impl<Marker> VirtualPath<Marker> {
                 return cleaned;
             }
 
-            let mut systempath_comps: Vec<_> = system_norm
+            let mut jailedpath_comps: Vec<_> = system_norm
                 .components()
                 .filter(|c| !matches!(c, Component::Prefix(_) | Component::RootDir))
                 .collect();
@@ -91,16 +101,16 @@ impl<Marker> VirtualPath<Marker> {
                 a == b
             }
 
-            while !systempath_comps.is_empty()
+            while !jailedpath_comps.is_empty()
                 && !jail_comps.is_empty()
-                && comp_eq(&systempath_comps[0], &jail_comps[0])
+                && comp_eq(&jailedpath_comps[0], &jail_comps[0])
             {
-                systempath_comps.remove(0);
+                jailedpath_comps.remove(0);
                 jail_comps.remove(0);
             }
 
             let mut vb = std::path::PathBuf::new();
-            for c in systempath_comps {
+            for c in jailedpath_comps {
                 if let Component::Normal(name) = c {
                     let s = name.to_string_lossy();
                     let cleaned = s.replace(['\n', ';'], "_");
@@ -126,6 +136,14 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub fn unvirtual(self) -> JailedPath<Marker> {
         self.inner
+    }
+
+    /// Borrows the underlying system-facing `JailedPath` (no allocation).
+    ///
+    /// Use this to pass a `&VirtualPath` to APIs that accept `&JailedPath`.
+    #[inline]
+    pub fn as_unvirtual(&self) -> &JailedPath<Marker> {
+        &self.inner
     }
 
     /// Returns the rooted, forward-slashed virtual path string for UI/display.
@@ -159,41 +177,48 @@ impl<Marker> VirtualPath<Marker> {
 
     #[inline]
     // Note: We intentionally do not expose borrowed &str/&OsStr virtual accessors to
-    // avoid confusion; use `virtualpath_to_string_lossy()` or Display for rooted output.
+    // avoid confusion; use `virtualpath_to_string_lossy()` or `virtualpath_display()` for rooted output.
     /// Returns the underlying system path as a lossy UTF-8 string (delegates to `JailedPath`).
-    pub fn systempath_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
-        self.inner.systempath_to_string_lossy()
+    pub fn jailedpath_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+        self.inner.jailedpath_to_string_lossy()
     }
 
     /// Returns the underlying system path as `&str` if valid UTF-8 (delegates to `JailedPath`).
     #[inline]
-    pub fn systempath_to_str(&self) -> Option<&str> {
-        self.inner.systempath_to_str()
+    pub fn jailedpath_to_str(&self) -> Option<&str> {
+        self.inner.jailedpath_to_str()
     }
 
     /// Returns the underlying system path as `&OsStr` for `AsRef<Path>` interop.
     #[inline]
-    pub fn systempath_as_os_str(&self) -> &OsStr {
-        self.inner.systempath_as_os_str()
+    pub fn interop_path(&self) -> &OsStr {
+        self.inner.interop_path()
     }
 
-    /// Safely joins a virtual path segment, clamps traversal, and re-validates.
+    /// Safely joins a virtual path segment (virtual semantics) and re-validates.
     #[inline]
-    pub fn virtualpath_join<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
-        let new_virtual = self.virtual_path.join(path);
-        let virtualized = validator::virtualize_to_jail(new_virtual, self.inner.jail());
-        validator::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
+    pub fn virtual_join<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
+        // Compose candidate in virtual space (do not pre-normalize lexically to preserve symlink semantics)
+        let candidate = self.virtual_path.join(path.as_ref());
+        let anchored = crate::validator::path_history::PathHistory::new(candidate)
+            .canonicalize_anchored(self.inner.jail())?;
+        let jailed_path = clamp(self.inner.jail(), anchored)?;
+        Ok(VirtualPath::new(jailed_path))
     }
+
+    // No local clamping helpers; virtual flows should route through
+    // PathHistory::virtualize_to_jail + Jail::jailed_join to avoid drift.
 
     /// Returns the parent virtual path, or `None` if at the virtual root.
     pub fn virtualpath_parent(&self) -> Result<Option<Self>> {
         match self.virtual_path.parent() {
-            Some(p) => {
-                let virtualized = validator::virtualize_to_jail(p, self.inner.jail());
-                match validator::validate(virtualized, self.inner.jail()) {
-                    Ok(p) => Ok(Some(p.virtualize())),
-                    Err(e) => Err(e),
-                }
+            Some(parent_virtual_path) => {
+                let anchored = crate::validator::path_history::PathHistory::new(
+                    parent_virtual_path.to_path_buf(),
+                )
+                .canonicalize_anchored(self.inner.jail())?;
+                let jailed_path = clamp(self.inner.jail(), anchored)?;
+                Ok(Some(VirtualPath::new(jailed_path)))
             }
             None => Ok(None),
         }
@@ -202,9 +227,11 @@ impl<Marker> VirtualPath<Marker> {
     /// Returns a new `VirtualPath` with the file name changed, preserving clamping.
     #[inline]
     pub fn virtualpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
-        let new_virtual = self.virtual_path.with_file_name(file_name);
-        let virtualized = validator::virtualize_to_jail(new_virtual, self.inner.jail());
-        validator::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
+        let candidate = self.virtual_path.with_file_name(file_name);
+        let anchored = crate::validator::path_history::PathHistory::new(candidate)
+            .canonicalize_anchored(self.inner.jail())?;
+        let jailed_path = clamp(self.inner.jail(), anchored)?;
+        Ok(VirtualPath::new(jailed_path))
     }
 
     /// Returns a new `VirtualPath` with the extension changed, preserving clamping.
@@ -215,9 +242,12 @@ impl<Marker> VirtualPath<Marker> {
                 self.inner.jail().path().to_path_buf(),
             ));
         }
-        let new_virtual = self.virtual_path.with_extension(extension);
-        let virtualized = validator::virtualize_to_jail(new_virtual, self.inner.jail());
-        validator::validate(virtualized, self.inner.jail()).map(|p| p.virtualize())
+
+        let candidate = self.virtual_path.with_extension(extension);
+        let anchored = crate::validator::path_history::PathHistory::new(candidate)
+            .canonicalize_anchored(self.inner.jail())?;
+        let jailed_path = clamp(self.inner.jail(), anchored)?;
+        Ok(VirtualPath::new(jailed_path))
     }
 
     /// Returns the file name component of the virtual path, if any.
@@ -252,7 +282,7 @@ impl<Marker> VirtualPath<Marker> {
 
     /// Returns a Display wrapper that shows a rooted virtual path (e.g., `"/a/b.txt"`).
     #[inline]
-    pub fn display(&self) -> VirtualPathDisplay<'_, Marker> {
+    pub fn virtualpath_display(&self) -> VirtualPathDisplay<'_, Marker> {
         VirtualPathDisplay(self)
     }
 
@@ -388,35 +418,102 @@ impl<'a, Marker> fmt::Display for VirtualPathDisplay<'a, Marker> {
     }
 }
 
-// Implement Display for VirtualPath by delegating to its Display helper.
-impl<Marker> fmt::Display for VirtualPath<Marker> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.display().fmt(f)
-    }
-}
-
 impl<Marker> fmt::Debug for VirtualPath<Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("VirtualPath")
-            .field("system_path", &self.inner.systempath_to_string_lossy())
+            .field("system_path", &self.inner.jailedpath_to_string_lossy())
             .field("virtual", &self.virtualpath_to_string_lossy())
-            .field("jail", &self.inner.jail().path().as_ref())
+            .field("jail", &self.inner.jail().path())
             .field("marker", &std::any::type_name::<Marker>())
             .finish()
     }
 }
 
 impl<Marker> PartialEq for VirtualPath<Marker> {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.virtual_path == other.virtual_path
+        self.inner.path() == other.inner.path()
     }
 }
 
 impl<Marker> Eq for VirtualPath<Marker> {}
 
 impl<Marker> Hash for VirtualPath<Marker> {
+    #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.virtual_path.hash(state);
+        self.inner.path().hash(state);
+    }
+}
+
+impl<Marker> PartialEq<crate::path::jailed_path::JailedPath<Marker>> for VirtualPath<Marker> {
+    #[inline]
+    fn eq(&self, other: &crate::path::jailed_path::JailedPath<Marker>) -> bool {
+        self.inner.path() == other.path()
+    }
+}
+
+impl<T: AsRef<Path>, Marker> PartialEq<T> for VirtualPath<Marker> {
+    #[inline]
+    fn eq(&self, other: &T) -> bool {
+        // Compare virtual paths - the user-facing representation
+        // If you want system path comparison, use as_unvirtual()
+        let virtual_str = self.virtualpath_to_string_lossy();
+        let other_str = other.as_ref().to_string_lossy();
+
+        // Normalize both to forward slashes and ensure leading slash
+        let normalized_virtual = virtual_str.as_ref();
+
+        #[cfg(windows)]
+        let other_normalized = other_str.replace('\\', "/");
+        #[cfg(not(windows))]
+        let other_normalized = other_str.to_string();
+
+        let normalized_other = if other_normalized.starts_with('/') {
+            other_normalized
+        } else {
+            format!("/{}", other_normalized)
+        };
+
+        normalized_virtual == normalized_other
+    }
+}
+
+impl<T: AsRef<Path>, Marker> PartialOrd<T> for VirtualPath<Marker> {
+    #[inline]
+    fn partial_cmp(&self, other: &T) -> Option<std::cmp::Ordering> {
+        // Compare virtual paths - the user-facing representation
+        let virtual_str = self.virtualpath_to_string_lossy();
+        let other_str = other.as_ref().to_string_lossy();
+
+        // Normalize both to forward slashes and ensure leading slash
+        let normalized_virtual = virtual_str.as_ref();
+
+        #[cfg(windows)]
+        let other_normalized = other_str.replace('\\', "/");
+        #[cfg(not(windows))]
+        let other_normalized = other_str.to_string();
+
+        let normalized_other = if other_normalized.starts_with('/') {
+            other_normalized
+        } else {
+            format!("/{}", other_normalized)
+        };
+
+        Some(normalized_virtual.cmp(&normalized_other))
+    }
+}
+
+impl<Marker> PartialOrd for VirtualPath<Marker> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<Marker> Ord for VirtualPath<Marker> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.path().cmp(other.inner.path())
     }
 }
 

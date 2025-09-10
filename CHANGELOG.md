@@ -11,10 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **BREAKING: API Rename**: Renamed `PathValidator` to `Jail` throughout the codebase for improved clarity and ergonomics
+- **API Rename**: Renamed `PathValidator` to `Jail` throughout the codebase for improved clarity and ergonomics
+- **Display Trait Removal**: Removed `Display` trait implementations from `JailedPath` and `VirtualPath` for security reasons. Use explicit display methods instead:
+- `VirtualPath` now implements Eq/Ord/Hash in terms of its underlying system path (matching `JailedPath`), enabling consistent map/set behavior and cross-type comparisons with the same marker.
+  - `JailedPath::systempath_display()` for system path display
+  - `VirtualPath::virtualpath_display()` for virtual path display
+  - This prevents accidental path disclosure in user-facing contexts
 
 ### Added
 
+- Use explicit `as_unvirtual()` instead of adding `AsRef<JailedPath>` on `VirtualPath` to preserve dimension clarity
 - Windows: Introduced `JailedPathError::WindowsShortName { component, original, checked_at }` returned when a DOS 8.3 short filename component (e.g., `PROGRA~1`) is detected in a non-existent path segment. This enables callers to implement their own recovery (e.g., prompting for a full long name) instead of treating it as a generic resolution error.
 - **Enhanced Security Documentation**: Added comprehensive CVE protection documentation highlighting specific vulnerabilities addressed (CVE-2025-8088, CVE-2022-21658, Windows 8.3 CVEs) and emphasizing the security depth beyond simple string comparison
 - **Security Foundation Messaging**: Updated README, crate docs, and API reference to emphasize the soft-canonicalize foundation and real-world vulnerability protection
@@ -22,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - Windows hardening (Hybrid): Before canonicalization, the validator rejects 8.3 short-name looking components that do not yet exist inside the jail. Existing entries pass through and are validated normally. This reduces ambiguity and potential bypasses while keeping compatibility for already-present short-name entries.
-- **BREAKING: Constructor Rename**: `PathValidator::with_jail()` is now `Jail::try_new()` for consistency with Rust naming conventions
+- **Constructor Rename**: `PathValidator::with_jail()` is now `Jail::try_new()` for consistency with Rust naming conventions
 - Updated all examples, documentation, and tests to use the new `Jail` API
 - Added `examples/new_api.rs` to demonstrate the updated API usage
  - Windows hardening: Reject DOS 8.3 short filename components (e.g., `PROGRA~1`) when those components do not yet exist inside the jail, to avoid ambiguous future resolution outside/inside the boundary.
@@ -43,8 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **BREAKING: Path validation behavior**: All path validation now clamps traversal and absolute paths to the jail root instead of rejecting them - escapes are mathematically impossible
-- **BREAKING: API restructure**: Complete refactor of `JailedPath` and `PathValidator` for stricter jail enforcement and cross-platform consistency using type-state validation
+- **Path validation behavior**: All path validation now clamps traversal and absolute paths to the jail root instead of rejecting them - escapes are mathematically impossible
+- **API restructure**: Complete refactor of `JailedPath` and `PathValidator` for stricter jail enforcement and cross-platform consistency using type-state validation
 - **Enhanced crate description**: Updated to "Prevent directory traversal with type-safe virtual path jails and safe symlinks"
 - **Non-existent jail handling**: `PathValidator` now allows creation with non-existent jail directories (validates they would be directories if they exist)
 - **Comprehensive test suite**: Updated all integration and unit tests to validate new clamping behavior and type-state API

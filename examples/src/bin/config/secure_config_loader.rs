@@ -39,7 +39,7 @@ impl ConfigLoader {
         // Validate the user-provided filename against the jail.
         let config_path = self
             .jail
-            .systempath_join(filename)
+            .jailed_join(filename)
             .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
 
         // The `read_config_file` function requires a `JailedPath<Config>`,
@@ -64,7 +64,8 @@ fn read_config_file(path: &JailedPath<Config>) -> Result<HashMap<String, String>
             config.insert(key.trim().to_string(), value.trim().to_string());
         }
     }
-    println!("  -> Loaded config from: {path}");
+    let disp = path.jailedpath_display();
+    println!("  -> Loaded config from: {disp}");
     Ok(config)
 }
 
@@ -110,6 +111,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-
-
-

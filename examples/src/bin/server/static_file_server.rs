@@ -49,9 +49,9 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
     println!("Request for path: {requested_path}");
 
     // Use the virtual root to safely resolve the requested path.
-    // This is the core security step. `virtualpath_join` will contain any
+    // This is the core security step. `virtual_join` will contain any
     // traversal attempts within the `PUBLIC_DIR`.
-    let virtual_path = match vroot.virtualpath_join(requested_path) {
+    let virtual_path = match vroot.virtual_join(requested_path) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("Path validation error: {e}");
@@ -61,7 +61,8 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
         }
     };
 
-    println!("Safely resolved virtual path: {virtual_path}");
+    let vdisp = virtual_path.virtualpath_display();
+    println!("Safely resolved virtual path: {vdisp}");
 
     let (status_line, contents) = if virtual_path.is_file() {
         match serve_vpath(&virtual_path) {
@@ -76,11 +77,9 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
     };
 
     // Build HTTP response with correct CRLF separators and a Content-Length header
+    let len = contents.len();
     let response = format!(
-        "{}\r\nContent-Length: {}\r\n\r\n{}",
-        status_line,
-        contents.len(),
-        contents
+        "{status_line}\r\nContent-Length: {len}\r\n\r\n{contents}"
     );
 
     stream.write_all(response.as_bytes()).ok();
@@ -118,21 +117,26 @@ fn main() -> std::io::Result<()> {
     setup_environment()?;
 
     // 2. Create a VirtualRoot. This defines the "jail" for our web server.
-    let vroot = VirtualRoot::try_new(PUBLIC_DIR).expect("Failed to create virtual root");
-    println!(
-        "Jailed file server root to: {}",
-        vroot.path().to_string_lossy()
-    );
+    let vroot = VirtualRoot::try_new_create(PUBLIC_DIR).expect("Failed to create virtual root");
+    let root_display = vroot.as_unvirtual().jailedpath_display();
+    println!("Jailed file server root to: {root_display}");
 
     // In CI or when RUN_SERVER is not set, run a quick offline simulation
     if std::env::var("RUN_SERVER").is_err() {
         for path in ["index.html", "assets/style.css", "../../etc/passwd"] {
-            match vroot.virtualpath_join(path) {
+            match vroot.virtual_join(path) {
                 Ok(vp) => match serve_vpath(&vp) {
-                    Ok(body) => println!("Offline demo: {} -> {} bytes", vp, body.len()),
-                    Err(_) => println!("Offline demo: {} not found", vp),
+                    Ok(body) => {
+                        let display = vp.virtualpath_display();
+                        let bytes = body.len();
+                        println!("Offline demo: {display} -> {bytes} bytes");
+                    }
+                    Err(_) => {
+                        let display = vp.virtualpath_display();
+                        println!("Offline demo: {display} not found");
+                    }
                 },
-                Err(e) => println!("Offline demo: invalid path '{}': {e}", path),
+                Err(e) => println!("Offline demo: invalid path '{path}': {e}"),
             }
         }
         fs::remove_dir_all(PUBLIC_DIR).ok();

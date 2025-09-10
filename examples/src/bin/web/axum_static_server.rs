@@ -23,13 +23,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write("axum_assets/index.html", "<h1>Hello Axum</h1>")?;
     fs::write("axum_assets/css/site.css", "body{font:14px sans-serif}")?;
 
-    let vroot: VirtualRoot<Assets> = VirtualRoot::try_new("axum_assets")?;
+    let vroot: VirtualRoot<Assets> = VirtualRoot::try_new_create("axum_assets")?;
 
     // In CI or when EXAMPLES_RUN_SERVER is not set, run a quick offline simulation
     if std::env::var("EXAMPLES_RUN_SERVER").is_err() {
-        let vp = vroot.virtualpath_join("index.html")?;
+        let vp = vroot.virtual_join("index.html")?;
         let body = serve_vp(&vp)?;
-        println!("Offline demo: {} bytes from {}", body.len(), vp);
+        let bytes = body.len();
+        let display = vp.virtualpath_display();
+        println!("Offline demo: {bytes} bytes from {display}");
         fs::remove_dir_all("axum_assets").ok();
         return Ok(())
     }
@@ -54,7 +56,7 @@ async fn serve(
     State(vroot): State<VirtualRoot<Assets>>,
     Path(path): Path<String>,
 ) -> impl IntoResponse {
-    match vroot.virtualpath_join(&path) {
+    match vroot.virtual_join(&path) {
         Ok(vp) => match serve_vp(&vp) {
             Ok(body) => (StatusCode::OK, body),
             Err(_) => (StatusCode::NOT_FOUND, String::from("Not found")),
@@ -84,9 +86,9 @@ async fn serve_json(
     State(vroot): State<VirtualRoot<Assets>>,
     Path(path): Path<String>,
 ) -> impl IntoResponse {
-    match vroot.virtualpath_join(&path) {
+    match vroot.virtual_join(&path) {
         Ok(vp) => {
-            let info = PathInfo { path: vp.clone(), system: vp.systempath_to_string_lossy().into_owned() };
+            let info = PathInfo { path: vp.clone(), system: vp.jailedpath_to_string_lossy().into_owned() };
             let value = serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"error":"serialize"}));
             (StatusCode::OK, Json(value))
         }

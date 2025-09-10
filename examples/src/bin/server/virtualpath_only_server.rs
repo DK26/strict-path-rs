@@ -1,7 +1,7 @@
-//! VirtualPath‑Only Server Simulation
+//! VirtualPath-Only Server Simulation
 //!
 //! Demonstrates serving files using only `VirtualPath` for I/O.
-//! - All user input is validated via `VirtualRoot::virtualpath_join(..)`.
+//! - All user input is validated via `VirtualRoot::virtual_join(..)`.
 //! - Serving functions accept `&VirtualPath<_>` so the compiler enforces correct usage.
 
 use jailed_path::{VirtualPath, VirtualRoot};
@@ -17,17 +17,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write("vp_assets/css/app.css", "body{color:#333}")?;
 
     // Create a virtual root for serving assets
-    let vroot: VirtualRoot<Assets> = VirtualRoot::try_new("vp_assets")?;
+    let vroot: VirtualRoot<Assets> = VirtualRoot::try_new_create("vp_assets")?;
 
     // Simulate requests (including an attack)
     let requests = ["/index.html", "/css/app.css", "/../../etc/passwd"];
 
     for req in requests {
-        match vroot.virtualpath_join(req) {
+        match vroot.virtual_join(req) {
             Ok(vp) => {
-                println!("→ {vp}"); // Virtual root path (user‑facing)
+                let display = vp.virtualpath_display();
+                println!("-> {display}"); // Virtual root path (user-facing)
                 match serve_asset(&vp) {
-                    Ok(body) => println!("  200 OK ({} bytes)", body.len()),
+                    Ok(body) => {
+                        let bytes = body.len();
+                        println!("  200 OK ({bytes} bytes)");
+                    }
                     Err(_) => println!("  404 Not Found"),
                 }
             }
@@ -45,6 +49,4 @@ fn serve_asset(p: &VirtualPath<Assets>) -> std::io::Result<String> {
     }
     p.read_to_string()
 }
-
-
 

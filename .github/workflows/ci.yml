@@ -1,12 +1,12 @@
 name: CI
 #
 # Workspace split strategy (IMPORTANT for newcomers):
-# - The `jailed-path` library enforces MSRV Rust 1.70 and is tested with `--locked`.
+# - The `jailed-path` library enforces MSRV Rust 1.71 and is tested with `--locked`.
 # - The `examples/` crate is intentionally NOT in the workspace so it can use
 #   latest stable Rust and newer ecosystem crates without raising the library's MSRV.
 # - Therefore this workflow runs two distinct tracks:
 #     1) Stable track: format, clippy, docs, tests for the library; and build examples separately
-#     2) MSRV track: check/clippy/test only the library (`-p jailed-path --lib`) on Rust 1.70
+#     2) MSRV track: check/clippy/test only the library (`-p jailed-path --lib`) on Rust 1.71
 # - This split avoids workspace lockfile/feature coupling while keeping examples rich and current.
 #
 # For local development with auto-fixing, use: bash ci-local.sh
@@ -152,19 +152,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Install Rust 1.70
+    - name: Install Rust 1.71
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: 1.70.0
+        toolchain: 1.71.0
         components: clippy
 
     - name: Generate MSRV lockfile for jailed-path
       # Only generate a lockfile for the library crate. Do NOT include examples.
       run: |
-        echo "Generating Cargo.lock for jailed-path using Rust 1.70.0"
+        echo "Generating Cargo.lock for jailed-path using Rust 1.71.0"
         pushd jailed-path
-        rustup run 1.70.0 cargo generate-lockfile || true
+        rustup run 1.71.0 cargo generate-lockfile || true
         popd
 
     - name: Check library with MSRV
@@ -172,12 +171,12 @@ jobs:
       # to avoid cross-toolchain artifacts.
       run: |
         echo "Running MSRV check with locked flag. If generate-lockfile produced a lock compatible with MSRV, this will succeed."
-        CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo check --locked -p jailed-path --lib --verbose
+        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check --locked -p jailed-path --lib --verbose
 
     - name: Run clippy with MSRV (library only)
       run: |
-        CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings
+        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings
 
     - name: Test library with MSRV
       run: |
-        CARGO_TARGET_DIR=target/msrv rustup run 1.70.0 cargo test --locked -p jailed-path --lib --verbose
+        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test --locked -p jailed-path --lib --verbose

@@ -21,9 +21,14 @@ fn main() -> Result<()> {
     // --- One-liner Pattern Example ---
     // Quick validation and serving in a single chain
     println!("=== One-liner example ===");
-    match web_jail.virtualpath_join("/index.html")
-        .and_then(|vp| vp.read_to_string()) {
-        Ok(content) => println!("One-liner served: {} chars", content.len()),
+    match web_jail
+        .virtual_join("/index.html")
+        .and_then(|vp| vp.read_to_string())
+    {
+        Ok(content) => {
+            let chars = content.len();
+            println!("One-liner served: {chars} chars");
+        }
         Err(e) => println!("One-liner failed: {e}"),
     }
 
@@ -44,7 +49,8 @@ Request: {req_path}"
         );
         match resolve_and_serve(&web_jail, req_path) {
             Ok(content) => {
-                println!("  -> Served {} bytes.", content.len());
+                let bytes = content.len();
+                println!("  -> Served {bytes} bytes.");
                 // In a real server, you'd send this as the HTTP response body.
             }
             Err(e) => {
@@ -78,11 +84,13 @@ fn resolve_and_serve(jail: &VirtualRoot<WebAssets>, path: &str) -> Result<Vec<u8
     // 1. Validate the requested path against the virtual root.
     // This clamps the path, so `../` traversal is neutralized.
     let virtual_path = jail
-        .virtualpath_join(path)
+        .virtual_join(path)
         .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
 
-    println!("  -> Virtual path: {virtual_path}");
-    println!("  -> System path: {}", virtual_path.systempath_to_string());
+    let vdisp = virtual_path.virtualpath_display();
+    let sdisp = virtual_path.as_unvirtual().jailedpath_display();
+    println!("  -> Virtual path: {vdisp}");
+    println!("  -> System path: {sdisp}");
 
     // 2. Perform serving via a function that requires VirtualPath
     serve_vpath(&virtual_path)

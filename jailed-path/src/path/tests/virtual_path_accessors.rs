@@ -4,7 +4,7 @@ use crate::validator::jail::Jail;
 fn test_virtual_path_accessors_and_prefixes() {
     let temp = tempfile::tempdir().unwrap();
     let jail = Jail::<()>::try_new(temp.path()).unwrap();
-    let jailed = jail.systempath_join("foo/bar.txt").unwrap();
+    let jailed = jail.jailed_join("foo/bar.txt").unwrap();
     let virtual_path = jailed.virtualize();
 
     // file name

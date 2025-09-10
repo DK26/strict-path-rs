@@ -47,7 +47,7 @@ fn safe_extract(archive_path: &str, extract_dir: &str) -> Result<()> {
         // 4. Validate the entry's path against the jail.
         // This is the crucial security step. Any traversal paths will be
         // neutralized here.
-        let safe_path = match jail.systempath_join(&entry_name) {
+        let safe_path = match jail.jailed_join(&entry_name) {
             Ok(path) => path,
             Err(e) => {
                 println!("  -> Skipping malicious or invalid path: {entry_name} ({e})");
@@ -67,7 +67,7 @@ fn safe_extract(archive_path: &str, extract_dir: &str) -> Result<()> {
 
             // Create the file and write the entry's content to it.
             // Prefer passing &OsStr (implements AsRef<Path>) instead of taking ownership.
-            let mut outfile = fs::File::create(safe_path.systempath_as_os_str())?;
+            let mut outfile = fs::File::create(safe_path.interop_path())?;
             io::copy(&mut entry, &mut outfile)?;
         }
     }

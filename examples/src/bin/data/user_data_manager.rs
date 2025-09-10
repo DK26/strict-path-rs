@@ -33,7 +33,8 @@ fn main() -> Result<()> {
         println!("\nProcessing: {file_name}");
         match process_and_store_data(&ingest_jail, &storage_jail, file_name) {
             Ok(stored_path) => {
-                println!("  -> Successfully processed and stored at: {stored_path}");
+                let disp = stored_path.jailedpath_display();
+                println!("  -> Successfully processed and stored at: {disp}");
                 if stored_path.is_file() { println!("  -> Verified file exists"); }
             }
             Err(e) => {
@@ -44,7 +45,7 @@ fn main() -> Result<()> {
     println!("\n--- Processing Complete ---");
 
     // --- Verification //
-    let _stored_file = storage_jail.systempath_join("user1_config.txt.processed").unwrap();
+    let _stored_file = storage_jail.jailed_join("user1_config.txt.processed").unwrap();
 
     println!("\nDemonstrated compile-time safety (see code comments).");
 
@@ -60,18 +61,20 @@ fn process_and_store_data(
     file_name: &str,
 ) -> Result<JailedPath<Storage>> {
     let ingest_path = ingest_jail
-        .systempath_join(file_name)
+        .jailed_join(file_name)
         .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
-    println!("  -> Validated ingest path: {ingest_path}");
+    let ingest_disp = ingest_path.jailedpath_display();
+    println!("  -> Validated ingest path: {ingest_disp}");
 
     let data = ingest_path.read_to_string()?;
     let processed_data = format!("[PROCESSED] {data}\n");
 
     let stored_file_name = format!("{file_name}.processed");
     let storage_path = storage_jail
-        .systempath_join(stored_file_name)
+        .jailed_join(stored_file_name)
         .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
-    println!("  -> Target storage path: {storage_path}");
+    let storage_disp = storage_path.jailedpath_display();
+    println!("  -> Target storage path: {storage_disp}");
 
     storage_path.write_string(&processed_data)?;
 
@@ -82,13 +85,14 @@ fn process_and_store_data(
 
 fn archive_ingested_file(path_to_archive: &JailedPath<Ingest>) -> Result<()> {
     let archive_name = path_to_archive
-        .systempath_with_extension("archived")
+        .jailedpath_with_extension("archived")
         .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
 
-    println!("  -> Archiving ingest file to: {archive_name}");
+    let arch_disp = archive_name.jailedpath_display();
+    println!("  -> Archiving ingest file to: {arch_disp}");
     fs::rename(
-        path_to_archive.systempath_as_os_str(),
-        archive_name.systempath_as_os_str(),
+        path_to_archive.interop_path(),
+        archive_name.interop_path(),
     )?;
     Ok(())
 }
