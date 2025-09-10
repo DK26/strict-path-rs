@@ -133,7 +133,8 @@ println!("Log: {}", vpath.as_unvirtual().jailedpath_display());   // "/srv/users
   - Borrow the jailed view and format it: `format!("{}", vpath.as_unvirtual().jailedpath_display())`
 
 This keeps potentially sensitive operations visible in code review while offering ergonomic access when required.
-```
+
+
 
 **Rationale:** Security-sensitive APIs should make potentially dangerous operations visible in code review. Automatic trait implementations like `Display` can hide semantic differences that could lead to unintentional information disclosure in user-facing contexts.
 
@@ -141,14 +142,14 @@ Start here: [Quick Recipes](#quick-recipes) · [Pitfalls](#pitfalls-and-how-to-a
 
 Top-level exports
 
-| Symbol                |   Kind | Purpose                                                                                               |
-| --------------------- | -----: | ----------------------------------------------------------------------------------------------------- |
-| `JailedPathError`     |   enum | Validation and resolution errors.                                                                     |
-| `Jail<Marker>`        | struct | Validator that produces `JailedPath`.                                                                 |
-| `JailedPath<Marker>`  | struct | Validated path proven inside the jail; supports I/O.                                                  |
-| `VirtualRoot<Marker>` | struct | User-facing entry that clamps user paths to a jail.                                                   |
-| `VirtualPath<Marker>` | struct | User-facing path that extends `JailedPath` with a virtual-root view and jail-aware ops; supports I/O. |
-| `Result<T>`           |  alias | `Result<T, JailedPathError>`                                                                          |
+| Symbol                        |   Kind | Purpose                                                                                               |
+| ----------------------------- | -----: | ----------------------------------------------------------------------------------------------------- |
+| `JailedPathError`             |   enum | Validation and resolution errors.                                                                     |
+| `Jail<Marker>`                | struct | Validator that produces `JailedPath`.                                                                 |
+| `JailedPath<Marker>`          | struct | Validated path proven inside the jail; supports I/O.                                                  |
+| `VirtualRoot<Marker>`         | struct | User-facing entry that clamps user paths to a jail.                                                   |
+| `VirtualPath<Marker>`         | struct | User-facing path that extends `JailedPath` with a virtual-root view and jail-aware ops; supports I/O. |
+| `Result<T>`                   |  alias | `Result<T, JailedPathError>`                                                                          |
 | `serde_ext` (feature `serde`) | module | Context-aware deserialization helpers (`WithJail`, `WithVirtualRoot`).                                |
 
 ## Quick Recipes

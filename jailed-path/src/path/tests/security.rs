@@ -636,6 +636,7 @@ fn test_hard_link_inside_to_outside_documents_limitation() {
 
     let jail: Jail = Jail::try_new(&jail_dir).unwrap();
     let vp = jail
+        .clone()
         .virtualize()
         .virtual_join("alias.txt")
         .expect("join should succeed within jail");
@@ -648,7 +649,9 @@ fn test_hard_link_inside_to_outside_documents_limitation() {
     assert_eq!(out, "modified");
 
     // Still, the path is inside the jail from a path-boundary perspective
-    assert!(vp.as_unvirtual().jailedpath_starts_with(&jail_dir));
+    assert!(vp
+        .as_unvirtual()
+        .jailedpath_starts_with(jail.interop_path()));
 }
 
 #[test]
