@@ -1,17 +1,17 @@
 //! # Configuration Manager Example
 //!
-//! This example demonstrates how to use `Jail` to create a configuration manager
+//! This example demonstrates how to use `PathBoundary` to create a configuration manager
 //! that reads configuration files from a specific directory. This prevents the
 //! application from accessing files outside of the designated config directory.
 
 use anyhow::Result;
-use jailed_path::Jail;
+use strict_path::PathBoundary;
 use std::collections::HashMap;
 use std::fs;
 
 /// A simple configuration manager.
 struct ConfigManager {
-    config_jail: Jail<()>,
+    config_jail: PathBoundary<()>,
 }
 
 impl ConfigManager {
@@ -19,7 +19,7 @@ impl ConfigManager {
     pub fn new(config_dir: &str) -> Result<Self> {
         fs::create_dir_all(config_dir)?;
         let config_jail =
-            Jail::<()>::try_new(config_dir).map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
+            PathBoundary::<()>::try_new(config_dir).map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
         Ok(Self { config_jail })
     }
 
@@ -27,8 +27,8 @@ impl ConfigManager {
     pub fn get_config(&self, name: &str) -> Result<HashMap<String, String>> {
         let config_path = self
             .config_jail
-            .jailed_join(name)
-            .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
+            .strict_join(name)
+            .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
 
         if !config_path.exists() {
             return Ok(HashMap::new()); // Return empty config if file doesn't exist

@@ -1,0 +1,15 @@
+{
+    "default_output": "./safe-extracts",
+    "allowed_outputs": [
+        "./safe-extracts",
+        "./temp-extracts",
+        "./user-data/archives"
+    ],
+    "max_files": 5000,
+    "max_size_mb": 500,
+    "blocked_patterns": [
+        "**/.git/**",
+        "**/.svn/**",
+        "**/node_modules/**"
+    ]
+}

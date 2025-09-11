@@ -5,9 +5,9 @@
 //! that one tenant cannot access or overwrite the files of another.
 //!
 //! This example demonstrates:
-//! 1.  Creating a per-tenant "jail" to ensure strict file system isolation.
+//! 1.  Creating a per-tenant path boundary to ensure strict file system isolation.
 //! 2.  Handling file uploads securely by validating user-provided filenames.
-//! 3.  Safely performing file operations (write, read, delete) within the tenant's jail.
+//! 3.  Safely performing file operations (write, read, delete) within the tenant's PathBoundary.
 //! 4.  Showing how traversal attacks are neutralized, preventing cross-tenant access.
 //!
 //! ## Usage
@@ -15,10 +15,10 @@
 //! Run the example with: `cargo run --example file_upload_api`
 
 use anyhow::Result;
-use jailed_path::{VirtualPath, VirtualRoot};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use strict_path::{VirtualPath, VirtualRoot};
 
 const UPLOAD_BASE_DIR: &str = "multi_tenant_uploads";
 
@@ -34,7 +34,10 @@ impl TenantStorage {
         // Create the base directory for all uploads.
         fs::create_dir_all(base_path).expect("Failed to create base upload directory");
         println!("Initialized storage base at: {base_path}");
-        Self { base_path: base_path.to_string(), tenant_roots: HashMap::new() }
+        Self {
+            base_path: base_path.to_string(),
+            tenant_roots: HashMap::new(),
+        }
     }
 
     /// Retrieves or creates a virtual root for a specific tenant.
@@ -42,28 +45,34 @@ impl TenantStorage {
     fn get_or_create_tenant_root(
         &mut self,
         tenant_id: &str,
-    ) -> Result<VirtualRoot<()>, jailed_path::JailedPathError> {
+    ) -> Result<VirtualRoot<()>, strict_path::StrictPathError> {
         if let Some(vr) = self.tenant_roots.get(tenant_id) {
             return Ok(vr.clone());
         }
 
         let tenant_dir = Path::new(&self.base_path).join(tenant_id);
-        // Create virtual root (creates directory if needed via try_new_create on inner jail)
+        // Create virtual root (creates directory if needed via try_new_create on inner PathBoundary)
         let vroot = VirtualRoot::<()>::try_new_create(tenant_dir)?;
-        self.tenant_roots.insert(tenant_id.to_string(), vroot.clone());
-        let root_display = vroot.as_unvirtual().jailedpath_display();
+        self.tenant_roots
+            .insert(tenant_id.to_string(), vroot.clone());
+        let root_display = vroot.as_unvirtual().strictpath_display();
         println!("Created vroot for tenant '{tenant_id}' at: {root_display}");
         Ok(vroot)
     }
 
     /// Upload to a VirtualPath for the tenant (encodes guarantees in the signature).
-    fn upload_file_vpath(&self, tenant_id: &str, vp: &VirtualPath<()>, content: &[u8]) -> Result<()> {
+    fn upload_file_vpath(
+        &self,
+        tenant_id: &str,
+        vp: &VirtualPath<()>,
+        content: &[u8],
+    ) -> Result<()> {
         let vdisp = vp.virtualpath_display();
         println!("Tenant '{tenant_id}' uploading to: {vdisp}");
         vp.create_parent_dir_all()?;
         vp.write_bytes(content)?;
         let bytes = content.len();
-        let sdisp = vp.as_unvirtual().jailedpath_display();
+        let sdisp = vp.as_unvirtual().strictpath_display();
         println!("Successfully wrote {bytes} bytes to System path: {sdisp}");
         Ok(())
     }
@@ -95,7 +104,7 @@ fn main() -> Result<()> {
             eprintln!("Upload failed: {e}");
         }
     } else {
-        eprintln!("Upload failed: could not create jail for tenant 'acme'");
+        eprintln!("Upload failed: could not create path boundary for tenant 'acme'");
     }
 
     println!("\n--- Scenario 2: Tenant 'globex' uploads a valid file ---");
@@ -105,13 +114,13 @@ fn main() -> Result<()> {
             eprintln!("Upload failed: {e}");
         }
     } else {
-        eprintln!("Upload failed: could not create jail for tenant 'globex'");
+        eprintln!("Upload failed: could not create path boundary for tenant 'globex'");
     }
 
     println!(
         "\n--- Scenario 3: Tenant 'acme' tries to access 'globex' data with a traversal attack ---"
     );
-    // This malicious path will be clamped inside the 'acme' jail.
+    // This malicious path will be clamped inside the 'acme' path boundary.
     // Instead of reaching `multi_tenant_uploads/globex/report.docx`,
     // it will resolve to `multi_tenant_uploads/acme/globex/report.docx`.
     let malicious_path = "../globex/report.docx";
@@ -149,6 +158,3 @@ fn main() -> Result<()> {
     println!("\nCleaned up base directory.");
     Ok(())
 }
-
-
-

@@ -4,7 +4,7 @@
 //! - All user input is validated via `VirtualRoot::virtual_join(..)`.
 //! - Serving functions accept `&VirtualPath<_>` so the compiler enforces correct usage.
 
-use jailed_path::{VirtualPath, VirtualRoot};
+use strict_path::{VirtualPath, VirtualRoot};
 use std::fs;
 
 #[derive(Clone)]

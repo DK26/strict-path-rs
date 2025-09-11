@@ -1,8 +1,8 @@
 use anyhow::Result;
-use jailed_path::{VirtualPath, VirtualRoot};
 use std::fs;
+use strict_path::{VirtualPath, VirtualRoot};
 
-// Marker type for our web assets jail
+// Marker type for our web assets path
 #[derive(Clone)]
 struct WebAssets;
 
@@ -15,13 +15,13 @@ fn main() -> Result<()> {
     // --- Security Setup ---
     // Create a virtual root for the web assets.
     // This is the ONLY directory from which files can be served.
-    let web_jail = VirtualRoot::<WebAssets>::try_new("web_root")
-        .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
+    let web_root = VirtualRoot::<WebAssets>::try_new("web_root")
+        .map_err(|e| anyhow::anyhow!("VirtualRoot error: {e}"))?;
 
     // --- One-liner Pattern Example ---
     // Quick validation and serving in a single chain
     println!("=== One-liner example ===");
-    match web_jail
+    match web_root
         .virtual_join("/index.html")
         .and_then(|vp| vp.read_to_string())
     {
@@ -36,7 +36,7 @@ fn main() -> Result<()> {
     // These would come from a web framework like Axum, Actix, etc.
     let requests = [
         "/index.html",
-        "/assets/style.css", 
+        "/assets/style.css",
         "/../../../../etc/passwd", // A malicious request
         "/does_not_exist.html",
     ];
@@ -47,7 +47,7 @@ fn main() -> Result<()> {
             "
 Request: {req_path}"
         );
-        match resolve_and_serve(&web_jail, req_path) {
+        match resolve_and_serve(&web_root, req_path) {
             Ok(content) => {
                 let bytes = content.len();
                 println!("  -> Served {bytes} bytes.");
@@ -73,22 +73,22 @@ Request: {req_path}"
 /// Simulates a request handler that serves a file from a virtual root.
 ///
 /// # Arguments
-/// * `jail` - The `VirtualRoot` that enforces the security boundary.
+/// * `web_root` - The `VirtualRoot` that enforces the security boundary.
 /// * `path` - The requested file path from the user.
 ///
 /// # Returns
-/// The file content as bytes, or an `io::Error` if the file cannot be served.
-fn resolve_and_serve(jail: &VirtualRoot<WebAssets>, path: &str) -> Result<Vec<u8>> {
+/// The file content as bytes, or an error if the file cannot be served.
+fn resolve_and_serve(web_root: &VirtualRoot<WebAssets>, path: &str) -> Result<Vec<u8>> {
     println!("  Attempting to resolve: {path}");
 
     // 1. Validate the requested path against the virtual root.
     // This clamps the path, so `../` traversal is neutralized.
-    let virtual_path = jail
+    let virtual_path = web_root
         .virtual_join(path)
-        .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("VirtualRoot error: {e}"))?;
 
     let vdisp = virtual_path.virtualpath_display();
-    let sdisp = virtual_path.as_unvirtual().jailedpath_display();
+    let sdisp = virtual_path.as_unvirtual().strictpath_display();
     println!("  -> Virtual path: {vdisp}");
     println!("  -> System path: {sdisp}");
 
@@ -102,6 +102,3 @@ fn serve_vpath(path: &VirtualPath<WebAssets>) -> Result<Vec<u8>> {
     }
     Ok(path.read_bytes()?)
 }
-
-
-

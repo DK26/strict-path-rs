@@ -1,7 +1,7 @@
 // App-Path Config Loader
 //
 // Uses app-path (optional) to locate the OS-appropriate config directory,
-// then creates a Jail for safe config access.
+// then creates a PathBoundary for safe config access.
 
 #[cfg(not(feature = "with-app-path"))]
 fn main() {
@@ -10,7 +10,7 @@ fn main() {
 
 #[cfg(feature = "with-app-path")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use jailed_path::{Jail, JailedPath};
+    use strict_path::{PathBoundary, StrictPath};
     use std::fs;
 
     #[derive(Clone)]
@@ -22,16 +22,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg_dir = app_path::app_path!("config", env = "APP_CONFIG_DIR");
     println!("Config dir: {}", cfg_dir.display());
 
-    let cfg_jail: Jail<AppCfg> = Jail::try_new_create(&cfg_dir)?;
+    let cfg_jail: PathBoundary<AppCfg> = PathBoundary::try_new_create(&cfg_dir)?;
 
     // Write a sample config
-    let path: JailedPath<AppCfg> = cfg_jail.jailed_join("app.yaml")?;
+    let path: StrictPath<AppCfg> = cfg_jail.strict_join("app.yaml")?;
     path.write_string("host: 127.0.0.1\nport: 8080\n")?;
-    let disp = path.jailedpath_display();
+    let disp = path.strictpath_display();
     println!("Wrote config to {disp}");
 
     // Read it back via a function that encodes guarantees in the signature
-    fn read_cfg(p: &JailedPath<AppCfg>) -> std::io::Result<String> { p.read_to_string() }
+    fn read_cfg(p: &StrictPath<AppCfg>) -> std::io::Result<String> { p.read_to_string() }
     let content = read_cfg(&path)?;
     println!("Config loaded ({} bytes)", content.len());
 

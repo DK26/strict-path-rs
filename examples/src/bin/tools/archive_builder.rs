@@ -1,9 +1,9 @@
 // Secure Archive Builder (TAR)
 //
-// Packages files from a source jail into a .tar archive, ensuring only
-// paths inside the jail are included and entry names are relative (virtual view).
+// Packages files from a source PathBoundary into a .tar archive, ensuring only
+// paths inside the PathBoundary are included and entry names are relative (virtual view).
 
-use jailed_path::{Jail, VirtualPath, VirtualRoot};
+use strict_path::{PathBoundary, VirtualPath, VirtualRoot};
 use std::fs;
 use std::path::Path;
 use tar::Builder;
@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write("archive_src/docs/guide.txt", b"Use me wisely.\n")?;
 
     // Jails
-    let src = Jail::<Source>::try_new_create("archive_src")?;
+    let src = PathBoundary::<Source>::try_new_create("archive_src")?;
     let vroot: VirtualRoot<Source> = VirtualRoot::try_new_create("archive_src")?;
 
     // Build tar archive
@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = fs::File::create(tar_path)?;
     let mut builder = Builder::new(file);
 
-    let root = src.jailed_join(".")?;
+    let root = src.strict_join(".")?;
     for entry in WalkDir::new(root.interop_path()) {
         let entry = entry?;
         let p = entry.path();
@@ -37,8 +37,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let rel_str = rel.to_string_lossy().to_string();
 
-        // Validate relative path back through the jail (defense-in-depth)
-        let sp = match src.jailed_join(&rel_str) {
+        // Validate relative path back through the PathBoundary (defense-in-depth)
+        let sp = match src.strict_join(&rel_str) {
             Ok(p) => p,
             Err(_) => continue,
         };
@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if sp.is_dir() {
             // Add directory entry (optional; tar can infer)
             let vp: VirtualPath<Source> = vroot.virtual_join(&rel_str)?;
-            let name = vp.virtualpath_to_string_lossy().into_owned();
+            let name = vp.virtualpath_display().to_string();
             builder.append_dir(name, sp.interop_path())?;
             continue;
         }
@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Compute virtual (relative) name for the archive entry
         let vp: VirtualPath<Source> = vroot.virtual_join(&rel_str)?;
         let mut f = fs::File::open(sp.interop_path())?;
-        let name = vp.virtualpath_to_string_lossy().into_owned();
+        let name = vp.virtualpath_display().to_string();
         builder.append_file(name, &mut f)?;
         let display = vp.virtualpath_display();
         println!("Added: {display}");

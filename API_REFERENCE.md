@@ -1,10 +1,61 @@
-# jailed-path — API Reference (concise)
+# strict-path — API Reference (concise)
 
-Provides safe, validated filesystem paths inside a confined directory (jail).
+Provides safe, validated filesystem paths inside a confined directory (restriction).
 
-## Security Foundation
+## Core Security Foundation: `StrictPath`
 
-Uses canonicalization + boundary checking to prevent traversal and symlink/junction escapes. Do not use `std::path::Path::join` on untrusted input; use the explicit `jailed_*/virtual_*` operations documented below.
+**`StrictPath` is the fundamental security primitive** - every `StrictPath` instance is mathematical proof that a path is within its designated boundary. This guarantee is enforced through:
+
+- Cryptographic-grade path canonicalization via [`soft-canonicalize`](https://crates.io/crates/soft-canonicalize)
+- Type-level security contracts that make path traversal impossible
+- Boundary validation that cannot be bypassed
+
+**The security model:** If your code has a `StrictPath<Marker>`, it is guaranteed safe - no runtime validation needed within functions that accept it.
+
+## Architecture Overview
+
+All security flows through `StrictPath`:
+- `PathBoundary` → validates external input → produces `StrictPath`  
+- `VirtualPath` → extends `StrictPath` with user-friendly semantics
+- `VirtualRoot` → provides root context for creating `VirtualPath` instances
+
+Uses canonicalization + boundary checks to prevent directory traversal attacks.
+
+### PathBoundary Design Philosophy
+
+`PathBoundary` represents the secure foundation or starting point from which all path operations begin. Think of it as establishing a safe boundary (like `/home/users/alice`) and then performing validated operations from that foundation.
+
+When you call `path_boundary.strict_join("documents/file.txt")`, you're building outward from the secure boundary with validated path construction. The boundary is the **trusted starting point**, and operations like `strict_join()` are the **validated tools** that work from that boundary to ensure you stay within the allowed area.
+
+This design makes the API read naturally:
+- `user_dir.strict_join("documents/report.pdf")` - "From the user directory boundary, strictly join documents/report.pdf"  
+- `cache_boundary.strict_join("build/output.json")` - "From the cache boundary, strictly join build/output.json"
+
+### Core Security Rules
+
+- Do not bypass: never call std fs ops on raw `Path`/`PathBuf` built from untrusted input.
+- Marker types prevent mixing distinct restrictions at compile time: use when you have multiple storage areas.
+- We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an API expects `AsRef<Path>`, pass `.interop_path()`.
+  (`PathBoundary` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
+- Interop doesn't require `.unrestrict()`: prefer `.interop_path()`; call `.unrestrict()` only when an owned `PathBuf` is strictly required.
+- Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
+  clamping or restriction checks. Use `strict_join` / `virtualpath_parent` instead.
+- Do not convert `StrictPath` -> `VirtualPath` just to print; for UI flows start with `VirtualRoot::virtual_join(..)` and keep a `VirtualPath`.
+
+## StrictPath API
+
+- unrestrict(self) -> PathBuf  // consumes — escape hatch (avoid)
+- virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
+- strictpath_to_string_lossy(&self) -> Cow<'_, str>
+- strictpath_to_str(&self) -> Option<&str>
+- interop_path(&self) -> &OsStr
+- strictpath_display(&self) -> std::path::Display<'_>  // explicit display method
+- strict_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<StrictPath<Marker>>
+- strictpath_parent(&self) -> Result<Option<Self>>
+- strictpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self>
+- strictpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
+
+All operations prevent traversal and symlink/junction escapes. Do not use `std::path::Path::join` on untrusted input; use the explicit `strict_*/virtual_*` operations documented below.
 
 ## Which Type Should I Use?
 
@@ -13,8 +64,8 @@ Ask yourself these questions to determine the right path type:
 **🤔 Do we want to allow work with any form of path, but make sure it is always contained within a specified directory?**  
 → **Use `VirtualPath`** - Users can specify any path they want, and it gets automatically clamped to stay safe within your sandbox.
 
-**🤔 Do we want to allow only paths that are within a specific other path (jail), and reject all other paths?**  
-→ **Use `JailedPath`** - Validates that the exact path is safe and within boundaries, rejecting anything that would escape.
+**🤔 Do we want to allow only paths that are within a specific other path (restriction), and reject all other paths?**  
+→ **Use `StrictPath`** - Validates that the exact path is safe and within boundaries, rejecting anything that would escape.
 
 **🤔 Do we want to allow complete freedom of paths but still make sure that freedom is safe and isolated within a sandbox?**  
 → **Use `VirtualPath`** - Creates a complete sandbox where users have apparent freedom but are mathematically constrained to safety.
@@ -26,15 +77,15 @@ Ask yourself these questions to determine the right path type:
 → **Use `VirtualPath`** - Each user gets their own apparent "/" root, perfect for per-user storage, isolated workspaces.
 
 **🤔 Do we want to use a common shared space for all users, pointing somewhere in our system files, but ensure it cannot escape boundaries?**  
-→ **Use `JailedPath`** - Validates that paths stay within a shared boundary, good for shared resources, config files, templates.
+→ **Use `StrictPath`** - Validates that paths stay within a shared boundary, good for shared resources, config files, templates.
 
 **🤔 Do we need compile-time guarantees that different storage contexts can't be accidentally mixed?**  
-→ **Use `JailedPath<Marker>` or `VirtualPath<Marker>`** - Both support type markers to prevent mixing different contexts at compile time.
+→ **Use `StrictPath<Marker>` or `VirtualPath<Marker>`** - Both support type markers to prevent mixing different contexts at compile time.
 
 **Quick Decision Matrix:**
 - **User Sandboxes** → `VirtualPath` (per-user isolated spaces)
-- **Shared Boundaries** → `JailedPath` (common protected areas)  
-- **Type Safety** → Both `JailedPath<T>` and `VirtualPath<T>` vs `Path/PathBuf`
+- **Shared Boundaries** → `StrictPath` (common protected areas)  
+- **Type Safety** → Both `StrictPath<T>` and `VirtualPath<T>` vs `Path/PathBuf`
 - **Unrestricted** → `std::path::Path` (no safety guarantees)
 
 **Common Use Cases:**
@@ -44,31 +95,31 @@ let user_space: VirtualRoot<UserFiles> = VirtualRoot::try_new(format!("./users/{
 let doc = user_space.virtual_join("docs/report.pdf")?; // User sees "/docs/report.pdf"
 
 // ✅ Shared config area - all users access same protected space
-let config_jail: Jail<ConfigFiles> = Jail::try_new("./shared/config")?;
-let cfg = config_jail.jailed_join(user_requested_config)?; // Validates within shared boundary
+let config_restriction: PathBoundary<ConfigFiles> = PathBoundary::try_new("./shared/config")?;
+let cfg = config_restriction.strict_join(user_requested_config)?; // Validates within shared boundary
 
 // ✅ Both can process user input safely
 let user_input = "../../../etc/passwd";
 let vp = user_space.virtual_join(user_input)?; // Clamped to user's space
-let jp = config_jail.jailed_join(user_input)?; // Rejected if escapes shared boundary
+let sp = config_restriction.strict_join(user_input)?; // Rejected if escapes shared boundary
 
 // ❌ Don't use std::path for user input
 let bad = PathBuf::from(user_input).join("file.txt"); // 🚨 Vulnerable to traversal
 ```
 
 **Conceptual Models:**
-- `JailedPath` = **Proven-safe, system-facing path**: validated path for system-facing I/O and interop
+- `StrictPath` = **Proven-safe, system-facing path**: validated path for system-facing I/O and interop
 - `VirtualPath` = **User-friendly wrapper**: user-facing virtual "/" view with virtual path operations; also supports I/O and interop
 
 **Unified Signatures (When Appropriate):**
 ```rust
-// Generic across storage contexts — use only when required to have a function that works for multiple jails and contexts
-fn process_file<M>(path: &JailedPath<M>) -> std::io::Result<Vec<u8>> {
+// Generic across storage contexts — use only when required to have a function that works for multiple restrictions and contexts
+fn process_file<M>(path: &StrictPath<M>) -> std::io::Result<Vec<u8>> {
   path.read_bytes()
 }
 
-// Callers pass either a borrowed JailedPath directly, or a borrowed JailedPath from VirtualPath::as_unvirtual()
-process_file(&jailed_path);
+// Callers pass either a borrowed StrictPath directly, or a borrowed StrictPath from VirtualPath::as_unvirtual()
+process_file(&strict_path);
 process_file(virtual_path.as_unvirtual());
 ```
 Prefer marker-specific signatures for stronger guarantees. Use a generic `M` only when the function is intentionally shared across contexts.
@@ -76,14 +127,14 @@ Prefer marker-specific signatures for stronger guarantees. Use a generic `M` onl
 **Marker-Specific Signatures (Stronger Guarantees):**
 ```rust
 use std::io;
-use jailed_path::{Jail, VirtualRoot, JailedPath, VirtualPath};
+use strict_path::{PathBoundary, VirtualRoot, StrictPath, VirtualPath};
 
 // Define distinct storage contexts
 struct UserFiles;
 struct Logs;
 
-// Only accepts paths proven inside the UserFiles jail
-fn read_user_file(path: &JailedPath<UserFiles>) -> io::Result<Vec<u8>> {
+// Only accepts paths proven inside the UserFiles restriction
+fn read_user_file(path: &StrictPath<UserFiles>) -> io::Result<Vec<u8>> {
     path.read_bytes()
 }
 
@@ -91,13 +142,13 @@ fn read_user_file(path: &JailedPath<UserFiles>) -> io::Result<Vec<u8>> {
 let vroot: VirtualRoot<UserFiles> = VirtualRoot::try_new("./users/alice")?;
 let vpath: VirtualPath<UserFiles> = vroot.virtual_join("docs/report.pdf")?;
 
-// Works: borrow the jailed view from a VirtualPath in the same marker
+// Works: borrow the strict view from a VirtualPath in the same marker
 let bytes = read_user_file(vpath.as_unvirtual())?;
 
-// Compile-time separation of jails
-let logs: Jail<Logs> = Jail::try_new("./logs")?;
-let log_path = logs.jailed_join("app.log")?;
-// read_user_file(&log_path)?; // ❌ compile error: expected `JailedPath<UserFiles>`
+// Compile-time separation of restrictions
+let logs: PathBoundary<Logs> = PathBoundary::try_new("./logs")?;
+let log_path = logs.strict_join("app.log")?;
+// read_user_file(&log_path)?; // ❌ compile error: expected `StrictPath<UserFiles>`
 ```
 
 ## API Design Philosophy: Explicit Security
@@ -109,17 +160,17 @@ let log_path = logs.jailed_join("app.log")?;
 println!("{}", vpath);  // Compile error
 
 // ✅ Explicit display methods
-impl JailedPath {
-    pub fn jailedpath_display(&self) -> impl Display { ... }
+impl StrictPath {
+    pub fn strictpath_display(&self) -> impl Display { ... }
 }
 impl VirtualPath {
   pub fn virtualpath_display(&self) -> impl Display { ... }   // Virtual view (rooted)
   // System-facing strings are explicit:
-  // - Borrow the jailed view and use Display: `self.as_unvirtual().jailedpath_display()`
+  // - Borrow the strict view and use Display: `self.as_unvirtual().strictpath_display()`
 }
 
 println!("User: {}", vpath.virtualpath_display());        // "/docs/file.txt"  
-println!("Log: {}", vpath.as_unvirtual().jailedpath_display());   // "/srv/users/alice/docs/file.txt"
+println!("Log: {}", vpath.as_unvirtual().strictpath_display());   // "/srv/users/alice/docs/file.txt"
 ```
 
 **Rationale:** Prevents accidental system path disclosure in user-facing contexts.
@@ -130,7 +181,7 @@ println!("Log: {}", vpath.as_unvirtual().jailedpath_display());   // "/srv/users
 
 - Prefer virtual semantics in UI: `vpath.virtualpath_display()` or `vpath.virtualpath_to_string_lossy()`
 - When you need the real, system path string, either:
-  - Borrow the jailed view and format it: `format!("{}", vpath.as_unvirtual().jailedpath_display())`
+  - Borrow the strict view and format it: `format!("{}", vpath.as_unvirtual().strictpath_display())`
 
 This keeps potentially sensitive operations visible in code review while offering ergonomic access when required.
 
@@ -142,23 +193,23 @@ Start here: [Quick Recipes](#quick-recipes) · [Pitfalls](#pitfalls-and-how-to-a
 
 Top-level exports
 
-| Symbol                        |   Kind | Purpose                                                                                               |
-| ----------------------------- | -----: | ----------------------------------------------------------------------------------------------------- |
-| `JailedPathError`             |   enum | Validation and resolution errors.                                                                     |
-| `Jail<Marker>`                | struct | Validator that produces `JailedPath`.                                                                 |
-| `JailedPath<Marker>`          | struct | Validated path proven inside the jail; supports I/O.                                                  |
-| `VirtualRoot<Marker>`         | struct | User-facing entry that clamps user paths to a jail.                                                   |
-| `VirtualPath<Marker>`         | struct | User-facing path that extends `JailedPath` with a virtual-root view and jail-aware ops; supports I/O. |
-| `Result<T>`                   |  alias | `Result<T, JailedPathError>`                                                                          |
-| `serde_ext` (feature `serde`) | module | Context-aware deserialization helpers (`WithJail`, `WithVirtualRoot`).                                |
+| Symbol                        |   Kind | Purpose                                                                                                      |
+| ----------------------------- | -----: | ------------------------------------------------------------------------------------------------------------ |
+| `StrictPathError`             |   enum | Validation and resolution errors.                                                                            |
+| `PathBoundary<Marker>`     | struct | Validator that produces `StrictPath`.                                                                        |
+| `StrictPath<Marker>`          | struct | Validated path proven inside the restriction; supports I/O.                                                  |
+| `VirtualRoot<Marker>`         | struct | User-facing entry that clamps user paths to a restriction.                                                   |
+| `VirtualPath<Marker>`         | struct | User-facing path that extends `StrictPath` with a virtual-root view and restriction-aware ops; supports I/O. |
+| `Result<T>`                   |  alias | `Result<T, StrictPathError>`                                                                                 |
+| `serde_ext` (feature `serde`) | module | Context-aware deserialization helpers (`WithBoundary`, `WithVirtualRoot`).                                |
 
 ## Quick Recipes
-- Create jail (create dir if missing) and validate: `let jail = Jail::try_new_create("./safe")?; let jp = jail.jailed_join("a/b.txt")?;`
+- Create restriction (create dir if missing) and validate: `let restriction = PathBoundary::try_new_create("./safe")?; let sp = restriction.strict_join("a/b.txt")?;`
 - Virtual user path: `let vroot = VirtualRoot::try_new("./safe")?; let vp = vroot.virtual_join("a/b.txt")?;`
-- Convert between types: `vpath.unvirtual()` → `JailedPath`, `jpath.virtualize()` → `VirtualPath`
-- Unified functions: take `&JailedPath<_>` and call with `vpath.as_unvirtual()`
-- Display paths: `jpath.jailedpath_display()`, `vpath.virtualpath_display()` (no automatic Display trait)
-- Type-safe function signatures: `fn serve_file<M>(p: &JailedPath<M>) -> io::Result<Vec<u8>> { p.read_bytes() }`
+- Convert between types: `vpath.unvirtual()` → `StrictPath`, `spath.virtualize()` → `VirtualPath`
+- Unified functions: take `&StrictPath<_>` and call with `vpath.as_unvirtual()`
+- Display paths: `spath.strictpath_display()`, `vpath.virtualpath_display()` (no automatic Display trait)
+- Type-safe function signatures: `fn serve_file<M>(p: &StrictPath<M>) -> io::Result<Vec<u8>> { p.read_bytes() }`
 - Type-safe virtual signatures: `fn serve_user_file(p: &VirtualPath) -> io::Result<Vec<u8>> { p.read_bytes() }`
 - Interop: when an API expects `AsRef<Path>`, pass `.interop_path()` (returns `&OsStr`, which implements `AsRef<Path>`). Example: `std::fs::copy(src.interop_path(), dst.interop_path())?;`
 - Create parent dirs: `vp.create_parent_dir_all()?; vp.write_string("content")?;`
@@ -172,38 +223,38 @@ Markers and type inference
 - With a custom marker: `struct Docs; let vroot: VirtualRoot<Docs> = VirtualRoot::try_new("docs")?;`
 - Prefer annotating the `let` binding or function signature for readability; use turbofish only when it clarifies intent or is required.
 
-JailedPathError (variants)
-- `InvalidJail { jail: PathBuf, source: io::Error }`
-- `PathEscapesBoundary { attempted_path: PathBuf, jail_boundary: PathBuf }`
+StrictPathError (variants)
+- `InvalidRestriction { restriction: PathBuf, source: io::Error }`
+- `PathEscapesBoundary { attempted_path: PathBuf, restriction_boundary: PathBuf }`
 - `PathResolutionError { path: PathBuf, source: io::Error }`
 - `WindowsShortName { component, original, checked_at }` (windows)
 
-Jail<Marker>
-- try_new<P: AsRef<Path>>(jail_path: P) -> Result<Self>
+PathBoundary<Marker>
+- try_new<P: AsRef<Path>>(restriction_path: P) -> Result<Self>
 - try_new_create<P: AsRef<Path>>(root: P) -> Result<Self>
-- jailed_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>>
+- strict_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<StrictPath<Marker>>
 - interop_path(&self) -> &OsStr
 - exists(&self) -> bool
-- jailedpath_display(&self) -> std::path::Display<'_>
+- strictpath_display(&self) -> std::path::Display<'_>
 - virtualize(self) -> VirtualRoot<Marker>
 
-JailedPath<Marker>
-Note: `.unjail()` is an explicit escape hatch. Interop doesn’t require it — prefer `.interop_path()`; use `.unjail()` only when an owned `PathBuf` is strictly required.
-- unjail(self) -> PathBuf  // consumes — escape hatch (avoid)
+StrictPath<Marker>
+Note: `.unrestrict()` is an explicit escape hatch. Interop doesn’t require it — prefer `.interop_path()`; use `.unrestrict()` only when an owned `PathBuf` is strictly required.
+- unrestrict(self) -> PathBuf  // consumes — escape hatch (avoid)
 - virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
-- jailedpath_to_string_lossy(&self) -> Cow<'_, str>
-- jailedpath_to_str(&self) -> Option<&str>
+- strictpath_to_string_lossy(&self) -> Cow<'_, str>
+- strictpath_to_str(&self) -> Option<&str>
 - interop_path(&self) -> &OsStr
-- jailedpath_display(&self) -> std::path::Display<'_>  // explicit display method
-- jailed_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<JailedPath<Marker>>
-- jailedpath_parent(&self) -> Result<Option<Self>>
-- jailedpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self>
-- jailedpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
-- jailedpath_file_name(&self) -> Option<&OsStr>
-- jailedpath_file_stem(&self) -> Option<&OsStr>
-- jailedpath_extension(&self) -> Option<&OsStr>
-- jailedpath_starts_with<P: AsRef<Path>>(&self, p: P) -> bool
-- jailedpath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool
+- strictpath_display(&self) -> std::path::Display<'_>
+- strict_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<Self>
+- strictpath_parent(&self) -> Result<Option<Self>>
+- strictpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self>
+- strictpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
+- strictpath_file_name(&self) -> Option<&OsStr>
+- strictpath_file_stem(&self) -> Option<&OsStr>
+- strictpath_extension(&self) -> Option<&OsStr>
+- strictpath_starts_with<P: AsRef<Path>>(&self, p: P) -> bool
+- strictpath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool
 - exists(&self) -> bool
 - is_file(&self) -> bool
 - is_dir(&self) -> bool
@@ -226,16 +277,13 @@ VirtualRoot<Marker>
 - virtual_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<VirtualPath<Marker>>
 - interop_path(&self) -> &OsStr
 - exists(&self) -> bool
-- as_unvirtual(&self) -> &Jail<Marker>
-- unvirtual(self) -> Jail<Marker>
+- as_unvirtual(&self) -> &PathBoundary<Marker>
+- unvirtual(self) -> PathBoundary<Marker>
 
 VirtualPath<Marker>
-- unvirtual(self) -> JailedPath<Marker>  // downgrade to system-facing view when ownership is needed
-- as_unvirtual(&self) -> &JailedPath<Marker> // borrow the underlying jailed path for system-facing related operations
+- unvirtual(self) -> StrictPath<Marker>  // downgrade to system-facing view when ownership is needed
+- as_unvirtual(&self) -> &StrictPath<Marker> // borrow the underlying strict path for system-facing related operations
 - interop_path(&self) -> &OsStr // for APIs that accept AsRef<Path>
-- virtualpath_to_string_lossy(&self) -> Cow<'_, str>
-- jailedpath_to_string_lossy(&self) -> Cow<'_, str>  // delegated system-path string accessor
-- jailedpath_to_str(&self) -> Option<&str>           // delegated system-path string accessor
 - virtual_join<P: AsRef<Path>>(&self, path: P) -> Result<Self>
 - virtualpath_parent(&self) -> Result<Option<Self>>
 - virtualpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self>
@@ -246,56 +294,61 @@ VirtualPath<Marker>
 - virtualpath_starts_with<P: AsRef<Path>>(&self, p: P) -> bool
 - virtualpath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool
 - virtualpath_display(&self) -> VirtualPathDisplay<'_, Marker>  // explicit display method
-- exists / is_file / is_dir / metadata / read_to_string / read_bytes / write_bytes / write_string / create_dir / create_dir_all / create_parent_dir / create_parent_dir_all / remove_file / remove_dir / remove_dir_all (delegates to `JailedPath`; parents derived via virtual semantics)
+- exists / is_file / is_dir / metadata / read_to_string / read_bytes / write_bytes / write_string / create_dir / create_dir_all / create_parent_dir / create_parent_dir_all / remove_file / remove_dir / remove_dir_all (delegates to `StrictPath`; parents derived via virtual semantics)
 
 ### Feature-gated APIs (complete list)
 These are available only when the corresponding Cargo features are enabled:
 
 - Feature `dirs` (user directories)
-  - `Jail::try_new_config(app_name: &str) -> Result<Jail>`
-  - `Jail::try_new_data(app_name: &str) -> Result<Jail>`
-  - `Jail::try_new_cache(app_name: &str) -> Result<Jail>`
+  - `PathBoundary::try_new_config(app_name: &str) -> Result<PathBoundary>`
+  - `PathBoundary::try_new_data(app_name: &str) -> Result<PathBoundary>`
+  - `PathBoundary::try_new_cache(app_name: &str) -> Result<PathBoundary>`
   - `VirtualRoot::try_new_config(app_name: &str) -> Result<VirtualRoot>`
   - `VirtualRoot::try_new_data(app_name: &str) -> Result<VirtualRoot>`
   - `VirtualRoot::try_new_cache(app_name: &str) -> Result<VirtualRoot>`
 
 - Feature `tempdir` (RAII temporary directories)
-  - `Jail::try_new_temp() -> Result<Jail>`
-  - `Jail::try_new_temp_with_prefix(prefix: &str) -> Result<Jail>`
+  - `PathBoundary::try_new_temp() -> Result<PathBoundary>`
+  - `PathBoundary::try_new_temp_with_prefix(prefix: &str) -> Result<PathBoundary>`
   - `VirtualRoot` holds RAII of temp dirs internally when constructed from feature-enabled contexts
 
 - Feature `app-path` (portable app-relative dirs with optional env overrides)
-  - `Jail::try_new_app_path(subdir: &str, env_override: Option<&str>) -> Result<Jail>`
+  - `PathBoundary::try_new_app_path(subdir: &str, env_override: Option<&str>) -> Result<PathBoundary>`
   - `VirtualRoot::try_new_app_path(subdir: &str, env_override: Option<&str>) -> Result<VirtualRoot>`
 
 - Feature `serde`
-  - `impl Serialize for JailedPath` → system path string
+  - `impl Serialize for StrictPath` → system path string
   - `impl Serialize for VirtualPath` → rooted virtual string (e.g., "/a/b.txt")
-  - `serde_ext::WithJail<'_, Marker>`: `DeserializeSeed` to deserialize a `JailedPath<Marker>` with a provided `&Jail<Marker>`
+  - `serde_ext::WithBoundary<'_, Marker>`: `DeserializeSeed` to deserialize a `StrictPath<Marker>` with a provided `&PathBoundary<Marker>`
   - `serde_ext::WithVirtualRoot<'_, Marker>`: `DeserializeSeed` to deserialize a `VirtualPath<Marker>` with a provided `&VirtualRoot<Marker>`
 
 Short usage rules (1-line each)
 - For user input: use `VirtualRoot::virtual_join(...)` -> `VirtualPath`.
-- For I/O: use either `VirtualPath` or `JailedPath` (both support I/O). Call `.unvirtual()` only when you need a `JailedPath` explicitly.
+- For I/O: use either `VirtualPath` or `StrictPath` (both support I/O). Call `.unvirtual()` only when you need a `StrictPath` explicitly.
 - Do not bypass: never call std fs ops on raw `Path`/`PathBuf` built from untrusted input.
 - Marker types prevent mixing distinct jails at compile time: use when you have multiple storage areas.
-- We do not implement `AsRef<Path>` on `JailedPath`/`VirtualPath`. When an API expects `AsRef<Path>`, pass `.interop_path()`.
+- We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an API expects `AsRef<Path>`, pass `.interop_path()`.
   (`Jail` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
-- Interop doesn’t require `.unjail()`: prefer `.interop_path()`; call `.unjail()` only when an owned `PathBuf` is strictly required.
+- Interop doesn’t require `.unrestrict()`: prefer `.interop_path()`; call `.unrestrict()` only when an owned `PathBuf` is strictly required.
 - Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
-  clamping or jail checks. Use `jailed_join` / `virtualpath_parent` instead.
- - Do not convert `JailedPath` -> `VirtualPath` just to print; for UI flows start with `VirtualRoot::virtual_join(..)` and keep a `VirtualPath`.
+  clamping or jail checks. Use `strict_join` / `virtualpath_parent` instead.
+ - Do not convert `StrictPath` -> `VirtualPath` just to print; for UI flows start with `VirtualRoot::virtual_join(..)` and keep a `VirtualPath`.
  - `*_to_string_lossy()` returns `Cow<'_, str>`; call `.into_owned()` only when an owned `String` is required.
+ - **ANTI-PATTERN**: Never use `.interop_path().to_string_lossy()` for display purposes. Use proper display methods instead:
+   - `PathRestriction`/`RestrictedPath`: use `strictpath_display()`
+   - `VirtualPath`: use `virtualpath_display()`
+   - `VirtualRoot`: use `vroot.as_unvirtual().strictpath_display()`
+   - Reserve `interop_path()` only for external API interop that requires `AsRef<Path>`.
 
 Parent directory helpers (semantics)
-- create_parent_dir: non-recursive; creates only the immediate parent; errors if grandparents are missing; Ok(()) at jail/virtual root.
-- create_parent_dir_all: recursive; creates the full chain up to the immediate parent; Ok(()) at jail/virtual root.
-- VirtualPath parent helpers act in the virtual dimension (use `virtualpath_parent()`), then perform I/O on the underlying jailed system path.
+- create_parent_dir: non-recursive; creates only the immediate parent; errors if grandparents are missing; Ok(()) at restriction/virtual root.
+- create_parent_dir_all: recursive; creates the full chain up to the immediate parent; Ok(()) at restriction/virtual root.
+- VirtualPath parent helpers act in the virtual dimension (use `virtualpath_parent()`), then perform I/O on the underlying strict system path.
  
 Naming rationale (quick scan aid)
 - We name methods by their dimension so intent is obvious at a glance.
 - std `Path::join(..)` or `p.join(..)`: unsafe join (can escape); avoid on untrusted inputs.
-- `Jail::jailed_join(..)` / `JailedPath::jailed_join(..)`: safe, validated jailed path join.
+- `PathBoundary::strict_join(..)` / `StrictPath::strict_join(..)`: safe, validated strict path join.
 - `VirtualRoot::virtual_join(..)` / `VirtualPath::virtual_join(..)`: safe, clamped virtual-path join.
 - This applies to other operations too: `*_parent`, `*_with_file_name`, `*_with_extension`, `*_starts_with`, `*_ends_with`, etc. Shortened names apply only to `*_join`.
 The explicit names make intent obvious even when types aren’t visible.
@@ -304,26 +357,26 @@ The explicit names make intent obvious even when types aren’t visible.
 
 **Critical: Absolute Path Join Behavior**
 - `std::path::Path::join("/absolute")`: DANGEROUS — replaces the base path entirely, enabling traversal.
-- `JailedPath::jailed_join("/absolute")`: SECURE — validates the result stays within the jail boundary; errors if it would escape.
-- `VirtualPath::virtual_join("/absolute")`: SECURE — interprets the path as absolute in the VIRTUAL namespace and replaces the current virtual path with that virtual-absolute. The resulting jailed path is resolved under the same `VirtualRoot` (e.g., joining `/etc/passwd` yields a virtual `/etc/passwd` backed by `<virtual_root>/etc/passwd`). Any `..` that would go above the virtual root is clamped at the virtual root.
+- `StrictPath::strict_join("/absolute")`: SECURE — validates the result stays within the restriction boundary; errors if it would escape.
+- `VirtualPath::virtual_join("/absolute")`: SECURE — interprets the path as absolute in the VIRTUAL namespace and replaces the current virtual path with that virtual-absolute. The resulting strict path is resolved under the same `VirtualRoot` (e.g., joining `/etc/passwd` yields a virtual `/etc/passwd` backed by `<virtual_root>/etc/passwd`). Any `..` that would go above the virtual root is clamped at the virtual root.
 
 This difference makes `std::path::Path::join` the #1 source of path traversal vulnerabilities, while our types make such attacks impossible.
 
 Display
 - Use `vpath.virtualpath_display()` for user-facing virtual paths (e.g., "/a/b.txt").
-- For system-facing logs and diagnostics, use `jpath.jailedpath_display()` or `vpath.as_unvirtual().jailedpath_display()`.
+- For system-facing logs and diagnostics, use `spath.strictpath_display()` or `vpath.as_unvirtual().strictpath_display()`.
 
 Separator normalization (platform specifics)
 - Windows: `virtualpath_display()` and `virtualpath_to_string_lossy()` normalize `\` to `/` and ensure a leading `/`.
 - Unix: backslashes are not path separators; they are preserved as literal characters. A leading `/` is ensured.
 
 Equality/Ordering/Hashing
-- `Jail<Marker>` and `VirtualRoot<Marker>` compare/hash by canonicalized jail root path and marker.
-- `VirtualPath` compares, orders, and hashes by its inner jailed path, identical to `JailedPath`, including the marker type.
-- Cross-type equality is supported: `VirtualPath<Marker> == JailedPath<Marker>` compares underlying jailed paths. Borrow via `.as_unvirtual()` when needed.
+- `PathBoundary<Marker>` and `VirtualRoot<Marker>` compare/hash by canonicalized restriction root path and marker.
+- `VirtualPath` compares, orders, and hashes by its inner strict path, identical to `StrictPath`, including the marker type.
+- Cross-type equality is supported: `VirtualPath<Marker> == StrictPath<Marker>` compares underlying strict paths. Borrow via `.as_unvirtual()` when needed.
 
 ## Traits at a glance
-- Jail<Marker>
+- PathBoundary<Marker>
   - Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash
   - AsRef<Path>
   - Cross-type equality: PartialEq<VirtualRoot<Marker>>, PartialEq<Path>, PartialEq<PathBuf>, PartialEq<&Path>
@@ -331,9 +384,9 @@ Equality/Ordering/Hashing
 - VirtualRoot<Marker>
   - Clone, Debug, Display, Eq, PartialEq, Ord, PartialOrd, Hash
   - AsRef<Path>
-  - Cross-type equality: PartialEq<Jail<Marker>>, PartialEq<Path>, PartialEq<PathBuf>, PartialEq<&Path>
+  - Cross-type equality: PartialEq<PathBoundary<Marker>>, PartialEq<Path>, PartialEq<PathBuf>, PartialEq<&Path>
 
-- JailedPath<Marker>
+- StrictPath<Marker>
   - Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash
   - Cross-type equality: PartialEq<VirtualPath<Marker>>, PartialEq<T: AsRef<Path>>
   - No AsRef<Path>; use `interop_path()` when needed
@@ -341,27 +394,27 @@ Equality/Ordering/Hashing
 
 - VirtualPath<Marker>
   - Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash
-  - Cross-type equality: PartialEq<JailedPath<Marker>>, PartialEq<T: AsRef<Path>> (compares virtual representation)
+  - Cross-type equality: PartialEq<StrictPath<Marker>>, PartialEq<T: AsRef<Path>> (compares virtual representation)
   - No Display (use `virtualpath_display()` wrapper); No AsRef<Path>
   - [feature serde] Serialize → rooted virtual string (e.g., "/a/b.txt")
 
 ## Pitfalls (And How To Avoid)
-- Do not expose raw `Path`/`PathBuf` from `JailedPath`/`VirtualPath`. We do not implement `AsRef<Path>`. Prefer crate I/O or `.interop_path()` where `AsRef<Path>` is accepted, or explicit escape hatches when unavoidable.
-- Use jail-aware joins/parents; never call std `Path::join` on a leaked path.
+- Do not expose raw `Path`/`PathBuf` from `StrictPath`/`VirtualPath`. We do not implement `AsRef<Path>`. Prefer crate I/O or `.interop_path()` where `AsRef<Path>` is accepted, or explicit escape hatches when unavoidable.
+- Use restriction-aware joins/parents; never call std `Path::join` on a leaked path.
 - Virtual strings are rooted. Use `Display` or `virtualpath_to_string_lossy()` for UI/logging.
-- Use `Jail::try_new_create(..)` when the jail directory might not exist.
-- Symlinks/junctions to outside: paths that traverse a symlink or junction inside the jail to a location outside the jail are rejected at validation time with `JailedPathError::PathEscapesBoundary`.
+- Use `PathBoundary::try_new_create(..)` when the restriction directory might not exist.
+- Symlinks/junctions to outside: paths that traverse a symlink or junction inside the restriction to a location outside the restriction are rejected at validation time with `StrictPathError::PathEscapesBoundary`.
 
 Common anti-patterns (LLM quick check)
 - Passing strings to `AsRef<Path>`-only APIs: avoid. Use crate I/O helpers or explicit escape hatches; for `AsRef<Path>`-accepting APIs, use `.interop_path()`.
-- Converting `JailedPath` -> `VirtualPath` only for display: **ANTI-PATTERN** `jailed_path.clone().virtualize()` for virtual display - if you need virtual semantics, start with `VirtualRoot`/`VirtualPath` from the beginning.
-- Using `Path::join`/`Path::parent` on leaked paths: use `jailedpath_*` / `virtualpath_*` ops.
+- Converting `StrictPath` -> `VirtualPath` only for display: **ANTI-PATTERN** `strict_path.clone().virtualize()` for virtual display - if you need virtual semantics, start with `VirtualRoot`/`VirtualPath` from the beginning.
+- Using `Path::join`/`Path::parent` on leaked paths: use `strictpath_*` / `virtualpath_*` ops.
 - Forcing ownership: avoid `.into_owned()` on `Cow` unless an owned `String` is required.
 - Bare `{}` in format strings: prefer captured identifiers like `"{path}"` (bind a short local if needed).
 
  
 
 ## Integrations (At a Glance)
-- Serde (feature `serde`): `JailedPath`/`VirtualPath` implement `Serialize`. For deserialization, read `String` and validate via `Jail::jailed_join(..)` or `VirtualRoot::virtual_join(..)`. For single values with context, use `serde_ext::WithJail(&jail)` / `serde_ext::WithVirtualRoot(&vroot)` on a serde Deserializer. See `serde_ext` docs.
-- Axum: Put `VirtualRoot<Marker>` in state; validate `Path<String>` to `VirtualPath` per request (custom extractor optional). Handlers take `&VirtualPath<_>`/`&JailedPath<_>` for I/O. See `examples/web/axum_static_server.rs`.
-- app-path: Use `app_path::app_path!("config", env = "APP_CONFIG_DIR")` to discover a config directory; jail it and operate through `JailedPath`. See `examples/config/app_path_config.rs`.
+- Serde (feature `serde`): `StrictPath`/`VirtualPath` implement `Serialize`. For deserialization, read `String` and validate via `PathBoundary::strict_join(..)` or `VirtualRoot::virtual_join(..)`. For single values with context, use `serde_ext::WithBoundary(&boundary)` / `serde_ext::WithVirtualRoot(&vroot)` on a serde Deserializer. See `serde_ext` docs.
+- Axum: Put `VirtualRoot<Marker>` in state; validate `Path<String>` to `VirtualPath` per request (custom extractor optional). Handlers take `&VirtualPath<_>`/`&StrictPath<_>` for I/O. See `examples/web/axum_static_server.rs`.
+- app-path: Use `app_path::app_path!("config", env = "APP_CONFIG_DIR")` to discover a config directory; jail it and operate through `StrictPath`. See `examples/config/app_path_config.rs`.

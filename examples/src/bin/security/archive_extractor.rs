@@ -9,13 +9,12 @@
 
 use clap::{Parser, ValueEnum};
 use indicatif::{ProgressBar, ProgressStyle};
-use jailed_path::{Jail, JailedPath};
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use strict_path::VirtualRoot;
 
-// Type markers for different archive contexts
-struct ArchiveInput;
+#[derive(Clone, Default)]
 struct ExtractionOutput;
 
 #[derive(Parser)]
@@ -24,11 +23,11 @@ struct ExtractionOutput;
 struct Cli {
     /// Archive file to extract
     #[arg(short, long)]
-    archive: String,
+    archive: PathBuf,
 
     /// Output directory for extraction
     #[arg(short, long)]
-    output: String,
+    output: VirtualRoot<ExtractionOutput>,
 
     /// Archive format (auto-detected if not specified)
     #[arg(short, long)]
@@ -65,24 +64,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     println!("🔒 Secure Archive Extractor");
-    println!("Archive: {}", cli.archive);
+    println!("Archive: {}", cli.archive.display());
     println!("Output: {}", cli.output);
 
     // Validate input archive exists and is readable
-    let input_jail: Jail<ArchiveInput> =
-        Jail::try_new_create(Path::new(&cli.archive).parent().unwrap_or(Path::new(".")))?;
-    let archive_filename = Path::new(&cli.archive)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .ok_or("Invalid archive filename")?;
-    let archive_path = input_jail.jailed_join(archive_filename)?;
-
-    if !archive_path.exists() {
-        return Err(format!("Archive file not found: {}", cli.archive).into());
+    if !cli.archive.exists() {
+        return Err(format!("Archive file not found: {}", cli.archive.display()).into());
     }
 
-    // Create secure extraction jail
-    let extraction_jail: Jail<ExtractionOutput> = Jail::try_new_create(&cli.output)?;
+    // cli.output is already a VirtualRoot thanks to FromStr integration!
 
     // Detect archive format if not specified
     let format = match &cli.format {
@@ -99,9 +89,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Extract based on format
     let stats = match format {
-        ArchiveFormat::Zip => extract_zip(&archive_path, &extraction_jail, &cli)?,
-        ArchiveFormat::Tar => extract_tar(&archive_path, &extraction_jail, &cli)?,
-        ArchiveFormat::TarGz => extract_tar_gz(&archive_path, &extraction_jail, &cli)?,
+        ArchiveFormat::Zip => extract_zip(&cli.archive, &cli.output, &cli)?,
+        ArchiveFormat::Tar => extract_tar(&cli.archive, &cli.output, &cli)?,
+        ArchiveFormat::TarGz => extract_tar_gz(&cli.archive, &cli.output, &cli)?,
     };
 
     // Report results
@@ -129,8 +119,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn detect_archive_format(path: &str) -> Option<ArchiveFormat> {
-    let path_lower = path.to_lowercase();
+fn detect_archive_format(path: impl AsRef<Path>) -> Option<ArchiveFormat> {
+    let path_lower = path.as_ref().to_string_lossy().to_lowercase();
     if path_lower.ends_with(".zip") {
         Some(ArchiveFormat::Zip)
     } else if path_lower.ends_with(".tar.gz") || path_lower.ends_with(".tgz") {
@@ -143,11 +133,11 @@ fn detect_archive_format(path: &str) -> Option<ArchiveFormat> {
 }
 
 fn extract_zip(
-    archive_path: &JailedPath<ArchiveInput>,
-    extraction_jail: &Jail<ExtractionOutput>,
+    archive_path: impl AsRef<Path>,
+    extraction_root: &VirtualRoot<ExtractionOutput>,
     cli: &Cli,
 ) -> Result<ExtractionStats, Box<dyn std::error::Error>> {
-    let file = File::open(archive_path.interop_path())?;
+    let file = File::open(archive_path)?;
     let mut archive = zip::ZipArchive::new(file)?;
 
     let mut stats = ExtractionStats {
@@ -178,8 +168,8 @@ fn extract_zip(
         let mut zip_file = archive.by_index(i)?;
         let entry_path = zip_file.name().to_string();
 
-        // CRITICAL SECURITY: Validate path through jail - prevents zip slip
-        match extraction_jail.jailed_join(&entry_path) {
+        // CRITICAL SECURITY: Validate path through VirtualRoot - prevents zip slip
+        match extraction_root.virtual_join(&entry_path) {
             Ok(safe_path) => {
                 progress.set_message(format!("Extracting: {entry_path}"));
 
@@ -223,31 +213,31 @@ fn extract_zip(
 }
 
 fn extract_tar(
-    archive_path: &JailedPath<ArchiveInput>,
-    extraction_jail: &Jail<ExtractionOutput>,
+    archive_path: impl AsRef<Path>,
+    extraction_root: &VirtualRoot<ExtractionOutput>,
     cli: &Cli,
 ) -> Result<ExtractionStats, Box<dyn std::error::Error>> {
-    let file = File::open(archive_path.interop_path())?;
+    let file = File::open(archive_path)?;
     let mut archive = tar::Archive::new(file);
 
-    extract_tar_entries(archive.entries()?, extraction_jail, cli)
+    extract_tar_entries(archive.entries()?, extraction_root, cli)
 }
 
 fn extract_tar_gz(
-    archive_path: &JailedPath<ArchiveInput>,
-    extraction_jail: &Jail<ExtractionOutput>,
+    archive_path: impl AsRef<Path>,
+    extraction_root: &VirtualRoot<ExtractionOutput>,
     cli: &Cli,
 ) -> Result<ExtractionStats, Box<dyn std::error::Error>> {
-    let file = File::open(archive_path.interop_path())?;
+    let file = File::open(archive_path)?;
     let decoder = flate2::read::GzDecoder::new(file);
     let mut archive = tar::Archive::new(decoder);
 
-    extract_tar_entries(archive.entries()?, extraction_jail, cli)
+    extract_tar_entries(archive.entries()?, extraction_root, cli)
 }
 
 fn extract_tar_entries<R: Read>(
     entries: tar::Entries<R>,
-    extraction_jail: &Jail<ExtractionOutput>,
+    extraction_root: &VirtualRoot<ExtractionOutput>,
     cli: &Cli,
 ) -> Result<ExtractionStats, Box<dyn std::error::Error>> {
     let mut stats = ExtractionStats {
@@ -271,8 +261,8 @@ fn extract_tar_entries<R: Read>(
         let mut entry = entry?;
         let entry_path = entry.path()?.to_string_lossy().to_string();
 
-        // CRITICAL SECURITY: Validate path through jail - prevents tar slip
-        match extraction_jail.jailed_join(&entry_path) {
+        // CRITICAL SECURITY: Validate path through VirtualRoot - prevents tar slip
+        match extraction_root.virtual_join(&entry_path) {
             Ok(safe_path) => {
                 let header = entry.header();
 
@@ -311,6 +301,3 @@ fn extract_tar_entries<R: Read>(
 
     Ok(stats)
 }
-
-
-

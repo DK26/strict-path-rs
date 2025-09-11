@@ -1,5 +1,5 @@
 use anyhow::Result;
-use jailed_path::{Jail, JailedPath};
+use strict_path::{PathBoundary, StrictPath};
 use std::fs;
 
 // --- Marker Types for Different Data Contexts //
@@ -20,10 +20,10 @@ fn main() -> Result<()> {
 
     // --- Security Setup: Create jails for each stage of the pipeline //
     let ingest_jail =
-        Jail::<Ingest>::try_new("data/ingest").map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
+        PathBoundary::<Ingest>::try_new("data/ingest").map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
 
     let storage_jail =
-        Jail::<Storage>::try_new("data/storage").map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
+        PathBoundary::<Storage>::try_new("data/storage").map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
 
     // --- Simulate Processing User Files //
     let user_files_to_process = ["user1_config.txt", "user2_report.pdf"];
@@ -33,7 +33,7 @@ fn main() -> Result<()> {
         println!("\nProcessing: {file_name}");
         match process_and_store_data(&ingest_jail, &storage_jail, file_name) {
             Ok(stored_path) => {
-                let disp = stored_path.jailedpath_display();
+                let disp = stored_path.strictpath_display();
                 println!("  -> Successfully processed and stored at: {disp}");
                 if stored_path.is_file() { println!("  -> Verified file exists"); }
             }
@@ -45,7 +45,7 @@ fn main() -> Result<()> {
     println!("\n--- Processing Complete ---");
 
     // --- Verification //
-    let _stored_file = storage_jail.jailed_join("user1_config.txt.processed").unwrap();
+    let _stored_file = storage_jail.strict_join("user1_config.txt.processed").unwrap();
 
     println!("\nDemonstrated compile-time safety (see code comments).");
 
@@ -56,14 +56,14 @@ fn main() -> Result<()> {
 }
 
 fn process_and_store_data(
-    ingest_jail: &Jail<Ingest>,
-    storage_jail: &Jail<Storage>,
+    ingest_jail: &PathBoundary<Ingest>,
+    storage_jail: &PathBoundary<Storage>,
     file_name: &str,
-) -> Result<JailedPath<Storage>> {
+) -> Result<StrictPath<Storage>> {
     let ingest_path = ingest_jail
-        .jailed_join(file_name)
-        .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
-    let ingest_disp = ingest_path.jailedpath_display();
+        .strict_join(file_name)
+        .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
+    let ingest_disp = ingest_path.strictpath_display();
     println!("  -> Validated ingest path: {ingest_disp}");
 
     let data = ingest_path.read_to_string()?;
@@ -71,9 +71,9 @@ fn process_and_store_data(
 
     let stored_file_name = format!("{file_name}.processed");
     let storage_path = storage_jail
-        .jailed_join(stored_file_name)
-        .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
-    let storage_disp = storage_path.jailedpath_display();
+        .strict_join(stored_file_name)
+        .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
+    let storage_disp = storage_path.strictpath_display();
     println!("  -> Target storage path: {storage_disp}");
 
     storage_path.write_string(&processed_data)?;
@@ -83,12 +83,12 @@ fn process_and_store_data(
     Ok(storage_path)
 }
 
-fn archive_ingested_file(path_to_archive: &JailedPath<Ingest>) -> Result<()> {
+fn archive_ingested_file(path_to_archive: &StrictPath<Ingest>) -> Result<()> {
     let archive_name = path_to_archive
-        .jailedpath_with_extension("archived")
-        .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
+        .strictpath_with_extension("archived")
+        .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
 
-    let arch_disp = archive_name.jailedpath_display();
+    let arch_disp = archive_name.strictpath_display();
     println!("  -> Archiving ingest file to: {arch_disp}");
     fs::rename(
         path_to_archive.interop_path(),

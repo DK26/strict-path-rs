@@ -1,14 +1,14 @@
-use jailed_path::{Jail, JailedPathError};
 use std::error::Error;
+use strict_path::{PathBoundary, StrictPathError};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Test error chaining with jailed_join (the detailed error method)
+    // Test error chaining with strict_join (the detailed error method)
     #[cfg(windows)]
     let nonexistent_path = "C:\\NonExistent\\Path";
     #[cfg(not(windows))]
     let nonexistent_path = "/nonexistent/path";
 
-    let result = Jail::<()>::try_new(nonexistent_path);
+    let result = PathBoundary::<()>::try_new(nonexistent_path);
 
     match result {
         Err(e) => {
@@ -26,26 +26,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Pattern match on specific error types
             match e {
-                JailedPathError::InvalidJail { jail, source } => {
-                    println!("Failed to setup jail at: {}", jail.display());
+                StrictPathError::InvalidRestriction {
+                    restriction,
+                    source,
+                } => {
+                    println!(
+                        "Failed to setup path boundary at: {}",
+                        restriction.display()
+                    );
                     println!("Reason: {source}");
                 }
-                JailedPathError::PathResolutionError { path, source } => {
+                StrictPathError::PathResolutionError { path, source } => {
                     println!("Cannot resolve: {}", path.display());
                     println!("IO Error: {source}");
                 }
-                JailedPathError::PathEscapesBoundary {
+                StrictPathError::PathEscapesBoundary {
                     attempted_path,
-                    jail_boundary,
+                    restriction_boundary,
                 } => {
                     println!(
                         "Security violation: {} tried to escape {}",
                         attempted_path.display(),
-                        jail_boundary.display()
+                        restriction_boundary.display()
                     );
                 }
                 #[cfg(windows)]
-                JailedPathError::WindowsShortName {
+                StrictPathError::WindowsShortName {
                     component,
                     original,
                     checked_at,
@@ -59,12 +65,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Ok(jail) => {
+        Ok(boundary) => {
             // Test detailed error API
             println!("Validator created successfully!");
 
             // Try to validate a path - this is the only way to check validity
-            match jail.jailed_join("../../../sensitive.txt") {
+            match boundary.strict_join("../../../sensitive.txt") {
                 Ok(_) => println!("Unexpected success!"),
                 Err(e) => println!("Correctly blocked traversal: {e}"),
             }
@@ -74,6 +80,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Error handling test completed!");
     Ok(())
 }
-
-
-

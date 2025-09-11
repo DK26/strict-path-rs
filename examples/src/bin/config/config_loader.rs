@@ -7,7 +7,7 @@
 //! 1.  `AppConfigJail`: For loading the main `app.conf` file.
 //! 2.  `ThemeJail`: For loading user-specified theme files (e.g., `blue.css`, `dark.css`).
 //!
-//! The use of `JailedPath<AppConfigJail>` and `JailedPath<ThemeJail>` ensures at
+//! The use of `StrictPath<AppConfigJail>` and `StrictPath<ThemeJail>` ensures at
 //! compile time that a function designed to load themes cannot be accidentally used
 //! to access the main application configuration, and vice-versa.
 //!
@@ -18,7 +18,7 @@
 //! It will simulate loading a valid config, a valid theme, and show a failed
 //! attempt to load a theme from the config directory.
 
-use jailed_path::{Jail, JailedPath};
+use strict_path::{PathBoundary, StrictPath};
 use std::fs;
 use std::path::Path;
 
@@ -34,20 +34,20 @@ struct ThemeJail;
 
 /// Loads the main application configuration.
 ///
-/// This function's signature requires a `JailedPath` locked to the `AppConfigJail`.
-/// It is impossible to pass a path from another jail (like the theme jail) to it.
-fn load_app_config(config_path: &JailedPath<AppConfigJail>) -> Result<String, std::io::Error> {
-    let disp = config_path.jailedpath_display();
+/// This function's signature requires a `StrictPath` locked to the `AppConfigJail`.
+/// It is impossible to pass a path from another PathBoundary (like the theme PathBoundary) to it.
+fn load_app_config(config_path: &StrictPath<AppConfigJail>) -> Result<String, std::io::Error> {
+    let disp = config_path.strictpath_display();
     println!("Attempting to load app config from System path: {disp}");
     config_path.read_to_string()
 }
 
 /// Loads a user theme file.
 ///
-/// This function's signature requires a `JailedPath` locked to the `ThemeJail`.
+/// This function's signature requires a `StrictPath` locked to the `ThemeJail`.
 /// It cannot be used to read application config files.
-fn load_theme_file(theme_path: &JailedPath<ThemeJail>) -> Result<String, std::io::Error> {
-    let disp = theme_path.jailedpath_display();
+fn load_theme_file(theme_path: &StrictPath<ThemeJail>) -> Result<String, std::io::Error> {
+    let disp = theme_path.strictpath_display();
     println!("Attempting to load theme from System path: {disp}");
     theme_path.read_to_string()
 }
@@ -87,14 +87,14 @@ fn main() {
     }
 
     // 2. Create two separate, type-safe jails.
-    let config_jail: Jail<AppConfigJail> =
-        Jail::try_new_create("example_config").expect("Failed to create config jail");
-    let theme_jail: Jail<ThemeJail> =
-        Jail::try_new_create("example_themes").expect("Failed to create theme jail");
+    let config_jail: PathBoundary<AppConfigJail> =
+        PathBoundary::try_new_create("example_config").expect("Failed to create config PathBoundary");
+    let theme_jail: PathBoundary<ThemeJail> =
+        PathBoundary::try_new_create("example_themes").expect("Failed to create theme PathBoundary");
 
     println!("\n--- Scenario 1: Loading valid app config ---");
     let app_config_filename = "app.conf";
-    match config_jail.jailed_join(app_config_filename) {
+    match config_jail.strict_join(app_config_filename) {
         Ok(safe_config_path) => match load_app_config(&safe_config_path) {
             Ok(content) => println!("Successfully loaded app.conf:\n---\n{content}\n---"),
             Err(e) => eprintln!("Error reading config: {e}"),
@@ -104,7 +104,7 @@ fn main() {
 
     println!("\n--- Scenario 2: Loading valid theme ---");
     let theme_filename = "dark.css"; // Imagine this comes from user input
-    match theme_jail.jailed_join(theme_filename) {
+    match theme_jail.strict_join(theme_filename) {
         Ok(safe_theme_path) => match load_theme_file(&safe_theme_path) {
             Ok(content) => println!("Successfully loaded dark.css:\n---\n{content}\n---"),
             Err(e) => eprintln!("Error reading theme: {e}"),
@@ -114,7 +114,7 @@ fn main() {
 
     println!("\n--- Scenario 3: Attempting to cross-load a theme as a config ---");
     let malicious_theme_filename = "dark.css";
-    match config_jail.jailed_join(malicious_theme_filename) {
+    match config_jail.strict_join(malicious_theme_filename) {
         Ok(path_from_wrong_jail) => {
             // The following line would cause a compile error, demonstrating the power
             // of type-safe jails. Uncomment it to see for yourself!
@@ -124,12 +124,12 @@ fn main() {
             // error[E0308]: mismatched types
             //   --> examples/config_loader.rs:…
             //    |
-            //    = note: expected reference `&JailedPath<AppConfigJail>`
-            //               found reference `&JailedPath<_>`
+            //    = note: expected reference `&StrictPath<AppConfigJail>`
+            //               found reference `&StrictPath<_>`
             //
             // We can't even call the function, so we'll just print a message.
-            let disp = path_from_wrong_jail.jailedpath_display();
-            println!("Successfully created a JailedPath: {disp}");
+            let disp = path_from_wrong_jail.strictpath_display();
+            println!("Successfully created a StrictPath: {disp}");
             println!("However, we cannot pass it to `load_app_config` due to a type mismatch. COMPILE ERROR PREVENTED!");
         }
         Err(e) => {

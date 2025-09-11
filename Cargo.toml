@@ -8,12 +8,12 @@
 ## See `.github/workflows/ci.yml` for how CI runs the examples separately.
 [workspace]
 resolver = "2"
-members = ["jailed-path"]
+members = ["strict-path"]
 # Critical to MSRV strategy: do NOT include `examples` in the workspace.
 exclude = ["examples"]
 
 # Prefer building the main library by default (not the examples crate)
-default-members = ["jailed-path"]
+default-members = ["strict-path"]
 
 [profile.release]
 lto = true

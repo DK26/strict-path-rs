@@ -206,15 +206,15 @@ Write-Host "Checking Cargo.toml..." -ForegroundColor Blue
 if (-not (Test-Utf8Encoding "Cargo.toml")) { exit 1 }
 
 Write-Host "Checking Rust source files..." -ForegroundColor Blue
-if (Test-Path "jailed-path\src") {
-    $rustFiles = Get-ChildItem -Path "jailed-path\src" -Filter "*.rs" -Recurse
+if (Test-Path "strict-path\src") {
+    $rustFiles = Get-ChildItem -Path "strict-path\src" -Filter "*.rs" -Recurse
     if ($rustFiles.Count -gt 0) {
         foreach ($file in $rustFiles) {
             if (-not (Test-Utf8Encoding $file.FullName)) { exit 1 }
         }
-        Write-Host "SUCCESS: All Rust source files in jailed-path/src - UTF-8 encoding verified" -ForegroundColor Green
+        Write-Host "SUCCESS: All Rust source files in strict-path/src - UTF-8 encoding verified" -ForegroundColor Green
     } else {
-        Write-Host "WARNING: No Rust source files found in jailed-path/src" -ForegroundColor Yellow
+        Write-Host "WARNING: No Rust source files found in strict-path/src" -ForegroundColor Yellow
     }
 } elseif (Test-Path "src") {
     $rustFiles = Get-ChildItem -Path "src" -Filter "*.rs" -Recurse
@@ -237,7 +237,7 @@ if (Test-Path "jailed-path\src") {
         Write-Host "WARNING: No Rust source files found in examples/src" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "WARNING: No Rust source directories found (jailed-path/src, src, examples/src) - skipping source file encoding check" -ForegroundColor Yellow
+    Write-Host "WARNING: No Rust source directories found (strict-path/src, src, examples/src) - skipping source file encoding check" -ForegroundColor Yellow
 }
 
 Write-Host "SUCCESS: All file encoding checks passed!" -ForegroundColor Green
@@ -258,7 +258,7 @@ Run-Check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warning
 Run-Check "Build Examples (bins)" "Push-Location examples; cargo build --bins --features with-zip; Pop-Location"
 Run-Check "Clippy Examples (all targets)" "Push-Location examples; cargo clippy --all-targets --features with-zip -- -D warnings; Pop-Location"
 # Run workspace tests for the library only
-Run-Check "Tests (library all features)" "cargo test -p jailed-path --all-features --verbose"
+Run-Check "Tests (library all features)" "cargo test -p strict-path --all-features --verbose"
 # Doc tests are included in 'cargo test --workspace', so no separate --doc run needed
 $env:RUSTDOCFLAGS = "-D warnings"
 Run-Check "Documentation" "cargo doc --no-deps --document-private-items --all-features"
@@ -297,10 +297,10 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
         }
 
         Write-Host "Running MSRV checks against library package (no examples)..." -ForegroundColor Blue
-    Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
-    Run-Check-Try "MSRV Check (Rust 1.71.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p jailed-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p jailed-path --lib --verbose"
-    Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
-    Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p jailed-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p jailed-path --lib --verbose"
+    Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
+    Run-Check-Try "MSRV Check (Rust 1.71.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose"
+    Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
+    Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --verbose"
     } else {
         Write-Host "WARNING: Rust 1.71.0 not installed. Installing for MSRV check..." -ForegroundColor Yellow
         try {
@@ -308,10 +308,10 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "Installing Clippy for Rust 1.71.0..." -ForegroundColor Blue
                 & rustup component add clippy --toolchain 1.71.0
-                Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
-                Run-Check-Try "MSRV Check (Rust 1.71.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p jailed-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p jailed-path --lib --verbose"
-                Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
-                Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p jailed-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p jailed-path --lib --verbose"
+                Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
+                Run-Check-Try "MSRV Check (Rust 1.71.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose"
+                Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
+                Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --verbose"
             } else {
                 throw "toolchain install failed"
             }

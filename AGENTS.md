@@ -4,9 +4,24 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 
 ## Project Overview
 
-- Purpose: Prevent directory traversal with type‑safe path jails and safe symlinks.
-- Core APIs: `Jail<Marker>`, `JailedPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `JailedPathError` (see API_REFERENCE.md).
-- Security model: “Jail every external path.” Any path from untrusted inputs (HTTP, CLI, config, DB, LLMs, archives) must be validated into a jail‑enforced type (`JailedPath` or `VirtualPath`) before I/O.
+- Purpose: Prevent directory travers- Leaky trait impls: Implementing `AsRef<Path>`, `Deref<Target = Path>`, or implicit `From/Into` conversions for restriction types. These are forbidden; ask before any API surface changes that could weaken invariants.
+- Escape hatches in examples: Using `.unvirtual()` / `.unrestrict()` outside a dedicated "escape hatches" section. Ask before introducing such flows. with type‑safe path restrictions and safe symlinks.
+- Core APIs: `RestrictionPath<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError` (see API_REFERENCE.md).
+- Security model: "Restrict every external path." Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
+- Library built on `soft-canonicalize` for resolution; Windows 8.3 short-name handling is considered a security surface.
+
+## Don't:
+
+  - **CRITICAL: Never wrap secure types in `Path::new()` or `PathBuf::from()`**. This defeats all security guarantees and is a critical anti-pattern. Use `interop_path()` directly for external APIs.
+  - Reintroduce `examples` into `[workspace.members]`.
+  - Move cargo flags after `--` (they won't be recognized by cargo).
+  - Do not create new helper functions without prior approval. If a helper seems unavoidable, do not just create it — offer the design, explain why it's needed, and ask to implement it (scope, signature, naming, tests, and security notes).
+  - Use `.unrestrict()` / `.unvirtual()` in examples unless demonstrating escape hatches explicitly.
+  - Put API usage examples in `examples/src/bin/` - they belong in `jailed-path/examples/`.
+  - Put demo projects in `jailed-path/examples/` - they belong in `examples/src/bin/<category>/`.
+  - Use verbose variable names in TempDir examples; always use the clean shadowing pattern: `let tmp_dir = tempfile::tempdir()?; let tmp_dir = RestrictionPath::try_new(tmp_dir)?;`
+  - Invent new surface APIs without discussion; follow existing design patterns.
+  - Deprecate APIs pre-0.1.0 — remove them cleanly instead when agreed.
 - Library built on `soft-canonicalize` for resolution; Windows 8.3 short-name handling is considered a security surface.
 
 ## Repository Layout
@@ -45,10 +60,10 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 
 ### Docs vs. Demo Projects (Very Important)
 
-- Crate docs/README/lib.rs examples: teach the API. Keep them minimal, assertion-backed where helpful, and encode guarantees in function signatures (`&JailedPath<..>` / `&VirtualPath<..>`). These are doctested snippets.
+- Crate docs/README/lib.rs examples: teach the API. Keep them minimal, assertion-backed where helpful, and encode guarantees in function signatures (`&StrictPath<..>` / `&VirtualPath<..>`). These are doctested snippets.
 - `examples/` subcrate: real‑world demo projects. No assertions in the flow; show realistic control paths and I/O. Use the type system in function signatures to encode guarantees, but avoid thin wrappers that mirror built‑ins — favor purposeful functions and coherent flows.
 - Don’t over‑engineer demos. Keep them idiomatic and focused on integrating the API into a plausible application scenario.
- - Do not convert a `JailedPath` to `VirtualPath` just to print a user-facing path. For UI/display flows, construct a `VirtualPath` from a `VirtualRoot` and keep it; for system logs/interop, print the `JailedPath` directly.
+ - Do not convert a `StrictPath` to `VirtualPath` just to print a user-facing path. For UI/display flows, construct a `VirtualPath` from a `VirtualRoot` and keep it; for system logs/interop, print the `StrictPath` directly.
 
 ### Examples Directory Structure (Critical)
 
@@ -122,23 +137,31 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 - Clippy: `cargo clippy --all-targets --all-features -- -D warnings` (MSRV job uses scoped flags; keep code clean).
 - Formatting: `cargo fmt --all -- --check`.
 - Follow Rust API Guidelines and best practices.
+- Import style: Avoid overly verbose fully qualified paths in code. Use proper `use` statements at the top of modules/files instead of long paths like `crate::validator::restriction_path::RestrictionPath::<Type>`. This improves readability and maintainability.
+- **Function signatures enforce safety**: Functions should accept `&StrictPath<Marker>` or `&VirtualPath<Marker>` instead of `String`/`&str`/`PathBuf` for path parameters. This makes functions safe by design - validation happens once at the boundary creation, and the type system prevents unsafe usage. ❌ `fn process(path: String)` ✅ `fn process(path: &StrictPath<Files>)`. The caller handles validation once when creating the path from external input.
+- **Variable naming**: Use descriptive variable names that clearly indicate the purpose and domain, not just the type. **CRITICAL: `PathBoundary` variables should be named based on what they represent, not that they're boundaries** (e.g., `config_dir`, `user_data`, `temp_dir`, `uploads_dir`, `static_files_dir`). This makes code read naturally: `config_dir.strict_join("app.toml")` reads as "config directory strict join app.toml". For individual files use descriptive names (e.g., `logo_file`, `config_file`). **NEVER** use type-based names like `boundary`, `restriction`, `jail` as variable names - these tell you nothing about what the variable represents. Avoid meaningless prefixes like `jail_`, `boundary_`, `restriction_` or ambiguous abbreviations like `img`, `usr`, `cfg` that don't clearly indicate the variable's purpose or domain.
 - String formatting (Rust 1.58+): Never use bare `{}`. Always use captured identifiers: `format!("{path}")`, `println!("{vp}")`, `write!(f, "{item:?}")`. If no identifier exists, bind a short local and then use it (e.g., `let bytes = data.len(); println!("{bytes}")`). Prefer locals + captured identifiers when expressions are long or repeated.
 - `*_to_string_lossy()` returns `Cow<'_, str>`; call `.into_owned()` only when an owned `String` is required.
-- Preferred for AsRef<Path> interop: use `interop_path()` on `JailedPath`/`VirtualPath` (allocation-free, OS-native). Older references to `jailedpath_as_os_str()` refer to the same concept.
-- AsRef<Path> interop: never pass strings; use `interop_path()` (allocation-free, OS-native) from `JailedPath`/`VirtualPath`.
+- Preferred for AsRef<Path> interop: use `interop_path()` on `StrictPath`/`VirtualPath` (allocation-free, OS-native). Older references to `strictpath_as_os_str()` refer to the same concept.
+- **For displaying paths**: Use `strictpath_display()` for `RestrictionPath`/`StrictPath`, or `virtualpath_display()` for `VirtualPath`. For `VirtualRoot`, use `vroot.as_unvirtual().strictpath_display()`. NOT `.interop_path().to_string_lossy()`. The `interop_path()` method is for external API interop, while `*_display()` methods are specifically for human-readable output.
+- AsRef<Path> interop: never pass strings; use `interop_path()` (allocation-free, OS-native) from `StrictPath`/`VirtualPath`.
+ - **Never wrap paths in `Path::new()` unnecessarily**: APIs that accept `AsRef<Path>` (like `PathBoundary::try_new()`) can take `&str` directly. ❌ `PathBoundary::try_new(Path::new(&path))?` ✅ `PathBoundary::try_new(&path)?` or `PathBoundary::try_new(path_var)?`. Only use `Path::new()` when you need `Path` methods like `.parent()` or `.file_name()`.
  - Tests/Examples readability: never wrap `interop_path()` in `Path::new(..)` or `PathBuf::from(..)`.
    - Prefer passing `interop_path()` directly to APIs taking `AsRef<Path>`.
    - For equality in assertions, compare `interop_path()` to `canonicalize().unwrap().as_os_str()` when matching a concrete filesystem path.
 
 ### Anti-Patterns (Question First)
 
-- JailedPath -> VirtualPath for printing: Converting just to display a virtual string is a smell. Prefer starting with `VirtualRoot::virtual_join(..)` and keeping a `VirtualPath` for user-facing flows, or print the `JailedPath` (system view) directly. Ask whether to refactor the flow to the correct dimension.
+- **Type-based variable naming**: Naming variables after their types instead of their purpose. ❌ `let boundary = PathBoundary::try_new("./config")?;` ✅ `let config_dir = PathBoundary::try_new("./config")?;`. ❌ `extract_boundary` ✅ `extract_dir` or `extraction_dir`. The variable name should describe what domain/purpose it serves, not just that it's a PathBoundary.
+- **Functions accepting raw strings instead of safe types**: ❌ `fn serve_file(path: String)` then validating inside ✅ `fn serve_file(path: &StrictPath<StaticFiles>)`. **CRITICAL PRINCIPLE: Make functions safe by design through their signatures, not through runtime validation inside the function.** The type system should enforce safety, preventing unsafe calls at compile time. Functions that accept `String`/`&str`/`PathBuf` for paths are inherently unsafe and shift validation burden to every caller.
+- Using `.interop_path().to_string_lossy()` for display: This mixes interop concerns with display concerns. Use `strictpath_display()` or `virtualpath_display()` for human-readable output. Reserve `interop_path()` for external API interop only.
+- StrictPath -> VirtualPath for printing: Converting just to display a virtual string is a smell. Prefer starting with `VirtualRoot::virtual_join(..)` and keeping a `VirtualPath` for user-facing flows, or print the `StrictPath` (system view) directly. Ask whether to refactor the flow to the correct dimension.
 - String interop to AsRef<Path>: Passing `*_to_string_lossy()`, `*_to_str()`, or `PathBuf` where `AsRef<Path>` is expected. Use `interop_path()` instead. Ask before changing signatures or behavior.
-- std path ops on leaked paths: Using `Path::join`/`Path::parent`/etc. on values outside the jail types. Replace with jail-aware ops (`jailedpath_*` / `virtualpath_*`). Confirm scope of refactor.
+- std path ops on leaked paths: Using `Path::join`/`Path::parent`/etc. on values outside the restriction types. Replace with restriction-aware ops (`strictpath_*` / `virtualpath_*`). Confirm scope of refactor.
 - Formatting with bare {}: Use captured identifiers (`"{name}"`). If found, ask whether to update to locals + captured identifiers for readability or keep as-is if it’s truly a one-off expression.
 - Forcing ownership from `Cow`: Calling `.into_owned()` on `*_to_string_lossy()` without a hard requirement for `String`. Ask if borrowing is acceptable; avoid extra allocations in hot paths.
 - Leaky trait impls: Implementing `AsRef<Path>`, `Deref<Target = Path>`, or implicit `From/Into` conversions for jail types. These are forbidden; ask before any API surface changes that could weaken invariants.
-- Escape hatches in examples: Using `.unvirtual()` / `.unjail()` outside a dedicated “escape hatches” section. Ask before introducing such flows.
+- Escape hatches in examples: Using `.unvirtual()` / `.unrestrict()` outside a dedicated “escape hatches” section. Ask before introducing such flows.
 - Exposing system paths in UI/JSON unintentionally: Prefer virtual paths for user-facing output. Ask when system paths are included for observability.
 - Examples relying on external services by default: Must be guarded with env toggles and default to offline/mock. Ask before adding network dependencies.
 
@@ -151,7 +174,7 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 - Feature‑gated tests: When adding optional features (e.g., `serde`), include targeted tests under `#[cfg(feature = "...")]` and ensure stable CI runs `--all-features` for the library.
  - When writing to nested paths in doctests/examples, create parent directories first using the dimension-appropriate parent:
    - VirtualPath: `if let Some(p) = vp.virtualpath_parent()? { p.create_dir_all()?; }`
-   - JailedPath: `if let Some(p) = jp.jailedpath_parent()? { p.create_dir_all()?; }`
+   - StrictPath: `if let Some(p) = jp.strictpath_parent()? { p.create_dir_all()?; }`
  - Doctests that use context-sensitive traits (e.g., serde `DeserializeSeed`) must import those traits explicitly inside the doctest.
 
 ### Documentation Guidelines (README.md / lib.rs / API docs)
@@ -161,14 +184,14 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 - Document APIs so both humans and LLMs can use them correctly and safely; emphasize misuse-resistant patterns. Favor assertion-backed examples that encode correct usage and expected results to reduce ambiguity and prevent misuse.
 - Before removing/changing established docs, consider rationale and align with design docs; prefer discussion for non-trivial changes.
 - Integrations should be documented concisely (serde, Axum, app‑path):
-  - Serde: `Serialize` for `JailedPath`/`VirtualPath`; deserialization is context‑aware via `serde_ext::WithJail(&jail)` / `serde_ext::WithVirtualRoot(&vroot)` or by deserializing to `String` and validating explicitly.
+  - Serde: `Serialize` for `StrictPath`/`VirtualPath`; deserialization is context‑aware via `serde_ext::WithRestriction(&restriction)` / `serde_ext::WithVirtualRoot(&vroot)` or by deserializing to `String` and validating explicitly.
   - Axum: Keep library framework‑agnostic; show extractors/state patterns in examples.
-  - app‑path: Use `app_path::app_path!(...)` and then jail the discovered directory before I/O.
+  - app‑path: Use `app_path::app_path!(...)` and then restrict the discovered directory before I/O.
 
 ### README Code Examples Policy
 
 - Prefer reusing examples from source code comments (crate docs or module docs) that are doctested and compile.
-- Examples must encode guarantees in function signatures: accept `&JailedPath<Marker>` / `&VirtualPath<Marker>` (or structs containing them) rather than operating on raw inputs. Treat built‑in I/O methods as convenience; do not present them as the primary security mechanism.
+- Examples must encode guarantees in function signatures: accept `&StrictPath<Marker>` / `&VirtualPath<Marker>` (or structs containing them) rather than operating on raw inputs. Treat built‑in I/O methods as convenience; do not present them as the primary security mechanism.
 - When demonstrating expected output or behavior, present it using assertions (e.g., `assert_eq!(vpath.virtualpath_to_string_lossy(), "/a/b.txt");`) rather than comments like `// prints: ...`, whenever feasible. This keeps examples truthful, prevents drift, and proves behavior in doctests/CI.
 - If you need a new README example:
   - First implement it as a real, compiling example (e.g., under `examples/`) or a doctested snippet in source comments.
@@ -180,67 +203,152 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 
 ### Path Handling Rules (Very Important)
 
-- Do not expose raw `Path`/`PathBuf` from `JailedPath`/`VirtualPath` in public APIs or examples.
+- Do not expose raw `Path`/`PathBuf` from `StrictPath`/`VirtualPath` in public APIs or examples.
 - Avoid using std path methods (`Path::join`, `Path::parent`, etc.) on leaked paths;
-  these ignore virtual-root clamping and jail checks and can cause confusion or unsafe behavior.
-- Use explicit, jail-aware operations instead:
-  - `JailedPath::jailed_join`, `JailedPath::jailedpath_parent`
+  these ignore virtual-root clamping and restriction checks and can cause confusion or unsafe behavior.
+- Use explicit, restriction-aware operations instead:
+  - `StrictPath::strict_join`, `StrictPath::strictpath_parent`
   - `VirtualPath::virtual_join`, `VirtualPath::virtualpath_parent`
  - Parent creation follows the active dimension — do not unvirtualize just for parent ops:
    - Virtual flow: use `virtualpath_parent()` and operate on the returned `VirtualPath`.
-   - System flow: use `jailedpath_parent()` and operate on the returned `JailedPath`.
-- Switching views: prefer staying in one dimension (system vs virtual) for a given flow. If you need an operation from the other dimension, explicitly upgrade with `JailedPath::virtualize()` or downgrade with `VirtualPath::unvirtual()` for that edge case.
+   - System flow: use `strictpath_parent()` and operate on the returned `StrictPath`.
+- Switching views: prefer staying in one dimension (system vs virtual) for a given flow. If you need an operation from the other dimension, explicitly upgrade with `StrictPath::virtualize()` or downgrade with `VirtualPath::unvirtual()` for that edge case.
 - When passing to external APIs that accept `AsRef<Path>`, prefer borrowing the inner system path:
   - `jailed_path.interop_path()` (allocation-free, OS-native string, preserves data)
 - Only demonstrate ownership escape hatches in a dedicated example section:
-  - `.unvirtual()` (to go from VirtualPath -> JailedPath)
-  - `.unjail()` (to obtain an owned `PathBuf`, losing guarantees)
-  - `.unvirtual().unjail()` (explicit two-step escape)
+  - `.unvirtual()` (to go from VirtualPath -> StrictPath)
+  - `.unrestrict()` (to obtain an owned `PathBuf`, losing guarantees)
+  - `.unvirtual().unrestrict()` (explicit two-step escape)
   Everywhere else, prefer borrowing with `interop_path()`.
+
+### Constructor Parameter Design: `AsRef<Path>` Choice
+
+**Design Decision**: All constructors (`RestrictionPath::try_new*`, `VirtualRoot::try_new*`) use `AsRef<Path>` for maximum ergonomics and compatibility.
+
+**Rationale**:
+- **Maximum Ergonomics**: Accepts all common path types (`&str`, `String`, `&Path`, `PathBuf`, `TempDir`, etc.)
+- **Clean Shadowing Pattern**: Enables elegant variable shadowing with `TempDir`:
+  ```rust
+  let tmp_dir = tempfile::tempdir()?;
+  let tmp_dir = RestrictionPath::try_new(tmp_dir)?; // Clean transition from TempDir to RestrictionPath
+  ```
+- **Standard Library Consistency**: Follows the same pattern as `std::fs` functions
+- **Broad Compatibility**: Works with any type that can be borrowed as `&Path`
+
+**Alternative Considered**: `Into<PathBuf>` was evaluated for potential performance benefits (single conversion, no allocations in error paths), but the ergonomic advantages of `AsRef<Path>` outweighed the performance considerations, especially for the common TempDir usage pattern in tests and examples.
+
+**Usage Examples**:
+```rust
+// All of these work seamlessly:
+RestrictionPath::try_new("/tmp")?;                    // &str
+RestrictionPath::try_new(String::from("/tmp"))?;      // String  
+RestrictionPath::try_new(Path::new("/tmp"))?;         // &Path
+RestrictionPath::try_new(PathBuf::from("/tmp"))?;     // PathBuf
+RestrictionPath::try_new(tempfile::tempdir()?)?;      // TempDir (key advantage!)
+
+// Enables clean variable shadowing:
+let tmp_dir = tempfile::tempdir()?;
+let tmp_dir = RestrictionPath::try_new(tmp_dir)?;  // Elegant transition
+```
 
 ### Preferred vs. Anti-Patterns
 
 - Preferred: `fs::copy(src.interop_path(), dst.interop_path())`
-  - Anti-pattern: `fs::copy(src.jailedpath_to_string_lossy().as_ref(), ..)` (string interop; loses fidelity/allocates).
+  - Anti-pattern: `fs::copy(src.strictpath_to_string_lossy().as_ref(), ..)` (string interop; loses fidelity/allocates).
 - Preferred: `let vp = vroot.virtual_join("a/b.txt")?; println!("{vp}");`
   - Anti-pattern: `jp.clone().virtualize()` just to print; start with `VirtualPath` for UI flows.
-- Preferred: `jp.jailed_join("child.txt")?` or `vp.virtual_join("child.txt")?`
+- Preferred: `jp.strict_join("child.txt")?` or `vp.virtual_join("child.txt")?`
   - Anti-pattern: `leaked_path.join("child.txt")` (std join ignores jail/virtual semantics).
 - Preferred: Borrow `Cow<'_, str>` from `*_to_string_lossy()`; convert only when required
   - Anti-pattern: Calling `.into_owned()` eagerly with no `String` requirement.
 - Preferred: Small locals + captured identifiers for readability
   - Anti-pattern: Bare `{}` or long inline expressions; use `let bytes = data.len(); println!("{bytes}")`.
 
+### Code Style for Examples and Tests
+
+**TempDir Variable Shadowing Pattern** (REQUIRED for all examples):
+Use clean variable shadowing when transitioning from `TempDir` to `RestrictionPath`/`VirtualRoot`:
+
+```rust
+// ✅ PREFERRED: Clean variable shadowing pattern
+let tmp_dir = tempfile::tempdir()?;
+let tmp_dir = RestrictionPath::try_new(tmp_dir)?;  // Shadow the variable name
+
+let tmp_dir = tempfile::tempdir()?;
+let tmp_dir = VirtualRoot::try_new(tmp_dir)?;      // Also works for VirtualRoot
+```
+
+```rust
+// ❌ AVOID: Verbose variable names that don't show the pattern
+let temp_dir = tempfile::tempdir()?;
+let restriction = RestrictionPath::try_new(temp_dir)?;
+let vroot = VirtualRoot::try_new(temp_dir.path())?;
+```
+
+**One-Liner Pattern Extensions**:
+For "one-liner" examples, extend the clean shadowing pattern to complete method chains, eliminating ALL intermediate variables:
+
+```rust
+// ✅ TRUE ONE-LINER: Complete method chain with single variable lifecycle
+let tmp_dir = tempfile::tempdir()?;
+let tmp_dir = RestrictionPath::try_new(tmp_dir)?.strict_join("file.txt")?.write_string("content")?;
+
+// ❌ NOT A ONE-LINER: Multiple variables break the pattern
+let tmp_dir = tempfile::tempdir()?;
+let safe_dir = RestrictionPath::try_new(tmp_dir.path())?;  // Unnecessary intermediate variable
+safe_dir.strict_join("file.txt")?.write_string("content")?;
+```
+
+**Rationale**: 
+- Shows the clean transition from raw directory to restricted type
+- Prevents accidental use of the raw `TempDir` after restriction creation
+- Demonstrates the ergonomic benefits of our `AsRef<Path>` API design
+- Makes examples more readable and highlights the security upgrade
+
+**Implementation**: This pattern is enabled by our `AsRef<Path>` constructor design, which accepts `TempDir` directly without requiring `.path()` or `.as_ref()` calls.
+
 ### Naming Rationale (Explicit Ops)
 
 - Be explicit so mistakes are visible at a glance. Method names encode the dimension they operate on (this applies to all explicit variants, not just `join`):
-  - `Path::join(..)` or `xpath.join(..)`: unsafe std join (can escape the jail); avoid on untrusted inputs.
-  - `JailedPath::jailed_join(..)`: safe system-path join (validated to not escape the jail).
+  - `Path::join(..)` or `xpath.join(..)`: unsafe std join (can escape the restriction); avoid on untrusted inputs.
+  - `StrictPath::strict_join(..)`: safe system-path join (validated to not escape the restriction).
   - `VirtualPath::virtual_join(..)`: safe virtual join (clamped to the virtual root).
 - **CRITICAL SECURITY DISTINCTION**: `std::path::Path::join("/absolute")` completely replaces the base path, making it the #1 cause of path traversal vulnerabilities. Our types prevent this:
-  - `jailed_join("/absolute")`: validates the result stays within jail bounds, returns error if not.
+  - `strict_join("/absolute")`: validates the result stays within restriction bounds, returns error if not.
   - `virtual_join("/absolute")`: clamps absolute paths to virtual root (e.g., "/etc/passwd" → "/").
-- The same pattern holds for other operations: `jailedpath_parent`/`virtualpath_parent`, `jailedpath_with_file_name`/`virtualpath_with_file_name`, `jailedpath_with_extension`/`virtualpath_with_extension`, `jailedpath_starts_with`/`virtualpath_starts_with`, etc.
+- The same pattern holds for other operations: `strictpath_parent`/`virtualpath_parent`, `strictpath_with_file_name`/`virtualpath_with_file_name`, `strictpath_with_extension`/`virtualpath_with_extension`, `strictpath_starts_with`/`virtualpath_starts_with`, etc.
 - This convention helps reviewers spot API abuse without hunting for type declarations in scope.
+
+### Design Rationale: Strict vs Virtual Terminology
+
+**Why "Strict" vs "Virtual"**: The naming choice is based on behavioral expectations:
+- **`strict_join()`**: Suggests strict validation that **rejects** operations that would escape boundaries. This aligns with the security-first approach where potentially dangerous operations fail explicitly.
+- **`virtual_join()`**: Suggests virtualization that **clamps/constrains** operations to stay within boundaries. This aligns with filesystem virtualization where paths are transparently redirected.
+
+**User Experience Benefits**:
+- Method names telegraph expected behavior: `strict_*` methods will error on boundary violations, `virtual_*` methods will clamp/redirect
+- Reduces cognitive load when choosing between jail vs virtual root patterns
+- Makes security reviews easier by making failure modes explicit in method names
 
 ### API & Conversion Rules (Important)
 
-- `JailedPath` MUST NOT implement `AsRef<Path>`/`Deref<Target = Path>` and MUST NOT expose raw `&Path`.
-- Conversions are explicit only — do not add `From`/`Into` between `JailedPath` and `VirtualPath`.
-  - `Jail::jailed_join(..) -> JailedPath`
-  - `JailedPath::virtualize() -> VirtualPath`
-  - `VirtualPath::unvirtual() -> JailedPath`
-  - `JailedPath::unjail() -> PathBuf` (escape hatch)
-- `Jail::path()` exposure is acceptable (jail root is not secret and does not bypass validation).
-- Jails are immutable — do not mutate the jail root after creation.
+- **NEVER wrap secure types in `Path::new()` or `PathBuf::from()`** — this is a critical security anti-pattern that completely bypasses validation. Use `interop_path()` directly for external APIs.
+- `StrictPath` MUST NOT implement `AsRef<Path>`/`Deref<Target = Path>` and MUST NOT expose raw `&Path`.
+- Conversions are explicit only — do not add `From`/`Into` between `StrictPath` and `VirtualPath`.
+  - `RestrictionPath::strict_join(..) -> StrictPath`
+  - `StrictPath::virtualize() -> VirtualPath`
+  - `VirtualPath::unvirtual() -> StrictPath`
+  - `StrictPath::unrestrict() -> PathBuf` (escape hatch)
+- `RestrictionPath::interop_path()` exposure is acceptable (restriction root is not secret and does not bypass validation).
+- Restrictions are immutable — do not mutate the restriction root after creation.
 
 ### Display & String Semantics
 
 - `VirtualPath` display and `virtualpath_to_string()` are rooted (e.g., `"/a/b.txt"`); no borrowed string accessors are exposed.
-- For system-facing strings/interop use `JailedPath::jailedpath_*` and `interop_path()` (and `VirtualPath` delegates to `interop_path()` for the underlying system path).
+- For system-facing strings/interop use `StrictPath::strictpath_*` and `interop_path()` (and `VirtualPath` delegates to `interop_path()` for the underlying system path).
 - Do not reintroduce `virtualpath_to_str()` or `virtualpath_as_os_str()`.
-- `Debug` for `VirtualPath` is developer-facing and verbose: shows system path, virtual view, jail root, and marker type. `Display` shows the rooted virtual view for users.
-- `Debug` for `Jail` and `VirtualRoot` shows the real root path and marker type. `Display` shows the real root path.
+- `Debug` for `VirtualPath` is developer-facing and verbose: shows system path, virtual view, restriction root, and marker type. `Display` shows the rooted virtual view for users.
+- `Debug` for `RestrictionPath` and `VirtualRoot` shows the real root path and marker type. `Display` shows the real root path.
 
 ### Internal Implementation Notes
 
@@ -255,25 +363,25 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 - Naming: for the history generic, prefer `H` in code (e.g., `PathHistory<H>`). If you use a descriptive generic in prose/examples, prefer `History` over `State` (e.g., `SomeTypeHistory<History>`).
 - Typical flows:
   - Construct: `let raw = PathHistory::<Raw>::new(input_path);`
-  - UI/Virtual flow: `let a = raw.canonicalize_anchored(&jail)?; let b = a.boundary_check(jail.stated_path())?;`
+  - UI/Virtual flow: `let a = raw.canonicalize_anchored(&restriction)?; let b = a.boundary_check(restriction.interop_path())?;`
   - System flow: `let c = raw.canonicalize()?;`
-  - Verify exists (for jail roots): `let e = c.verify_exists().ok_or(..)?;`
-  - Boundary check: `let b = c.boundary_check(jail.stated_path())?;`
+  - Verify exists (for restriction roots): `let e = c.verify_exists().ok_or(..)?;`
+  - Boundary check: `let b = c.boundary_check(restriction.interop_path())?;`
 - Where to use:
-  - `Jail::try_new`: `Raw -> Canonicalized -> Exists` for the jail root.
-  - `Jail::jailed_join`: canonicalize + boundary check (system flows).
-  - `VirtualRoot::virtual_join`: `Raw -> AnchoredCanonicalized -> BoundaryChecked` then construct `JailedPath` and `VirtualPath`.
-  - `VirtualPath` mutations (`virtual_join`, `virtualpath_parent`, `virtualpath_with_*`): compute candidate virtual path, then `Raw -> AnchoredCanonicalized -> BoundaryChecked` with the same jail.
+  - `RestrictionPath::try_new`: `Raw -> Canonicalized -> Exists` for the restriction root.
+  - `RestrictionPath::strict_join`: canonicalize + boundary check (system flows).
+  - `VirtualRoot::virtual_join`: `Raw -> AnchoredCanonicalized -> BoundaryChecked` then construct `StrictPath` and `VirtualPath`.
+  - `VirtualPath` mutations (`virtual_join`, `virtualpath_parent`, `virtualpath_with_*`): compute candidate virtual path, then `Raw -> AnchoredCanonicalized -> BoundaryChecked` with the same restriction.
 - Don’t:
   - Re-implement virtual clamping or boundary logic in free functions - call `PathHistory` methods instead.
-  - Re‑export internal helpers; prefer instance methods (`Jail::jailed_join`).
+  - Re‑export internal helpers; prefer instance methods (`RestrictionPath::strict_join`).
 
 ### Anchored Canonicalization Type-State
 
-- `canonicalize_anchored(&jail)` returns `PathHistory<(H, AnchoredCanonicalized)>` to distinguish anchored resolution from plain `Canonicalized`.
-- After boundary check, convert to the canonicalized marker only when constructing `JailedPath` using `erase_anchor()` to avoid widening public surface types.
+- `canonicalize_anchored(&restriction)` returns `PathHistory<(H, AnchoredCanonicalized)>` to distinguish anchored resolution from plain `Canonicalized`.
+- After boundary check, convert to the canonicalized marker only when constructing `StrictPath` using `erase_anchor()` to avoid widening public surface types.
 - Do not use raw `PathBuf` where `PathHistory` can preserve the type-state; avoid side-stepping the type system.
-- Windows note: 8.3 short-name detection is enforced in the internal helper used by `Jail::jailed_join`; keep the platform-specific guard centralized there rather than duplicating in `PathHistory`.
+- Windows note: 8.3 short-name detection is enforced in the internal helper used by `RestrictionPath::strict_join`; keep the platform-specific guard centralized there rather than duplicating in `PathHistory`.
 
 ### Generics & Imports
 
@@ -288,9 +396,9 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 
 ### Helper Functions Policy
 
-- First choice: use existing APIs - compose `PathHistory` methods with `Jail::jailed_join` and `VirtualRoot::virtual_join` instead of adding new helpers.
+- First choice: use existing APIs - compose `PathHistory` methods with `RestrictionPath::strict_join` and `VirtualRoot::virtual_join` instead of adding new helpers.
 - Avoid redundancy: do not duplicate logic already covered by `PathHistory` (virtualization, canonicalization, boundary checks) or by instance methods.
-- No vague helpers: avoid generic names like `validate`; names must encode dimension and intent (e.g., `jailed_join`, `virtual_join`).
+- No vague helpers: avoid generic names like `validate`; names must encode dimension and intent (e.g., `strict_join`, `virtual_join`).
 - Ask before adding: if a helper truly seems unavoidable, do not implement it outright. Propose it first with:
   - What gap it fills and why existing APIs aren’t sufficient.
   - Exact signature, receiver vs free function, visibility (`pub(crate)` minimum), placement, and naming rationale.
@@ -411,19 +519,19 @@ For each CVE class create tests that:
   - Keep MSRV isolated to the library; build examples only on stable.
   - Add demo projects under `examples/src/bin/<category>/…` with descriptive names.
   - Add API usage examples under `jailed-path/examples/*.rs` for teaching the API.
-- Prefer existing APIs over new helpers. Compose `PathHistory` + `Jail::jailed_join` / `VirtualRoot::virtual_join` first.
+- Prefer existing APIs over new helpers. Compose `PathHistory` + `RestrictionPath::strict_join` / `VirtualRoot::virtual_join` first.
 - Use type‑state markers in examples to demonstrate compile‑time separation of jails.
   - Note on inference: core types default to `Marker = ()`. Let-bindings often suffice for inference (e.g., `let vroot: VirtualRoot = ...; let vp = vroot.virtual_join("a.txt")?;`). When the compiler needs help, prefer adding an explicit type or an empty turbofish (`VirtualRoot::<()>::try_new(..)`). Avoid turbofish unless necessary or clearer.
   - Reference `API_REFERENCE.md` when updating APIs.
 - Prefer `interop_path()` for `AsRef<Path>` interop; avoid leaking `Path`/`PathBuf`.
-  - Use `jailed_join` / `virtual_join` instead of std `Path::join`.
+  - Use `strict_join` / `virtual_join` instead of std `Path::join`.
   - For release/version bumps: update CHANGELOG with user-facing highlights, bump versions in Cargo.toml/lib.rs/README, tag the release, and include a concise PR summary (markdown, no code examples).
   - When crafting commit messages, summarize the staged diff by intent and impact.
 - Don't:
   - Reintroduce `examples` into `[workspace.members]`.
   - Move cargo flags after `--` (they won't be recognized by cargo).
   - Do not create new helper functions without prior approval. If a helper seems unavoidable, do not just create it — offer the design, explain why it’s needed, and ask to implement it (scope, signature, naming, tests, and security notes).
-  - Use `.unjail()` / `.unvirtual()` in examples unless demonstrating escape hatches explicitly.
+  - Use `.unrestrict()` / `.unvirtual()` in examples unless demonstrating escape hatches explicitly.
   - Put API usage examples in `examples/src/bin/` - they belong in `jailed-path/examples/`.
   - Put demo projects in `jailed-path/examples/` - they belong in `examples/src/bin/<category>/`.
   - Invent new surface APIs without discussion; follow existing design patterns.

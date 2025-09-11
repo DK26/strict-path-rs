@@ -1,17 +1,17 @@
-use jailed_path::Jail;
+use strict_path::PathBoundary;
 use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a temporary directory for our demonstration
     fs::create_dir_all("file_ops_demo")?;
 
-    let jail = Jail::<()>::try_new("file_ops_demo")?;
-    let file_path = jail.jailed_join("demo.txt")?;
+    let boundary = PathBoundary::<()>::try_new("file_ops_demo")?;
+    let file_path = boundary.strict_join("demo.txt")?;
 
-    println!("=== JailedPath Built-in File Operations Demo ===");
+    println!("=== StrictPath Built-in File Operations Demo ===");
 
     // Write to file using built-in method
-    file_path.write_string("Hello from JailedPath built-in methods!")?;
+    file_path.write_string("Hello from StrictPath built-in methods!")?;
     println!("-> File written using built-in method");
 
     // Check if file exists using built-in method
@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Read {n} bytes using built-in method");
 
     // Create a subdirectory using built-in method
-    let subdir = jail.jailed_join("subdir")?;
+    let subdir = boundary.strict_join("subdir")?;
     subdir.create_dir_all()?;
     println!("-> Directory created using built-in method");
 
@@ -61,7 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Clean up the demo directory
     fs::remove_dir_all("file_ops_demo")?;
 
-    println!("\nAll file operations completed successfully using JailedPath's built-in methods!");
+    println!("\nAll file operations completed successfully using StrictPath's built-in methods!");
 
     Ok(())
 }

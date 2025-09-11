@@ -5,7 +5,7 @@
 // via `virtual_join`, so traversal attempts cannot escape the config root.
 
 use anyhow::Result;
-use jailed_path::{VirtualPath, VirtualRoot};
+use strict_path::{VirtualPath, VirtualRoot};
 use std::collections::HashMap;
 use std::fs;
 use std::io;

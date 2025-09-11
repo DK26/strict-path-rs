@@ -9,33 +9,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+## [0.1.0-alpha.1] - 2024-12-09
 
-- **API Rename**: Renamed `PathValidator` to `Jail` throughout the codebase for improved clarity and ergonomics
-- **Display Trait Removal**: Removed `Display` trait implementations from `JailedPath` and `VirtualPath` for security reasons. Use explicit display methods instead:
-- `VirtualPath` now implements Eq/Ord/Hash in terms of its underlying system path (matching `JailedPath`), enabling consistent map/set behavior and cross-type comparisons with the same marker.
-  - `JailedPath::systempath_display()` for system path display
-  - `VirtualPath::virtualpath_display()` for virtual path display
-  - This prevents accidental path disclosure in user-facing contexts
+### Changed - BREAKING 
+
+- **Complete API Restructure**: Renamed crate from `jailed-path` to `strict-path` with comprehensive API updates
+- **Core Type Names**: 
+  - `Jail<T>` → `PathBoundary<T>` - represents the secure root boundary
+  - `VirtualRoot<T>` → `VirtualRoot<T>` - unchanged name but new implementation  
+  - `JailedPath<T>` → `StrictPath<T>` - path validated within boundary
+  - `VirtualPath<T>` → `VirtualPath<T>` - unchanged name but updated integration
+- **Method Naming Consistency**:
+  - `jailed_join()` → `strict_join()` - join paths within boundary
+  - `systempath_display()` → `strictpath_display()` - display system path
+  - Kept `virtualpath_display()` for virtual path display
+- **Enhanced Type System**: Complete rewrite of internal validation pipeline using `PathHistory<State>` for compile-time path validation guarantees
+- **Extended Platform Support**: Added comprehensive feature gates for `dirs`, `tempdir`, and `app-path` integrations
 
 ### Added
 
-- Use explicit `as_unvirtual()` instead of adding `AsRef<JailedPath>` on `VirtualPath` to preserve dimension clarity
-- Windows: Introduced `JailedPathError::WindowsShortName { component, original, checked_at }` returned when a DOS 8.3 short filename component (e.g., `PROGRA~1`) is detected in a non-existent path segment. This enables callers to implement their own recovery (e.g., prompting for a full long name) instead of treating it as a generic resolution error.
-- **Enhanced Security Documentation**: Added comprehensive CVE protection documentation highlighting specific vulnerabilities addressed (CVE-2025-8088, CVE-2022-21658, Windows 8.3 CVEs) and emphasizing the security depth beyond simple string comparison
-- **Security Foundation Messaging**: Updated README, crate docs, and API reference to emphasize the soft-canonicalize foundation and real-world vulnerability protection
+- **Convenience Constructors**: 
+  - `PathBoundary::try_new_config()`, `try_new_data()`, `try_new_cache()` for system directories
+  - `PathBoundary::try_new_temp()` for RAII temporary directories  
+  - `VirtualRoot::try_new_*()` equivalents for virtual filesystem scenarios
+- **String Parsing**: `FromStr` implementations for both `PathBoundary` and `VirtualRoot` enabling seamless CLI/config integration
+- **Comparison Traits**: Full `PartialEq/Eq/PartialOrd/Ord/Hash` implementations with cross-type compatibility
+- **Enhanced Security Tests**: 1000+ lines of new security tests covering:
+  - CVE-2025-8088 style ADS traversal attacks (Windows)
+  - Zip-slip and tar-slip extraction scenarios
+  - Unicode normalization edge cases
+  - TOCTOU (Time-of-Check-Time-of-Use) attack scenarios
+  - Platform-specific symlink/junction escape attempts
 
 ### Security
 
-- Windows hardening (Hybrid): Before canonicalization, the validator rejects 8.3 short-name looking components that do not yet exist inside the jail. Existing entries pass through and are validated normally. This reduces ambiguity and potential bypasses while keeping compatibility for already-present short-name entries.
-- **Constructor Rename**: `PathValidator::with_jail()` is now `Jail::try_new()` for consistency with Rust naming conventions
-- Updated all examples, documentation, and tests to use the new `Jail` API
-- Added `examples/new_api.rs` to demonstrate the updated API usage
- - Windows hardening: Reject DOS 8.3 short filename components (e.g., `PROGRA~1`) when those components do not yet exist inside the jail, to avoid ambiguous future resolution outside/inside the boundary.
+- **Windows ADS Protection**: Specific defenses against CVE-2025-8088 style attacks using NTFS Alternate Data Streams
+- **Enhanced Symlink Validation**: Improved detection and rejection of symlink-based escape attempts on all platforms  
+- **Directory Traversal Hardening**: Comprehensive protection against `../` style attacks through virtual path clamping
+- **Path Injection Prevention**: Robust validation of all user-supplied path components before filesystem operations
+
+### Fixed  
+
+- **Cross-Platform Compatibility**: Resolved Windows/Unix path separator handling inconsistencies
+- **Memory Safety**: Eliminated potential path buffer overflows through type-safe path construction
+- **Error Handling**: More precise error types distinguishing between boundary violations vs filesystem I/O errors
+
+### Changed
+
+- Placeholder for future changes
+
+### Added  
+
+- Placeholder for future additions
 
 ### Fixed
 
-- **macOS test compatibility**: Fixed platform-specific path handling in security tests to properly handle Unix vs Windows path separator differences and temp directory canonicalization on macOS
+- Placeholder for future fixes
 
 ## [0.0.4] - 2025-08-03
 

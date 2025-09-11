@@ -1,21 +1,21 @@
-//! An example of a safe archive extractor that uses a jail to prevent
+//! An example of a safe archive extractor that uses a PathBoundary to prevent
 //! "zip slip" vulnerabilities. A zip slip vulnerability occurs when a
 //! malicious archive contains entries with traversal paths (e.g., `../../evil.sh`)
 //! that, when extracted, would write files outside the intended extraction directory.
 //!
 //! This example demonstrates how `jailed-path` can be used to safely handle
 //! archive entries, ensuring that all extracted files are contained within
-//! the designated jail.
+//! the designated PathBoundary.
 
 use anyhow::Result;
-use jailed_path::Jail;
 use std::fs;
 use std::io::{self, Write};
+use strict_path::PathBoundary;
 use zip::ZipArchive;
 
 // --- Marker Type for the Extraction Context ---
 
-/// Marker for the archive extraction jail.
+/// Marker for the archive extraction path.
 #[derive(Clone)]
 struct Extraction;
 
@@ -32,8 +32,8 @@ struct Extraction;
 fn safe_extract(archive_path: &str, extract_dir: &str) -> Result<()> {
     println!("[Extractor] Extracting '{archive_path}' to '{extract_dir}'");
 
-    // 1. Create the jail for the extraction directory.
-    let jail = Jail::<Extraction>::try_new_create(extract_dir)?;
+    // 1. Create the PathBoundary for the extraction directory.
+    let extraction_boundary = PathBoundary::<Extraction>::try_new_create(extract_dir)?;
 
     // 2. Open the archive.
     let archive_file = fs::File::open(archive_path)?;
@@ -44,10 +44,10 @@ fn safe_extract(archive_path: &str, extract_dir: &str) -> Result<()> {
         let mut entry = archive.by_index(i)?;
         let entry_name = entry.name().to_string();
 
-        // 4. Validate the entry's path against the jail.
+        // 4. Validate the entry's path against the PathBoundary.
         // This is the crucial security step. Any traversal paths will be
         // neutralized here.
-        let safe_path = match jail.jailed_join(&entry_name) {
+        let safe_path = match extraction_boundary.strict_join(&entry_name) {
             Ok(path) => path,
             Err(e) => {
                 println!("  -> Skipping malicious or invalid path: {entry_name} ({e})");
@@ -140,6 +140,3 @@ fn main() -> Result<()> {
     fs::remove_dir_all(extract_dir).ok();
     Ok(())
 }
-
-
-

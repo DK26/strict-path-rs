@@ -1,7 +1,7 @@
 // S3 Mirror Demo
 //
-// Mirrors files from a local jail to an S3 bucket. All keys are derived
-// from VirtualPath (virtual root), while data reads use JailedPath.
+// Mirrors files from a local PathBoundary to an S3 bucket. All keys are derived
+// from VirtualPath (virtual root), while data reads use StrictPath.
 
 #[cfg(not(feature = "with-aws"))]
 fn main() {
@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use aws_config::BehaviorVersion;
     use aws_sdk_s3::types::ByteStream;
     use aws_sdk_s3::Client;
-    use jailed_path::{Jail, VirtualPath, VirtualRoot};
+    use strict_path::{PathBoundary, VirtualPath, VirtualRoot};
     use std::fs;
     use walkdir::WalkDir;
 
@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "my-bucket".to_string());
     let prefix = std::env::var("S3_PREFIX").unwrap_or_default();
 
-    let jail: Jail<Src> = Jail::try_new_create("mirror_src")?;
+    let path_boundary: PathBoundary<Src> = PathBoundary::try_new_create("mirror_src")?;
     let vroot: VirtualRoot<Src> = VirtualRoot::try_new_create("mirror_src")?;
 
     // Use a mock unless explicitly enabled with EXAMPLES_S3_RUN=1
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    let root = jail.jailed_join(".")?;
+    let root = PathBoundary.strict_join(".")?;
     for entry in WalkDir::new(root.interop_path()) {
         let entry = entry?;
         let p = entry.path();
@@ -50,10 +50,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => continue,
         };
         let rel_str = rel.to_string_lossy().to_string();
-        let jp = jail.jailed_join(&rel_str)?;
+        let jp = PathBoundary.strict_join(&rel_str)?;
         if jp.is_file() {
             let vp: VirtualPath<Src> = vroot.virtual_join(&rel_str)?;
-            let key_part_owned = vp.virtualpath_to_string_lossy().into_owned();
+            let key_part_owned = vp.virtualpath_display().into_owned();
             let key_part = key_part_owned.trim_start_matches('/');
             let key = if prefix.is_empty() {
                 key_part.to_string()
@@ -65,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 s3c.put_object().bucket(&bucket).key(&key).body(body).send().await?;
                 println!("Uploaded s3://{}/{}", bucket, key);
             } else {
-                let src_disp = jp.jailedpath_display();
+                let src_disp = jp.strictpath_display();
                 println!("MOCK upload s3://{bucket}/{key} from {src_disp}");
             }
         }

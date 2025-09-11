@@ -1,12 +1,12 @@
 name: CI
 #
 # Workspace split strategy (IMPORTANT for newcomers):
-# - The `jailed-path` library enforces MSRV Rust 1.71 and is tested with `--locked`.
+# - The `strict-path` library enforces MSRV Rust 1.71 and is tested with `--locked`.
 # - The `examples/` crate is intentionally NOT in the workspace so it can use
 #   latest stable Rust and newer ecosystem crates without raising the library's MSRV.
 # - Therefore this workflow runs two distinct tracks:
 #     1) Stable track: format, clippy, docs, tests for the library; and build examples separately
-#     2) MSRV track: check/clippy/test only the library (`-p jailed-path --lib`) on Rust 1.71
+#     2) MSRV track: check/clippy/test only the library (`-p strict-path --lib`) on Rust 1.71
 # - This split avoids workspace lockfile/feature coupling while keeping examples rich and current.
 #
 # For local development with auto-fixing, use: bash ci-local.sh
@@ -59,7 +59,7 @@ jobs:
         check_with_file_cmd Cargo.toml || exit 1
 
         # Source trees (existence-guarded)
-        for dir in jailed-path/src src examples/src; do
+        for dir in strict-path/src src examples/src; do
           if [ -d "$dir" ]; then
             while IFS= read -r -d '' f; do
               check_with_file_cmd "$f" || exit 1
@@ -131,7 +131,7 @@ jobs:
 
     - name: Run tests (latest stable, all features)
       # Run tests for the library with all features (serde, etc.). Examples build separately.
-      run: cargo test -p jailed-path --all-features --verbose
+      run: cargo test -p strict-path --all-features --verbose
 
   docs:
     name: Documentation
@@ -158,11 +158,11 @@ jobs:
         toolchain: 1.71.0
         components: clippy
 
-    - name: Generate MSRV lockfile for jailed-path
+    - name: Generate MSRV lockfile for strict-path
       # Only generate a lockfile for the library crate. Do NOT include examples.
       run: |
-        echo "Generating Cargo.lock for jailed-path using Rust 1.71.0"
-        pushd jailed-path
+        echo "Generating Cargo.lock for strict-path using Rust 1.71.0"
+        pushd strict-path
         rustup run 1.71.0 cargo generate-lockfile || true
         popd
 
@@ -171,12 +171,12 @@ jobs:
       # to avoid cross-toolchain artifacts.
       run: |
         echo "Running MSRV check with locked flag. If generate-lockfile produced a lock compatible with MSRV, this will succeed."
-        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check --locked -p jailed-path --lib --verbose
+        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose
 
     - name: Run clippy with MSRV (library only)
       run: |
-        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings
+        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings
 
     - name: Test library with MSRV
       run: |
-        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test --locked -p jailed-path --lib --verbose
+        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test --locked -p strict-path --lib --verbose

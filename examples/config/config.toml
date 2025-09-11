@@ -1,0 +1,58 @@
+# Base configuration file (TOML format)
+# This file contains the default settings that apply to all environments
+
+app_name = "SecureFileProcessor"
+version = "2.1.0"
+debug = false
+
+[server]
+host = "0.0.0.0"
+port = 8080
+workers = 8
+max_connections = 2000
+upload_dir = "./data/uploads"
+static_files = "./data/static"
+
+[database]
+url = "postgresql://user:pass@localhost/myapp"
+max_connections = 20
+backup_dir = "./data/backups"
+migration_dir = "./data/migrations"
+
+[paths]
+data_dir = "./data"
+cache_dir = "./cache"
+temp_dir = "./tmp"
+log_dir = "./logs"
+config_dir = "./config"
+plugin_dir = "./plugins"
+allowed_upload_dirs = [
+    "./data/uploads/user", 
+    "./data/uploads/public",
+    "./data/uploads/temp"
+]
+trusted_data_sources = [
+    "./data/trusted/source1",
+    "./data/trusted/source2" 
+]
+
+[security]
+cert_dir = "./certs"
+key_file = "./certs/server.key"
+allowed_origins = ["https://myapp.com", "https://api.myapp.com"]
+session_timeout = 7200
+sandbox_root = "./sandbox"
+restricted_paths = [
+    "./system",
+    "./etc/passwd",
+    "./root"
+]
+
+[logging]
+level = "info"
+format = "json"
+file_path = "app.log"
+error_log = "error.log" 
+access_log = "access.log"
+max_size_mb = 100
+max_files = 5

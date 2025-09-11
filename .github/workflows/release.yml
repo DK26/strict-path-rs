@@ -17,7 +17,7 @@ jobs:
     
     - name: Publish to crates.io
       # Publish the library package explicitly from the workspace
-      run: cargo publish -p jailed-path --token ${{ secrets.CRATES_IO_TOKEN }}
+      run: cargo publish -p strict-path --token ${{ secrets.CRATES_IO_TOKEN }}
 
   release:
     name: Create GitHub Release
@@ -35,7 +35,7 @@ jobs:
           ## What's Changed
           
           - Check the [changelog](CHANGELOG.md) for detailed changes
-          - View the [documentation](https://docs.rs/jailed-path) for usage examples
+          - View the [documentation](https://docs.rs/strict-path) for usage examples
           
           **Full Changelog**: https://github.com/DK26/jailed-path-rs/compare/v0.0.1...${{ github.ref_name }}
         draft: false

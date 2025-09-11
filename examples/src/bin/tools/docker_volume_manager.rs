@@ -4,7 +4,7 @@
 // Subcommands: create, list, backup, restore, inspect, cleanup.
 
 use clap::{Parser, Subcommand};
-use jailed_path::Jail;
+use strict_path::PathBoundary;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -71,14 +71,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn create_volume(cli: &Cli, volume_name: &str, size_mb: Option<u64>) -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating Docker volume: {volume_name}");
-    let volumes_jail: Jail<DockerVolumes> = Jail::try_new_create(&cli.volumes_root)?;
-    let volume_path = volumes_jail.jailed_join(volume_name)?;
+    
+    // Setup secure path boundary
+    let volumes_dir: PathBoundary<DockerVolumes> = PathBoundary::try_new_create(&cli.volumes_root)?;
+    let volume_path = volumes_dir.strict_join(volume_name)?;
+    
+    // Check if volume already exists
     if volume_path.exists() {
         return Err(format!("Volume '{volume_name}' already exists").into());
     }
+    
+    // Create volume directories
     volume_path.create_dir_all()?;
-    let data_dir = volume_path.jailed_join("_data")?;
+    let data_dir = volume_path.strict_join("_data")?;
     data_dir.create_dir_all()?;
+    
+    // Create volume metadata
     let metadata = VolumeMetadata {
         name: volume_name.to_string(),
         id: Uuid::new_v4().to_string(),
@@ -88,10 +96,14 @@ fn create_volume(cli: &Cli, volume_name: &str, size_mb: Option<u64>) -> Result<(
         container_count: 0,
         description: None,
     };
-    let metadata_file = volume_path.jailed_join("metadata.json")?;
+    
+    // Save metadata
+    let metadata_file = volume_path.strict_join("metadata.json")?;
     metadata_file.write_string(&serde_json::to_string_pretty(&metadata)?)?;
+    
+    // Report success
     println!("Volume '{volume_name}' created successfully");
-    let p = volume_path.jailedpath_display();
+    let p = volume_path.strictpath_display();
     println!("  Path: {p}");
     println!("  ID: {}", metadata.id);
     Ok(())
@@ -99,19 +111,16 @@ fn create_volume(cli: &Cli, volume_name: &str, size_mb: Option<u64>) -> Result<(
 
 fn list_volumes(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     println!("Listing Docker volumes in: {}", &cli.volumes_root);
-    let volumes_jail: Jail<DockerVolumes> = Jail::try_new_create(&cli.volumes_root)?;
-    let root = volumes_jail.jailed_join(".")?;
-    if !root.exists() {
-        println!("No volumes directory found.");
-        return Ok(());
-    }
+    
+    // Setup secure path boundary (creates directory if it doesn't exist)
+    let volumes_dir: PathBoundary<DockerVolumes> = PathBoundary::try_new_create(&cli.volumes_root)?;
     // Demo: print a header and a few sample entries
     println!("{:<20} {:<15} {:<20} {:<10} {:<12}", "Name", "Size (MB)", "Created", "Containers", "Status");
     println!("{}", "-".repeat(80));
     for name in ["webapp-data", "db-storage", "cache-volume"] {
-        let path = volumes_jail.jailed_join(name)?;
+        let path = volumes_dir.strict_join(name)?;
         if path.exists() {
-            let meta = path.jailed_join("metadata.json")?;
+            let meta = path.strict_join("metadata.json")?;
             if meta.exists() {
                 if let Ok(content) = meta.read_to_string() {
                     if let Ok(m) = serde_json::from_str::<VolumeMetadata>(&content) {
@@ -133,60 +142,99 @@ fn list_volumes(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn backup_volume(cli: &Cli, volume_name: &str, backup_name: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
-    let volumes_jail: Jail<DockerVolumes> = Jail::try_new(&cli.volumes_root)?;
-    let backups_jail: Jail<VolumeBackups> = Jail::try_new_create(&cli.backups_root)?;
-    let volume_path = volumes_jail.jailed_join(volume_name)?;
+    // Setup secure paths
+    let volumes_dir: PathBoundary<DockerVolumes> = PathBoundary::try_new(&cli.volumes_root)?;
+    let backups_dir: PathBoundary<VolumeBackups> = PathBoundary::try_new_create(&cli.backups_root)?;
+    
+    // Verify volume exists
+    let volume_path = volumes_dir.strict_join(volume_name)?;
     if !volume_path.exists() {
         return Err(format!("Volume '{volume_name}' not found").into());
     }
-    let backup_name = backup_name.unwrap_or_else(|| chrono::Utc::now().format("%Y%m%d%H%M%S").to_string());
-    let backup_path = backups_jail.jailed_join(&backup_name)?;
+    
+    // Generate backup name
+    let backup_name = backup_name.unwrap_or_else(|| {
+        chrono::Utc::now().format("%Y%m%d%H%M%S").to_string()
+    });
+    
+    // Create backup directories
+    let backup_path = backups_dir.strict_join(&backup_name)?;
     backup_path.create_dir_all()?;
-    let backup_data_dir = backup_path.jailed_join("data")?;
+    let backup_data_dir = backup_path.strict_join("data")?;
     backup_data_dir.create_dir_all()?;
-    // Demo: simulate copying a few files
+    
+    // Copy files (demo simulation)
     let mut file_count = 0u32;
     let mut total_size = 0u64;
+    
     for rel in ["config.json", "logs/app.log", "uploads/image.jpg"] {
-        let src = volume_path.jailed_join(format!("_data/{rel}"))?;
+        let src = volume_path.strict_join(format!("_data/{rel}"))?;
+        
         if src.exists() {
-            let dst = backup_data_dir.jailed_join(rel)?;
+            let dst = backup_data_dir.strict_join(rel)?;
             dst.create_parent_dir_all()?;
+            
             let bytes = src.read_bytes()?;
             total_size += bytes.len() as u64;
             dst.write_bytes(&bytes)?;
             file_count += 1;
         }
     }
-    let meta = BackupMetadata { volume_name: volume_name.to_string(), backup_name: backup_name.clone(), created_at: chrono::Utc::now(), size_bytes: total_size, file_count, compression: "none".into() };
-    let meta_file = backup_path.jailed_join("backup.json")?;
+    // Create backup metadata
+    let meta = BackupMetadata {
+        volume_name: volume_name.to_string(),
+        backup_name: backup_name.clone(),
+        created_at: chrono::Utc::now(),
+        size_bytes: total_size,
+        file_count,
+        compression: "none".into(),
+    };
+
+    let meta_file = backup_path.strict_join("backup.json")?;
     meta_file.write_string(&serde_json::to_string_pretty(&meta)?)?;
+
+    // Report success
     println!("Backup '{backup_name}' created successfully");
     println!("   Files: {file_count}");
     println!("   Size: {total_size} bytes");
-    let p = backup_path.jailedpath_display();
+    let p = backup_path.strictpath_display();
     println!("   Path: {p}");
     Ok(())
 }
 
 fn restore_volume(cli: &Cli, volume_name: &str, backup_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Restoring volume '{volume_name}' from backup '{backup_name}'");
-    let volumes_jail: Jail<DockerVolumes> = Jail::try_new(&cli.volumes_root)?;
-    let backups_jail: Jail<VolumeBackups> = Jail::try_new(&cli.backups_root)?;
-    let backup_path = backups_jail.jailed_join(backup_name)?;
-    if !backup_path.exists() { return Err(format!("Backup '{backup_name}' not found").into()); }
-    let backup_data_dir = backup_path.jailed_join("data")?;
-    let volume_path = volumes_jail.jailed_join(volume_name)?;
+    
+    // Setup secure paths
+    let volumes_dir: PathBoundary<DockerVolumes> = PathBoundary::try_new(&cli.volumes_root)?;
+    let backups_dir: PathBoundary<VolumeBackups> = PathBoundary::try_new(&cli.backups_root)?;
+    
+    // Verify backup exists
+    let backup_path = backups_dir.strict_join(backup_name)?;
+    if !backup_path.exists() {
+        return Err(format!("Backup '{backup_name}' not found").into());
+    }
+    
+    // Setup paths
+    let backup_data_dir = backup_path.strict_join("data")?;
+    let volume_path = volumes_dir.strict_join(volume_name)?;
     volume_path.create_dir_all()?;
-    let data_dir = volume_path.jailed_join("_data")?;
-    if data_dir.exists() { data_dir.remove_dir_all()?; }
+    
+    // Clean existing data directory
+    let data_dir = volume_path.strict_join("_data")?;
+    if data_dir.exists() {
+        data_dir.remove_dir_all()?;
+    }
     data_dir.create_dir_all()?;
-    // Demo: simulate restoring a few files
+    
+    // Restore files (demo simulation)
     for rel in ["config.json", "logs/app.log", "uploads/image.jpg"] {
-        let src = backup_data_dir.jailed_join(rel)?;
+        let src = backup_data_dir.strict_join(rel)?;
+        
         if src.exists() {
-            let dst = data_dir.jailed_join(rel)?;
+            let dst = data_dir.strict_join(rel)?;
             dst.create_parent_dir_all()?;
+            
             let bytes = src.read_bytes()?;
             dst.write_bytes(&bytes)?;
         }
@@ -201,18 +249,18 @@ fn restore_volume(cli: &Cli, volume_name: &str, backup_name: &str) -> Result<(),
         container_count: 0,
         description: Some(format!("Restored from backup '{backup_name}'")),
     };
-    let volume_meta_file = volume_path.jailed_join("metadata.json")?;
+    let volume_meta_file = volume_path.strict_join("metadata.json")?;
     volume_meta_file.write_string(&serde_json::to_string_pretty(&volume_metadata)?)?;
     println!("Volume '{volume_name}' restored successfully from backup '{backup_name}'");
     Ok(())
 }
 
 fn inspect_volume(cli: &Cli, volume_name: &str, inspect_path: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
-    let volumes_jail: Jail<DockerVolumes> = Jail::try_new(&cli.volumes_root)?;
-    let volume_path = volumes_jail.jailed_join(volume_name)?;
+    let volumes_dir: PathBoundary<DockerVolumes> = PathBoundary::try_new(&cli.volumes_root)?;
+    let volume_path = volumes_dir.strict_join(volume_name)?;
     if !volume_path.exists() { return Err(format!("Volume '{volume_name}' not found").into()); }
     // Load metadata
-    let meta_file = volume_path.jailed_join("metadata.json")?;
+    let meta_file = volume_path.strict_join("metadata.json")?;
     if meta_file.exists() {
         if let Ok(content) = meta_file.read_to_string() {
             if let Ok(m) = serde_json::from_str::<VolumeMetadata>(&content) {
@@ -228,8 +276,8 @@ fn inspect_volume(cli: &Cli, volume_name: &str, inspect_path: Option<String>) ->
         }
     }
     // Inspect path or root
-    let data_dir = volume_path.jailed_join("_data")?;
-    let target = if let Some(p) = inspect_path { data_dir.jailed_join(p)? } else { data_dir };
+    let data_dir = volume_path.strict_join("_data")?;
+    let target = if let Some(p) = inspect_path { data_dir.strict_join(p)? } else { data_dir };
     println!("\nContents:");
     if target.exists() {
         if target.is_file() {
@@ -244,18 +292,18 @@ fn inspect_volume(cli: &Cli, volume_name: &str, inspect_path: Option<String>) ->
 
 fn cleanup_volumes(cli: &Cli, older_than_days: u64) -> Result<(), Box<dyn std::error::Error>> {
     println!("Cleaning up volumes older than {older_than_days} days");
-    let volumes_jail: Jail<DockerVolumes> = Jail::try_new(&cli.volumes_root)?;
+    let volumes_dir: PathBoundary<DockerVolumes> = PathBoundary::try_new(&cli.volumes_root)?;
     let cutoff = chrono::Utc::now() - chrono::Duration::days(older_than_days as i64);
     let mut cleaned_count = 0u32;
     let mut cleaned_size = 0u64;
     for name in ["old-cache", "temp-data", "legacy-logs"] {
-        if let Ok(path) = volumes_jail.jailed_join(name) {
+        if let Ok(path) = volumes_dir.strict_join(name) {
             if path.exists() {
-                let meta_file = path.jailed_join("metadata.json")?;
+                let meta_file = path.strict_join("metadata.json")?;
                 if meta_file.exists() {
                     if let Ok(m) = serde_json::from_str::<VolumeMetadata>(&meta_file.read_to_string()?) {
                         if m.last_accessed < cutoff && m.container_count == 0 {
-                            let data = path.jailed_join("_data")?;
+                            let data = path.strict_join("_data")?;
                             if data.exists() { cleaned_size += 100 * 1024 * 1024; }
                             path.remove_dir_all()?;
                             cleaned_count += 1;

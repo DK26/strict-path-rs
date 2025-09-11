@@ -10,7 +10,7 @@
 compile_error!("Enable with --features with-app-path to run this example");
 
 use app_path::app_path;
-use jailed_path::{Jail, JailedPath, VirtualPath, VirtualRoot};
+use strict_path::{PathBoundary, StrictPath, VirtualPath, VirtualRoot};
 use std::fs;
 use std::io::{self, Write};
 
@@ -24,10 +24,10 @@ struct Cache;
 struct Logs;
 
 struct AppStorage {
-    config_jail: Jail<Config>,
+    config_jail: PathBoundary<Config>,
     notes_root: VirtualRoot<Notes>,
-    cache_jail: Jail<Cache>,
-    logs_jail: Jail<Logs>,
+    cache_jail: PathBoundary<Cache>,
+    logs_jail: PathBoundary<Logs>,
 }
 
 struct AppConfig {
@@ -65,10 +65,10 @@ impl QuickNotes {
         println!();
 
         let storage = AppStorage {
-            config_jail: Jail::try_new_create(&config_dir)?,
+            config_jail: PathBoundary::try_new_create(&config_dir)?,
             notes_root: VirtualRoot::try_new_create(&notes_dir)?,
-            cache_jail: Jail::try_new_create(&cache_dir)?,
-            logs_jail: Jail::try_new_create(&logs_dir)?,
+            cache_jail: PathBoundary::try_new_create(&cache_dir)?,
+            logs_jail: PathBoundary::try_new_create(&logs_dir)?,
         };
 
         let config = Self::load_or_create_config(&storage.config_jail)?;
@@ -234,7 +234,7 @@ impl QuickNotes {
     }
 
     fn cleanup_cache(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let cache_dir = self.storage.cache_jail.jailed_join("")?;
+        let cache_dir = self.storage.cache_jail.strict_join("")?;
         let mut cleaned = 0usize;
         if cache_dir.exists() {
             for entry in fs::read_dir(cache_dir.interop_path())? {
@@ -251,8 +251,8 @@ impl QuickNotes {
         Ok(())
     }
 
-    fn load_or_create_config(config_jail: &Jail<Config>) -> Result<AppConfig, Box<dyn std::error::Error>> {
-        let config_path: JailedPath<Config> = config_jail.jailed_join("settings.toml")?;
+    fn load_or_create_config(config_jail: &PathBoundary<Config>) -> Result<AppConfig, Box<dyn std::error::Error>> {
+        let config_path: StrictPath<Config> = config_jail.strict_join("settings.toml")?;
         if config_path.exists() {
             let content = config_path.read_to_string()?;
             let auto_save = content.contains("auto_save = true");
@@ -271,7 +271,7 @@ impl QuickNotes {
     }
 
     fn update_recent_cache(&self, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let recent_path: JailedPath<Cache> = self.storage.cache_jail.jailed_join("recent.txt")?;
+        let recent_path: StrictPath<Cache> = self.storage.cache_jail.strict_join("recent.txt")?;
         let mut recent: Vec<String> = if recent_path.exists() {
             recent_path.read_to_string()?.lines().map(String::from).collect()
         } else {
@@ -284,8 +284,8 @@ impl QuickNotes {
         Ok(())
     }
 
-    fn log_event(logs_jail: &Jail<Logs>, message: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let log_path: JailedPath<Logs> = logs_jail.jailed_join("app.log")?;
+    fn log_event(logs_jail: &PathBoundary<Logs>, message: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let log_path: StrictPath<Logs> = logs_jail.strict_join("app.log")?;
         let ts = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
         let entry = format!("[{ts}] {message}\n");
         if log_path.exists() {

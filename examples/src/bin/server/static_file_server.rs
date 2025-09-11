@@ -3,7 +3,7 @@
 //! This example demonstrates how to build a simple, secure static file server.
 //! It uses `VirtualRoot` to create a safe environment for serving files from a
 //! designated public directory. Any request attempting to access files outside
-//! this directory (e.g., via `../` traversal) will be safely clamped within the jail.
+//! this directory (e.g., via `../` traversal) will be safely clamped within the boundary path.
 //!
 //! This illustrates a primary use case for `jailed-path`: handling untrusted path
 //! input from an external source like an HTTP request.
@@ -16,12 +16,12 @@
 //!    - `http://localhost:8080/` (serves the file, defaults to index.html)
 //!    - `http://localhost:8080/../../../../etc/passwd` (attempted attack, serves index.html instead)
 
-use jailed_path::{VirtualPath, VirtualRoot};
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::Path;
 use std::thread;
+use strict_path::{VirtualPath, VirtualRoot};
 
 // The public directory to serve files from.
 const PUBLIC_DIR: &str = "example_public_www";
@@ -78,9 +78,7 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
 
     // Build HTTP response with correct CRLF separators and a Content-Length header
     let len = contents.len();
-    let response = format!(
-        "{status_line}\r\nContent-Length: {len}\r\n\r\n{contents}"
-    );
+    let response = format!("{status_line}\r\nContent-Length: {len}\r\n\r\n{contents}");
 
     stream.write_all(response.as_bytes()).ok();
     stream.flush().ok();
@@ -116,9 +114,9 @@ fn main() -> std::io::Result<()> {
     // 1. Set up the environment (create public directory and files).
     setup_environment()?;
 
-    // 2. Create a VirtualRoot. This defines the "jail" for our web server.
+    // 2. Create a VirtualRoot. This defines the the virtual root for our web server.
     let vroot = VirtualRoot::try_new_create(PUBLIC_DIR).expect("Failed to create virtual root");
-    let root_display = vroot.as_unvirtual().jailedpath_display();
+    let root_display = vroot.as_unvirtual().strictpath_display();
     println!("Jailed file server root to: {root_display}");
 
     // In CI or when RUN_SERVER is not set, run a quick offline simulation
@@ -140,7 +138,8 @@ fn main() -> std::io::Result<()> {
             }
         }
         fs::remove_dir_all(PUBLIC_DIR).ok();
-        return Ok(())
+
+        Ok(())
     }
 
     // 3. Start the TCP listener.
@@ -164,6 +163,3 @@ fn main() -> std::io::Result<()> {
 
     Ok(())
 }
-
-
-

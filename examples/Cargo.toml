@@ -9,22 +9,23 @@
 ##   CI build it independently on stable (see `.github/workflows/ci.yml`).
 ##
 ## How it wires together:
-## - Depends on the library via a path dependency: `jailed-path = { path = "../jailed-path" }`
+## - Depends on the library via a path dependency: `strict-path = { path = "../strict-path" }`
 ## - Heavy deps are optional behind namespaced features (e.g., `with-zip`).
 ## - `publish = false` ensures this crate never goes to crates.io.
 [package]
-name = "jailed-path-examples"
+name = "strict-path-examples"
 version = "0.0.0"
 edition = "2021"
-description = "Example binaries for jailed-path (non-publishable)"
+description = "Example binaries for strict-path (non-publishable)"
 publish = false
 
 [dependencies]
 # Build examples against the workspace library. Do NOT enable any
 # non-existent features on the library here; keep example-only features
 # local to this crate so MSRV checks for the library remain isolated.
-jailed-path = { path = "../jailed-path", features = ["serde"] }
+strict-path = { path = "../strict-path", features = ["serde"] }
 anyhow = "1.0"
+config = "0.15.15"
 # Zip-related deps are optional and only enabled via the `with-zip` feature.
 # Use namespaced dependency features to avoid relying on removed implicit
 # features in newer `zip` versions.
@@ -84,6 +85,10 @@ name = "config_includes"
 path = "src/bin/config/config_includes.rs"
 
 [[bin]]
+name = "config_management_example"
+path = "src/bin/config/config_management_example.rs"
+
+[[bin]]
 name = "user_data_manager"
 path = "src/bin/data/user_data_manager.rs"
 
@@ -104,6 +109,16 @@ required-features = ["with-zip"]
 [[bin]]
 name = "error_handling"
 path = "src/bin/security/error_handling.rs"
+
+[[bin]]
+name = "archive_extractor_mixed"
+path = "src/bin/security/archive_extractor_mixed.rs"
+required-features = ["with-zip"]
+
+[[bin]]
+name = "archive_extractor_with_config"
+path = "src/bin/security/archive_extractor_with_config.rs"
+required-features = ["with-zip"]
 
 # temporarily disabled: example prints types that don't implement Display
 # [[bin]]

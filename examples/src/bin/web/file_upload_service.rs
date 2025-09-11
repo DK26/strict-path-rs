@@ -15,7 +15,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use jailed_path::{Jail, JailedPath};
+use strict_path::{PathBoundary, StrictPath};
 use uuid::Uuid;
 
 // Type markers for different storage contexts
@@ -27,30 +27,30 @@ struct TempFiles;
 
 #[derive(Clone)]
 struct AppState {
-    uploads_jail: Jail<UserUploads>,
-    // assets_jail is intentionally unused in this example; remove the field to avoid warnings
-    temp_jail: Jail<TempFiles>,
+    uploads_dir: PathBoundary<UserUploads>,
+    // assets_dir is intentionally unused in this example; remove the field to avoid warnings
+    temp_dir: PathBoundary<TempFiles>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize secure storage jails
-    let uploads_jail = Jail::try_new_create("./uploads")?;
-    let temp_jail = Jail::try_new_create("./temp")?;
+    // Initialize secure storage directories
+    let uploads_dir = PathBoundary::try_new_create("./uploads")?;
+    let temp_dir = PathBoundary::try_new_create("./temp")?;
 
     let state = AppState {
-        uploads_jail,
-        temp_jail,
+        uploads_dir,
+        temp_dir,
     };
 
     // In CI or when EXAMPLES_RUN_SERVER is not set, run a quick offline simulation
     if std::env::var("EXAMPLES_RUN_SERVER").is_err() {
         let filename = format!("{}.txt", uuid::Uuid::new_v4());
         let safe_dest = state
-            .uploads_jail
-            .jailed_join(&filename)?;
+            .uploads_dir
+            .strict_join(&filename)?;
         save_uploaded_file(&safe_dest, b"demo content").await?;
-        let where_to = safe_dest.jailedpath_display();
+        let where_to = safe_dest.strictpath_display();
         println!("Offline demo: saved {where_to}");
         return Ok(())
     }
@@ -111,8 +111,8 @@ async fn handle_upload(
     let filename = format!("{}.txt", Uuid::new_v4());
     let file_content = body.as_bytes();
 
-    // Validate the requested destination and pass a JailedPath to the saver
-    let safe_dest = match state.uploads_jail.jailed_join(&filename) {
+    // Validate the requested destination and pass a StrictPath to the saver
+    let safe_dest = match state.uploads_dir.strict_join(&filename) {
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid path: {e}")),
     };
@@ -126,11 +126,11 @@ async fn handle_upload(
 }
 
 async fn save_uploaded_file(
-    path: &JailedPath<UserUploads>,
+    path: &StrictPath<UserUploads>,
     content: &[u8],
 ) -> Result<(), Box<dyn std::error::Error>> {
     path.write_bytes(content)?;
-    let where_to = path.jailedpath_display();
+    let where_to = path.strictpath_display();
     println!("Saved file to: {where_to}");
     Ok(())
 }
@@ -140,7 +140,7 @@ async fn serve_uploaded_file(
     Path(filename): Path<String>,
 ) -> impl IntoResponse {
     // Validate then serve via a function that encodes guarantees
-    let safe_path = match state.uploads_jail.jailed_join(&filename) {
+    let safe_path = match state.uploads_dir.strict_join(&filename) {
         Ok(p) => p,
         Err(_) => return (StatusCode::NOT_FOUND, "File not found".to_string()),
     };
@@ -151,7 +151,7 @@ async fn serve_uploaded_file(
 }
 
 async fn serve_user_file(
-    path: &JailedPath<UserUploads>,
+    path: &StrictPath<UserUploads>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     if !path.exists() {
         return Err("File not found".into());
@@ -164,7 +164,7 @@ async fn process_file(
     State(state): State<AppState>,
     Path(filename): Path<String>,
 ) -> impl IntoResponse {
-    match process_user_file(&state.uploads_jail, &state.temp_jail, &filename).await {
+    match process_user_file(&state.uploads_dir, &state.temp_dir, &filename).await {
         Ok(result) => (StatusCode::OK, result),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -174,24 +174,24 @@ async fn process_file(
 }
 
 async fn process_user_file(
-    uploads_jail: &Jail<UserUploads>,
-    temp_jail: &Jail<TempFiles>,
+    uploads_dir: &PathBoundary<UserUploads>,
+    temp_dir: &PathBoundary<TempFiles>,
     filename: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     // Validate the source path and pass typed paths into helpers
-    let source_path = uploads_jail.jailed_join(filename)?;
+    let source_path = uploads_dir.strict_join(filename)?;
     let content = source_path.read_to_string()?;
 
     // Process the content (example: convert to uppercase)
     let processed = content.to_uppercase();
 
-    // Save processed version to temp area with different jail type
+    // Save processed version to temp area with different PathBoundary type
     let temp_filename = format!("processed_{filename}");
-    let temp_path = temp_jail.jailed_join(temp_filename)?;
+    let temp_path = temp_dir.strict_join(temp_filename)?;
     temp_path.write_string(&processed)?;
 
     // Return result path information
-    let where_to = temp_path.jailedpath_display();
+    let where_to = temp_path.strictpath_display();
     Ok(format!("Processed file saved to: {where_to}"))
 }
 

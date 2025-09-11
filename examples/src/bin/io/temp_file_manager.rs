@@ -4,20 +4,20 @@
 //! sensitive locations.
 
 use anyhow::Result;
-use jailed_path::{Jail, JailedPath};
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
+use strict_path::{PathBoundary, StrictPath};
 
 // --- Marker Type for the Temporary Directory ---
 
-/// Marker for the temporary files jail.
+/// Marker for the temporary files PathBoundary.
 struct TempFiles;
 
 // --- Temporary File Manager Logic ---
 
-/// Manages temporary files within a secure jail.
+/// Manages temporary files within a secure PathBoundary.
 struct TempFileManager {
-    jail: Jail<TempFiles>,
+    temp_dir: PathBoundary<TempFiles>,
 }
 
 impl TempFileManager {
@@ -31,31 +31,31 @@ impl TempFileManager {
                 .as_millis()
         ));
 
-        let jail = Jail::<TempFiles>::try_new_create(temp_dir)
-            .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
+        let temp_dir_boundary = PathBoundary::<TempFiles>::try_new_create(temp_dir)
+            .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
 
         println!(
-            "[TempManager] Created temporary jail at: {}",
-            jail.jailedpath_display()
+            "[TempManager] Created temporary PathBoundary at: {}",
+            temp_dir_boundary.strictpath_display()
         );
-        Ok(Self { jail })
+        Ok(Self { temp_dir: temp_dir_boundary })
     }
 
     /// Creates a new temporary file with the given content.
-    pub fn new_temp_file(&self, file_name: &str, content: &str) -> Result<JailedPath<TempFiles>> {
+    pub fn new_temp_file(&self, file_name: &str, content: &str) -> Result<StrictPath<TempFiles>> {
         println!("[TempManager] Creating temp file: {file_name}");
 
         let temp_path = self
-            .jail
-            .jailed_join(file_name)
-            .map_err(|e| anyhow::anyhow!("Jail error: {e}"))?;
+            .temp_dir
+            .strict_join(file_name)
+            .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
 
         temp_path.write_string(content)?;
 
         println!(
             "  -> Wrote {} bytes to {}",
             content.len(),
-            temp_path.jailedpath_display()
+            temp_path.strictpath_display()
         );
         Ok(temp_path)
     }
@@ -63,7 +63,7 @@ impl TempFileManager {
     /// Cleans up the entire temporary directory.
     pub fn cleanup(&self) -> Result<()> {
         println!("[TempManager] Cleaning up temporary directory...");
-        fs::remove_dir_all(self.jail.interop_path())?;
+        fs::remove_dir_all(self.temp_dir.interop_path())?;
         Ok(())
     }
 }
@@ -87,21 +87,21 @@ fn main() -> Result<()> {
         eprintln!("[Verify] FAIL: One or more temporary files were not created.");
     }
 
-    // --- Attempt to create a file outside the jail (will be contained) ---
+    // --- Attempt to create a file outside the PathBoundary (will be contained) ---
     // This demonstrates that even with a traversal path, the file is created
-    // safely inside the jail.
+    // safely inside the PathBoundary.
     let malicious_path_str = "../../../important_system_file.txt";
     println!("[TempManager] Attempting to create a malicious file at: {malicious_path_str}");
     match temp_manager.new_temp_file(malicious_path_str, "malicious content") {
         Ok(contained_path) => {
             println!(
                 "  -> Contained path: {}",
-                contained_path.jailedpath_display()
+                contained_path.strictpath_display()
             );
-            if contained_path.jailedpath_starts_with(temp_manager.jail.interop_path()) {
-                println!("[Verify] OK: Malicious path was successfully contained within the jail.");
+            if contained_path.strictpath_starts_with(temp_manager.temp_dir.interop_path()) {
+                println!("[Verify] OK: Malicious path was successfully contained within the PathBoundary.");
             } else {
-                eprintln!("[Verify] FAIL: Malicious path escaped the jail.");
+                eprintln!("[Verify] FAIL: Malicious path escaped the PathBoundary.");
             }
         }
         Err(e) => {
@@ -113,7 +113,7 @@ fn main() -> Result<()> {
 
     // --- Clean up ---
     temp_manager.cleanup()?;
-    if !temp_manager.jail.exists() {
+    if !temp_manager.temp_dir.exists() {
         println!("[Verify] OK: Temporary directory successfully removed.");
     } else {
         eprintln!("[Verify] FAIL: Temporary directory was not removed.");

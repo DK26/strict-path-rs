@@ -233,11 +233,11 @@ echo "📄 Checking Cargo.toml..."
 check_utf8_encoding "Cargo.toml" || exit 1
 
 echo "📄 Checking Rust source files..."
-if find jailed-path/src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
-    find jailed-path/src -name "*.rs" -type f | while read file; do
+if find strict-path/src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
+    find strict-path/src -name "*.rs" -type f | while read file; do
         check_utf8_encoding "$file" || exit 1
     done
-    echo "✅ All Rust source files in jailed-path/src: UTF-8 encoding verified"
+    echo "✅ All Rust source files in strict-path/src: UTF-8 encoding verified"
 elif find src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
     find src -name "*.rs" -type f | while read file; do
         check_utf8_encoding "$file" || exit 1
@@ -249,7 +249,7 @@ elif find examples/src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
     done
     echo "✅ All Rust source files in examples/src: UTF-8 encoding verified"
 else
-    echo "⚠️  No Rust source files found in jailed-path/src, src/ or examples/src; skipping source file encoding check"
+    echo "⚠️  No Rust source files found in strict-path/src, src/ or examples/src; skipping source file encoding check"
 fi
 
 echo "🎉 All file encoding checks passed!"
@@ -270,7 +270,7 @@ run_check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warning
 run_check "Build Examples (bins)" "(cd examples && cargo build --bins --features with-zip)"
 run_check "Clippy Examples (all targets)" "(cd examples && cargo clippy --all-targets --features with-zip -- -D warnings)"
 # Run workspace tests for the library only
-run_check "Tests (library all features)" "cargo test -p jailed-path --all-features --verbose"
+run_check "Tests (library all features)" "cargo test -p strict-path --all-features --verbose"
 # Doc tests are included in 'cargo test --verbose', so no separate --doc run needed
 run_check "Documentation" "RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items --all-features"
 
@@ -299,10 +299,10 @@ if command -v rustup &> /dev/null; then
         fi
 
         # Run MSRV checks scoped to the library package only
-        run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features" || true
-        run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p jailed-path --lib --locked --verbose"
-        run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
-        run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p jailed-path --lib --locked --verbose"
+        run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" || true
+        run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose"
+        run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
+        run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --locked --verbose"
     else
         echo "⚠️  Rust 1.71.0 not installed. Installing for MSRV check..."
         if rustup toolchain install 1.71.0; then

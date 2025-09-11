@@ -45,13 +45,6 @@ We encourage **all** suggestions! The distinction just helps set implementation 
 - Explicit method naming (`jailedpath_*` vs `virtualpath_*`)
 - Cross-platform CVE protection
 
-## AI Prompt
-
-Copy-paste when working with AI on this project:
-
-```
-Rules: Always run `bash ci-local.sh` or `.\ci-local.ps1` before committing. Never expose raw std::path::Path, never implement Deref<Target=Path>. Preserve explicit method naming (jailedpath_* vs virtualpath_*). Follow design philosophy in AGENTS.md and API_REFERENCE.md. All security tests must pass.
-```
 
 ## Testing
 

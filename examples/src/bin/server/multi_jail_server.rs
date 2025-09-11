@@ -1,11 +1,11 @@
 //! A more realistic example of a server that uses multiple jails
 //! to manage different security contexts:
 //!
-//! 1.  **Public Assets**: A jail for serving static files like CSS, JS, and images.
+//! 1.  **Public Assets**: A path boundary for serving static files like CSS, JS, and images.
 //!     - Marker Type: `PublicAssets`
 //!     - Directory: `public/`
 //!
-//! 2.  **User Uploads**: A jail for handling user-specific file uploads.
+//! 2.  **User Uploads**: A path boundary for handling user-specific file uploads.
 //!     - Marker Type: `UserUploads`
 //!     - Directory: `user_data/`
 //!
@@ -14,15 +14,15 @@
 //! user-generated path can't be used to access a public asset, and vice-versa.
 
 use anyhow::Result;
-use jailed_path::{VirtualPath, VirtualRoot};
 use std::fs;
+use strict_path::{VirtualPath, VirtualRoot};
 
 // --- Marker Types for Security Contexts ---
 
-/// Marker for the public web assets jail.
+/// Marker for the public web assets path boundary.
 struct PublicAssets;
 
-/// Marker for the private user uploads jail.
+/// Marker for the private user uploads path boundary.
 struct UserUploads;
 
 // --- Simulated Request Handler ---
@@ -46,7 +46,7 @@ enum Request {
 /// The main request handler for the server.
 ///
 /// It dispatches requests to the appropriate handlers based on the request type
-/// and ensures that the correct jail is used for each security context.
+/// and ensures that the correct path boundary is used for each security context.
 fn handle_request(
     request: Request,
     public_jail: &VirtualRoot<PublicAssets>,
@@ -73,11 +73,11 @@ fn handle_request(
             }
 
             // This request is for a user upload, so we use the `uploads_jail`.
-            // We can create a user-specific subdirectory within the jail.
+            // We can create a user-specific subdirectory within the path boundary.
             let user_upload_path =
                 uploads_jail.virtual_join(format!("user_{}/{}", user.id, filename))?;
 
-            // Save via a function that accepts VirtualPath (type enforces correct jail)
+            // Save via a function that accepts VirtualPath (type enforces correct path boundary)
             save_user_upload(&user_upload_path, &content)?;
         }
     }
@@ -86,7 +86,7 @@ fn handle_request(
 
 // --- Service Functions ---
 
-/// Serves a file from the `PublicAssets` jail.
+/// Serves a file from the `PublicAssets` path boundary.
 ///
 /// This function's signature guarantees that it can only ever be called with a
 /// path that has been validated by the `public_jail`.
@@ -101,7 +101,7 @@ fn serve_public_asset(asset_path: &VirtualPath<PublicAssets>) -> Result<()> {
     Ok(())
 }
 
-/// Saves a file to the `UserUploads` jail.
+/// Saves a file to the `UserUploads` path boundary.
 ///
 /// This function's signature guarantees that it can only ever be called with a
 /// path that has been validated by the `uploads_jail`.
@@ -171,6 +171,3 @@ fn main() -> Result<()> {
     fs::remove_dir_all("user_data").ok();
     Ok(())
 }
-
-
-

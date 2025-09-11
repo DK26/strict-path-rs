@@ -10,7 +10,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use jailed_path::{VirtualPath, VirtualRoot};
+use strict_path::{VirtualPath, VirtualRoot};
 use std::fs;
 
 #[derive(Clone)]
@@ -88,7 +88,7 @@ async fn serve_json(
 ) -> impl IntoResponse {
     match vroot.virtual_join(&path) {
         Ok(vp) => {
-            let info = PathInfo { path: vp.clone(), system: vp.jailedpath_to_string_lossy().into_owned() };
+            let info = PathInfo { path: vp.clone(), system: vp.as_unvirtual().strictpath_to_string_lossy().into_owned() };
             let value = serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"error":"serialize"}));
             (StatusCode::OK, Json(value))
         }

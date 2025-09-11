@@ -1,0 +1,30 @@
+# Development environment overrides
+# These settings override the base config when APP_ENV=development
+
+debug = true
+
+[server]
+port = 3000
+workers = 2
+max_connections = 100
+
+[database]
+url = "sqlite:./runtime-data/development/data/app.db"
+max_connections = 5
+backup_dir = "./runtime-data/development/data/backups"
+
+[paths]
+data_dir = "./runtime-data/development/data"
+cache_dir = "./runtime-data/development/cache"
+temp_dir = "./runtime-data/development/tmp"
+
+[security]
+cert_dir = "./runtime-data/development/certs"
+key_file = "./runtime-data/development/certs/dev.key"
+session_timeout = 86400  # 24 hours for development
+sandbox_root = "./runtime-data/development/sandbox"
+
+[logging]
+level = "debug"
+format = "pretty"
+file_path = "dev.log"
