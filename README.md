@@ -389,11 +389,8 @@ for (name, data) in zip_entries {
 }
 ```
 
+### Cloud Storage API  
 
-
-```
-
-### Cloud Storage API
 ```rust
 // User chooses any path - always safe
 let user_storage = VirtualRoot::try_new(format!("/cloud/user_{id}"))?;
