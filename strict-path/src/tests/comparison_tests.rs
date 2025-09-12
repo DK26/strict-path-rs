@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[test]
-fn test_jailed_path_comparisons() {
+fn test_strict_path_comparisons() {
     let tempdir = tempfile::tempdir().unwrap();
     let temp_dir: PathBoundary = PathBoundary::try_new_create(tempdir.path()).unwrap();
 
@@ -12,7 +12,7 @@ fn test_jailed_path_comparisons() {
     let test_file = temp_dir.strict_join("test.txt").unwrap();
     fs::write(test_file.interop_path(), "test content").unwrap();
 
-    // RestrictedPath vs RestrictedPath (same type)
+    // StrictPath vs StrictPath (same type)
     let path1 = temp_dir.strict_join("test.txt").unwrap();
     let path2 = temp_dir.strict_join("test.txt").unwrap();
     assert_eq!(path1, path2);
@@ -20,17 +20,17 @@ fn test_jailed_path_comparisons() {
     let different_path = temp_dir.strict_join("different.txt").unwrap();
     assert_ne!(path1, different_path);
 
-    // RestrictedPath vs Path (system path comparison)
+    // StrictPath vs Path (system path comparison)
     // Note: On Windows, paths are canonicalized so we compare the canonical form
     let system_path = tempdir.path().join("test.txt");
     let canonical_system = system_path.canonicalize().unwrap_or(system_path.clone());
     assert_eq!(test_file, canonical_system.as_path());
     assert_eq!(test_file, &canonical_system);
 
-    // RestrictedPath vs PathBuf
+    // StrictPath vs PathBuf
     assert_eq!(test_file, canonical_system);
 
-    // RestrictedPath vs &str
+    // StrictPath vs &str
     let system_path_str = canonical_system.to_string_lossy();
     assert_eq!(test_file, system_path_str.as_ref());
 }
@@ -55,10 +55,10 @@ fn test_virtual_path_comparisons() {
     let different_vpath = vroot.virtual_join("docs/different.txt").unwrap();
     assert_ne!(vpath1, different_vpath);
 
-    // VirtualPath vs RestrictedPath (system path comparison)
-    let jailed = vpath.clone().unvirtual();
-    assert_eq!(vpath, jailed);
-    assert_eq!(jailed, vpath);
+    // VirtualPath vs StrictPath (system path comparison)
+    let strict = vpath.clone().unvirtual();
+    assert_eq!(vpath, strict);
+    assert_eq!(strict, vpath);
 
     // VirtualPath vs Path (virtual path comparison)
     assert_eq!(vpath, Path::new("/docs/test.txt"));
@@ -173,22 +173,22 @@ fn test_cross_type_path_comparisons() {
     let vroot: VirtualRoot = VirtualRoot::try_new_create(tempdir.path()).unwrap();
 
     // Create test paths
-    let restricted_path = temp_dir.strict_join("test.txt").unwrap();
+    let strict_path = temp_dir.strict_join("test.txt").unwrap();
     let virtual_path = vroot.virtual_join("test.txt").unwrap();
 
     // Cross-type comparisons should work both ways
-    assert_eq!(restricted_path, virtual_path);
-    assert_eq!(virtual_path, restricted_path);
+    assert_eq!(strict_path, virtual_path);
+    assert_eq!(virtual_path, strict_path);
 
     // PathBoundary vs VirtualRoot
     assert_eq!(temp_dir, vroot);
     assert_eq!(vroot, temp_dir);
 
     // Different files should not be equal
-    let jailed_different = temp_dir.strict_join("different.txt").unwrap();
+    let strict_different = temp_dir.strict_join("different.txt").unwrap();
     let virtual_different = vroot.virtual_join("different.txt").unwrap();
-    assert_ne!(restricted_path, virtual_different);
-    assert_ne!(virtual_path, jailed_different);
+    assert_ne!(strict_path, virtual_different);
+    assert_ne!(virtual_path, strict_different);
 }
 
 #[test]
@@ -199,19 +199,19 @@ fn test_hash_consistency() {
     let temp_dir: PathBoundary = PathBoundary::try_new_create(tempdir.path()).unwrap();
     let vroot: VirtualRoot = VirtualRoot::try_new_create(tempdir.path()).unwrap();
 
-    let jailed_path1 = temp_dir.strict_join("test.txt").unwrap();
-    let jailed_path2 = temp_dir.strict_join("test.txt").unwrap();
+    let strict_path1 = temp_dir.strict_join("test.txt").unwrap();
+    let strict_path2 = temp_dir.strict_join("test.txt").unwrap();
     let virtual_path1 = vroot.virtual_join("test.txt").unwrap();
     let virtual_path2 = vroot.virtual_join("test.txt").unwrap();
 
-    // Test that equal JailedPaths have equal hashes
-    let mut jailed_map = HashMap::new();
-    jailed_map.insert(jailed_path1.clone(), "value1");
-    jailed_map.insert(jailed_path2.clone(), "value2");
+    // Test that equal StrictPaths have equal hashes
+    let mut strict_map = HashMap::new();
+    strict_map.insert(strict_path1.clone(), "value1");
+    strict_map.insert(strict_path2.clone(), "value2");
 
-    // Since jailed_path1 == jailed_path2, they should hash to the same bucket
-    assert_eq!(jailed_map.len(), 1);
-    assert_eq!(jailed_map.get(&jailed_path1), Some(&"value2"));
+    // Since strict_path1 == strict_path2, they should hash to the same bucket
+    assert_eq!(strict_map.len(), 1);
+    assert_eq!(strict_map.get(&strict_path1), Some(&"value2"));
 
     // Test that equal VirtualPaths have equal hashes
     let mut virtual_map = HashMap::new();

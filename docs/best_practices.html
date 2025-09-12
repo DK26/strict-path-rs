@@ -1,0 +1,332 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Best Practices &amp; Guidelines - The Complete StrictPath Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="best-practices--guidelines"><a class="header" href="#best-practices--guidelines">Best Practices &amp; Guidelines</a></h1>
+<p>This page distills how to use strict-path correctly and ergonomically. Pair it with the Anti‑Patterns page for tell‑offs to avoid.</p>
+<h2 id="pick-the-right-type"><a class="header" href="#pick-the-right-type">Pick The Right Type</a></h2>
+<ul>
+<li>External/untrusted segments (HTTP/DB/manifest/LLM/archive entry):
+<ul>
+<li>UI/virtual flows: <code>VirtualRoot</code> + <code>VirtualPath</code> (clamped joins, user‑facing display)</li>
+<li>System flows: <code>PathBoundary</code> + <code>StrictPath</code> (rejected joins, system display)</li>
+</ul>
+</li>
+<li>Internal/trusted paths (hardcoded/CLI/env): use <code>Path</code>/<code>PathBuf</code>; only validate when combining with untrusted segments.</li>
+</ul>
+<h2 id="encode-guarantees-in-signatures"><a class="header" href="#encode-guarantees-in-signatures">Encode Guarantees In Signatures</a></h2>
+<ul>
+<li>Helpers that touch the filesystem must encode safety:
+<ul>
+<li>Accept <code>&amp;StrictPath&lt;_&gt;</code> or <code>&amp;VirtualPath&lt;_&gt;</code> directly, or</li>
+<li>Accept <code>&amp;PathBoundary&lt;_&gt;</code> / <code>&amp;VirtualRoot&lt;_&gt;</code> + the untrusted segment.</li>
+</ul>
+</li>
+<li>Don’t construct boundaries/roots inside helpers — boundary choice is policy.</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+
+fn save_to_storage(p: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; { p.write_string("ok") }
+fn load_from_storage(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { p.read_to_string() }
+
+fn create_config(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Result&lt;()&gt; {
+    boundary.strict_join(name)?.write_string("cfg")
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="multiuser-isolation-virtualroot"><a class="header" href="#multiuser-isolation-virtualroot">Multi‑User Isolation (VirtualRoot)</a></h2>
+<ul>
+<li>Per‑user/tenant: create a <code>VirtualRoot</code> per user and join untrusted names with <code>virtual_join</code>.</li>
+<li>Share strict helpers by borrowing the strict view: <code>vpath.as_unvirtual()</code>.</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn upload(user_root: &amp;VirtualRoot, filename: &amp;str, bytes: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
+    let vpath = user_root.virtual_join(filename)?;
+    vpath.create_parent_dir_all()?;
+    vpath.write_bytes(bytes)
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="interop--display"><a class="header" href="#interop--display">Interop &amp; Display</a></h2>
+<ul>
+<li>Interop (pass into <code>AsRef&lt;Path&gt;</code> APIs): <code>path.interop_path()</code> (no allocations).</li>
+<li>Display:
+<ul>
+<li>System‑facing: <code>strictpath_display()</code> on <code>PathBoundary</code>/<code>StrictPath</code></li>
+<li>User‑facing: <code>virtualpath_display()</code> on <code>VirtualPath</code></li>
+</ul>
+</li>
+<li>Never use <code>interop_path().to_string_lossy()</code> for display.</li>
+</ul>
+<h2 id="directory-discovery-vs-validation"><a class="header" href="#directory-discovery-vs-validation">Directory Discovery vs Validation</a></h2>
+<ul>
+<li>Discovery (walking): call <code>read_dir(boundary.interop_path())</code> and <code>strip_prefix(boundary.interop_path())</code> to get relatives.</li>
+<li>Validation: join those relatives via <code>boundary.strict_join(..)</code> or <code>vroot.virtual_join(..)</code> before I/O.</li>
+<li>Don’t validate constants like <code>"."</code>; only validate untrusted segments.</li>
+</ul>
+<h2 id="operations-use-explicit-methods"><a class="header" href="#operations-use-explicit-methods">Operations (Use Explicit Methods)</a></h2>
+<ul>
+<li>Joins: <code>strict_join(..)</code> / <code>virtual_join(..)</code></li>
+<li>Parents: <code>strictpath_parent()</code> / <code>virtualpath_parent()</code></li>
+<li>With file name/ext: <code>strictpath_with_file_name()</code> / <code>virtualpath_with_file_name()</code>, etc.</li>
+<li>Avoid std <code>Path::join</code>/<code>parent</code> on leaked paths — they ignore strict/virtual semantics.</li>
+</ul>
+<h2 id="naming-from-agentsmd"><a class="header" href="#naming-from-agentsmd">Naming (from AGENTS.md)</a></h2>
+<ul>
+<li>Variables reflect domain, not type:
+<ul>
+<li>Good: <code>config_dir</code>, <code>uploads_root</code>, <code>archive_src</code>, <code>mirror_src</code>, <code>user_vroot</code></li>
+<li>Bad: <code>boundary</code>, <code>jail</code>, <code>source_</code> prefix</li>
+</ul>
+</li>
+<li>Keep names consistent with the directory they represent (e.g., <code>archive_src</code> for <code>./archive_src</code>).</li>
+</ul>
+<h2 id="do--dont"><a class="header" href="#do--dont">Do / Don’t</a></h2>
+<ul>
+<li>Do: validate once at the boundary, pass types through helpers.</li>
+<li>Do: use <code>VirtualRoot</code> for per‑user isolation; borrow strict view for shared helpers.</li>
+<li>Do: prefer <code>impl AsRef&lt;Path&gt;</code> in helper params where you forward to validation.</li>
+<li>Don’t: wrap secure types in <code>Path::new</code>/<code>PathBuf::from</code>.</li>
+<li>Don’t: use <code>interop_path().as_ref()</code> or <code>as_unvirtual().interop_path()</code> (use <code>interop_path()</code> directly).</li>
+<li>Don’t: use lossy strings for display or comparisons.</li>
+</ul>
+<h2 id="testing--doctests"><a class="header" href="#testing--doctests">Testing &amp; Doctests</a></h2>
+<ul>
+<li>Make doctests encode guarantees (signatures) and use the explicit ops.</li>
+<li>Create temporary roots via <code>PathBoundary::try_new_create(..)</code> / <code>VirtualRoot::try_new_create(..)</code> in setup; clean up afterwards.</li>
+<li>For archive/HTTP examples, prefer offline simulations with deterministic inputs.</li>
+</ul>
+<h2 id="quick-patterns"><a class="header" href="#quick-patterns">Quick Patterns</a></h2>
+<ul>
+<li>Validate + write:</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn write(boundary: &amp;PathBoundary, name: &amp;str, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
+    let sp = boundary.strict_join(name)?;
+    sp.create_parent_dir_all()?;
+    sp.write_bytes(data)
+}
+<span class="boring">}</span></code></pre></pre>
+<ul>
+<li>Validate archive entry:</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn extract(vroot: &amp;VirtualRoot, entry: &amp;str, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
+    let vp = vroot.virtual_join(entry)?;
+    vp.create_parent_dir_all()?;
+    vp.write_bytes(data)
+}
+<span class="boring">}</span></code></pre></pre>
+<ul>
+<li>Share logic across strict/virtual:</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn consume_strict(p: &amp;StrictPath) -&gt; std::io::Result&lt;String&gt; { p.read_to_string() }
+fn consume_virtual(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { consume_strict(p.as_unvirtual()) }
+<span class="boring">}</span></code></pre></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="archive_extractors.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="internals.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="archive_extractors.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="internals.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

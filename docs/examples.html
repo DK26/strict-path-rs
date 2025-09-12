@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Real-World Examples - The Complete JailedPath Guide</title>
+        <title>Real-World Examples - The Complete StrictPath Guide</title>
 
 
         <!-- Custom HTML head -->
@@ -24,41 +24,28 @@
         <link rel="stylesheet" href="fonts/fonts.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="highlight-css" href="highlight.css">
-        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
-        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
 
 
-        <!-- Provide site root and default themes to javascript -->
+        <!-- Provide site root to javascript -->
         <script>
-            const path_to_root = "";
-            const default_light_theme = "light";
-            const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex.js";
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc.js"></script>
     </head>
     <body>
-    <div id="mdbook-help-container">
-        <div id="mdbook-help-popup">
-            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
-            <div>
-                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
-                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
-                <p>Press <kbd>?</kbd> to show this help</p>
-                <p>Press <kbd>Esc</kbd> to hide this help</p>
-            </div>
-        </div>
-    </div>
     <div id="body-container">
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
-                let theme = localStorage.getItem('mdbook-theme');
-                let sidebar = localStorage.getItem('mdbook-sidebar');
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
 
                 if (theme.startsWith('"') && theme.endsWith('"')) {
                     localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
@@ -72,8 +59,7 @@
 
         <!-- Set the theme before any content is loaded, prevents flash -->
         <script>
-            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
-            let theme;
+            var theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             const html = document.documentElement;
@@ -86,20 +72,17 @@
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            let sidebar = null;
-            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
             } else {
                 sidebar = 'hidden';
-                sidebar_toggle.checked = false;
             }
-            if (sidebar === 'visible') {
-                sidebar_toggle.checked = true;
-            } else {
-                html.classList.remove('sidebar-visible');
-            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
@@ -126,19 +109,18 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
                         </ul>
-                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
                             <i class="fa fa-search"></i>
                         </button>
                     </div>
 
-                    <h1 class="menu-title">The Complete JailedPath Guide</h1>
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
 
                     <div class="right-buttons">
                         <a href="print.html" title="Print this book" aria-label="Print this book">
@@ -150,12 +132,7 @@
 
                 <div id="search-wrapper" class="hidden">
                     <form id="searchbar-outer" class="searchbar-outer">
-                        <div class="search-wrapper">
-                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
-                            <div class="spinner-wrapper">
-                                <i class="fa fa-spinner fa-spin"></i>
-                            </div>
-                        </div>
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
                     </form>
                     <div id="searchresults-outer" class="searchresults-outer hidden">
                         <div id="searchresults-header" class="searchresults-header"></div>
@@ -176,95 +153,90 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="real-world-examples"><a class="header" href="#real-world-examples">Real-World Examples</a></h1>
-<p>This chapter shows practical, real-world scenarios where jailed-path helps secure your applications. Each example includes complete, runnable code that you can adapt to your own projects.</p>
+<p>This chapter shows practical, real-world scenarios where strict-path helps secure your applications. Each example includes complete, runnable code that you can adapt to your own projects.</p>
 <h2 id="web-file-upload-service"><a class="header" href="#web-file-upload-service">Web File Upload Service</a></h2>
 <p>Let's build a simple file upload service that allows users to upload files safely:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
-use std::fs;
-use std::io::{self, Write};
+<pre><pre class="playground"><code class="language-rust">use strict_path::{StrictPath, VirtualPath, VirtualRoot};
+use std::io;
 
-struct FileUploadService {
-    uploads_jail: Jail,
-}
+struct FileUploadService;
 
 impl FileUploadService {
-    fn new() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
-        // Create a jail for uploaded files
-        let uploads_jail = Jail::try_new_create("user_uploads")?;
-        Ok(Self { uploads_jail })
+    // Multi-user: each user operates under their own VirtualRoot
+    fn upload_file(
+        &amp;self,
+        user_root: &amp;VirtualRoot,
+        filename: &amp;str,
+        content: &amp;[u8],
+    ) -&gt; Result&lt;VirtualPath, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Validate the untrusted filename at the user’s virtual root
+        let dest = user_root.virtual_join(filename)?;
+        // Reuse strict-typed helper when needed
+        self.save_uploaded(dest.as_unvirtual(), content)?;
+        println!("✅ File uploaded safely to: {}", dest.virtualpath_display());
+        Ok(dest)
     }
-    
-    fn upload_file(&amp;self, filename: &amp;str, content: &amp;[u8]) -&gt; Result&lt;JailedPath, Box&lt;dyn std::error::Error&gt;&gt; {
-        // Validate the filename is safe
-        let safe_path = self.uploads_jail.jailed_join(filename)?;
-        
-        // Create parent directories if needed
-        if let Some(parent) = safe_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        
-        // Write the file safely
-        fs::write(&amp;safe_path, content)?;
-        
-        println!("✅ File uploaded safely to: {}", safe_path.as_path().display());
-        Ok(safe_path)
+
+    // Internal helper: signature encodes guarantee (accepts only &amp;StrictPath)
+    fn save_uploaded(&amp;self, path: &amp;StrictPath, content: &amp;[u8]) -&gt; io::Result&lt;()&gt; {
+        path.create_parent_dir_all()?;
+        path.write_bytes(content)
     }
-    
-    fn list_files(&amp;self) -&gt; Result&lt;Vec&lt;JailedPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+
+    fn list_files(
+        &amp;self,
+        user_root: &amp;VirtualRoot,
+    ) -&gt; Result&lt;Vec&lt;VirtualPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
         let mut files = Vec::new();
-        
-        // Only iterate within the jail
-        for entry in fs::read_dir(&amp;self.uploads_jail)? {
+        for entry in std::fs::read_dir(user_root.interop_path())? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
-                // Validate each path through the jail
-                let safe_path = self.uploads_jail.jailed_join(entry.file_name())?;
-                files.push(safe_path);
+                let vpath = user_root.virtual_join(entry.file_name())?;
+                files.push(vpath);
             }
         }
-        
         Ok(files)
     }
-    
-    fn download_file(&amp;self, filename: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
-        // Validate the requested filename
-        let safe_path = self.uploads_jail.jailed_join(filename)?;
-        
-        // Read and return the file content
-        let content = fs::read(&amp;safe_path)?;
-        Ok(content)
+
+    fn download_file(&amp;self, path: &amp;VirtualPath) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
+        // Read and return the file content — type ensures safety
+        path.read_bytes()
     }
 }
 
 fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let service = FileUploadService::new()?;
-    
-    // Simulate user uploads - these are all SAFE
-    service.upload_file("document.txt", b"Hello, world!")?;
-    service.upload_file("reports/january.pdf", b"PDF content here")?;
-    service.upload_file("images/photo.jpg", b"JPEG data")?;
-    
-    // These would FAIL with directory traversal protection:
-    // service.upload_file("../../../etc/passwd", b"attack")?;  // ❌ Blocked!
-    // service.upload_file("..\\windows\\system32\\evil.exe", b"malware")?;  // ❌ Blocked!
-    
-    // List uploaded files
-    println!("📁 Uploaded files:");
-    for file in service.list_files()? {
-        println!("  - {}", file.as_path().display());
+    let service = FileUploadService;
+
+    // Per-user virtual roots
+    let alice_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/alice")?;
+    let bob_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/bob")?;
+
+    // Simulate user uploads - these are all SAFE and isolated
+    service.upload_file(&amp;alice_root, "document.txt", b"Hello, world!")?;
+    service.upload_file(&amp;alice_root, "reports/january.pdf", b"PDF content here")?;
+    service.upload_file(&amp;bob_root, "images/photo.jpg", b"JPEG data")?;
+
+    // These would be clamped/blocked by validation:
+    // service.upload_file(&amp;alice_root, "../../../etc/passwd", b"attack")?;  // ❌ Blocked!
+    // service.upload_file(&amp;alice_root, "..\\windows\\system32\\evil.exe", b"malware")?;  // ❌ Blocked!
+
+    // List Alice’s uploaded files (virtual paths)
+    println!("📁 Alice's files:");
+    for vpath in service.list_files(&amp;alice_root)? {
+        println!("  - {}", vpath.virtualpath_display());
     }
-    
-    // Download a file
-    let content = service.download_file("document.txt")?;
+
+    // Download a file using VirtualPath
+    let target = alice_root.virtual_join("document.txt")?;
+    let content = service.download_file(&amp;target)?;
     println!("📄 Downloaded: {}", String::from_utf8_lossy(&amp;content));
-    
+
     Ok(())
 }</code></pre></pre>
 <h2 id="configuration-file-manager"><a class="header" href="#configuration-file-manager">Configuration File Manager</a></h2>
 <p>Here's how to safely handle user configuration files:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
+<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
 use serde::{Deserialize, Serialize};
-use std::fs;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct AppConfig {
@@ -284,50 +256,50 @@ impl Default for AppConfig {
 }
 
 struct ConfigManager {
-    config_jail: Jail,
+    config_dir: PathBoundary,
 }
 
 impl ConfigManager {
     fn new() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
         // Create a jail for configuration files
-        let config_jail = Jail::try_new_create("app_config")?;
-        Ok(Self { config_jail })
+        let config_dir = PathBoundary::try_new_create("app_config")?;
+        Ok(Self { config_dir })
     }
     
     fn load_config(&amp;self, config_name: &amp;str) -&gt; Result&lt;AppConfig, Box&lt;dyn std::error::Error&gt;&gt; {
         // Ensure the config file name is safe
-        let config_path = self.config_jail.jailed_join(config_name)?;
+        let config_path = self.config_dir.strict_join(config_name)?;
         
         // Load config or create default
         if config_path.exists() {
-            let content = fs::read_to_string(&amp;config_path)?;
+            let content = config_path.read_to_string()?;
             let config: AppConfig = serde_json::from_str(&amp;content)?;
-            println!("📖 Loaded config from: {}", config_path.as_path().display());
+            println!("📖 Loaded config from: {}", config_path.strictpath_display());
             Ok(config)
         } else {
-            println!("🆕 Creating default config at: {}", config_path.as_path().display());
+            println!("🆕 Creating default config at: {}", config_path.strictpath_display());
             let default_config = AppConfig::default();
             self.save_config(config_name, &amp;default_config)?;
             Ok(default_config)
         }
     }
     
-    fn save_config(&amp;self, config_name: &amp;str, config: &amp;AppConfig) -&gt; Result&lt;JailedPath, Box&lt;dyn std::error::Error&gt;&gt; {
+    fn save_config(&amp;self, config_name: &amp;str, config: &amp;AppConfig) -&gt; Result&lt;StrictPath, Box&lt;dyn std::error::Error&gt;&gt; {
         // Validate the config file path
-        let config_path = self.config_jail.jailed_join(config_name)?;
+        let config_path = self.config_dir.strict_join(config_name)?;
         
         // Serialize and save
         let content = serde_json::to_string_pretty(config)?;
-        fs::write(&amp;config_path, content)?;
-        
-        println!("💾 Saved config to: {}", config_path.as_path().display());
+        config_path.write_string(&amp;content)?;
+
+        println!("💾 Saved config to: {}", config_path.strictpath_display());
         Ok(config_path)
     }
     
     fn list_configs(&amp;self) -&gt; Result&lt;Vec&lt;String&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
         let mut configs = Vec::new();
         
-        for entry in fs::read_dir(&amp;self.config_jail)? {
+        for entry in std::fs::read_dir(self.config_dir.interop_path())? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
                 if let Some(name) = entry.file_name().to_str() {
@@ -373,7 +345,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 }</code></pre></pre>
 <h2 id="multi-user-document-storage-with-virtualpath"><a class="header" href="#multi-user-document-storage-with-virtualpath">Multi-User Document Storage with VirtualPath</a></h2>
 <p>For applications where each user should feel like they have their own filesystem:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::{VirtualRoot, VirtualPath};
+<pre><pre class="playground"><code class="language-rust">use strict_path::{VirtualRoot, VirtualPath};
 use std::fs;
 use std::collections::HashMap;
 
@@ -406,16 +378,12 @@ impl DocumentStore {
         // User thinks they're saving to their own filesystem starting from "/"
         let doc_path = user_root.virtual_join(virtual_path)?;
         
-        // Create parent directories if needed
-        if let Some(parent) = doc_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
+        // Create parent directories and save
+        doc_path.create_parent_dir_all()?;
+        doc_path.write_string(content)?;
         
-        // Save the document
-        fs::write(&amp;doc_path, content)?;
-        
-        println!("📝 User {} saved document to: {}", username, virtual_path);
-        println!("    (Actually stored at: {})", doc_path.as_path().display());
+        println!("📝 User {username} saved document to: {}", doc_path.virtualpath_display());
+        println!("    (Actually stored at: {})", doc_path.as_unvirtual().strictpath_display());
         
         Ok(doc_path)
     }
@@ -424,7 +392,7 @@ impl DocumentStore {
         let user_root = self.get_user_root(username)?;
         let doc_path = user_root.virtual_join(virtual_path)?;
         
-        let content = fs::read_to_string(&amp;doc_path)?;
+        let content = doc_path.read_to_string()?;
         println!("📖 User {} loaded document from: {}", username, virtual_path);
         
         Ok(content)
@@ -434,7 +402,9 @@ impl DocumentStore {
         let user_root = self.get_user_root(username)?;
         let mut docs = Vec::new();
         
-        fn collect_files(dir: &amp;std::path::Path, base: &amp;std::path::Path, docs: &amp;mut Vec&lt;String&gt;) -&gt; std::io::Result&lt;()&gt; {
+        fn collect_files(dir: impl AsRef&lt;std::path::Path&gt;, base: impl AsRef&lt;std::path::Path&gt;, docs: &amp;mut Vec&lt;String&gt;) -&gt; std::io::Result&lt;()&gt; {
+            let dir = dir.as_ref();
+            let base = base.as_ref();
             for entry in fs::read_dir(dir)? {
                 let entry = entry?;
                 let path = entry.path();
@@ -452,7 +422,7 @@ impl DocumentStore {
             Ok(())
         }
         
-        collect_files(user_root.as_path(), user_root.as_path(), &amp;mut docs)?;
+        collect_files(user_root.interop_path(), user_root.interop_path(), &amp;mut docs)?;
         Ok(docs)
     }
 }
@@ -484,37 +454,33 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 }</code></pre></pre>
 <h2 id="archive-extraction-with-safety"><a class="header" href="#archive-extraction-with-safety">Archive Extraction with Safety</a></h2>
 <p>Safely extract ZIP files and other archives without zip-slip vulnerabilities:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
+<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
 use std::fs;
 use std::io::Write;
 
 struct SafeArchiveExtractor {
-    extraction_jail: Jail,
+    extraction_dir: PathBoundary,
 }
 
 impl SafeArchiveExtractor {
     fn new(extract_to: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
-        let extraction_jail = Jail::try_new_create(extract_to)?;
-        Ok(Self { extraction_jail })
+        let extraction_dir = PathBoundary::try_new_create(extract_to)?;
+        Ok(Self { extraction_dir })
     }
     
-    fn extract_entry(&amp;self, entry_path: &amp;str, content: &amp;[u8]) -&gt; Result&lt;JailedPath, Box&lt;dyn std::error::Error&gt;&gt; {
+    fn extract_entry(&amp;self, entry_path: &amp;str, content: &amp;[u8]) -&gt; Result&lt;StrictPath, Box&lt;dyn std::error::Error&gt;&gt; {
         // This automatically prevents zip-slip attacks
-        let safe_path = self.extraction_jail.jailed_join(entry_path)?;
-        
-        // Create parent directories
-        if let Some(parent) = safe_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        
-        // Write the file
-        fs::write(&amp;safe_path, content)?;
-        
-        println!("📦 Extracted: {} -&gt; {}", entry_path, safe_path.as_path().display());
+        let safe_path = self.extraction_dir.strict_join(entry_path)?;
+
+        // Create parent directories and write the file
+        safe_path.create_parent_dir_all()?;
+        safe_path.write_bytes(content)?;
+
+        println!("📦 Extracted: {entry_path} -&gt; {}", safe_path.strictpath_display());
         Ok(safe_path)
     }
     
-    fn extract_mock_zip(&amp;self) -&gt; Result&lt;Vec&lt;JailedPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+    fn extract_mock_zip(&amp;self) -&gt; Result&lt;Vec&lt;StrictPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
         // Simulate extracting a ZIP file with various entries
         let entries = vec![
             ("readme.txt", b"Welcome to our software!"),
@@ -549,14 +515,14 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     
     println!("\n✅ Successfully extracted {} files:", extracted.len());
     for file in &amp;extracted {
-        println!("   📄 {}", file.as_path().display());
+        println!("   📄 {}", file.strictpath_display());
     }
     
     // Verify we can read the extracted files
     for file in &amp;extracted {
-        if file.as_path().extension().and_then(|s| s.to_str()) == Some("txt") {
-            let content = fs::read_to_string(file)?;
-            println!("📖 {}: {}", file.as_path().display(), content.trim());
+        if file.strictpath_extension().and_then(|s| s.to_str()) == Some("txt") {
+            let content = file.read_to_string()?;
+            println!("📖 {}: {}", file.strictpath_display(), content.trim());
         }
     }
     
@@ -564,32 +530,32 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 }</code></pre></pre>
 <h2 id="cli-tool-with-safe-path-handling"><a class="header" href="#cli-tool-with-safe-path-handling">CLI Tool with Safe Path Handling</a></h2>
 <p>A command-line tool that processes user-provided file paths safely:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
+<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
 use std::env;
 use std::fs;
 
 struct SafeFileProcessor {
-    working_jail: Jail,
+    working_dir: PathBoundary,
 }
 
 impl SafeFileProcessor {
     fn new(working_directory: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
         // Create or validate the working directory
-        let working_jail = Jail::try_new_create(working_directory)?;
-        println!("🔒 Working directory jail: {}", working_jail.as_path().display());
-        Ok(Self { working_jail })
+        let working_dir = PathBoundary::try_new_create(working_directory)?;
+        println!("🔒 Working directory jail: {}", working_dir.strictpath_display());
+        Ok(Self { working_dir })
     }
     
     fn process_file(&amp;self, relative_path: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
         // Validate the user-provided path
-        let safe_path = self.working_jail.jailed_join(relative_path)?;
+        let safe_path = self.working_dir.strict_join(relative_path)?;
         
         if !safe_path.exists() {
             return Err(format!("File not found: {}", relative_path).into());
         }
         
         // Process the file (example: count lines)
-        let content = fs::read_to_string(&amp;safe_path)?;
+        let content = safe_path.read_to_string()?;
         let line_count = content.lines().count();
         let word_count = content.split_whitespace().count();
         let char_count = content.chars().count();
@@ -611,12 +577,10 @@ impl SafeFileProcessor {
         ];
         
         for (path, content) in samples {
-            let safe_path = self.working_jail.jailed_join(path)?;
-            if let Some(parent) = safe_path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(&amp;safe_path, content)?;
-            println!("📝 Created: {}", path);
+            let safe_path = self.working_dir.strict_join(path)?;
+            safe_path.create_parent_dir_all()?;
+            safe_path.write_string(content)?;
+            println!("📝 Created: {path}");
         }
         
         Ok(())
@@ -666,7 +630,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 // cargo run -- ../../../etc/passwd           # ❌ Blocked!
 // cargo run -- /absolute/path/hack.txt       # ❌ Blocked!</code></pre></pre>
 <h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
-<p>These examples show how jailed-path helps in real scenarios:</p>
+<p>These examples show how strict-path helps in real scenarios:</p>
 <ol>
 <li><strong>Web uploads</strong>: Users can't escape the upload directory</li>
 <li><strong>Configuration</strong>: Config files stay in their designated area</li>
@@ -676,9 +640,9 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 </ol>
 <p>The common pattern is:</p>
 <ol>
-<li>Create a <code>Jail</code> or <code>VirtualRoot</code> for your safe area</li>
-<li>Always validate external paths through <code>jailed_join()</code> or <code>virtual_join()</code></li>
-<li>Use the resulting <code>JailedPath</code> or <code>VirtualPath</code> for file operations</li>
+<li>Create a <code>PathBoundary</code> or <code>VirtualRoot</code> for your safe area</li>
+<li>Always validate external paths through <code>strict_join()</code> or <code>virtual_join()</code></li>
+<li>Use the resulting <code>StrictPath</code> or <code>VirtualPath</code> for file operations</li>
 <li>Let the compiler enforce that only validated paths are used</li>
 </ol>
 <p>This makes your code both secure and maintainable - security isn't something you have to remember to check, it's built into the type system!</p>
@@ -691,7 +655,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="archive_extractors.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="features.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -705,7 +669,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="archive_extractors.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="features.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
@@ -729,7 +693,6 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
         <script src="book.js"></script>
 
         <!-- Custom JS scripts -->
-
 
 
     </div>

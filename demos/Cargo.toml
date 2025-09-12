@@ -1,0 +1,192 @@
+## Demos crate (intentionally NOT in the workspace)
+##
+## Why this is separate:
+## - Our library (`strict-path/`) targets MSRV Rust 1.71 and is checked with
+##   `--locked` on that toolchain in CI.
+## - Real-world demos often want newer crates and features (latest stable),
+##   which can raise MSRV if coupled through a shared workspace lockfile.
+## - Keeping `demos/` as its own crate avoids lock/feature coupling and lets
+##   CI build it independently on stable (see `.github/workflows/ci.yml`).
+##
+## How it wires together:
+## - Depends on the library via a path dependency: `strict-path = { path = "../strict-path" }`
+## - Heavy deps are optional behind namespaced features (e.g., `with-zip`).
+## - `publish = false` ensures this crate never goes to crates.io.
+[package]
+name = "strict-path-demos"
+version = "0.0.0"
+edition = "2021"
+description = "Demo binaries for strict-path (non-publishable)"
+publish = false
+
+[dependencies]
+# Build demos against the workspace library. Do NOT enable any
+# non-existent features on the library here; keep example-only features
+# local to this crate so MSRV checks for the library remain isolated.
+strict-path = { path = "../strict-path", features = ["serde"] }
+anyhow = "1.0"
+config = "0.15.15"
+# Zip-related deps are optional and only enabled via the `with-zip` feature.
+# Use namespaced dependency features to avoid relying on removed implicit
+# features in newer `zip` versions.
+zip = { version = "4.5.0", default-features = false, optional = true, features = [
+    "deflate",
+] }
+flate2 = { version = "1.0", default-features = false, optional = true, features = [
+    "miniz_oxide",
+] }
+serde = { version = "1.0", features = ["derive"] }
+clap = { version = "4.5.47", features = ["derive"] }
+indicatif = "0.18"
+tar = "0.4"
+walkdir = "2.3"
+tokio = { version = "1.39", features = ["full"] }
+axum = "0.8.4"
+uuid = { version = "1.18.1", features = ["v4"] }
+pulldown-cmark = "0.13.0"
+tera = "1.17"
+serde_json = "1.0"
+chrono = { version = "0.4.42", features = ["serde"] }
+serde_yaml = "0.9.33"
+toml = "0.9.5"
+aws-config = { version = "1.8.6", optional = true }
+aws-sdk-s3 = { version = "1.105.0", optional = true }
+app-path = { version = "1.1.2", optional = true }
+dirs = { version = "6.0.0", optional = true }
+tempfile = { version = "3.22", optional = true }
+
+[dev-dependencies]
+
+[features]
+# Make heavy archive-related dependencies optional so the demos crate
+# builds quickly by default when those features are not needed.
+# Consumers (or local devs) can enable these features to build specific demos.
+default = []
+with-zip = ["dep:zip", "dep:flate2"]
+with-aws = ["dep:aws-config", "dep:aws-sdk-s3"]
+with-app-path = ["dep:app-path", "strict-path/app-path"]
+with-dirs = ["dep:dirs", "strict-path/dirs"]
+with-tempfile = ["dep:tempfile", "strict-path/tempfile"]
+
+[[bin]]
+name = "cli_backup_tool"
+path = "src/bin/cli/cli_backup_tool.rs"
+
+[[bin]]
+name = "secure_file_copy_cli"
+path = "src/bin/cli/secure_file_copy_cli.rs"
+
+[[bin]]
+name = "config_loader"
+path = "src/bin/config/config_loader.rs"
+
+[[bin]]
+name = "config_manager"
+path = "src/bin/config/config_manager.rs"
+
+[[bin]]
+name = "config_includes"
+path = "src/bin/config/config_includes.rs"
+
+[[bin]]
+name = "config_management_example"
+path = "src/bin/config/config_management_example.rs"
+
+[[bin]]
+name = "user_data_manager"
+path = "src/bin/data/user_data_manager.rs"
+
+
+
+[[bin]]
+name = "temp_file_manager"
+path = "src/bin/io/temp_file_manager.rs"
+
+[[bin]]
+name = "archive_extractor"
+path = "src/bin/security/archive_extractor.rs"
+required-features = ["with-zip"]
+
+[[bin]]
+name = "error_handling"
+path = "src/bin/security/error_handling.rs"
+
+
+[[bin]]
+name = "archive_extractor_with_config"
+path = "src/bin/security/archive_extractor_with_config.rs"
+required-features = ["with-zip"]
+
+# temporarily disabled: example prints types that don't implement Display
+# [[bin]]
+# name = "basic_file_server"
+# path = "src/bin/server/basic_file_server.rs"
+
+[[bin]]
+name = "multi_jail_server"
+path = "src/bin/server/multi_jail_server.rs"
+
+[[bin]]
+name = "virtualpath_only_server"
+path = "src/bin/server/virtualpath_only_server.rs"
+
+[[bin]]
+name = "docker_volume_manager"
+path = "src/bin/tools/docker_volume_manager.rs"
+
+[[bin]]
+name = "archive_builder"
+path = "src/bin/tools/archive_builder.rs"
+
+[[bin]]
+name = "migrations_runner"
+path = "src/bin/tools/migrations_runner.rs"
+
+[[bin]]
+name = "file_upload_api"
+path = "src/bin/web/file_upload_api.rs"
+
+[[bin]]
+name = "file_upload_service"
+path = "src/bin/web/file_upload_service.rs"
+
+[[bin]]
+name = "llm_workspace"
+path = "src/bin/llm/llm_workspace.rs"
+
+[[bin]]
+name = "axum_static_server"
+path = "src/bin/web/axum_static_server.rs"
+
+[[bin]]
+name = "s3_mirror"
+path = "src/bin/cloud/s3_mirror.rs"
+
+[[bin]]
+name = "app_path_config"
+path = "src/bin/config/app_path_config.rs"
+
+# New feature demonstration binaries
+[[bin]]
+name = "tempfile_demo"
+path = "src/bin/filesystem/tempfile_demo.rs"
+required-features = ["with-tempfile"]
+
+[[bin]]
+name = "dirs_demo"
+path = "src/bin/filesystem/dirs_demo.rs"
+required-features = ["with-dirs"]
+
+[[bin]]
+name = "app_path_demo"
+path = "src/bin/config/app_path_demo.rs"
+required-features = ["with-app-path"]
+
+[[bin]]
+name = "os_directories_demo"
+path = "src/bin/config/os_directories_demo.rs"
+required-features = ["with-dirs"]
+
+[[bin]]
+name = "static_site_generator"
+path = "src/bin/web/static_site_generator.rs"

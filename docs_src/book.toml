@@ -2,7 +2,7 @@
 authors = ["David Krasnitsky"]
 language = "en"
 src = "src"
-title = "The Complete JailedPath Guide"
+title = "The Complete StrictPath Guide"
 
 [build]
 build-dir = "../docs"

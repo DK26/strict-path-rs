@@ -87,7 +87,7 @@ impl<Marker> StrictPath<Marker> {
     ///
     /// Prefer borrowing via `interop_path()` when possible.
     #[inline]
-    pub fn unrestrict(self) -> PathBuf {
+    pub fn unstrict(self) -> PathBuf {
         self.path.into_inner()
     }
 
@@ -327,6 +327,6 @@ impl<T: AsRef<Path>, Marker> PartialOrd<T> for StrictPath<Marker> {
 impl<Marker> PartialEq<crate::path::virtual_path::VirtualPath<Marker>> for StrictPath<Marker> {
     #[inline]
     fn eq(&self, other: &crate::path::virtual_path::VirtualPath<Marker>) -> bool {
-        self.path.as_ref() == other.as_unvirtual().interop_path()
+        self.path.as_ref() == other.interop_path()
     }
 }

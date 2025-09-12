@@ -226,18 +226,18 @@ if (Test-Path "strict-path\src") {
     } else {
         Write-Host "WARNING: No Rust source files found in src/" -ForegroundColor Yellow
     }
-} elseif (Test-Path "examples\src") {
-    $rustFiles = Get-ChildItem -Path "examples\src" -Filter "*.rs" -Recurse
+} elseif (Test-Path "demos\src") {
+    $rustFiles = Get-ChildItem -Path "demos\src" -Filter "*.rs" -Recurse
     if ($rustFiles.Count -gt 0) {
         foreach ($file in $rustFiles) {
             if (-not (Test-Utf8Encoding $file.FullName)) { exit 1 }
         }
-        Write-Host "SUCCESS: All Rust source files in examples/src - UTF-8 encoding verified" -ForegroundColor Green
+        Write-Host "SUCCESS: All Rust source files in demos/src - UTF-8 encoding verified" -ForegroundColor Green
     } else {
-        Write-Host "WARNING: No Rust source files found in examples/src" -ForegroundColor Yellow
+        Write-Host "WARNING: No Rust source files found in demos/src" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "WARNING: No Rust source directories found (strict-path/src, src, examples/src) - skipping source file encoding check" -ForegroundColor Yellow
+    Write-Host "WARNING: No Rust source directories found (strict-path/src, src, demos/src) - skipping source file encoding check" -ForegroundColor Yellow
 }
 
 Write-Host "SUCCESS: All file encoding checks passed!" -ForegroundColor Green
@@ -254,14 +254,35 @@ Write-Host ""
 Run-Check "Format Check" "cargo fmt --all -- --check"
 # Lint and tests on the latest installed Rust toolchain
 Run-Check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warnings"
-# Explicitly build all example binaries (examples are not workspace members)
-Run-Check "Build Examples (bins)" "Push-Location examples; cargo build --bins --features with-zip; Pop-Location"
-Run-Check "Clippy Examples (all targets)" "Push-Location examples; cargo clippy --all-targets --features with-zip -- -D warnings; Pop-Location"
+# Explicitly build all demo binaries (demos are not workspace members)
+Run-Check "Build Demos (bins)" "Push-Location demos; cargo build --bins --features with-zip; Pop-Location"
+Run-Check "Clippy Demos (all targets)" "Push-Location demos; cargo clippy --all-targets --features with-zip -- -D warnings; Pop-Location"
 # Run workspace tests for the library only
 Run-Check "Tests (library all features)" "cargo test -p strict-path --all-features --verbose"
 # Doc tests are included in 'cargo test --workspace', so no separate --doc run needed
 $env:RUSTDOCFLAGS = "-D warnings"
 Run-Check "Documentation" "cargo doc --no-deps --document-private-items --all-features"
+
+# Build mdbook documentation
+Write-Host "Building mdbook documentation..." -ForegroundColor Cyan
+if (Get-Command mdbook -ErrorAction SilentlyContinue) {
+    Run-Check "Build mdbook docs" "Push-Location docs_src; mdbook build; Pop-Location"
+} else {
+    Write-Host "WARNING: mdbook not found. Installing..." -ForegroundColor Yellow
+    try {
+        & cargo install mdbook --locked
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "SUCCESS: mdbook installed successfully" -ForegroundColor Green
+            Run-Check "Build mdbook docs" "Push-Location docs_src; mdbook build; Pop-Location"
+        } else {
+            throw "mdbook installation failed"
+        }
+    } catch {
+        Write-Host "ERROR: Failed to install mdbook. Skipping documentation build." -ForegroundColor Red
+        Write-Host "INFO: To install manually: cargo install mdbook" -ForegroundColor Yellow
+        Write-Host "INFO: Then run: cd docs_src && mdbook build" -ForegroundColor Yellow
+    }
+}
 
 # Security audit (same as GitHub Actions)
 Write-Host "Running security audit..." -ForegroundColor Cyan
@@ -296,7 +317,7 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
             & rustup component add clippy --toolchain 1.71.0
         }
 
-        Write-Host "Running MSRV checks against library package (no examples)..." -ForegroundColor Blue
+        Write-Host "Running MSRV checks against library package (no demos)..." -ForegroundColor Blue
     Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
     Run-Check-Try "MSRV Check (Rust 1.71.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose"
     Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"

@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **OS Directory Constructors**: `try_new_os_*` methods for standard directories (config, data, cache, home, desktop, documents, downloads, pictures, audio, videos, executables, runtime, state) on both `PathBoundary` and `VirtualRoot`
+- **MDBook Documentation**: Complete guide with OS directory examples and cross-platform tables
+- **Demos Crate**: Moved real-world demos from `examples/` to separate `demos/` crate with feature flags
+
+### Changed - BREAKING
+
+- **API**: `.unrestrict()` → `.unstrict()`, `tempdir` → `tempfile` feature  
+- **Project Structure**: Demos moved to separate crate for MSRV isolation
+
+### Fixed
+
+- **References**: Updated `jailed-path` → `strict-path` throughout codebase
+
 ## [0.1.0-alpha.1] - 2024-12-09
 
 ### Changed - BREAKING 

@@ -10,11 +10,12 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/DK26/jailed-path-rs"
 homepage = "https://github.com/DK26/jailed-path-rs"
 documentation = "https://docs.rs/strict-path"
-readme = "README.md"
+# Complete guide and examples: https://dk26.github.io/jailed-path-rs/
+readme = "../README.md"
 keywords = ["path", "security", "jail", "filesystem", "traversal"]
 categories = ["filesystem", "development-tools", "web-programming"]
 # The path is now relative to the workspace root
-exclude = ["../examples/**"]
+exclude = ["../demos/**"]
 
 [dependencies]
 soft-canonicalize = { version = "0.3.4", features = ["anchored"] }
@@ -37,6 +38,6 @@ serde = ["dep:serde"]
 # Convenience restriction constructors for system directories (config/data/cache)
 dirs = ["dep:dirs"]
 # Temporary directories with RAII (unique dir per restriction) via `tempfile`
-tempdir = ["dep:tempfile"]
+tempfile = ["dep:tempfile"]
 # Portable application directory restrictions
 app-path = ["dep:app-path"]

@@ -243,13 +243,13 @@ elif find src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
         check_utf8_encoding "$file" || exit 1
     done
     echo "✅ All Rust source files in src/: UTF-8 encoding verified"
-elif find examples/src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
-    find examples/src -name "*.rs" -type f | while read file; do
+elif find demos/src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
+    find demos/src -name "*.rs" -type f | while read file; do
         check_utf8_encoding "$file" || exit 1
     done
-    echo "✅ All Rust source files in examples/src: UTF-8 encoding verified"
+    echo "✅ All Rust source files in demos/src: UTF-8 encoding verified"
 else
-    echo "⚠️  No Rust source files found in strict-path/src, src/ or examples/src; skipping source file encoding check"
+    echo "⚠️  No Rust source files found in strict-path/src, src/ or demos/src; skipping source file encoding check"
 fi
 
 echo "🎉 All file encoding checks passed!"
@@ -266,13 +266,29 @@ echo
 run_check "Format Check" "cargo fmt --all -- --check"
 # Lint and tests on the latest installed Rust toolchain
 run_check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warnings"
-# Explicitly build all example binaries (examples is not in workspace)
-run_check "Build Examples (bins)" "(cd examples && cargo build --bins --features with-zip)"
-run_check "Clippy Examples (all targets)" "(cd examples && cargo clippy --all-targets --features with-zip -- -D warnings)"
+# Explicitly build all demo binaries (demos is not in workspace)
+run_check "Build Demos (bins)" "(cd demos && cargo build --bins --features with-zip)"
+run_check "Clippy Demos (all targets)" "(cd demos && cargo clippy --all-targets --features with-zip -- -D warnings)"
 # Run workspace tests for the library only
 run_check "Tests (library all features)" "cargo test -p strict-path --all-features --verbose"
 # Doc tests are included in 'cargo test --verbose', so no separate --doc run needed
 run_check "Documentation" "RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items --all-features"
+
+# Build mdbook documentation
+echo "📚 Building mdbook documentation..."
+if command -v mdbook &> /dev/null; then
+    run_check "Build mdbook docs" "(cd docs_src && mdbook build)"
+else
+    echo "⚠️  mdbook not found. Installing..."
+    if cargo install mdbook --locked; then
+        echo "✓ mdbook installed successfully"
+        run_check "Build mdbook docs" "(cd docs_src && mdbook build)"
+    else
+        echo "❌ Failed to install mdbook. Skipping documentation build."
+        echo "💡 To install manually: cargo install mdbook"
+        echo "💡 Then run: cd docs_src && mdbook build"
+    fi
+fi
 
 # Security audit (same as GitHub Actions)
 echo "🔍 Running security audit..."
@@ -308,10 +324,10 @@ if command -v rustup &> /dev/null; then
         if rustup toolchain install 1.71.0; then
             echo "🔧 Installing Clippy for Rust 1.71.0..."
             rustup component add clippy --toolchain 1.71.0
-            run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p jailed-path --lib --fix --allow-dirty --allow-staged --all-features"
-            run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p jailed-path --lib --locked --verbose"
-            run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p jailed-path --lib --all-features -- -D warnings"
-            run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p jailed-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p jailed-path --lib --locked --verbose"
+            run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features"
+            run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose"
+            run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
+            run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --locked --verbose"
     else
         echo "❌ Failed to install Rust 1.71.0. Skipping MSRV check."
         echo "💡 To install manually: rustup toolchain install 1.71.0"

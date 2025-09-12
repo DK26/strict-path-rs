@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Type-History Design Pattern - The Complete JailedPath Guide</title>
+        <title>Type-History Design Pattern - The Complete StrictPath Guide</title>
 
 
         <!-- Custom HTML head -->
@@ -24,41 +24,28 @@
         <link rel="stylesheet" href="fonts/fonts.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="highlight-css" href="highlight.css">
-        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
-        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
 
 
-        <!-- Provide site root and default themes to javascript -->
+        <!-- Provide site root to javascript -->
         <script>
-            const path_to_root = "";
-            const default_light_theme = "light";
-            const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex.js";
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc.js"></script>
     </head>
     <body>
-    <div id="mdbook-help-container">
-        <div id="mdbook-help-popup">
-            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
-            <div>
-                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
-                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
-                <p>Press <kbd>?</kbd> to show this help</p>
-                <p>Press <kbd>Esc</kbd> to hide this help</p>
-            </div>
-        </div>
-    </div>
     <div id="body-container">
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
-                let theme = localStorage.getItem('mdbook-theme');
-                let sidebar = localStorage.getItem('mdbook-sidebar');
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
 
                 if (theme.startsWith('"') && theme.endsWith('"')) {
                     localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
@@ -72,8 +59,7 @@
 
         <!-- Set the theme before any content is loaded, prevents flash -->
         <script>
-            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
-            let theme;
+            var theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             const html = document.documentElement;
@@ -86,20 +72,17 @@
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            let sidebar = null;
-            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
             } else {
                 sidebar = 'hidden';
-                sidebar_toggle.checked = false;
             }
-            if (sidebar === 'visible') {
-                sidebar_toggle.checked = true;
-            } else {
-                html.classList.remove('sidebar-visible');
-            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
@@ -126,19 +109,18 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
                         </ul>
-                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
                             <i class="fa fa-search"></i>
                         </button>
                     </div>
 
-                    <h1 class="menu-title">The Complete JailedPath Guide</h1>
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
 
                     <div class="right-buttons">
                         <a href="print.html" title="Print this book" aria-label="Print this book">
@@ -150,12 +132,7 @@
 
                 <div id="search-wrapper" class="hidden">
                     <form id="searchbar-outer" class="searchbar-outer">
-                        <div class="search-wrapper">
-                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
-                            <div class="spinner-wrapper">
-                                <i class="fa fa-spinner fa-spin"></i>
-                            </div>
-                        </div>
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
                     </form>
                     <div id="searchresults-outer" class="searchresults-outer hidden">
                         <div id="searchresults-header" class="searchresults-header"></div>
@@ -322,7 +299,7 @@ fn execute_query(q: &amp;Query&lt;(((Raw, Sanitized), Parameterized), Validated)
     // Safe from SQL injection
 }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="how-this-applies-to-jailed-path"><a class="header" href="#how-this-applies-to-jailed-path">How This Applies to jailed-path</a></h2>
+<h2 id="how-this-applies-to-strict-path"><a class="header" href="#how-this-applies-to-strict-path">How This Applies to strict-path</a></h2>
 <p>For file paths, security is critical. We need to ensure that every path goes through the right checks in the right order:</p>
 <ol>
 <li><strong>Canonicalize</strong>: Resolve <code>.</code>, <code>..</code>, symlinks, etc.</li>
@@ -378,19 +355,19 @@ let fake_safe = UnsafePath {
 <span class="boring">}</span></code></pre></pre>
 <p>With Type-History, you literally cannot create a value with the wrong stamps unless you actually performed the operations. The type system enforces honesty.</p>
 <h2 id="the-public-api-hides-the-complexity"><a class="header" href="#the-public-api-hides-the-complexity">The Public API Hides the Complexity</a></h2>
-<p>Users of jailed-path never see <code>PathHistory</code> directly. Instead, they work with simple types like <code>JailedPath</code> and <code>VirtualPath</code>. But internally, these types contain properly stamped paths:</p>
+<p>Users of strict-path never see <code>PathHistory</code> directly. Instead, they work with simple types like <code>StrictPath</code> and <code>VirtualPath</code>. But internally, these types contain properly stamped paths:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// What users see
-pub struct JailedPath&lt;Marker&gt; {
+pub struct StrictPath&lt;Marker&gt; {
     // What's hidden inside: a path that's been through the full validation pipeline
     inner: PathHistory&lt;((Raw, Canonicalized), BoundaryChecked)&gt;,
     // ... other fields
 }
 
 // Users just call simple methods
-let jail = Jail::try_new_create("safe_dir")?;
-let safe_path = jail.jailed_join("user_file.txt")?; // Returns JailedPath
+let safe_dir = PathBoundary::try_new_create("safe_dir")?;
+let safe_user_file = safe_dir.strict_join("user_file.txt")?; // Returns StrictPath
 
 // But the type system guarantees this path is safe to use
 <span class="boring">}</span></code></pre></pre>
@@ -413,8 +390,8 @@ let safe_path = jail.jailed_join("user_file.txt")?; // Returns JailedPath
 </ul>
 <h2 id="wrapping-up"><a class="header" href="#wrapping-up">Wrapping Up</a></h2>
 <p>The Type-History pattern might seem complex at first, but it's really just a way to make the compiler remember what you've done and enforce what you need to do. It turns potential runtime errors into compile-time guarantees.</p>
-<p>In jailed-path, this means that once you have a <code>JailedPath</code> or <code>VirtualPath</code>, you can be 100% confident it's safe to use - the type system guarantees it went through all the necessary security checks.</p>
-<p>For most users of jailed-path, you don't need to understand these internals. Just know that the library uses advanced type system features to make it impossible to accidentally create security vulnerabilities. The compiler has your back!</p>
+<p>In strict-path, this means that once you have a <code>StrictPath</code> or <code>VirtualPath</code>, you can be 100% confident it's safe to use - the type system guarantees it went through all the necessary security checks.</p>
+<p>For most users of strict-path, you don't need to understand these internals. Just know that the library uses advanced type system features to make it impossible to accidentally create security vulnerabilities. The compiler has your back!</p>
 
                     </main>
 
@@ -424,6 +401,9 @@ let safe_path = jail.jailed_join("user_file.txt")?; // Returns JailedPath
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
+                            <a rel="next prefetch" href="anti_patterns.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -435,6 +415,9 @@ let safe_path = jail.jailed_join("user_file.txt")?; // Returns JailedPath
                         <i class="fa fa-angle-left"></i>
                     </a>
 
+                    <a rel="next prefetch" href="anti_patterns.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
             </nav>
 
         </div>
@@ -456,7 +439,6 @@ let safe_path = jail.jailed_join("user_file.txt")?; // Returns JailedPath
         <script src="book.js"></script>
 
         <!-- Custom JS scripts -->
-
 
 
     </div>

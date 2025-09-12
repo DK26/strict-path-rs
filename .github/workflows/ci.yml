@@ -2,12 +2,12 @@ name: CI
 #
 # Workspace split strategy (IMPORTANT for newcomers):
 # - The `strict-path` library enforces MSRV Rust 1.71 and is tested with `--locked`.
-# - The `examples/` crate is intentionally NOT in the workspace so it can use
+# - The `demos/` crate is intentionally NOT in the workspace so it can use
 #   latest stable Rust and newer ecosystem crates without raising the library's MSRV.
 # - Therefore this workflow runs two distinct tracks:
-#     1) Stable track: format, clippy, docs, tests for the library; and build examples separately
+#     1) Stable track: format, clippy, docs, tests for the library; and build demos separately
 #     2) MSRV track: check/clippy/test only the library (`-p strict-path --lib`) on Rust 1.71
-# - This split avoids workspace lockfile/feature coupling while keeping examples rich and current.
+# - This split avoids workspace lockfile/feature coupling while keeping demos rich and current.
 #
 # For local development with auto-fixing, use: bash ci-local.sh
 
@@ -59,7 +59,7 @@ jobs:
         check_with_file_cmd Cargo.toml || exit 1
 
         # Source trees (existence-guarded)
-        for dir in strict-path/src src examples/src; do
+        for dir in strict-path/src src demos/src; do
           if [ -d "$dir" ]; then
             while IFS= read -r -d '' f; do
               check_with_file_cmd "$f" || exit 1
@@ -109,17 +109,17 @@ jobs:
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
 
-    - name: Build examples (bins)
-      # Build examples OUTSIDE the workspace using latest stable. This keeps
-      # example dependencies from influencing the library's MSRV or lockfile.
+    - name: Build demos (bins)
+      # Build demos OUTSIDE the workspace using latest stable. This keeps
+      # demo dependencies from influencing the library's MSRV or lockfile.
       run: |
-        cd examples
+        cd demos
         cargo build --bins --features with-zip
 
-    - name: Clippy examples (all targets)
+    - name: Clippy demos (all targets)
       # Enforce the same lint quality bar on demos across bins/tests/benches
       run: |
-        cd examples
+        cd demos
         cargo clippy --all-targets --features with-zip -- -D warnings
 
     - name: Show clippy fixes (if check failed)  
@@ -130,7 +130,7 @@ jobs:
         echo "Then run: cargo clippy --all-targets --all-features -- -D warnings"
 
     - name: Run tests (latest stable, all features)
-      # Run tests for the library with all features (serde, etc.). Examples build separately.
+      # Run tests for the library with all features (serde, etc.). Demos build separately.
       run: cargo test -p strict-path --all-features --verbose
 
   docs:
@@ -159,7 +159,7 @@ jobs:
         components: clippy
 
     - name: Generate MSRV lockfile for strict-path
-      # Only generate a lockfile for the library crate. Do NOT include examples.
+      # Only generate a lockfile for the library crate. Do NOT include demos.
       run: |
         echo "Generating Cargo.lock for strict-path using Rust 1.71.0"
         pushd strict-path

@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>The Complete JailedPath Guide</title>
+        <title>The Complete StrictPath Guide</title>
         <meta name="robots" content="noindex">
 
 
@@ -25,41 +25,28 @@
         <link rel="stylesheet" href="fonts/fonts.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="highlight-css" href="highlight.css">
-        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
-        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
 
 
-        <!-- Provide site root and default themes to javascript -->
+        <!-- Provide site root to javascript -->
         <script>
-            const path_to_root = "";
-            const default_light_theme = "light";
-            const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex.js";
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc.js"></script>
     </head>
     <body>
-    <div id="mdbook-help-container">
-        <div id="mdbook-help-popup">
-            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
-            <div>
-                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
-                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
-                <p>Press <kbd>?</kbd> to show this help</p>
-                <p>Press <kbd>Esc</kbd> to hide this help</p>
-            </div>
-        </div>
-    </div>
     <div id="body-container">
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
-                let theme = localStorage.getItem('mdbook-theme');
-                let sidebar = localStorage.getItem('mdbook-sidebar');
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
 
                 if (theme.startsWith('"') && theme.endsWith('"')) {
                     localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
@@ -73,8 +60,7 @@
 
         <!-- Set the theme before any content is loaded, prevents flash -->
         <script>
-            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
-            let theme;
+            var theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             const html = document.documentElement;
@@ -87,20 +73,17 @@
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            let sidebar = null;
-            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
             } else {
                 sidebar = 'hidden';
-                sidebar_toggle.checked = false;
             }
-            if (sidebar === 'visible') {
-                sidebar_toggle.checked = true;
-            } else {
-                html.classList.remove('sidebar-visible');
-            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
@@ -127,19 +110,18 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
                         </ul>
-                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
                             <i class="fa fa-search"></i>
                         </button>
                     </div>
 
-                    <h1 class="menu-title">The Complete JailedPath Guide</h1>
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
 
                     <div class="right-buttons">
                         <a href="print.html" title="Print this book" aria-label="Print this book">
@@ -151,12 +133,7 @@
 
                 <div id="search-wrapper" class="hidden">
                     <form id="searchbar-outer" class="searchbar-outer">
-                        <div class="search-wrapper">
-                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
-                            <div class="spinner-wrapper">
-                                <i class="fa fa-spinner fa-spin"></i>
-                            </div>
-                        </div>
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
                     </form>
                     <div id="searchresults-outer" class="searchresults-outer hidden">
                         <div id="searchresults-header" class="searchresults-header"></div>
@@ -176,10 +153,10 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="getting-started-with-jailed-path"><a class="header" href="#getting-started-with-jailed-path">Getting Started with jailed-path</a></h1>
-<h2 id="what-is-jailed-path"><a class="header" href="#what-is-jailed-path">What is jailed-path?</a></h2>
+                        <h1 id="getting-started-with-strict-path"><a class="header" href="#getting-started-with-strict-path">Getting Started with strict-path</a></h1>
+<h2 id="what-is-strict-path"><a class="header" href="#what-is-strict-path">What is strict-path?</a></h2>
 <p>Have you ever worried about users trying to access files they shouldn't? Like when someone enters <code>../../../etc/passwd</code> to try to escape from a safe directory? That's called a "directory traversal" attack, and it's surprisingly common.</p>
-<p><strong>jailed-path</strong> solves this problem by creating "jails" - safe boundaries that paths cannot escape from. Think of it like a sandbox for file paths.</p>
+<p><strong>strict-path</strong> solves this problem by creating path boundaries - safe boundaries that paths cannot escape from. It comes in two modes: StrictPath (via PathBoundary) which is a path proven to have passed a validation filter, and VirtualPath (via VirtualRoot) which you could think of it like a sandboxed file path.</p>
 <h2 id="why-should-you-care"><a class="header" href="#why-should-you-care">Why Should You Care?</a></h2>
 <p>Directory traversal vulnerabilities are everywhere:</p>
 <ul>
@@ -188,100 +165,103 @@
 <li>Any application that processes user-provided paths</li>
 <li>Systems that extract archives (ZIP files, etc.)</li>
 </ul>
-<p>Getting path security wrong can expose your entire filesystem to attackers. With jailed-path, the Rust compiler helps ensure you can't make these mistakes.</p>
-<h2 id="your-first-jail"><a class="header" href="#your-first-jail">Your First Jail</a></h2>
+<p>Getting path security wrong can expose your entire filesystem to attackers. With strict-path, the Rust compiler helps ensure you can't make these mistakes.</p>
+<h2 id="your-first-pathboundary"><a class="header" href="#your-first-pathboundary">Your First PathBoundary</a></h2>
 <p>Let's start with a simple example. Say you're building a web app where users can upload and download their files, but you want to keep them contained in a specific directory:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::Jail;
+<pre><pre class="playground"><code class="language-rust">use strict_path::PathBoundary;
 
 fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Create a jail in the "user_files" directory
+    // Create a path boundary in the "user_files" directory
     // This creates the directory if it doesn't exist
-    let jail = Jail::try_new_create("user_files")?;
-    
-    // Now any path we validate through this jail will be contained
+    let user_files_dir = PathBoundary::try_new_create("user_files")?;
+
+    // Now any path we validate through this path boundary will be contained
     // within the "user_files" directory
-    
+
     // This is SAFE - creates "user_files/documents/report.txt"
-    let safe_path = jail.jailed_join("documents/report.txt")?;
-    
-    // This would FAIL - can't escape the jail!
-    // let bad_path = jail.jailed_join("../../../etc/passwd")?; // Error!
-    
-    println!("Safe path: {}", safe_path.as_path().display());
-    
+    let report = user_files_dir.strict_join("documents/report.txt")?;
+    report.create_parent_dir_all()?;
+    report.write_string("Quarterly report contents")?;
+
+    // This would FAIL - can't escape the path boundary!
+    // let _bad = user_files_dir.strict_join("../../../etc/passwd")?; // Error!
+
+    let display = report.strictpath_display();
+    println!("Safe path: {display}");
+
     Ok(())
 }</code></pre></pre>
 <h2 id="what-just-happened"><a class="header" href="#what-just-happened">What Just Happened?</a></h2>
 <ol>
-<li><strong>Created a jail</strong>: <code>Jail::try_new_create("user_files")</code> sets up a safe boundary</li>
-<li><strong>Validated a path</strong>: <code>jail.jailed_join("documents/report.txt")</code> checks the path is safe</li>
-<li><strong>Got protection</strong>: Any attempt to escape the jail (like <code>../../../etc/passwd</code>) fails immediately</li>
+<li><strong>Created a path boundary</strong>: <code>PathBoundary::try_new_create("user_files")</code> sets up a safe boundary</li>
+<li><strong>Validated a path</strong>: <code>path_boundary.strict_join("documents/report.txt")</code> checks the path is safe</li>
+<li><strong>Got protection</strong>: Any attempt to escape the path boundary (like <code>../../../etc/passwd</code>) fails immediately</li>
 </ol>
-<p>The magic is that once you have a <code>JailedPath</code>, you <em>know</em> it's safe. The type system guarantees it.</p>
-<h2 id="working-with-jailed-paths"><a class="header" href="#working-with-jailed-paths">Working with Jailed Paths</a></h2>
-<p>Once you have a <code>JailedPath</code>, you can use it for file operations:</p>
+<p>The magic is that once you have a <code>StrictPath</code>, you <em>know</em> it's safe. The type system guarantees it.</p>
+<h2 id="working-with-strict-paths"><a class="header" href="#working-with-strict-paths">Working with Strict Paths</a></h2>
+<p>Once you have a <code>StrictPath</code>, you can use it for file operations:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use jailed_path::Jail;
-use std::fs;
+</span>use strict_path::PathBoundary;
 
 fn save_user_file() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let jail = Jail::try_new_create("uploads")?;
-    
+    let uploads_dir = PathBoundary::try_new_create("uploads")?;
+
     // User wants to save to "my-document.txt"
-    let user_input = "my-document.txt";
-    let safe_path = jail.jailed_join(user_input)?;
-    
-    // Write some content safely
-    fs::write(&amp;safe_path, "Hello, world!")?;
-    
+    let user_input = "my-document.txt"; // untrusted
+    let safe_path = uploads_dir.strict_join(user_input)?;
+
+    // Write some content safely using built-in helpers
+    safe_path.write_string("Hello, world!")?;
+
     // Read it back
-    let content = fs::read_to_string(&amp;safe_path)?;
-    println!("File contains: {}", content);
-    
+    let content = safe_path.read_to_string()?;
+    println!("File contains: {content}");
+
     Ok(())
 }
 <span class="boring">}</span></code></pre></pre>
 <h2 id="type-safety-the-secret-sauce"><a class="header" href="#type-safety-the-secret-sauce">Type Safety: The Secret Sauce</a></h2>
-<p>Here's where jailed-path gets really clever. You can write functions that <em>only</em> accept safe paths:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::JailedPath;
-use std::fs;
+<p>Here's where strict-path gets really clever. You can write functions that <em>only</em> accept safe paths:</p>
+<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
 
 // This function can ONLY be called with safe paths
-fn process_user_file(path: &amp;JailedPath) -&gt; Result&lt;String, std::io::Error&gt; {
+fn process_user_file(path: &amp;StrictPath) -&gt; std::io::Result&lt;String&gt; {
     // We know this path is safe - no need to validate again
-    fs::read_to_string(path)
+    path.read_to_string()
 }
 
 fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let jail = Jail::try_new_create("safe_area")?;
-    let safe_path = jail.jailed_join("user-data.txt")?;
-    
-    // This works - safe_path is a JailedPath
-    let content = process_user_file(&amp;safe_path)?;
-    
+    let data_dir = PathBoundary::try_new_create("safe_area")?;
+    let user_data = data_dir.strict_join("user-data.txt")?;
+
+    // This works - user_data is a StrictPath
+    let _content = process_user_file(&amp;user_data)?;
+
     // This won't compile - can't pass an unsafe path!
     // let unsafe_path = std::path::Path::new("/etc/passwd");
-    // let content = process_user_file(unsafe_path); // Compilation error!
-    
+    // let _content = process_user_file(unsafe_path); // Compilation error!
+
     Ok(())
 }</code></pre></pre>
-<p>This means once you set up your jails correctly, the compiler prevents you from accidentally using unsafe paths.</p>
+<p>This means once you set up your path boundaries correctly, the compiler prevents you from accidentally using unsafe paths.</p>
 <h2 id="virtual-paths-user-friendly-sandboxes"><a class="header" href="#virtual-paths-user-friendly-sandboxes">Virtual Paths: User-Friendly Sandboxes</a></h2>
 <p>Sometimes you want to give users the illusion that they have their own private filesystem, starting from <code>/</code>. That's what <code>VirtualPath</code> is for:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::VirtualRoot;
+<pre><pre class="playground"><code class="language-rust">use strict_path::VirtualRoot;
 
 fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     // Create a virtual root that maps to "user_123_files" on disk
     let vroot = VirtualRoot::try_new_create("user_123_files")?;
-    
+
     // User thinks they're working from "/"
-    let user_path = vroot.virtual_join("/documents/my-file.txt")?;
-    
+    let vpath = vroot.virtual_join("/documents/my-file.txt")?;
+
     // But it actually maps to "user_123_files/documents/my-file.txt"
-    println!("User sees: /documents/my-file.txt");
-    println!("Actually stored at: {}", user_path.as_path().display());
-    
+    let user_sees = vpath.virtualpath_display();
+    let system_path = vpath.as_unvirtual().strictpath_display();
+    println!("User sees: {user_sees}");
+    println!("Actually stored at: {system_path}");
+
     Ok(())
 }</code></pre></pre>
 <p>This is perfect for multi-user applications where each user should feel like they have their own filesystem.</p>
@@ -289,151 +269,150 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 <p>That's really all you need to know! The core API is simple:</p>
 <h3 id="creating-safe-boundaries"><a class="header" href="#creating-safe-boundaries">Creating Safe Boundaries</a></h3>
 <ul>
-<li><code>Jail::try_new(path)</code> - Use existing directory as jail (fails if not found)</li>
-<li><code>Jail::try_new_create(path)</code> - Create directory if needed (for setup/initialization)</li>
+<li><code>PathBoundary::try_new(path)</code> - Use existing directory as path boundary (fails if not found)</li>
+<li><code>PathBoundary::try_new_create(path)</code> - Create directory if needed (for setup/initialization)</li>
 <li><code>VirtualRoot::try_new(path)</code> - Virtual filesystem root (expects existing directory)</li>
 <li><code>VirtualRoot::try_new_create(path)</code> - Create virtual root if needed (for user storage)</li>
 </ul>
 <h3 id="validating-paths"><a class="header" href="#validating-paths">Validating Paths</a></h3>
 <ul>
-<li><code>jail.jailed_join(user_path)</code> - Returns <code>JailedPath</code> or error</li>
+<li><code>path_boundary.strict_join(user_path)</code> - Returns <code>StrictPath</code> or error</li>
 <li><code>vroot.virtual_join(user_path)</code> - Returns <code>VirtualPath</code> or error</li>
 </ul>
 <h3 id="using-safe-paths"><a class="header" href="#using-safe-paths">Using Safe Paths</a></h3>
 <ul>
-<li>Both <code>JailedPath</code> and <code>VirtualPath</code> work with standard file operations</li>
-<li>They implement <code>AsRef&lt;Path&gt;</code> so you can pass them to <code>fs::read</code>, <code>fs::write</code>, etc.</li>
+<li>Both <code>StrictPath</code> and <code>VirtualPath</code> work with standard file operations</li>
+<li>They implement <code>.interop_os()</code> so you can pass them to <code>fs::read</code>, <code>fs::write</code>, etc.</li>
 <li>The type system prevents using unvalidated paths</li>
 </ul>
 <h2 id="common-patterns"><a class="header" href="#common-patterns">Common Patterns</a></h2>
 <h3 id="web-file-upload"><a class="header" href="#web-file-upload">Web File Upload</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use jailed_path::Jail;
+</span>use strict_path::{PathBoundary, StrictPath};
 
+// Public API: callers pass untrusted filename; we validate, then call an internal helper
 fn handle_file_upload(filename: &amp;str, content: &amp;[u8]) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let uploads_jail = Jail::try_new_create("uploads")?;
-    let safe_path = uploads_jail.jailed_join(filename)?;
-    std::fs::write(&amp;safe_path, content)?;
-    Ok(())
+    let uploads_dir = PathBoundary::try_new_create("uploads")?;
+    let dest = uploads_dir.strict_join(filename)?; // Validate external input
+    save_uploaded(&amp;dest, content) // Internal API enforces &amp;StrictPath in signature
+}
+
+// Internal helper encodes guarantee in its signature
+fn save_uploaded(path: &amp;StrictPath, content: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
+    path.create_parent_dir_all()?;
+    path.write_bytes(content)
 }
 <span class="boring">}</span></code></pre></pre>
 <h3 id="configuration-files"><a class="header" href="#configuration-files">Configuration Files</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use jailed_path::Jail;
+</span>use strict_path::{PathBoundary, VirtualRoot};
 
-fn load_config(config_name: &amp;str) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
-    let config_jail = Jail::try_new("config")?;  // Expect config dir to exist
-    let config_path = config_jail.jailed_join(config_name)?;
-    let content = std::fs::read_to_string(&amp;config_path)?;
-    Ok(content)
+// Prefer signatures that encode guarantees explicitly: pass the boundary and the untrusted name
+fn load_config(config_dir: &amp;PathBoundary, config_name: &amp;str) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
+    config_dir.strict_join(config_name)?.read_to_string()
 }
 
 fn setup_user_storage(user_id: u32) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Create user directory structure if it doesn't exist
-    let user_jail = Jail::try_new_create(&amp;format!("users/{}", user_id))?;
-    let documents = user_jail.jailed_join("documents")?;
-    std::fs::create_dir_all(&amp;documents)?;
+    // Create a user-facing virtual root for UI flows
+    let vroot = VirtualRoot::try_new_create(format!("users/{user_id}"))?;
+    let docs = vroot.virtual_join("documents")?;
+    docs.create_dir_all()?;
     Ok(())
 }
 <span class="boring">}</span></code></pre></pre>
 <h2 id="whats-next"><a class="header" href="#whats-next">What's Next?</a></h2>
 <ul>
-<li><strong>Real-World Examples</strong>: See complete applications using jailed-path</li>
+<li><strong>Real-World Examples</strong>: See complete applications using strict-path</li>
 <li><strong>Understanding Type-History</strong>: Learn how the internal security works (for contributors)</li>
 </ul>
-<p>The key rule: <strong>always validate external paths through a jail before using them</strong>. Whether it's user input, configuration files, or data from external sources - if you didn't create the path yourself, put it in jail first!</p>
+<p>The key rule: <strong>always validate external paths through a path boundary before using them</strong>. Whether it's user input, configuration files, or data from external sources - if you didn't create the path yourself, join it to a path boundary first!</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="real-world-examples"><a class="header" href="#real-world-examples">Real-World Examples</a></h1>
-<p>This chapter shows practical, real-world scenarios where jailed-path helps secure your applications. Each example includes complete, runnable code that you can adapt to your own projects.</p>
+<p>This chapter shows practical, real-world scenarios where strict-path helps secure your applications. Each example includes complete, runnable code that you can adapt to your own projects.</p>
 <h2 id="web-file-upload-service"><a class="header" href="#web-file-upload-service">Web File Upload Service</a></h2>
 <p>Let's build a simple file upload service that allows users to upload files safely:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
-use std::fs;
-use std::io::{self, Write};
+<pre><pre class="playground"><code class="language-rust">use strict_path::{StrictPath, VirtualPath, VirtualRoot};
+use std::io;
 
-struct FileUploadService {
-    uploads_jail: Jail,
-}
+struct FileUploadService;
 
 impl FileUploadService {
-    fn new() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
-        // Create a jail for uploaded files
-        let uploads_jail = Jail::try_new_create("user_uploads")?;
-        Ok(Self { uploads_jail })
+    // Multi-user: each user operates under their own VirtualRoot
+    fn upload_file(
+        &amp;self,
+        user_root: &amp;VirtualRoot,
+        filename: &amp;str,
+        content: &amp;[u8],
+    ) -&gt; Result&lt;VirtualPath, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Validate the untrusted filename at the user’s virtual root
+        let dest = user_root.virtual_join(filename)?;
+        // Reuse strict-typed helper when needed
+        self.save_uploaded(dest.as_unvirtual(), content)?;
+        println!("✅ File uploaded safely to: {}", dest.virtualpath_display());
+        Ok(dest)
     }
-    
-    fn upload_file(&amp;self, filename: &amp;str, content: &amp;[u8]) -&gt; Result&lt;JailedPath, Box&lt;dyn std::error::Error&gt;&gt; {
-        // Validate the filename is safe
-        let safe_path = self.uploads_jail.jailed_join(filename)?;
-        
-        // Create parent directories if needed
-        if let Some(parent) = safe_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        
-        // Write the file safely
-        fs::write(&amp;safe_path, content)?;
-        
-        println!("✅ File uploaded safely to: {}", safe_path.as_path().display());
-        Ok(safe_path)
+
+    // Internal helper: signature encodes guarantee (accepts only &amp;StrictPath)
+    fn save_uploaded(&amp;self, path: &amp;StrictPath, content: &amp;[u8]) -&gt; io::Result&lt;()&gt; {
+        path.create_parent_dir_all()?;
+        path.write_bytes(content)
     }
-    
-    fn list_files(&amp;self) -&gt; Result&lt;Vec&lt;JailedPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+
+    fn list_files(
+        &amp;self,
+        user_root: &amp;VirtualRoot,
+    ) -&gt; Result&lt;Vec&lt;VirtualPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
         let mut files = Vec::new();
-        
-        // Only iterate within the jail
-        for entry in fs::read_dir(&amp;self.uploads_jail)? {
+        for entry in std::fs::read_dir(user_root.interop_path())? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
-                // Validate each path through the jail
-                let safe_path = self.uploads_jail.jailed_join(entry.file_name())?;
-                files.push(safe_path);
+                let vpath = user_root.virtual_join(entry.file_name())?;
+                files.push(vpath);
             }
         }
-        
         Ok(files)
     }
-    
-    fn download_file(&amp;self, filename: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
-        // Validate the requested filename
-        let safe_path = self.uploads_jail.jailed_join(filename)?;
-        
-        // Read and return the file content
-        let content = fs::read(&amp;safe_path)?;
-        Ok(content)
+
+    fn download_file(&amp;self, path: &amp;VirtualPath) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
+        // Read and return the file content — type ensures safety
+        path.read_bytes()
     }
 }
 
 fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let service = FileUploadService::new()?;
-    
-    // Simulate user uploads - these are all SAFE
-    service.upload_file("document.txt", b"Hello, world!")?;
-    service.upload_file("reports/january.pdf", b"PDF content here")?;
-    service.upload_file("images/photo.jpg", b"JPEG data")?;
-    
-    // These would FAIL with directory traversal protection:
-    // service.upload_file("../../../etc/passwd", b"attack")?;  // ❌ Blocked!
-    // service.upload_file("..\\windows\\system32\\evil.exe", b"malware")?;  // ❌ Blocked!
-    
-    // List uploaded files
-    println!("📁 Uploaded files:");
-    for file in service.list_files()? {
-        println!("  - {}", file.as_path().display());
+    let service = FileUploadService;
+
+    // Per-user virtual roots
+    let alice_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/alice")?;
+    let bob_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/bob")?;
+
+    // Simulate user uploads - these are all SAFE and isolated
+    service.upload_file(&amp;alice_root, "document.txt", b"Hello, world!")?;
+    service.upload_file(&amp;alice_root, "reports/january.pdf", b"PDF content here")?;
+    service.upload_file(&amp;bob_root, "images/photo.jpg", b"JPEG data")?;
+
+    // These would be clamped/blocked by validation:
+    // service.upload_file(&amp;alice_root, "../../../etc/passwd", b"attack")?;  // ❌ Blocked!
+    // service.upload_file(&amp;alice_root, "..\\windows\\system32\\evil.exe", b"malware")?;  // ❌ Blocked!
+
+    // List Alice’s uploaded files (virtual paths)
+    println!("📁 Alice's files:");
+    for vpath in service.list_files(&amp;alice_root)? {
+        println!("  - {}", vpath.virtualpath_display());
     }
-    
-    // Download a file
-    let content = service.download_file("document.txt")?;
+
+    // Download a file using VirtualPath
+    let target = alice_root.virtual_join("document.txt")?;
+    let content = service.download_file(&amp;target)?;
     println!("📄 Downloaded: {}", String::from_utf8_lossy(&amp;content));
-    
+
     Ok(())
 }</code></pre></pre>
 <h2 id="configuration-file-manager"><a class="header" href="#configuration-file-manager">Configuration File Manager</a></h2>
 <p>Here's how to safely handle user configuration files:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
+<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
 use serde::{Deserialize, Serialize};
-use std::fs;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct AppConfig {
@@ -453,50 +432,50 @@ impl Default for AppConfig {
 }
 
 struct ConfigManager {
-    config_jail: Jail,
+    config_dir: PathBoundary,
 }
 
 impl ConfigManager {
     fn new() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
         // Create a jail for configuration files
-        let config_jail = Jail::try_new_create("app_config")?;
-        Ok(Self { config_jail })
+        let config_dir = PathBoundary::try_new_create("app_config")?;
+        Ok(Self { config_dir })
     }
     
     fn load_config(&amp;self, config_name: &amp;str) -&gt; Result&lt;AppConfig, Box&lt;dyn std::error::Error&gt;&gt; {
         // Ensure the config file name is safe
-        let config_path = self.config_jail.jailed_join(config_name)?;
+        let config_path = self.config_dir.strict_join(config_name)?;
         
         // Load config or create default
         if config_path.exists() {
-            let content = fs::read_to_string(&amp;config_path)?;
+            let content = config_path.read_to_string()?;
             let config: AppConfig = serde_json::from_str(&amp;content)?;
-            println!("📖 Loaded config from: {}", config_path.as_path().display());
+            println!("📖 Loaded config from: {}", config_path.strictpath_display());
             Ok(config)
         } else {
-            println!("🆕 Creating default config at: {}", config_path.as_path().display());
+            println!("🆕 Creating default config at: {}", config_path.strictpath_display());
             let default_config = AppConfig::default();
             self.save_config(config_name, &amp;default_config)?;
             Ok(default_config)
         }
     }
     
-    fn save_config(&amp;self, config_name: &amp;str, config: &amp;AppConfig) -&gt; Result&lt;JailedPath, Box&lt;dyn std::error::Error&gt;&gt; {
+    fn save_config(&amp;self, config_name: &amp;str, config: &amp;AppConfig) -&gt; Result&lt;StrictPath, Box&lt;dyn std::error::Error&gt;&gt; {
         // Validate the config file path
-        let config_path = self.config_jail.jailed_join(config_name)?;
+        let config_path = self.config_dir.strict_join(config_name)?;
         
         // Serialize and save
         let content = serde_json::to_string_pretty(config)?;
-        fs::write(&amp;config_path, content)?;
-        
-        println!("💾 Saved config to: {}", config_path.as_path().display());
+        config_path.write_string(&amp;content)?;
+
+        println!("💾 Saved config to: {}", config_path.strictpath_display());
         Ok(config_path)
     }
     
     fn list_configs(&amp;self) -&gt; Result&lt;Vec&lt;String&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
         let mut configs = Vec::new();
         
-        for entry in fs::read_dir(&amp;self.config_jail)? {
+        for entry in std::fs::read_dir(self.config_dir.interop_path())? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
                 if let Some(name) = entry.file_name().to_str() {
@@ -542,7 +521,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 }</code></pre></pre>
 <h2 id="multi-user-document-storage-with-virtualpath"><a class="header" href="#multi-user-document-storage-with-virtualpath">Multi-User Document Storage with VirtualPath</a></h2>
 <p>For applications where each user should feel like they have their own filesystem:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::{VirtualRoot, VirtualPath};
+<pre><pre class="playground"><code class="language-rust">use strict_path::{VirtualRoot, VirtualPath};
 use std::fs;
 use std::collections::HashMap;
 
@@ -575,16 +554,12 @@ impl DocumentStore {
         // User thinks they're saving to their own filesystem starting from "/"
         let doc_path = user_root.virtual_join(virtual_path)?;
         
-        // Create parent directories if needed
-        if let Some(parent) = doc_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
+        // Create parent directories and save
+        doc_path.create_parent_dir_all()?;
+        doc_path.write_string(content)?;
         
-        // Save the document
-        fs::write(&amp;doc_path, content)?;
-        
-        println!("📝 User {} saved document to: {}", username, virtual_path);
-        println!("    (Actually stored at: {})", doc_path.as_path().display());
+        println!("📝 User {username} saved document to: {}", doc_path.virtualpath_display());
+        println!("    (Actually stored at: {})", doc_path.as_unvirtual().strictpath_display());
         
         Ok(doc_path)
     }
@@ -593,7 +568,7 @@ impl DocumentStore {
         let user_root = self.get_user_root(username)?;
         let doc_path = user_root.virtual_join(virtual_path)?;
         
-        let content = fs::read_to_string(&amp;doc_path)?;
+        let content = doc_path.read_to_string()?;
         println!("📖 User {} loaded document from: {}", username, virtual_path);
         
         Ok(content)
@@ -603,7 +578,9 @@ impl DocumentStore {
         let user_root = self.get_user_root(username)?;
         let mut docs = Vec::new();
         
-        fn collect_files(dir: &amp;std::path::Path, base: &amp;std::path::Path, docs: &amp;mut Vec&lt;String&gt;) -&gt; std::io::Result&lt;()&gt; {
+        fn collect_files(dir: impl AsRef&lt;std::path::Path&gt;, base: impl AsRef&lt;std::path::Path&gt;, docs: &amp;mut Vec&lt;String&gt;) -&gt; std::io::Result&lt;()&gt; {
+            let dir = dir.as_ref();
+            let base = base.as_ref();
             for entry in fs::read_dir(dir)? {
                 let entry = entry?;
                 let path = entry.path();
@@ -621,7 +598,7 @@ impl DocumentStore {
             Ok(())
         }
         
-        collect_files(user_root.as_path(), user_root.as_path(), &amp;mut docs)?;
+        collect_files(user_root.interop_path(), user_root.interop_path(), &amp;mut docs)?;
         Ok(docs)
     }
 }
@@ -653,37 +630,33 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 }</code></pre></pre>
 <h2 id="archive-extraction-with-safety"><a class="header" href="#archive-extraction-with-safety">Archive Extraction with Safety</a></h2>
 <p>Safely extract ZIP files and other archives without zip-slip vulnerabilities:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
+<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
 use std::fs;
 use std::io::Write;
 
 struct SafeArchiveExtractor {
-    extraction_jail: Jail,
+    extraction_dir: PathBoundary,
 }
 
 impl SafeArchiveExtractor {
     fn new(extract_to: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
-        let extraction_jail = Jail::try_new_create(extract_to)?;
-        Ok(Self { extraction_jail })
+        let extraction_dir = PathBoundary::try_new_create(extract_to)?;
+        Ok(Self { extraction_dir })
     }
     
-    fn extract_entry(&amp;self, entry_path: &amp;str, content: &amp;[u8]) -&gt; Result&lt;JailedPath, Box&lt;dyn std::error::Error&gt;&gt; {
+    fn extract_entry(&amp;self, entry_path: &amp;str, content: &amp;[u8]) -&gt; Result&lt;StrictPath, Box&lt;dyn std::error::Error&gt;&gt; {
         // This automatically prevents zip-slip attacks
-        let safe_path = self.extraction_jail.jailed_join(entry_path)?;
-        
-        // Create parent directories
-        if let Some(parent) = safe_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        
-        // Write the file
-        fs::write(&amp;safe_path, content)?;
-        
-        println!("📦 Extracted: {} -&gt; {}", entry_path, safe_path.as_path().display());
+        let safe_path = self.extraction_dir.strict_join(entry_path)?;
+
+        // Create parent directories and write the file
+        safe_path.create_parent_dir_all()?;
+        safe_path.write_bytes(content)?;
+
+        println!("📦 Extracted: {entry_path} -&gt; {}", safe_path.strictpath_display());
         Ok(safe_path)
     }
     
-    fn extract_mock_zip(&amp;self) -&gt; Result&lt;Vec&lt;JailedPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+    fn extract_mock_zip(&amp;self) -&gt; Result&lt;Vec&lt;StrictPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
         // Simulate extracting a ZIP file with various entries
         let entries = vec![
             ("readme.txt", b"Welcome to our software!"),
@@ -718,14 +691,14 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     
     println!("\n✅ Successfully extracted {} files:", extracted.len());
     for file in &amp;extracted {
-        println!("   📄 {}", file.as_path().display());
+        println!("   📄 {}", file.strictpath_display());
     }
     
     // Verify we can read the extracted files
     for file in &amp;extracted {
-        if file.as_path().extension().and_then(|s| s.to_str()) == Some("txt") {
-            let content = fs::read_to_string(file)?;
-            println!("📖 {}: {}", file.as_path().display(), content.trim());
+        if file.strictpath_extension().and_then(|s| s.to_str()) == Some("txt") {
+            let content = file.read_to_string()?;
+            println!("📖 {}: {}", file.strictpath_display(), content.trim());
         }
     }
     
@@ -733,32 +706,32 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 }</code></pre></pre>
 <h2 id="cli-tool-with-safe-path-handling"><a class="header" href="#cli-tool-with-safe-path-handling">CLI Tool with Safe Path Handling</a></h2>
 <p>A command-line tool that processes user-provided file paths safely:</p>
-<pre><pre class="playground"><code class="language-rust">use jailed_path::{Jail, JailedPath};
+<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
 use std::env;
 use std::fs;
 
 struct SafeFileProcessor {
-    working_jail: Jail,
+    working_dir: PathBoundary,
 }
 
 impl SafeFileProcessor {
     fn new(working_directory: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
         // Create or validate the working directory
-        let working_jail = Jail::try_new_create(working_directory)?;
-        println!("🔒 Working directory jail: {}", working_jail.as_path().display());
-        Ok(Self { working_jail })
+        let working_dir = PathBoundary::try_new_create(working_directory)?;
+        println!("🔒 Working directory jail: {}", working_dir.strictpath_display());
+        Ok(Self { working_dir })
     }
     
     fn process_file(&amp;self, relative_path: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
         // Validate the user-provided path
-        let safe_path = self.working_jail.jailed_join(relative_path)?;
+        let safe_path = self.working_dir.strict_join(relative_path)?;
         
         if !safe_path.exists() {
             return Err(format!("File not found: {}", relative_path).into());
         }
         
         // Process the file (example: count lines)
-        let content = fs::read_to_string(&amp;safe_path)?;
+        let content = safe_path.read_to_string()?;
         let line_count = content.lines().count();
         let word_count = content.split_whitespace().count();
         let char_count = content.chars().count();
@@ -780,12 +753,10 @@ impl SafeFileProcessor {
         ];
         
         for (path, content) in samples {
-            let safe_path = self.working_jail.jailed_join(path)?;
-            if let Some(parent) = safe_path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(&amp;safe_path, content)?;
-            println!("📝 Created: {}", path);
+            let safe_path = self.working_dir.strict_join(path)?;
+            safe_path.create_parent_dir_all()?;
+            safe_path.write_string(content)?;
+            println!("📝 Created: {path}");
         }
         
         Ok(())
@@ -835,7 +806,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 // cargo run -- ../../../etc/passwd           # ❌ Blocked!
 // cargo run -- /absolute/path/hack.txt       # ❌ Blocked!</code></pre></pre>
 <h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
-<p>These examples show how jailed-path helps in real scenarios:</p>
+<p>These examples show how strict-path helps in real scenarios:</p>
 <ol>
 <li><strong>Web uploads</strong>: Users can't escape the upload directory</li>
 <li><strong>Configuration</strong>: Config files stay in their designated area</li>
@@ -845,38 +816,476 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 </ol>
 <p>The common pattern is:</p>
 <ol>
-<li>Create a <code>Jail</code> or <code>VirtualRoot</code> for your safe area</li>
-<li>Always validate external paths through <code>jailed_join()</code> or <code>virtual_join()</code></li>
-<li>Use the resulting <code>JailedPath</code> or <code>VirtualPath</code> for file operations</li>
+<li>Create a <code>PathBoundary</code> or <code>VirtualRoot</code> for your safe area</li>
+<li>Always validate external paths through <code>strict_join()</code> or <code>virtual_join()</code></li>
+<li>Use the resulting <code>StrictPath</code> or <code>VirtualPath</code> for file operations</li>
 <li>Let the compiler enforce that only validated paths are used</li>
 </ol>
 <p>This makes your code both secure and maintainable - security isn't something you have to remember to check, it's built into the type system!</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="using-jailed-path-with-archive-extractors"><a class="header" href="#using-jailed-path-with-archive-extractors">Using jailed-path with archive extractors</a></h1>
-<p>Archive formats (ZIP, TAR, etc.) embed file names provided by untrusted sources. Treat each entry name as hostile and validate it through VirtualRoot or Jail before any filesystem I/O.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="features"><a class="header" href="#features">Features</a></h1>
+<p>The <code>strict-path</code> crate provides several optional features that extend functionality while maintaining the core security guarantees. All features are disabled by default to keep the core library lightweight.</p>
+<h2 id="available-features"><a class="header" href="#available-features">Available Features</a></h2>
+<h3 id="dirs---os-standard-directories"><a class="header" href="#dirs---os-standard-directories"><code>dirs</code> - OS Standard Directories</a></h3>
+<p>Cross-platform access to operating system standard directories following platform conventions (XDG Base Directory on Linux, Known Folder API on Windows, Apple Standard Directories on macOS).</p>
+<pre><code class="language-toml">[dependencies]
+strict-path = { version = "0.1.0-alpha.1", features = ["dirs"] }
+</code></pre>
+<p>Enables constructors like:</p>
+<ul>
+<li><code>PathBoundary::try_new_os_config("MyApp")</code> - Application configuration</li>
+<li><code>PathBoundary::try_new_os_data("MyApp")</code> - Application data storage</li>
+<li><code>PathBoundary::try_new_os_cache("MyApp")</code> - Application cache</li>
+<li><code>PathBoundary::try_new_os_documents()</code> - User documents directory</li>
+<li>And many more...</li>
+</ul>
+<p><strong><a href="./os_directories.html">→ Full OS Directories Documentation</a></strong></p>
+<h3 id="serde---serialization-support"><a class="header" href="#serde---serialization-support"><code>serde</code> - Serialization Support</a></h3>
+<p>Adds <code>Serialize</code> implementations for <code>StrictPath</code> and <code>VirtualPath</code>, plus deserialization helpers for secure path handling in web APIs and configuration files.</p>
+<pre><code class="language-toml">[dependencies]
+strict-path = { version = "0.1.0-alpha.1", features = ["serde"] }
+</code></pre>
+<p>Enables:</p>
+<ul>
+<li>Direct serialization: <code>serde_json::to_string(&amp;strict_path)?</code></li>
+<li>Context-aware deserialization helpers</li>
+<li>Integration with web frameworks and config parsers</li>
+</ul>
+<h3 id="tempfile---temporary-directories"><a class="header" href="#tempfile---temporary-directories"><code>tempfile</code> - Temporary Directories</a></h3>
+<p>RAII temporary directories that are automatically cleaned up when dropped, with each <code>PathBoundary</code> getting a unique temporary directory.</p>
+<pre><code class="language-toml">[dependencies]  
+strict-path = { version = "0.1.0-alpha.1", features = ["tempfile"] }
+</code></pre>
+<p>Enables:</p>
+<ul>
+<li><code>PathBoundary::try_new_temp()</code> - Unique temporary directory</li>
+<li><code>PathBoundary::try_new_temp_with_prefix("my-prefix")</code> - Custom prefix</li>
+<li>Automatic cleanup when the boundary is dropped</li>
+</ul>
+<h3 id="app-path---portable-application-directories"><a class="header" href="#app-path---portable-application-directories"><code>app-path</code> - Portable Application Directories</a></h3>
+<p>Integration with the <code>app-path</code> crate for discovering application directories relative to the executable with environment variable overrides.</p>
+<pre><code class="language-toml">[dependencies]
+strict-path = { version = "0.1.0-alpha.1", features = ["app-path"] }
+</code></pre>
+<p>Enables portable application directory discovery for:</p>
+<ul>
+<li>Configuration directories relative to executable</li>
+<li>Data directories with environment overrides</li>
+<li>Cross-platform deployment scenarios</li>
+</ul>
+<h2 id="feature-combinations"><a class="header" href="#feature-combinations">Feature Combinations</a></h2>
+<p>Features can be combined as needed:</p>
+<pre><code class="language-toml">[dependencies]
+strict-path = { 
+    version = "0.1.0-alpha.1", 
+    features = ["dirs", "serde", "tempfile"] 
+}
+</code></pre>
+<h2 id="design-philosophy"><a class="header" href="#design-philosophy">Design Philosophy</a></h2>
+<p>All optional features:</p>
+<ul>
+<li><strong>Maintain security</strong>: Never compromise path boundary enforcement</li>
+<li><strong>Zero-cost when unused</strong>: Features add no overhead if not enabled</li>
+<li><strong>Composable</strong>: Features work together seamlessly</li>
+<li><strong>Platform-aware</strong>: Handle platform differences gracefully</li>
+<li><strong>Standards-compliant</strong>: Follow established conventions and specifications</li>
+</ul>
+<h2 id="migration-and-compatibility"><a class="header" href="#migration-and-compatibility">Migration and Compatibility</a></h2>
+<p>Features are additive and backward-compatible. Enabling new features won't break existing code, and the core API remains stable across all feature combinations.</p>
+<p>When features are unavailable:</p>
+<ul>
+<li>Missing feature methods result in compile-time errors (not runtime failures)</li>
+<li>Documentation clearly indicates feature requirements</li>
+<li>Examples include feature guards for conditional compilation</li>
+</ul>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
+<ul>
+<li><strong>For OS directories</strong>: See <a href="./os_directories.html">OS Standard Directories</a></li>
+<li><strong>For serialization</strong>: Check the integrations section in <a href="./chapter_1.html">Getting Started</a></li>
+<li><strong>For examples</strong>: Browse <a href="./examples.html">Real-World Examples</a> with feature-specific demos</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="os-standard-directories"><a class="header" href="#os-standard-directories">OS Standard Directories</a></h1>
+<blockquote>
+<p><strong>Feature</strong>: <code>dirs</code> - Enable with <code>features = ["dirs"]</code> in your <code>Cargo.toml</code></p>
+</blockquote>
+<p>The <code>strict-path</code> crate provides seamless integration with operating system standard directories through the <a href="https://crates.io/crates/dirs"><code>dirs</code></a> crate. This enables cross-platform applications to securely access user and system directories like configuration, data storage, cache, and user content locations.</p>
+<p><strong>Quick Start:</strong></p>
+<pre><code class="language-toml">[dependencies]
+strict-path = { version = "0.1.0-alpha.1", features = ["dirs"] }
+</code></pre>
+<h2 id="cross-platform-standards"><a class="header" href="#cross-platform-standards">Cross-Platform Standards</a></h2>
+<p>The integration follows established cross-platform directory standards:</p>
+<h3 id="linux-xdg-base-directory-specification"><a class="header" href="#linux-xdg-base-directory-specification">Linux (XDG Base Directory Specification)</a></h3>
+<ul>
+<li><strong>Config</strong>: <code>$XDG_CONFIG_HOME</code> or <code>~/.config</code></li>
+<li><strong>Data</strong>: <code>$XDG_DATA_HOME</code> or <code>~/.local/share</code></li>
+<li><strong>Cache</strong>: <code>$XDG_CACHE_HOME</code> or <code>~/.cache</code></li>
+<li><strong>Runtime</strong>: <code>$XDG_RUNTIME_DIR</code> or <code>/tmp</code></li>
+</ul>
+<h3 id="windows-known-folder-api"><a class="header" href="#windows-known-folder-api">Windows (Known Folder API)</a></h3>
+<ul>
+<li><strong>Config</strong>: <code>%APPDATA%</code> (Roaming)</li>
+<li><strong>Data</strong>: <code>%APPDATA%</code> (Roaming)</li>
+<li><strong>Cache</strong>: <code>%LOCALAPPDATA%</code></li>
+<li><strong>Local Config</strong>: <code>%LOCALAPPDATA%</code></li>
+<li><strong>Local Data</strong>: <code>%LOCALAPPDATA%</code></li>
+</ul>
+<h3 id="macos-apple-standard-directories"><a class="header" href="#macos-apple-standard-directories">macOS (Apple Standard Directories)</a></h3>
+<ul>
+<li><strong>Config</strong>: <code>~/Library/Application Support</code></li>
+<li><strong>Data</strong>: <code>~/Library/Application Support</code></li>
+<li><strong>Cache</strong>: <code>~/Library/Caches</code></li>
+</ul>
+<h2 id="api-reference"><a class="header" href="#api-reference">API Reference</a></h2>
+<p>Both <code>PathBoundary</code> and <code>VirtualRoot</code> provide comprehensive OS directory constructors:</p>
+<h3 id="application-directories"><a class="header" href="#application-directories">Application Directories</a></h3>
+<h4 id="try_new_os_configapp_name-str"><a class="header" href="#try_new_os_configapp_name-str"><code>try_new_os_config(app_name: &amp;str)</code></a></h4>
+<p>Creates a secure boundary for application configuration storage.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config("MyApp")?;
+let config_file = config_dir.strict_join("settings.json")?;
+config_file.write_string(r#"{"theme": "dark"}"#)?;
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Platform paths:</strong></p>
+<ul>
+<li>Linux: <code>~/.config/MyApp/</code></li>
+<li>Windows: <code>%APPDATA%/MyApp/</code></li>
+<li>macOS: <code>~/Library/Application Support/MyApp/</code></li>
+</ul>
+<h4 id="try_new_os_dataapp_name-str"><a class="header" href="#try_new_os_dataapp_name-str"><code>try_new_os_data(app_name: &amp;str)</code></a></h4>
+<p>Creates a secure boundary for application data storage.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let data_dir = PathBoundary::&lt;()&gt;::try_new_os_data("MyApp")?;
+let database = data_dir.strict_join("app.db")?;
+database.write_bytes(b"SQLite database content")?;
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Platform paths:</strong></p>
+<ul>
+<li>Linux: <code>~/.local/share/MyApp/</code></li>
+<li>Windows: <code>%APPDATA%/MyApp/</code></li>
+<li>macOS: <code>~/Library/Application Support/MyApp/</code></li>
+</ul>
+<h4 id="try_new_os_cacheapp_name-str"><a class="header" href="#try_new_os_cacheapp_name-str"><code>try_new_os_cache(app_name: &amp;str)</code></a></h4>
+<p>Creates a secure boundary for application cache storage.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let cache_dir = PathBoundary::&lt;()&gt;::try_new_os_cache("MyApp")?;
+let thumbnail_cache = cache_dir.strict_join("thumbnails/")?;
+thumbnail_cache.create_dir_all()?;
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Platform paths:</strong></p>
+<ul>
+<li>Linux: <code>~/.cache/MyApp/</code></li>
+<li>Windows: <code>%LOCALAPPDATA%/MyApp/</code></li>
+<li>macOS: <code>~/Library/Caches/MyApp/</code></li>
+</ul>
+<h3 id="platform-specific-directories"><a class="header" href="#platform-specific-directories">Platform-Specific Directories</a></h3>
+<h4 id="try_new_os_config_localapp_name-str-windowslinux-only"><a class="header" href="#try_new_os_config_localapp_name-str-windowslinux-only"><code>try_new_os_config_local(app_name: &amp;str)</code> (Windows/Linux only)</a></h4>
+<p>Creates a local (non-roaming) config directory boundary.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(any(target_os = "windows", target_os = "linux"))]
+let local_config = PathBoundary::&lt;()&gt;::try_new_os_config_local("MyApp")?;
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Platform paths:</strong></p>
+<ul>
+<li>Linux: <code>~/.config/MyApp/</code> (same as config)</li>
+<li>Windows: <code>%LOCALAPPDATA%/MyApp/</code> (non-roaming)</li>
+<li>macOS: Not available (returns <code>Err</code>)</li>
+</ul>
+<h4 id="try_new_os_data_localapp_name-str-windowslinux-only"><a class="header" href="#try_new_os_data_localapp_name-str-windowslinux-only"><code>try_new_os_data_local(app_name: &amp;str)</code> (Windows/Linux only)</a></h4>
+<p>Creates a local (non-roaming) data directory boundary.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(any(target_os = "windows", target_os = "linux"))]
+let local_data = PathBoundary::&lt;()&gt;::try_new_os_data_local("MyApp")?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="user-content-directories"><a class="header" href="#user-content-directories">User Content Directories</a></h3>
+<h4 id="standard-user-folders"><a class="header" href="#standard-user-folders">Standard User Folders</a></h4>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// User's home directory
+let home_dir = PathBoundary::&lt;()&gt;::try_new_os_home()?;
+
+// Desktop folder
+let desktop_dir = PathBoundary::&lt;()&gt;::try_new_os_desktop()?;
+
+// Documents folder  
+let documents_dir = PathBoundary::&lt;()&gt;::try_new_os_documents()?;
+
+// Downloads folder
+let downloads_dir = PathBoundary::&lt;()&gt;::try_new_os_downloads()?;
+<span class="boring">}</span></code></pre></pre>
+<h4 id="media-directories"><a class="header" href="#media-directories">Media Directories</a></h4>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Pictures/Photos
+let pictures_dir = PathBoundary::&lt;()&gt;::try_new_os_pictures()?;
+
+// Music/Audio files
+let audio_dir = PathBoundary::&lt;()&gt;::try_new_os_audio()?;
+
+// Videos/Movies
+let videos_dir = PathBoundary::&lt;()&gt;::try_new_os_videos()?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="system-directories"><a class="header" href="#system-directories">System Directories</a></h3>
+<h4 id="try_new_os_executables-unix-only"><a class="header" href="#try_new_os_executables-unix-only"><code>try_new_os_executables()</code> (Unix only)</a></h4>
+<p>Creates a boundary for user executable binaries.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(unix)]
+let bin_dir = PathBoundary::&lt;()&gt;::try_new_os_executables()?;
+// Typically ~/.local/bin on Linux
+<span class="boring">}</span></code></pre></pre>
+<h4 id="try_new_os_runtime-unix-only"><a class="header" href="#try_new_os_runtime-unix-only"><code>try_new_os_runtime()</code> (Unix only)</a></h4>
+<p>Creates a boundary for runtime files like sockets and PIDs.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(unix)]
+let runtime_dir = PathBoundary::&lt;()&gt;::try_new_os_runtime()?;
+// Uses $XDG_RUNTIME_DIR or falls back to /tmp
+<span class="boring">}</span></code></pre></pre>
+<h4 id="try_new_os_state-linux-only"><a class="header" href="#try_new_os_state-linux-only"><code>try_new_os_state()</code> (Linux only)</a></h4>
+<p>Creates a boundary for application state data.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(target_os = "linux")]
+let state_dir = PathBoundary::&lt;()&gt;::try_new_os_state("MyApp")?;
+// Uses $XDG_STATE_HOME or ~/.local/state/MyApp
+<span class="boring">}</span></code></pre></pre>
+<h2 id="virtual-root-integration"><a class="header" href="#virtual-root-integration">Virtual Root Integration</a></h2>
+<p>All OS directory constructors are available on <code>VirtualRoot</code> as well:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualRoot;
+
+// Create virtual root for user documents
+let docs_root = VirtualRoot::&lt;()&gt;::try_new_os_documents()?;
+
+// User sees clean virtual paths, system handles real location
+let project_file = docs_root.virtual_join("projects/my-app/notes.txt")?;
+println!("Virtual path: {}", project_file.virtualpath_display());
+// Output: "/projects/my-app/notes.txt"
+
+println!("Real path: {}", project_file.as_unvirtual().strictpath_display());
+// Output: "/home/user/Documents/projects/my-app/notes.txt" (Linux example)
+<span class="boring">}</span></code></pre></pre>
+<h2 id="complete-application-example"><a class="header" href="#complete-application-example">Complete Application Example</a></h2>
+<p>Here's a realistic media organizer application demonstrating the OS directories integration:</p>
+<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, VirtualRoot};
+use std::collections::HashMap;
+
+#[derive(Debug)]
+struct MediaOrganizerApp {
+    config_dir: PathBoundary&lt;()&gt;,
+    data_dir: PathBoundary&lt;()&gt;,
+    cache_dir: PathBoundary&lt;()&gt;,
+}
+
+impl MediaOrganizerApp {
+    fn new(app_name: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Initialize with OS standard directories
+        let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config(app_name)?;
+        let data_dir = PathBoundary::&lt;()&gt;::try_new_os_data(app_name)?;
+        let cache_dir = PathBoundary::&lt;()&gt;::try_new_os_cache(app_name)?;
+        
+        println!("📁 Config: {}", config_dir.strictpath_display());
+        println!("💾 Data: {}", data_dir.strictpath_display());
+        println!("🗄️ Cache: {}", cache_dir.strictpath_display());
+        
+        Ok(Self { config_dir, data_dir, cache_dir })
+    }
+    
+    fn scan_user_media(&amp;self) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+        // Access standard user media directories securely
+        let media_directories = vec![
+            ("Pictures", PathBoundary::&lt;()&gt;::try_new_os_pictures()?),
+            ("Music", PathBoundary::&lt;()&gt;::try_new_os_audio()?),
+            ("Videos", PathBoundary::&lt;()&gt;::try_new_os_videos()?),
+            ("Downloads", PathBoundary::&lt;()&gt;::try_new_os_downloads()?),
+        ];
+        
+        for (dir_name, dir_path) in media_directories {
+            println!("📂 Scanning {}: {}", dir_name, dir_path.strictpath_display());
+            
+            // In a real app, recursively scan for media files
+            // All file operations stay within secure boundaries
+            if dir_path.exists() {
+                println!("   ✅ Directory accessible and secure");
+            }
+        }
+        
+        Ok(())
+    }
+    
+    fn manage_cache(&amp;self) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+        // Create cache subdirectories securely
+        let thumbnails_dir = self.cache_dir.strict_join("thumbnails")?;
+        let metadata_dir = self.cache_dir.strict_join("metadata")?;
+        
+        thumbnails_dir.create_dir_all()?;
+        metadata_dir.create_dir_all()?;
+        
+        println!("🖼️ Thumbnails: {}", thumbnails_dir.strictpath_display());
+        println!("📝 Metadata: {}", metadata_dir.strictpath_display());
+        
+        Ok(())
+    }
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let app = MediaOrganizerApp::new("MediaOrganizer")?;
+    app.scan_user_media()?;
+    app.manage_cache()?;
+    Ok(())
+}</code></pre></pre>
+<h2 id="error-handling"><a class="header" href="#error-handling">Error Handling</a></h2>
+<p>OS directory functions return <code>StrictPathError</code> when:</p>
+<ul>
+<li>The directory doesn't exist and cannot be created</li>
+<li>Permission denied accessing the directory</li>
+<li>The OS doesn't support the requested directory type</li>
+<li>Invalid characters in the application name</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPathError};
+
+match PathBoundary::&lt;()&gt;::try_new_os_config("My App") {
+    Ok(config_dir) =&gt; println!("Config: {}", config_dir.strictpath_display()),
+    Err(StrictPathError::PathResolutionError(msg)) =&gt; {
+        eprintln!("Failed to resolve config directory: {}", msg);
+    }
+    Err(e) =&gt; eprintln!("Other error: {}", e),
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="platform-compatibility"><a class="header" href="#platform-compatibility">Platform Compatibility</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>Linux</th><th>Windows</th><th>macOS</th><th>Notes</th></tr></thead><tbody>
+<tr><td><code>try_new_os_config</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
+<tr><td><code>try_new_os_data</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
+<tr><td><code>try_new_os_cache</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
+<tr><td><code>try_new_os_config_local</code></td><td>✅</td><td>✅</td><td>❌</td><td>Returns error on macOS</td></tr>
+<tr><td><code>try_new_os_data_local</code></td><td>✅</td><td>✅</td><td>❌</td><td>Returns error on macOS</td></tr>
+<tr><td><code>try_new_os_home</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
+<tr><td><code>try_new_os_desktop</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
+<tr><td><code>try_new_os_documents</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
+<tr><td><code>try_new_os_downloads</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
+<tr><td><code>try_new_os_pictures</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
+<tr><td><code>try_new_os_audio</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
+<tr><td><code>try_new_os_videos</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
+<tr><td><code>try_new_os_executables</code></td><td>✅</td><td>❌</td><td>✅</td><td>Unix only</td></tr>
+<tr><td><code>try_new_os_runtime</code></td><td>✅</td><td>❌</td><td>✅</td><td>Unix only</td></tr>
+<tr><td><code>try_new_os_state</code></td><td>✅</td><td>❌</td><td>❌</td><td>Linux only</td></tr>
+</tbody></table>
+</div>
+<h2 id="integration-with-dirs-crate"><a class="header" href="#integration-with-dirs-crate">Integration with <code>dirs</code> Crate</a></h2>
+<p>This feature integrates with the <a href="https://github.com/dirs-dev/dirs-rs"><code>dirs</code></a> crate v6.0.0, which provides the underlying OS directory discovery. The <code>strict-path</code> crate adds:</p>
+<ul>
+<li><strong>Security</strong>: All directory access happens within <code>PathBoundary</code> restrictions</li>
+<li><strong>Type Safety</strong>: Compile-time guarantees about directory boundaries</li>
+<li><strong>Symlink Safety</strong>: Safe resolution of symbolic links and junctions</li>
+<li><strong>Cross-Platform</strong>: Consistent API across Windows, macOS, and Linux</li>
+<li><strong>Application Scoping</strong>: Automatic subdirectory creation for app-specific storage</li>
+</ul>
+<h3 id="relationship-to-dirs-functions"><a class="header" href="#relationship-to-dirs-functions">Relationship to <code>dirs</code> Functions</a></h3>
+<div class="table-wrapper"><table><thead><tr><th><code>strict-path</code> Method</th><th><code>dirs</code> Function</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>try_new_os_config</code></td><td><code>dirs::config_dir()</code> + join</td><td>App config storage</td></tr>
+<tr><td><code>try_new_os_data</code></td><td><code>dirs::data_dir()</code> + join</td><td>App data storage</td></tr>
+<tr><td><code>try_new_os_cache</code></td><td><code>dirs::cache_dir()</code> + join</td><td>App cache storage</td></tr>
+<tr><td><code>try_new_os_config_local</code></td><td><code>dirs::config_local_dir()</code> + join</td><td>Local config (non-roaming)</td></tr>
+<tr><td><code>try_new_os_data_local</code></td><td><code>dirs::data_local_dir()</code> + join</td><td>Local data (non-roaming)</td></tr>
+<tr><td><code>try_new_os_home</code></td><td><code>dirs::home_dir()</code></td><td>User home directory</td></tr>
+<tr><td><code>try_new_os_desktop</code></td><td><code>dirs::desktop_dir()</code></td><td>Desktop folder</td></tr>
+<tr><td><code>try_new_os_documents</code></td><td><code>dirs::document_dir()</code></td><td>Documents folder</td></tr>
+<tr><td><code>try_new_os_downloads</code></td><td><code>dirs::download_dir()</code></td><td>Downloads folder</td></tr>
+<tr><td><code>try_new_os_pictures</code></td><td><code>dirs::picture_dir()</code></td><td>Pictures folder</td></tr>
+<tr><td><code>try_new_os_audio</code></td><td><code>dirs::audio_dir()</code></td><td>Music/Audio folder</td></tr>
+<tr><td><code>try_new_os_videos</code></td><td><code>dirs::video_dir()</code></td><td>Videos folder</td></tr>
+<tr><td><code>try_new_os_executables</code></td><td><code>dirs::executable_dir()</code></td><td>User binaries (Unix)</td></tr>
+<tr><td><code>try_new_os_runtime</code></td><td><code>dirs::runtime_dir()</code></td><td>Runtime files (Unix)</td></tr>
+<tr><td><code>try_new_os_state</code></td><td><code>dirs::state_dir()</code> + join</td><td>State data (Linux)</td></tr>
+</tbody></table>
+</div>
+<p>For more details on the underlying directory locations, see the <a href="https://docs.rs/dirs/"><code>dirs</code> crate documentation</a>.</p>
+<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
+<h3 id="1-application-naming"><a class="header" href="#1-application-naming">1. Application Naming</a></h3>
+<p>Use consistent, filesystem-safe application names:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Good
+let config = PathBoundary::&lt;()&gt;::try_new_os_config("MyApp")?;
+
+// Avoid special characters that might cause issues
+let config = PathBoundary::&lt;()&gt;::try_new_os_config("My App &amp; Tools")?; // Risky
+<span class="boring">}</span></code></pre></pre>
+<h3 id="2-graceful-fallbacks"><a class="header" href="#2-graceful-fallbacks">2. Graceful Fallbacks</a></h3>
+<p>Handle platform-specific directories gracefully:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Try platform-specific first, fall back to generic
+let data_dir = PathBoundary::&lt;()&gt;::try_new_os_data_local("MyApp")
+    .or_else(|_| PathBoundary::&lt;()&gt;::try_new_os_data("MyApp"))?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="3-directory-creation"><a class="header" href="#3-directory-creation">3. Directory Creation</a></h3>
+<p>Create application subdirectories as needed:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config("MyApp")?;
+let themes_dir = config_dir.strict_join("themes")?;
+themes_dir.create_dir_all()?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="4-cross-platform-testing"><a class="header" href="#4-cross-platform-testing">4. Cross-Platform Testing</a></h3>
+<p>Test your application on all target platforms to verify directory behavior:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_config_directory_creation() {
+        let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config("TestApp").unwrap();
+        assert!(config_dir.exists() || config_dir.create_dir_all().is_ok());
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
+<ul>
+<li><a href="./examples.html">Real-World Examples</a> - Complete application examples</li>
+<li><a href="./chapter_1.html">Getting Started</a> - Basic <code>strict-path</code> concepts</li>
+<li><a href="https://crates.io/crates/dirs"><code>dirs</code> crate</a> - Underlying OS directory library</li>
+<li><a href="https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html">XDG Base Directory Specification</a></li>
+<li><a href="https://docs.microsoft.com/en-us/windows/win32/shell/knownfolderid">Windows Known Folder API</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="using-strict-path-with-archive-extractors"><a class="header" href="#using-strict-path-with-archive-extractors">Using strict-path with archive extractors</a></h1>
+<p>Archive formats (ZIP, TAR, etc.) embed file names provided by untrusted sources. Treat each entry name as hostile and validate it through VirtualRoot or PathBoundary before any filesystem I/O.</p>
 <h2 id="recommended-patterns"><a class="header" href="#recommended-patterns">Recommended patterns</a></h2>
 <ul>
-<li>Prefer VirtualRoot for extraction pipelines: it accepts any input and clamps it to the jail. This makes batch extraction resilient and user-friendly.</li>
+<li>Prefer VirtualRoot for extraction pipelines: it accepts any input and clamps it to the path boundary. This makes batch extraction resilient and user-friendly.</li>
 <li>Use create_parent_dir_all() before writes to avoid TOCTOU-style parent creation races in your own code. Our operations re-validate boundaries internally.</li>
-<li>Do not concatenate paths manually. Always join via vroot.virtual_join(name) or jail.jailed_join(name).</li>
+<li>Do not concatenate paths manually. Always join via vroot.virtual_join(name) or path_boundary.strict_join(name).</li>
 <li>Treat absolute, UNC, drive-relative, or namespace-prefixed paths as untrusted inputs. The virtual join will clamp these to the virtual root.</li>
-<li>On Windows, NTFS Alternate Data Streams (ADS) like "file.txt:stream" are handled safely. Writes remain within the jail or are cleanly rejected by the OS.</li>
+<li>On Windows, NTFS Alternate Data Streams (ADS) like "file.txt:stream" are handled safely. Writes remain within the path boundary or are cleanly rejected by the OS.</li>
 </ul>
 <h2 id="minimal-example-zip-like-flow"><a class="header" href="#minimal-example-zip-like-flow">Minimal example (ZIP-like flow)</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use jailed_path::VirtualRoot;
+</span>use strict_path::VirtualRoot;
 
 fn extract_all&lt;M: Default&gt;(dest: &amp;std::path::Path, entries: impl IntoIterator&lt;Item=(String, Vec&lt;u8&gt;)&gt;) -&gt; std::io::Result&lt;()&gt; {
     let vroot: VirtualRoot&lt;M&gt; = VirtualRoot::try_new_create(dest)?;
 
     for (name, data) in entries {
-        // 1) Safely map entry name to a jailed path (clamped on escape attempts)
+        // 1) Safely map entry name to a strict path (clamped on escape attempts)
         let vpath = match vroot.virtual_join(&amp;name) {
             Ok(v) =&gt; v,
             Err(_) =&gt; continue, // cleanly reject this entry, log if needed
         };
 
-        // 2) Ensure parent directories exist (inside the jail)
+        // 2) Ensure parent directories exist (inside the path boundary)
         vpath.create_parent_dir_all()?;
 
         // 3) Perform the write safely
@@ -896,7 +1305,7 @@ fn extract_all&lt;M: Default&gt;(dest: &amp;std::path::Path, entries: impl IntoI
 <ul>
 <li>Add corpus entries with: "../", "..\", absolute paths, UNC/\?\ prefixes, drive-relative ("C:..\foo"), unicode lookalikes, long paths.</li>
 <li>On Windows, include ADS cases like "decoy.txt:..\..\evil.exe" and reserved names.</li>
-<li>Assert that successful joins produce paths contained within the jail and failed joins are clean, with no creation outside the jail.</li>
+<li>Assert that successful joins produce paths contained within the path boundary and failed joins are clean, with no creation outside the path boundary.</li>
 </ul>
 <h2 id="notes-on-behavior"><a class="header" href="#notes-on-behavior">Notes on behavior</a></h2>
 <ul>
@@ -904,23 +1313,149 @@ fn extract_all&lt;M: Default&gt;(dest: &amp;std::path::Path, entries: impl IntoI
 <li>We do not normalize Unicode; you can store/display NFC or NFD forms as-is. Both are contained safely.</li>
 <li>Hard links and privileged mount tricks are outside the scope of path-level protections (see README limitations).</li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="best-practices--guidelines"><a class="header" href="#best-practices--guidelines">Best Practices &amp; Guidelines</a></h1>
+<p>This page distills how to use strict-path correctly and ergonomically. Pair it with the Anti‑Patterns page for tell‑offs to avoid.</p>
+<h2 id="pick-the-right-type"><a class="header" href="#pick-the-right-type">Pick The Right Type</a></h2>
+<ul>
+<li>External/untrusted segments (HTTP/DB/manifest/LLM/archive entry):
+<ul>
+<li>UI/virtual flows: <code>VirtualRoot</code> + <code>VirtualPath</code> (clamped joins, user‑facing display)</li>
+<li>System flows: <code>PathBoundary</code> + <code>StrictPath</code> (rejected joins, system display)</li>
+</ul>
+</li>
+<li>Internal/trusted paths (hardcoded/CLI/env): use <code>Path</code>/<code>PathBuf</code>; only validate when combining with untrusted segments.</li>
+</ul>
+<h2 id="encode-guarantees-in-signatures"><a class="header" href="#encode-guarantees-in-signatures">Encode Guarantees In Signatures</a></h2>
+<ul>
+<li>Helpers that touch the filesystem must encode safety:
+<ul>
+<li>Accept <code>&amp;StrictPath&lt;_&gt;</code> or <code>&amp;VirtualPath&lt;_&gt;</code> directly, or</li>
+<li>Accept <code>&amp;PathBoundary&lt;_&gt;</code> / <code>&amp;VirtualRoot&lt;_&gt;</code> + the untrusted segment.</li>
+</ul>
+</li>
+<li>Don’t construct boundaries/roots inside helpers — boundary choice is policy.</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+
+fn save_to_storage(p: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; { p.write_string("ok") }
+fn load_from_storage(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { p.read_to_string() }
+
+fn create_config(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Result&lt;()&gt; {
+    boundary.strict_join(name)?.write_string("cfg")
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="multiuser-isolation-virtualroot"><a class="header" href="#multiuser-isolation-virtualroot">Multi‑User Isolation (VirtualRoot)</a></h2>
+<ul>
+<li>Per‑user/tenant: create a <code>VirtualRoot</code> per user and join untrusted names with <code>virtual_join</code>.</li>
+<li>Share strict helpers by borrowing the strict view: <code>vpath.as_unvirtual()</code>.</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn upload(user_root: &amp;VirtualRoot, filename: &amp;str, bytes: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
+    let vpath = user_root.virtual_join(filename)?;
+    vpath.create_parent_dir_all()?;
+    vpath.write_bytes(bytes)
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="interop--display"><a class="header" href="#interop--display">Interop &amp; Display</a></h2>
+<ul>
+<li>Interop (pass into <code>AsRef&lt;Path&gt;</code> APIs): <code>path.interop_path()</code> (no allocations).</li>
+<li>Display:
+<ul>
+<li>System‑facing: <code>strictpath_display()</code> on <code>PathBoundary</code>/<code>StrictPath</code></li>
+<li>User‑facing: <code>virtualpath_display()</code> on <code>VirtualPath</code></li>
+</ul>
+</li>
+<li>Never use <code>interop_path().to_string_lossy()</code> for display.</li>
+</ul>
+<h2 id="directory-discovery-vs-validation"><a class="header" href="#directory-discovery-vs-validation">Directory Discovery vs Validation</a></h2>
+<ul>
+<li>Discovery (walking): call <code>read_dir(boundary.interop_path())</code> and <code>strip_prefix(boundary.interop_path())</code> to get relatives.</li>
+<li>Validation: join those relatives via <code>boundary.strict_join(..)</code> or <code>vroot.virtual_join(..)</code> before I/O.</li>
+<li>Don’t validate constants like <code>"."</code>; only validate untrusted segments.</li>
+</ul>
+<h2 id="operations-use-explicit-methods"><a class="header" href="#operations-use-explicit-methods">Operations (Use Explicit Methods)</a></h2>
+<ul>
+<li>Joins: <code>strict_join(..)</code> / <code>virtual_join(..)</code></li>
+<li>Parents: <code>strictpath_parent()</code> / <code>virtualpath_parent()</code></li>
+<li>With file name/ext: <code>strictpath_with_file_name()</code> / <code>virtualpath_with_file_name()</code>, etc.</li>
+<li>Avoid std <code>Path::join</code>/<code>parent</code> on leaked paths — they ignore strict/virtual semantics.</li>
+</ul>
+<h2 id="naming-from-agentsmd"><a class="header" href="#naming-from-agentsmd">Naming (from AGENTS.md)</a></h2>
+<ul>
+<li>Variables reflect domain, not type:
+<ul>
+<li>Good: <code>config_dir</code>, <code>uploads_root</code>, <code>archive_src</code>, <code>mirror_src</code>, <code>user_vroot</code></li>
+<li>Bad: <code>boundary</code>, <code>jail</code>, <code>source_</code> prefix</li>
+</ul>
+</li>
+<li>Keep names consistent with the directory they represent (e.g., <code>archive_src</code> for <code>./archive_src</code>).</li>
+</ul>
+<h2 id="do--dont"><a class="header" href="#do--dont">Do / Don’t</a></h2>
+<ul>
+<li>Do: validate once at the boundary, pass types through helpers.</li>
+<li>Do: use <code>VirtualRoot</code> for per‑user isolation; borrow strict view for shared helpers.</li>
+<li>Do: prefer <code>impl AsRef&lt;Path&gt;</code> in helper params where you forward to validation.</li>
+<li>Don’t: wrap secure types in <code>Path::new</code>/<code>PathBuf::from</code>.</li>
+<li>Don’t: use <code>interop_path().as_ref()</code> or <code>as_unvirtual().interop_path()</code> (use <code>interop_path()</code> directly).</li>
+<li>Don’t: use lossy strings for display or comparisons.</li>
+</ul>
+<h2 id="testing--doctests"><a class="header" href="#testing--doctests">Testing &amp; Doctests</a></h2>
+<ul>
+<li>Make doctests encode guarantees (signatures) and use the explicit ops.</li>
+<li>Create temporary roots via <code>PathBoundary::try_new_create(..)</code> / <code>VirtualRoot::try_new_create(..)</code> in setup; clean up afterwards.</li>
+<li>For archive/HTTP examples, prefer offline simulations with deterministic inputs.</li>
+</ul>
+<h2 id="quick-patterns"><a class="header" href="#quick-patterns">Quick Patterns</a></h2>
+<ul>
+<li>Validate + write:</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn write(boundary: &amp;PathBoundary, name: &amp;str, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
+    let sp = boundary.strict_join(name)?;
+    sp.create_parent_dir_all()?;
+    sp.write_bytes(data)
+}
+<span class="boring">}</span></code></pre></pre>
+<ul>
+<li>Validate archive entry:</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn extract(vroot: &amp;VirtualRoot, entry: &amp;str, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
+    let vp = vroot.virtual_join(entry)?;
+    vp.create_parent_dir_all()?;
+    vp.write_bytes(data)
+}
+<span class="boring">}</span></code></pre></pre>
+<ul>
+<li>Share logic across strict/virtual:</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn consume_strict(p: &amp;StrictPath) -&gt; std::io::Result&lt;String&gt; { p.read_to_string() }
+fn consume_virtual(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { consume_strict(p.as_unvirtual()) }
+<span class="boring">}</span></code></pre></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="design--internals"><a class="header" href="#design--internals">Design &amp; Internals</a></h1>
 <blockquote>
 <p><strong>⚠️ CONTRIBUTOR DOCUMENTATION</strong><br />
-This section is for contributors, library developers, and curious developers who want to understand how jailed-path works internally.</p>
+This section is for contributors, library developers, and curious developers who want to understand how strict-path works internally.</p>
 </blockquote>
-<p>If you're just using jailed-path in your project, you probably want:</p>
+<p>If you're just using strict-path in your project, you probably want:</p>
 <ul>
 <li><a href="./chapter_1.html">Getting Started</a> - Learn the basic API</li>
 <li><a href="./examples.html">Real-World Examples</a> - See practical usage patterns</li>
 </ul>
 <h2 id="whats-in-this-section"><a class="header" href="#whats-in-this-section">What's in This Section</a></h2>
-<p>This section covers the internal design decisions and patterns that make jailed-path secure and maintainable:</p>
+<p>This section covers the internal design decisions and patterns that make strict-path secure and maintainable:</p>
 <h3 id="type-history-design-pattern"><a class="header" href="#type-history-design-pattern">Type-History Design Pattern</a></h3>
 <p>The core security mechanism that uses Rust's type system to enforce that paths go through required validation steps in the correct order. This prevents accidentally using unvalidated paths and makes security guarantees compile-time checked rather than runtime hopes.</p>
 <p><a href="./type_history_design.html">Read about Type-History →</a></p>
 <h2 id="for-contributors"><a class="header" href="#for-contributors">For Contributors</a></h2>
-<p>If you're contributing to jailed-path, understanding these internals will help you:</p>
+<p>If you're contributing to strict-path, understanding these internals will help you:</p>
 <ul>
 <li>Maintain the security guarantees</li>
 <li>Add new features safely</li>
@@ -1075,7 +1610,7 @@ fn execute_query(q: &amp;Query&lt;(((Raw, Sanitized), Parameterized), Validated)
     // Safe from SQL injection
 }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="how-this-applies-to-jailed-path"><a class="header" href="#how-this-applies-to-jailed-path">How This Applies to jailed-path</a></h2>
+<h2 id="how-this-applies-to-strict-path"><a class="header" href="#how-this-applies-to-strict-path">How This Applies to strict-path</a></h2>
 <p>For file paths, security is critical. We need to ensure that every path goes through the right checks in the right order:</p>
 <ol>
 <li><strong>Canonicalize</strong>: Resolve <code>.</code>, <code>..</code>, symlinks, etc.</li>
@@ -1131,19 +1666,19 @@ let fake_safe = UnsafePath {
 <span class="boring">}</span></code></pre></pre>
 <p>With Type-History, you literally cannot create a value with the wrong stamps unless you actually performed the operations. The type system enforces honesty.</p>
 <h2 id="the-public-api-hides-the-complexity"><a class="header" href="#the-public-api-hides-the-complexity">The Public API Hides the Complexity</a></h2>
-<p>Users of jailed-path never see <code>PathHistory</code> directly. Instead, they work with simple types like <code>JailedPath</code> and <code>VirtualPath</code>. But internally, these types contain properly stamped paths:</p>
+<p>Users of strict-path never see <code>PathHistory</code> directly. Instead, they work with simple types like <code>StrictPath</code> and <code>VirtualPath</code>. But internally, these types contain properly stamped paths:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// What users see
-pub struct JailedPath&lt;Marker&gt; {
+pub struct StrictPath&lt;Marker&gt; {
     // What's hidden inside: a path that's been through the full validation pipeline
     inner: PathHistory&lt;((Raw, Canonicalized), BoundaryChecked)&gt;,
     // ... other fields
 }
 
 // Users just call simple methods
-let jail = Jail::try_new_create("safe_dir")?;
-let safe_path = jail.jailed_join("user_file.txt")?; // Returns JailedPath
+let safe_dir = PathBoundary::try_new_create("safe_dir")?;
+let safe_user_file = safe_dir.strict_join("user_file.txt")?; // Returns StrictPath
 
 // But the type system guarantees this path is safe to use
 <span class="boring">}</span></code></pre></pre>
@@ -1166,8 +1701,108 @@ let safe_path = jail.jailed_join("user_file.txt")?; // Returns JailedPath
 </ul>
 <h2 id="wrapping-up"><a class="header" href="#wrapping-up">Wrapping Up</a></h2>
 <p>The Type-History pattern might seem complex at first, but it's really just a way to make the compiler remember what you've done and enforce what you need to do. It turns potential runtime errors into compile-time guarantees.</p>
-<p>In jailed-path, this means that once you have a <code>JailedPath</code> or <code>VirtualPath</code>, you can be 100% confident it's safe to use - the type system guarantees it went through all the necessary security checks.</p>
-<p>For most users of jailed-path, you don't need to understand these internals. Just know that the library uses advanced type system features to make it impossible to accidentally create security vulnerabilities. The compiler has your back!</p>
+<p>In strict-path, this means that once you have a <code>StrictPath</code> or <code>VirtualPath</code>, you can be 100% confident it's safe to use - the type system guarantees it went through all the necessary security checks.</p>
+<p>For most users of strict-path, you don't need to understand these internals. Just know that the library uses advanced type system features to make it impossible to accidentally create security vulnerabilities. The compiler has your back!</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="antipatterns-telloffs-and-fixes"><a class="header" href="#antipatterns-telloffs-and-fixes">Anti‑Patterns (Tell‑offs and Fixes)</a></h1>
+<p>This page collects the most common smells that indicate strict-path is being misused, why they’re wrong, and how to fix them. Use this as a quick checklist during review.</p>
+<h2 id="telloffs-and-why-theyre-wrong"><a class="header" href="#telloffs-and-why-theyre-wrong">Tell‑offs and why they’re wrong</a></h2>
+<ul>
+<li>
+<p>Validating only constants (no real external input ever passes through validation)</p>
+<ul>
+<li>Smell: The code builds a <code>PathBoundary</code>/<code>VirtualRoot</code> and only ever calls joins with literals like <code>"docs"</code> or <code>"."</code>, never with user/DB/archive inputs.</li>
+<li>Why wrong: If no untrusted segment flows through <code>strict_join</code>/<code>virtual_join</code>, the crate adds no security value and may mislead readers about protections.</li>
+<li>Fix: Validate actual external segments (e.g., HTTP param, manifest/DB strings, archive entry names). For discovery of the root, use <code>interop_path()</code>; do not validate constants just to “use the API”.</li>
+</ul>
+</li>
+<li>
+<p>Constructing boundaries/roots inside helpers</p>
+<ul>
+<li>Smell: <code>fn load_config() { let cfg = PathBoundary::try_new(...); cfg.strict_join(name) ... }</code>.</li>
+<li>Why wrong: Boundary selection is policy; helpers should not decide it. It also hides where validation happens.</li>
+<li>Fix: Accept <code>&amp;PathBoundary</code> (or <code>&amp;VirtualRoot</code>) and an untrusted segment; or accept <code>&amp;StrictPath</code>/<code>&amp;VirtualPath</code> directly.</li>
+</ul>
+</li>
+<li>
+<p>Wrapping secure types in <code>Path::new</code> / <code>PathBuf::from</code></p>
+<ul>
+<li>Smell: <code>Path::new(spath.interop_path())</code>, <code>PathBuf::from(vpath.interop_path())</code>.</li>
+<li>Why wrong: It bypasses the secure API, reintroduces std joins/parents, and is redundant for interop.</li>
+<li>Fix: Pass <code>interop_path()</code> directly to <code>AsRef&lt;Path&gt;</code> APIs or use strict/virtual methods for ops.</li>
+</ul>
+</li>
+<li>
+<p>Mixing interop and display</p>
+<ul>
+<li>Smell: <code>println!("{}", path.interop_path().to_string_lossy())</code>.</li>
+<li>Why wrong: Interop is for external APIs; display requires stable, intentful formatting.</li>
+<li>Fix: Use <code>strictpath_display()</code> or <code>virtualpath_display()</code>.</li>
+</ul>
+</li>
+<li>
+<p><code>interop_path().as_ref()</code> chaining</p>
+<ul>
+<li>Smell: <code>external_api(path.interop_path().as_ref())</code>.</li>
+<li>Why wrong: <code>interop_path()</code> already implements <code>AsRef&lt;Path&gt;</code>; <code>.as_ref()</code> is redundant and a design smell.</li>
+<li>Fix: Call <code>external_api(path.interop_path())</code> directly.</li>
+</ul>
+</li>
+<li>
+<p><code>as_unvirtual().interop_path()</code> when <code>interop_path()</code> exists</p>
+<ul>
+<li>Smell: <code>vroot.as_unvirtual().interop_path()</code>; <code>vpath.as_unvirtual().interop_path()</code>.</li>
+<li>Why wrong: Both <code>VirtualRoot</code> and <code>VirtualPath</code> implement <code>interop_path()</code>.</li>
+<li>Fix: Call <code>vroot.interop_path()</code> or <code>vpath.interop_path()</code>.</li>
+</ul>
+</li>
+<li>
+<p>Using std joins/parents on leaked paths</p>
+<ul>
+<li>Smell: <code>leaked_path.join("child")</code>, <code>Path::parent()</code> on an unwrapped secure type.</li>
+<li>Why wrong: std ops ignore virtual/strict semantics and can escape boundaries.</li>
+<li>Fix: Use <code>strict_join</code>/<code>virtual_join</code>, <code>strictpath_parent</code>/<code>virtualpath_parent</code>.</li>
+</ul>
+</li>
+<li>
+<p>Function signatures that accept raw paths when safety is required</p>
+<ul>
+<li>Smell: <code>fn process(path: &amp;str)</code> then validating internally.</li>
+<li>Why wrong: Every caller must remember to validate; easy to misuse.</li>
+<li>Fix: Accept <code>&amp;StrictPath&lt;_&gt;</code> or <code>&amp;VirtualPath&lt;_&gt;</code>; or accept <code>&amp;PathBoundary/_</code> + untrusted segment.</li>
+</ul>
+</li>
+<li>
+<p>Single‑user patterns for multi‑user services</p>
+<ul>
+<li>Smell: Global <code>PathBoundary</code> for “uploads” in a multi‑user context.</li>
+<li>Why wrong: It doesn’t encode per‑user isolation and invites mixing.</li>
+<li>Fix: Use a per‑user <code>VirtualRoot</code>; helpers can take <code>&amp;StrictPath</code> for shared logic via <code>as_unvirtual()</code>.</li>
+</ul>
+</li>
+<li>
+<p>Lossy string conversions for logic</p>
+<ul>
+<li>Smell: Using <code>to_string_lossy()</code> for comparisons or display of secure types.</li>
+<li>Why wrong: Lossy and breaks on non‑UTF8; conflates display with logic.</li>
+<li>Fix: For display, use display helpers; for logic, rely on secure ops (starts_with/joins) or std Path values where appropriate.</li>
+</ul>
+</li>
+</ul>
+<h2 id="quick-fixes-bad--good"><a class="header" href="#quick-fixes-bad--good">Quick fixes (bad → good)</a></h2>
+<ul>
+<li><code>path.strict_join(".")</code> → use <code>path_boundary.interop_path()</code> to discover; validate only external segments.</li>
+<li><code>fn helper() { PathBoundary::try_new("..."); }</code> → <code>fn helper(boundary: &amp;PathBoundary, name: &amp;str)</code>.</li>
+<li><code>Path::new(sp.interop_path())</code> → <code>external_api(sp.interop_path())</code>.</li>
+<li><code>println!("{}", sp.interop_path().to_string_lossy())</code> → <code>println!("{}", sp.strictpath_display())</code>.</li>
+<li><code>vroot.as_unvirtual().interop_path()</code> → <code>vroot.interop_path()</code>.</li>
+<li><code>fn process(path: &amp;str)</code> → <code>fn process(path: &amp;StrictPath&lt;_&gt;)</code> (or <code>&amp;VirtualPath&lt;_&gt;</code>).</li>
+<li><code>uploads_dir.strict_join(name)</code> (multi‑user) → <code>user_vroot.virtual_join(name)</code>; call <code>as_unvirtual()</code> only for strict‑typed helpers.</li>
+</ul>
+<h2 id="naming-telloffs-from-agentsmd"><a class="header" href="#naming-telloffs-from-agentsmd">Naming tell‑offs (from AGENTS.md)</a></h2>
+<ul>
+<li>Variables must reflect their domain (config_dir, uploads_root, archive_src), not types (boundary, jail) or generic prefixes (source_).</li>
+<li>Path variables for boundaries/roots should match their actual content (e.g., <code>archive_src</code>, <code>mirror_src</code>, <code>uploads_root</code>).</li>
+</ul>
 
                     </main>
 
@@ -1209,7 +1844,6 @@ let safe_path = jail.jailed_join("user_file.txt")?; // Returns JailedPath
             window.setTimeout(window.print, 100);
         });
         </script>
-
 
     </div>
     </body>

@@ -2,6 +2,8 @@
 //!
 //! Prevent directory traversal with a type-safe, virtualized filesystem API.
 //!
+//! 📚 **[Complete Guide & Examples](https://dk26.github.io/jailed-path-rs/)** | 📖 **[API Reference](https://docs.rs/strict-path)**
+//!
 //! ## Core Security Foundation: `StrictPath`
 //!
 //! **`StrictPath` is the fundamental security primitive** that provides our core guarantee: every
@@ -57,15 +59,16 @@
 //! # use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // ✅ USE StrictPath - External/untrusted input (you don't control the source)
-//! fn handle_user_config(config_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-//!     let boundary = PathBoundary::try_new_create("./app_config")?;
-//!     let safe_path: StrictPath = boundary.strict_join(config_path)?;  // Validate!
-//!     let content = safe_path.read_to_string()?;
+//! // Encode guarantees in the signature: pass the boundary and the untrusted segment
+//! fn handle_user_config(boundary: &PathBoundary, config_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+//!     let config_path: StrictPath = boundary.strict_join(config_name)?;  // Validate!
+//!     let _content = config_path.read_to_string()?;
 //!     Ok(())
 //! }
 //!
-//! fn process_upload(user_filename: &str) -> Result<(), Box<dyn std::error::Error>> {
-//!     let uploads = VirtualRoot::try_new_create("./uploads")?;
+//! // ✅ USE VirtualRoot - External/untrusted input for user-facing paths
+//! // Encode guarantees in the signature: pass the virtual root and the untrusted segment
+//! fn process_upload(uploads: &VirtualRoot, user_filename: &str) -> Result<(), Box<dyn std::error::Error>> {
 //!     let safe_file: VirtualPath = uploads.virtual_join(user_filename)?;  // Sandbox!
 //!     safe_file.write_bytes(b"data")?;
 //!     Ok(())
@@ -418,7 +421,7 @@
 //! - Passing to external APIs: Prefer `strict_path.interop_path()` which borrows the
 //!   inner system-facing path as `&OsStr` (implements `AsRef<Path>`). This is the cheapest and most
 //!   correct way to interoperate without exposing risky methods.
-//! - Ownership escape hatches: Use `.unvirtual()` (to get a `StrictPath`) and `.unrestrict()`
+//! - Ownership escape hatches: Use `.unvirtual()` (to get a `StrictPath`) and `.unstrict()`
 //!   (to get an owned `PathBuf`) explicitly and sparingly. These are deliberate, opt-in
 //!   operations to make potential risk obvious in code review.
 //!
@@ -469,11 +472,19 @@
 //!   println!("{}", safe_path.strictpath_display());
 //!   # Ok::<(), Box<dyn std::error::Error>>(())
 //!   ```
+//!   
+//!   ### Tell‑offs and fixes
+//!   - Validating only constants → validate real external segments (HTTP/DB/manifest/archive entries); use `boundary.interop_path()` for root discovery.
+//!   - Constructing boundaries/roots inside helpers → accept `&PathBoundary`/`&VirtualRoot` and the untrusted segment, or a `&StrictPath`/`&VirtualPath`.
+//!   - Wrapping secure types (`Path::new(sp.interop_path())`) → pass `interop_path()` directly.
+//!   - `interop_path().as_ref()` or `as_unvirtual().interop_path()` → `interop_path()` is enough; both `VirtualRoot`/`VirtualPath` expose it.
+//!   - Using std path ops on leaked values → use `strict_join`/`virtual_join`, `strictpath_parent`/`virtualpath_parent`.
+//!   - Raw `&str` parameters for safe helpers → take `&StrictPath<_>`/`&VirtualPath<_>` or (boundary/root + segment).
 //! - Do not leak raw `Path`/`PathBuf` from `StrictPath` or `VirtualPath`.
 //!   Use `interop_path()` when an external API needs `AsRef<Path>`.
 //! - Do not call `Path::join`/`Path::parent` on leaked paths — they ignore PathBoundary/virtual semantics.
 //!   Use `strict_join`/`strictpath_parent` and `virtual_join`/`virtualpath_parent`.
-//! - Avoid `.unvirtual()`/`.unrestrict()` unless you explicitly need ownership for the specific type.
+//! - Avoid `.unvirtual()`/`.unstrict()` unless you explicitly need ownership for the specific type.
 //!   Prefer borrowing with `interop_path()` for interop.
 //! - Virtual strings are rooted. For UI/logging, use `vp.virtualpath_display()` or `vp.virtualpath_display().to_string()`.
 //!   No borrowed `&str` accessors are exposed for virtual paths.
@@ -486,7 +497,7 @@
 //!
 //! Prefer passing references to the inner system path instead of taking ownership:
 //! - If an external API accepts `AsRef<Path>`, pass `strict_path.interop_path()`.
-//! - Avoid `.unrestrict()` unless you explicitly need an owned `PathBuf`.
+//! - Avoid `.unstrict()` unless you explicitly need an owned `PathBuf`.
 //!
 //! ```rust
 //! # use strict_path::PathBoundary;
@@ -499,10 +510,10 @@
 //! external_api(jp.interop_path());
 //!
 //! // Escape hatches (use sparingly):
-//! let owned: std::path::PathBuf = jp.clone().unrestrict();
+//! let owned: std::path::PathBuf = jp.clone().unstrict();
 //! let v: strict_path::VirtualPath = jp.clone().virtualize();
 //! let back: strict_path::StrictPath = v.clone().unvirtual();
-//! let owned_again: std::path::PathBuf = v.unvirtual().unrestrict();
+//! let owned_again: std::path::PathBuf = v.unvirtual().unstrict();
 //! # // Cleanup created PathBoundary directory for doctest hygiene
 //! # std::fs::remove_dir_all("./safe").ok();
 //! # Ok(()) }

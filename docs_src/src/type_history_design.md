@@ -156,7 +156,7 @@ fn execute_query(q: &Query<(((Raw, Sanitized), Parameterized), Validated)>) {
 }
 ```
 
-## How This Applies to jailed-path
+## How This Applies to strict-path
 
 For file paths, security is critical. We need to ensure that every path goes through the right checks in the right order:
 
@@ -221,19 +221,19 @@ With Type-History, you literally cannot create a value with the wrong stamps unl
 
 ## The Public API Hides the Complexity
 
-Users of jailed-path never see `PathHistory` directly. Instead, they work with simple types like `JailedPath` and `VirtualPath`. But internally, these types contain properly stamped paths:
+Users of strict-path never see `PathHistory` directly. Instead, they work with simple types like `StrictPath` and `VirtualPath`. But internally, these types contain properly stamped paths:
 
 ```rust
 // What users see
-pub struct JailedPath<Marker> {
+pub struct StrictPath<Marker> {
     // What's hidden inside: a path that's been through the full validation pipeline
     inner: PathHistory<((Raw, Canonicalized), BoundaryChecked)>,
     // ... other fields
 }
 
 // Users just call simple methods
-let jail = Jail::try_new_create("safe_dir")?;
-let safe_path = jail.jailed_join("user_file.txt")?; // Returns JailedPath
+let safe_dir = PathBoundary::try_new_create("safe_dir")?;
+let safe_user_file = safe_dir.strict_join("user_file.txt")?; // Returns StrictPath
 
 // But the type system guarantees this path is safe to use
 ```
@@ -260,6 +260,6 @@ This pattern is overkill for simple cases, but it's valuable when:
 
 The Type-History pattern might seem complex at first, but it's really just a way to make the compiler remember what you've done and enforce what you need to do. It turns potential runtime errors into compile-time guarantees.
 
-In jailed-path, this means that once you have a `JailedPath` or `VirtualPath`, you can be 100% confident it's safe to use - the type system guarantees it went through all the necessary security checks.
+In strict-path, this means that once you have a `StrictPath` or `VirtualPath`, you can be 100% confident it's safe to use - the type system guarantees it went through all the necessary security checks.
 
-For most users of jailed-path, you don't need to understand these internals. Just know that the library uses advanced type system features to make it impossible to accidentally create security vulnerabilities. The compiler has your back!
+For most users of strict-path, you don't need to understand these internals. Just know that the library uses advanced type system features to make it impossible to accidentally create security vulnerabilities. The compiler has your back!

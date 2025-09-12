@@ -37,14 +37,14 @@ This design makes the API read naturally:
 - Marker types prevent mixing distinct restrictions at compile time: use when you have multiple storage areas.
 - We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an API expects `AsRef<Path>`, pass `.interop_path()`.
   (`PathBoundary` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
-- Interop doesn't require `.unrestrict()`: prefer `.interop_path()`; call `.unrestrict()` only when an owned `PathBuf` is strictly required.
+- Interop doesn't require `.unstrict()`: prefer `.interop_path()`; call `.unstrict()` only when an owned `PathBuf` is strictly required.
 - Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
   clamping or restriction checks. Use `strict_join` / `virtualpath_parent` instead.
 - Do not convert `StrictPath` -> `VirtualPath` just to print; for UI flows start with `VirtualRoot::virtual_join(..)` and keep a `VirtualPath`.
 
 ## StrictPath API
 
-- unrestrict(self) -> PathBuf  // consumes — escape hatch (avoid)
+- unstrict(self) -> PathBuf  // consumes — escape hatch (avoid)
 - virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
 - strictpath_to_string_lossy(&self) -> Cow<'_, str>
 - strictpath_to_str(&self) -> Option<&str>
@@ -196,12 +196,12 @@ Top-level exports
 | Symbol                        |   Kind | Purpose                                                                                                      |
 | ----------------------------- | -----: | ------------------------------------------------------------------------------------------------------------ |
 | `StrictPathError`             |   enum | Validation and resolution errors.                                                                            |
-| `PathBoundary<Marker>`     | struct | Validator that produces `StrictPath`.                                                                        |
+| `PathBoundary<Marker>`        | struct | Validator that produces `StrictPath`.                                                                        |
 | `StrictPath<Marker>`          | struct | Validated path proven inside the restriction; supports I/O.                                                  |
 | `VirtualRoot<Marker>`         | struct | User-facing entry that clamps user paths to a restriction.                                                   |
 | `VirtualPath<Marker>`         | struct | User-facing path that extends `StrictPath` with a virtual-root view and restriction-aware ops; supports I/O. |
 | `Result<T>`                   |  alias | `Result<T, StrictPathError>`                                                                                 |
-| `serde_ext` (feature `serde`) | module | Context-aware deserialization helpers (`WithBoundary`, `WithVirtualRoot`).                                |
+| `serde_ext` (feature `serde`) | module | Context-aware deserialization helpers (`WithBoundary`, `WithVirtualRoot`).                                   |
 
 ## Quick Recipes
 - Create restriction (create dir if missing) and validate: `let restriction = PathBoundary::try_new_create("./safe")?; let sp = restriction.strict_join("a/b.txt")?;`
@@ -239,8 +239,8 @@ PathBoundary<Marker>
 - virtualize(self) -> VirtualRoot<Marker>
 
 StrictPath<Marker>
-Note: `.unrestrict()` is an explicit escape hatch. Interop doesn’t require it — prefer `.interop_path()`; use `.unrestrict()` only when an owned `PathBuf` is strictly required.
-- unrestrict(self) -> PathBuf  // consumes — escape hatch (avoid)
+Note: `.unstrict()` is an explicit escape hatch. Interop doesn’t require it — prefer `.interop_path()`; use `.unstrict()` only when an owned `PathBuf` is strictly required.
+- unstrict(self) -> PathBuf  // consumes — escape hatch (avoid)
 - virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
 - strictpath_to_string_lossy(&self) -> Cow<'_, str>
 - strictpath_to_str(&self) -> Option<&str>
@@ -307,7 +307,7 @@ These are available only when the corresponding Cargo features are enabled:
   - `VirtualRoot::try_new_data(app_name: &str) -> Result<VirtualRoot>`
   - `VirtualRoot::try_new_cache(app_name: &str) -> Result<VirtualRoot>`
 
-- Feature `tempdir` (RAII temporary directories)
+- Feature `tempfile` (RAII temporary directories)
   - `PathBoundary::try_new_temp() -> Result<PathBoundary>`
   - `PathBoundary::try_new_temp_with_prefix(prefix: &str) -> Result<PathBoundary>`
   - `VirtualRoot` holds RAII of temp dirs internally when constructed from feature-enabled contexts
@@ -326,16 +326,16 @@ Short usage rules (1-line each)
 - For user input: use `VirtualRoot::virtual_join(...)` -> `VirtualPath`.
 - For I/O: use either `VirtualPath` or `StrictPath` (both support I/O). Call `.unvirtual()` only when you need a `StrictPath` explicitly.
 - Do not bypass: never call std fs ops on raw `Path`/`PathBuf` built from untrusted input.
-- Marker types prevent mixing distinct jails at compile time: use when you have multiple storage areas.
+- Marker types prevent mixing distinct path boundaries at compile time: use when you have multiple storage areas.
 - We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an API expects `AsRef<Path>`, pass `.interop_path()`.
-  (`Jail` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
-- Interop doesn’t require `.unrestrict()`: prefer `.interop_path()`; call `.unrestrict()` only when an owned `PathBuf` is strictly required.
+  (`PathBoundary` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
+- Interop doesn’t require `.unstrict()`: prefer `.interop_path()`; call `.unstrict()` only when an owned `PathBuf` is strictly required.
 - Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
-  clamping or jail checks. Use `strict_join` / `virtualpath_parent` instead.
+  clamping or path boundary checks. Use `strict_join` / `virtualpath_parent` instead.
  - Do not convert `StrictPath` -> `VirtualPath` just to print; for UI flows start with `VirtualRoot::virtual_join(..)` and keep a `VirtualPath`.
  - `*_to_string_lossy()` returns `Cow<'_, str>`; call `.into_owned()` only when an owned `String` is required.
  - **ANTI-PATTERN**: Never use `.interop_path().to_string_lossy()` for display purposes. Use proper display methods instead:
-   - `PathRestriction`/`RestrictedPath`: use `strictpath_display()`
+   - `PathBoundary`/`StrictPath`: use `strictpath_display()`
    - `VirtualPath`: use `virtualpath_display()`
    - `VirtualRoot`: use `vroot.as_unvirtual().strictpath_display()`
    - Reserve `interop_path()` only for external API interop that requires `AsRef<Path>`.
@@ -417,4 +417,4 @@ Common anti-patterns (LLM quick check)
 ## Integrations (At a Glance)
 - Serde (feature `serde`): `StrictPath`/`VirtualPath` implement `Serialize`. For deserialization, read `String` and validate via `PathBoundary::strict_join(..)` or `VirtualRoot::virtual_join(..)`. For single values with context, use `serde_ext::WithBoundary(&boundary)` / `serde_ext::WithVirtualRoot(&vroot)` on a serde Deserializer. See `serde_ext` docs.
 - Axum: Put `VirtualRoot<Marker>` in state; validate `Path<String>` to `VirtualPath` per request (custom extractor optional). Handlers take `&VirtualPath<_>`/`&StrictPath<_>` for I/O. See `examples/web/axum_static_server.rs`.
-- app-path: Use `app_path::app_path!("config", env = "APP_CONFIG_DIR")` to discover a config directory; jail it and operate through `StrictPath`. See `examples/config/app_path_config.rs`.
+- app-path: Use `app_path::app_path!("config", env = "APP_CONFIG_DIR")` to discover a config directory; path boundary it and operate through `StrictPath`. See `examples/config/app_path_config.rs`.

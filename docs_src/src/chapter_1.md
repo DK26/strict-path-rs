@@ -1,10 +1,10 @@
-# Getting Started with jailed-path
+# Getting Started with strict-path
 
-## What is jailed-path?
+## What is strict-path?
 
 Have you ever worried about users trying to access files they shouldn't? Like when someone enters `../../../etc/passwd` to try to escape from a safe directory? That's called a "directory traversal" attack, and it's surprisingly common.
 
-**jailed-path** solves this problem by creating "jails" - safe boundaries that paths cannot escape from. Think of it like a sandbox for file paths.
+**strict-path** solves this problem by creating path boundaries - safe boundaries that paths cannot escape from. It comes in two modes: StrictPath (via PathBoundary) which is a path proven to have passed a validation filter, and VirtualPath (via VirtualRoot) which you could think of it like a sandboxed file path.
 
 ## Why Should You Care?
 
@@ -14,118 +14,121 @@ Directory traversal vulnerabilities are everywhere:
 - Any application that processes user-provided paths
 - Systems that extract archives (ZIP files, etc.)
 
-Getting path security wrong can expose your entire filesystem to attackers. With jailed-path, the Rust compiler helps ensure you can't make these mistakes.
+Getting path security wrong can expose your entire filesystem to attackers. With strict-path, the Rust compiler helps ensure you can't make these mistakes.
 
-## Your First Jail
+## Your First PathBoundary
 
 Let's start with a simple example. Say you're building a web app where users can upload and download their files, but you want to keep them contained in a specific directory:
 
 ```rust
-use jailed_path::Jail;
+use strict_path::PathBoundary;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a jail in the "user_files" directory
+    // Create a path boundary in the "user_files" directory
     // This creates the directory if it doesn't exist
-    let jail = Jail::try_new_create("user_files")?;
-    
-    // Now any path we validate through this jail will be contained
+    let user_files_dir = PathBoundary::try_new_create("user_files")?;
+
+    // Now any path we validate through this path boundary will be contained
     // within the "user_files" directory
-    
+
     // This is SAFE - creates "user_files/documents/report.txt"
-    let safe_path = jail.jailed_join("documents/report.txt")?;
-    
-    // This would FAIL - can't escape the jail!
-    // let bad_path = jail.jailed_join("../../../etc/passwd")?; // Error!
-    
-    println!("Safe path: {}", safe_path.as_path().display());
-    
+    let report = user_files_dir.strict_join("documents/report.txt")?;
+    report.create_parent_dir_all()?;
+    report.write_string("Quarterly report contents")?;
+
+    // This would FAIL - can't escape the path boundary!
+    // let _bad = user_files_dir.strict_join("../../../etc/passwd")?; // Error!
+
+    let display = report.strictpath_display();
+    println!("Safe path: {display}");
+
     Ok(())
 }
 ```
 
 ## What Just Happened?
 
-1. **Created a jail**: `Jail::try_new_create("user_files")` sets up a safe boundary
-2. **Validated a path**: `jail.jailed_join("documents/report.txt")` checks the path is safe
-3. **Got protection**: Any attempt to escape the jail (like `../../../etc/passwd`) fails immediately
+1. **Created a path boundary**: `PathBoundary::try_new_create("user_files")` sets up a safe boundary
+2. **Validated a path**: `path_boundary.strict_join("documents/report.txt")` checks the path is safe
+3. **Got protection**: Any attempt to escape the path boundary (like `../../../etc/passwd`) fails immediately
 
-The magic is that once you have a `JailedPath`, you *know* it's safe. The type system guarantees it.
+The magic is that once you have a `StrictPath`, you *know* it's safe. The type system guarantees it.
 
-## Working with Jailed Paths
+## Working with Strict Paths
 
-Once you have a `JailedPath`, you can use it for file operations:
+Once you have a `StrictPath`, you can use it for file operations:
 
 ```rust
-use jailed_path::Jail;
-use std::fs;
+use strict_path::PathBoundary;
 
 fn save_user_file() -> Result<(), Box<dyn std::error::Error>> {
-    let jail = Jail::try_new_create("uploads")?;
-    
+    let uploads_dir = PathBoundary::try_new_create("uploads")?;
+
     // User wants to save to "my-document.txt"
-    let user_input = "my-document.txt";
-    let safe_path = jail.jailed_join(user_input)?;
-    
-    // Write some content safely
-    fs::write(&safe_path, "Hello, world!")?;
-    
+    let user_input = "my-document.txt"; // untrusted
+    let safe_path = uploads_dir.strict_join(user_input)?;
+
+    // Write some content safely using built-in helpers
+    safe_path.write_string("Hello, world!")?;
+
     // Read it back
-    let content = fs::read_to_string(&safe_path)?;
-    println!("File contains: {}", content);
-    
+    let content = safe_path.read_to_string()?;
+    println!("File contains: {content}");
+
     Ok(())
 }
 ```
 
 ## Type Safety: The Secret Sauce
 
-Here's where jailed-path gets really clever. You can write functions that *only* accept safe paths:
+Here's where strict-path gets really clever. You can write functions that *only* accept safe paths:
 
 ```rust
-use jailed_path::JailedPath;
-use std::fs;
+use strict_path::{PathBoundary, StrictPath};
 
 // This function can ONLY be called with safe paths
-fn process_user_file(path: &JailedPath) -> Result<String, std::io::Error> {
+fn process_user_file(path: &StrictPath) -> std::io::Result<String> {
     // We know this path is safe - no need to validate again
-    fs::read_to_string(path)
+    path.read_to_string()
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let jail = Jail::try_new_create("safe_area")?;
-    let safe_path = jail.jailed_join("user-data.txt")?;
-    
-    // This works - safe_path is a JailedPath
-    let content = process_user_file(&safe_path)?;
-    
+    let data_dir = PathBoundary::try_new_create("safe_area")?;
+    let user_data = data_dir.strict_join("user-data.txt")?;
+
+    // This works - user_data is a StrictPath
+    let _content = process_user_file(&user_data)?;
+
     // This won't compile - can't pass an unsafe path!
     // let unsafe_path = std::path::Path::new("/etc/passwd");
-    // let content = process_user_file(unsafe_path); // Compilation error!
-    
+    // let _content = process_user_file(unsafe_path); // Compilation error!
+
     Ok(())
 }
 ```
 
-This means once you set up your jails correctly, the compiler prevents you from accidentally using unsafe paths.
+This means once you set up your path boundaries correctly, the compiler prevents you from accidentally using unsafe paths.
 
 ## Virtual Paths: User-Friendly Sandboxes
 
 Sometimes you want to give users the illusion that they have their own private filesystem, starting from `/`. That's what `VirtualPath` is for:
 
 ```rust
-use jailed_path::VirtualRoot;
+use strict_path::VirtualRoot;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a virtual root that maps to "user_123_files" on disk
     let vroot = VirtualRoot::try_new_create("user_123_files")?;
-    
+
     // User thinks they're working from "/"
-    let user_path = vroot.virtual_join("/documents/my-file.txt")?;
-    
+    let vpath = vroot.virtual_join("/documents/my-file.txt")?;
+
     // But it actually maps to "user_123_files/documents/my-file.txt"
-    println!("User sees: /documents/my-file.txt");
-    println!("Actually stored at: {}", user_path.as_path().display());
-    
+    let user_sees = vpath.virtualpath_display();
+    let system_path = vpath.as_unvirtual().strictpath_display();
+    println!("User sees: {user_sees}");
+    println!("Actually stored at: {system_path}");
+
     Ok(())
 }
 ```
@@ -137,18 +140,18 @@ This is perfect for multi-user applications where each user should feel like the
 That's really all you need to know! The core API is simple:
 
 ### Creating Safe Boundaries
-- `Jail::try_new(path)` - Use existing directory as jail (fails if not found)
-- `Jail::try_new_create(path)` - Create directory if needed (for setup/initialization)
+- `PathBoundary::try_new(path)` - Use existing directory as path boundary (fails if not found)
+- `PathBoundary::try_new_create(path)` - Create directory if needed (for setup/initialization)
 - `VirtualRoot::try_new(path)` - Virtual filesystem root (expects existing directory)
 - `VirtualRoot::try_new_create(path)` - Create virtual root if needed (for user storage)
 
 ### Validating Paths
-- `jail.jailed_join(user_path)` - Returns `JailedPath` or error
+- `path_boundary.strict_join(user_path)` - Returns `StrictPath` or error
 - `vroot.virtual_join(user_path)` - Returns `VirtualPath` or error
 
 ### Using Safe Paths
-- Both `JailedPath` and `VirtualPath` work with standard file operations
-- They implement `AsRef<Path>` so you can pass them to `fs::read`, `fs::write`, etc.
+- Both `StrictPath` and `VirtualPath` work with standard file operations
+- They implement `.interop_os()` so you can pass them to `fs::read`, `fs::write`, etc.
 - The type system prevents using unvalidated paths
 
 ## Common Patterns
@@ -156,40 +159,44 @@ That's really all you need to know! The core API is simple:
 ### Web File Upload
 
 ```rust
-use jailed_path::Jail;
+use strict_path::{PathBoundary, StrictPath};
 
+// Public API: callers pass untrusted filename; we validate, then call an internal helper
 fn handle_file_upload(filename: &str, content: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-    let uploads_jail = Jail::try_new_create("uploads")?;
-    let safe_path = uploads_jail.jailed_join(filename)?;
-    std::fs::write(&safe_path, content)?;
-    Ok(())
+    let uploads_dir = PathBoundary::try_new_create("uploads")?;
+    let dest = uploads_dir.strict_join(filename)?; // Validate external input
+    save_uploaded(&dest, content) // Internal API enforces &StrictPath in signature
+}
+
+// Internal helper encodes guarantee in its signature
+fn save_uploaded(path: &StrictPath, content: &[u8]) -> std::io::Result<()> {
+    path.create_parent_dir_all()?;
+    path.write_bytes(content)
 }
 ```
 
 ### Configuration Files
 
 ```rust
-use jailed_path::Jail;
+use strict_path::{PathBoundary, VirtualRoot};
 
-fn load_config(config_name: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let config_jail = Jail::try_new("config")?;  // Expect config dir to exist
-    let config_path = config_jail.jailed_join(config_name)?;
-    let content = std::fs::read_to_string(&config_path)?;
-    Ok(content)
+// Prefer signatures that encode guarantees explicitly: pass the boundary and the untrusted name
+fn load_config(config_dir: &PathBoundary, config_name: &str) -> Result<String, Box<dyn std::error::Error>> {
+    config_dir.strict_join(config_name)?.read_to_string()
 }
 
 fn setup_user_storage(user_id: u32) -> Result<(), Box<dyn std::error::Error>> {
-    // Create user directory structure if it doesn't exist
-    let user_jail = Jail::try_new_create(&format!("users/{}", user_id))?;
-    let documents = user_jail.jailed_join("documents")?;
-    std::fs::create_dir_all(&documents)?;
+    // Create a user-facing virtual root for UI flows
+    let vroot = VirtualRoot::try_new_create(format!("users/{user_id}"))?;
+    let docs = vroot.virtual_join("documents")?;
+    docs.create_dir_all()?;
     Ok(())
 }
 ```
 
 ## What's Next?
 
-- **Real-World Examples**: See complete applications using jailed-path
+- **Real-World Examples**: See complete applications using strict-path
 - **Understanding Type-History**: Learn how the internal security works (for contributors)
 
-The key rule: **always validate external paths through a jail before using them**. Whether it's user input, configuration files, or data from external sources - if you didn't create the path yourself, put it in jail first!
+The key rule: **always validate external paths through a path boundary before using them**. Whether it's user input, configuration files, or data from external sources - if you didn't create the path yourself, join it to a path boundary first!

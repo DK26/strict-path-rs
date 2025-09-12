@@ -1,7 +1,7 @@
 use crate::{PathBoundary, StrictPathError};
 
 #[test]
-fn test_jailed_path_accessors_and_manipulation() {
+fn test_strict_path_accessors_and_manipulation() {
     let temp = tempfile::tempdir().unwrap();
     let restriction: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
 

@@ -1,4 +1,4 @@
-# Contributing to jailed-path
+# Contributing to strict-path
 
 Thanks for your interest in contributing! 🦀
 
@@ -28,7 +28,7 @@ Before suggesting features, **have your LLM agent read our [`AGENTS.md`](./AGENT
 
 **LLM Prompt:**
 ```
-I want to suggest a feature for jailed-path-rs. Please read the AGENTS.md and API_REFERENCE.md files from this repository and tell me if my feature idea aligns with the design philosophy and why it might not already be implemented.
+I want to suggest a feature for strict-path crate. Please read the AGENTS.md and API_REFERENCE.md files from this repository and tell me if my feature idea aligns with the design philosophy and why it might not already be implemented.
 ```
 
 **Timeline expectations:**
@@ -42,7 +42,7 @@ We encourage **all** suggestions! The distinction just helps set implementation 
 **Project Philosophy:**
 - Type-safe security with compile-time guarantees
 - Never expose raw `std::path::Path` (zero attack surface)
-- Explicit method naming (`jailedpath_*` vs `virtualpath_*`)
+- Explicit method naming (`strictpath_*` vs `virtualpath_*`)
 - Cross-platform CVE protection
 
 

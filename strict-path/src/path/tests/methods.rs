@@ -66,9 +66,9 @@ fn test_virtual_path_pathbuf_methods() {
         "/foo/bar.log"
     );
 
-    // unvirtual -> jailed -> System path suffix
-    let jailed_again = virtual_path.unvirtual();
-    let inner = jailed_again.unrestrict();
+    // unvirtual -> strict -> System path suffix
+    let strict_again = virtual_path.unvirtual();
+    let inner = strict_again.unstrict();
     let expected_path = temp_dir.path().join("foo/bar.txt");
     assert_eq!(inner.to_string_lossy(), expected_path.to_string_lossy());
 }

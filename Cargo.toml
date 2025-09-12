@@ -10,7 +10,7 @@
 resolver = "2"
 members = ["strict-path"]
 # Critical to MSRV strategy: do NOT include `examples` in the workspace.
-exclude = ["examples"]
+exclude = ["demos"]
 
 # Prefer building the main library by default (not the examples crate)
 default-members = ["strict-path"]

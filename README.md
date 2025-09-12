@@ -7,6 +7,8 @@
 [![Security Audit](https://github.com/DK26/jailed-path-rs/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/DK26/jailed-path-rs/actions/workflows/audit.yml)
 [![Type-State Police](https://img.shields.io/badge/protected%20by-Type--State%20Police-blue.svg)](https://github.com/DK26/jailed-path-rs)
 
+📚 **[Complete Guide & Examples](https://dk26.github.io/jailed-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)**
+
 **Prevent directory traversal with type-safe path boundaries and safe symlinks**
 
 > *The Type-State Police have set up PathBoundary checkpoints*  
@@ -266,7 +268,7 @@ If it comes from outside your program's direct control, secure it.
 | 📦 Archive contents      | Entry names from ZIP/TAR       | Progress UI, virtual joins, and I/O within the boundary          | System-facing interop/I/O (alternative) | Validate each entry to block zip-slip                   |
 | 🔧 File format internals | Embedded path strings          | Diagnostics and I/O within the boundary                          | System-facing interop/I/O (alternative) | Never dereference without validation                    |
 
-Note: This is not “JailedPath vs VirtualPath.” `VirtualPath` conceptually extends `JailedPath` with a virtual-root view and restricted, jail-aware operations. Both support I/O and interop; choose based on whether you need virtual, user-facing path semantics or raw system-facing semantics.
+Note: This is not “StrictPath vs VirtualPath.” `VirtualPath` conceptually extends `StrictPath` with a virtual-root view and restricted, path boundary-aware operations. Both support I/O and interop; choose based on whether you need virtual, user-facing path semantics or raw system-facing semantics.
 
 **Think of it this way:**
 - `StrictPath` = **Security Filter** — validates that a path is safe and rejects unsafe paths, then lets you work with the proven-safe path for I/O operations
@@ -362,7 +364,7 @@ let safe_config = boundary.strict_join(user_config_name)?; // ✅ Validated
 safe_config.write_string(&settings)?;
 ```
 
-## ⚠️ **Common Anti-Patterns to Avoid**
+## ⚠️ Anti-Patterns (Tell‑offs and Fixes)
 
 ### DON'T Mix Interop with Display
 
@@ -420,7 +422,7 @@ use strict_path::VirtualRoot;
 fn extract_all(dest: &std::path::Path, entries: impl IntoIterator<Item=(String, Vec<u8>)>) -> std::io::Result<()> {
   let vroot: VirtualRoot<()> = VirtualRoot::try_new_create(dest)?;
   for (name, data) in entries {
-    // Map entry name to a safe path inside the jail
+    // Map entry name to a safe path inside the path boundary
     let vpath = match vroot.virtual_join(&name) {
       Ok(v) => v,
       Err(_) => continue, // reject bad entry, but keep extracting others
@@ -433,9 +435,9 @@ fn extract_all(dest: &std::path::Path, entries: impl IntoIterator<Item=(String, 
 ```
 
 Best practices:
-- Always join entry names through VirtualRoot/Jail; never concatenate strings
+- Always join entry names through VirtualRoot/PathBoundary; never concatenate strings
 - Accept absolute, UNC, or drive-relative names — virtual_join clamps them safely
-- On Windows, ADS like `file.txt:stream` stays inside the jail or is rejected by the OS
+- On Windows, ADS like `file.txt:stream` stays inside the path boundary or is rejected by the OS
 - Validate symlink/junction behavior at runtime; our resolution rejects boundary escapes
 - See docs: Using with Archive Extractors
 
@@ -449,12 +451,28 @@ file_path.write_bytes(upload_data)?;
 
 ### Configuration Files
 ```rust
-fn load_config(config_name: &str) -> Result<String> {
-    let config_dir = PathBoundary::try_new("./config")?;
-    let safe_path = config_dir.strict_join(config_name)?;
-    safe_path.read_to_string()
+use strict_path::PathBoundary;
+
+// Encode guarantees via the signature: pass the boundary and an untrusted name
+fn load_config(config_dir: &PathBoundary, name: &str) -> Result<String> {
+    config_dir.strict_join(name)?.read_to_string()
 }
 ```
+
+### Other tell‑offs and the right way
+
+- Validating only constants
+  - If no untrusted segment ever flows through `strict_join`/`virtual_join`, the crate adds no value. Use `boundary.interop_path()` for discovery; validate actual external names (HTTP/DB/manifest/archive entries).
+- Constructing boundaries/roots inside helpers
+  - Helpers shouldn’t decide policy. Take a `&PathBoundary`/`&VirtualRoot` and a name, or accept a `&StrictPath`/`&VirtualPath`.
+- Wrapping secure types in std paths
+  - Don’t wrap `interop_path()` in `Path::new`/`PathBuf::from`; pass `interop_path()` directly to `AsRef<Path>` APIs.
+- `interop_path().as_ref()` or `as_unvirtual().interop_path()`
+  - `interop_path()` already implements `AsRef<Path>`; both `VirtualRoot` and `VirtualPath` expose it.
+- Using std path ops on leaked values
+  - Use `strict_join`/`virtual_join` and `strictpath_parent`/`virtualpath_parent`.
+- Raw path parameters for safe helpers
+  - Prefer `&StrictPath<_>`/`&VirtualPath<_>` (or boundary/root + segment) to encode guarantees.
 
 ### LLM/AI File Operations
 ```rust
@@ -466,13 +484,13 @@ safe_ai_path.write_string(&ai_generated_content)?;
 ```
 
 ```rust
-use strict_path::Jail;
+use strict_path::PathBoundary;
 
-// 1. Create a jail
-let boundary = PathBoundary::try_new_create("safe_directory")?;  // Creates dir if needed
+// 1. Create a path boundary (aka jail)
+let safe_directory_boundary = PathBoundary::try_new_create("safe_directory")?;  // Creates dir if needed
 
 // 2. Validate any external path
-let safe_path = boundary.strict_join("user/input/file.txt")?;
+let safe_new_path = safe_directory_boundary.strict_join("user/input/file.txt")?;
 
 // 3. Use normal file operations - guaranteed safe
 safe_path.read_to_string()?;
@@ -502,16 +520,16 @@ external_function(path.interop_path());  // No allocation
 
 ### Concept Comparison
 
-| Feature                   | `Path`/`PathBuf`                    | `StrictPath`                     | `VirtualPath`                                                                   |
-| ------------------------- | ----------------------------------- | -------------------------------- | ------------------------------------------------------------------------------- |
-| **Absolute join safety**  | Unsafe (replaces path) 💥            | Secure (validates boundaries) ✅  | Secure (clamps to root) ✅                                                       |
-| **Relative join safety**  | Unsafe (can escape) 💥               | Secure (validates boundaries) ✅  | Secure (clamps to root) ✅                                                       |
-| **Boundary guarantee**    | None                                | Jailed (cannot escape)           | Jailed (virtual view)                                                           |
-| **Input permissiveness**  | Any path (no validation)            | Only safe paths                  | Any input (auto-clamped)                                                        |
-| **Display format**        | OS path                             | OS path                          | Virtual root path                                                               |
-| **Example: good input**   | `"file.txt"` → `"file.txt"`         | `"file.txt"` → `"jail/file.txt"` | `"file.txt"` → `"/file.txt"`                                                    |
-| **Example: attack input** | `"/etc/passwd"` → `"/etc/passwd"` 💥 | `"/etc/passwd"` → Error ❌        | `"/etc/passwd"` → virtual `/etc/passwd` (maps to `<virtual_root>/etc/passwd`) ✅ |
-| **Typical use case**      | Low-level, unvalidated              | System operations (jail-safe)    | User-facing paths (UI/UX)                                                       |
+| Feature                   | `Path`/`PathBuf`                    | `StrictPath`                              | `VirtualPath`                                                                   |
+| ------------------------- | ----------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------- |
+| **Absolute join safety**  | Unsafe (replaces path) 💥            | Secure (validates boundaries) ✅           | Secure (clamps to root) ✅                                                       |
+| **Relative join safety**  | Unsafe (can escape) 💥               | Secure (validates boundaries) ✅           | Secure (clamps to root) ✅                                                       |
+| **Boundary guarantee**    | None                                | Jailed (cannot escape)                    | Jailed (virtual view)                                                           |
+| **Input permissiveness**  | Any path (no validation)            | Only safe paths                           | Any input (auto-clamped)                                                        |
+| **Display format**        | OS path                             | OS path                                   | Virtual root path                                                               |
+| **Example: good input**   | `"file.txt"` → `"file.txt"`         | `"file.txt"` → `"path boundary/file.txt"` | `"file.txt"` → `"/file.txt"`                                                    |
+| **Example: attack input** | `"/etc/passwd"` → `"/etc/passwd"` 💥 | `"/etc/passwd"` → Error ❌                 | `"/etc/passwd"` → virtual `/etc/passwd` (maps to `<virtual_root>/etc/passwd`) ✅ |
+| **Typical use case**      | Low-level, unvalidated              | System operations (boundary-safe)         | User-facing paths (UI/UX)                                                       |
 
 ### Equality, Ordering, and Hashing
 
@@ -534,7 +552,7 @@ fn serve(p: &strict_path::VirtualPath) -> std::io::Result<Vec<u8>> { p.read_byte
 let _ = serve(&vpath)?;
 
 // Explicit names make intent obvious even without types in scope:
-// p.join(..)              -> unsafe std join (can escape the jail) — avoid on untrusted inputs
+// p.join(..)              -> unsafe std join (can escape the path boundary) — avoid on untrusted inputs
 // path.strict_join(..)-> safe strict join (validated not to escape)
 // vpath.virtual_join(..)-> safe virtual join (virtual-absolute, clamped to VirtualRoot)
 // The same naming applies to other ops: parent/with_file_name/with_extension/starts_with/ends_with.
@@ -567,22 +585,29 @@ For underlying path resolution without jailing, see [`soft-canonicalize`](https:
 
 ## 🔌 Integrations
 
-- Serde (feature `serde`):
-  - `JailedPath` and `VirtualPath` implement `Serialize`.
-  - Deserialize into a `String`, then validate with a jail/virtual root:
+- **OS Standard Directories** (feature `dirs`):
+  - Cross-platform access to standard directories following XDG Base Directory (Linux), Known Folder API (Windows), and Apple Standard Directories (macOS).
+  - Application directories: `PathBoundary::try_new_os_config("MyApp")`, `try_new_os_data("MyApp")`, `try_new_os_cache("MyApp")`
+  - User directories: `PathBoundary::try_new_os_documents()`, `try_new_os_downloads()`, `try_new_os_pictures()`, `try_new_os_audio()`, `try_new_os_videos()`
+  - System directories: `try_new_os_home()`, `try_new_os_desktop()`, plus Unix-specific `try_new_os_executables()`, `try_new_os_runtime()`
+  - Built on the [`dirs`](https://crates.io/crates/dirs) crate v6.0.0; see [OS Directories documentation](https://docs.rs/strict-path/) for complete platform compatibility
+
+- **Serde** (feature `serde`):
+  - `StrictPath` and `VirtualPath` implement `Serialize`.
+  - Deserialize into a `String`, then validate with a path boundary/virtual root:
     - `#[derive(serde::Deserialize)] struct Payload { file: String }`
     - `let p: Payload = serde_json::from_str(body)?;`
-    - `let jp = jail.jailed_join(&p.file)?;` or `let vp = vroot.virtual_join(&p.file)?;`
-  - Or use context helpers for deserialization: `serde_ext::WithJail(&jail)` / `serde_ext::WithVirtualRoot(&vroot)` with a serde Deserializer when you deserialize single values with context.
+    - `let jp = path_boundary.strict_join(&p.file)?;` or `let vp = vroot.virtual_join(&p.file)?;`
+  - Or use context helpers for deserialization: `serde_ext::WithBoundary(&path_boundary)` / `serde_ext::WithVirtualRoot(&vroot)` with a serde Deserializer when you deserialize single values with context.
 
-- Axum AppState + Extractors:
+- **Axum** AppState + Extractors:
   - Store `VirtualRoot<Marker>` in state; validate `Path<String>` to `VirtualPath` per request.
-  - Handlers and helpers accept `&VirtualPath<Marker>` or `&JailedPath<Marker>` so types enforce correctness.
-  - See `examples/src/bin/web/axum_static_server.rs` for a minimal custom extractor and a JSON route.
+  - Handlers and helpers accept `&VirtualPath<Marker>` or `&StrictPath<Marker>` so types enforce correctness.
+  - See `demos/src/bin/web/axum_static_server.rs` for a minimal custom extractor and a JSON route.
 
-- app-path (config dirs):
+- **app-path** (config dirs):
   - Use `app_path::app_path!("config", env = "APP_CONFIG_DIR")` to locate a config directory relative to the executable with an env override.
-  - Create a jail there: `let cfg = Jail::try_new_create(cfg_dir)?;` and operate via `JailedPath`.
+  - Create a jail there: `let cfg = Jail::try_new_create(cfg_dir)?;` and operate via `StrictPath`.
 
 ## 🧭 Markers (Type Inference)
 
