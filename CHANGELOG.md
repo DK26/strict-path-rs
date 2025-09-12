@@ -9,20 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2025-09-13
+
 ### Added
 
 - **OS Directory Constructors**: `try_new_os_*` methods for standard directories (config, data, cache, home, desktop, documents, downloads, pictures, audio, videos, executables, runtime, state) on both `PathBoundary` and `VirtualRoot`
 - **MDBook Documentation**: Complete guide with OS directory examples and cross-platform tables
 - **Demos Crate**: Moved real-world demos from `examples/` to separate `demos/` crate with feature flags
+- **Input Source Decision Matrix**: Comprehensive table showing when to use `VirtualPath` vs `StrictPath` for different input sources
+- **Security Education**: "Why Simple Solutions Fail" section explaining common path security vulnerabilities
 
 ### Changed - BREAKING
 
 - **API**: `.unrestrict()` → `.unstrict()`, `tempdir` → `tempfile` feature  
 - **Project Structure**: Demos moved to separate crate for MSRV isolation
 
+### Changed
+
+- **Documentation Structure**: Major overhaul for better accessibility and human readability
+  - Renamed "Anti‑Patterns (Tell‑offs)" to "Common Mistakes to Avoid" 
+  - Restructured README with immediate security hook and practical examples
+  - Enhanced examples to follow "encode guarantees in signatures" principle
+- **Function Signatures**: Updated all examples to pass `PathBoundary`/`VirtualRoot` as parameters instead of creating them inside functions
+- **API Reference**: Updated with accurate method signatures and complete feature coverage
+- **Anti-Patterns Documentation**: Rewritten from LLM-style to developer-friendly format with clear ❌/✅ examples
+
 ### Fixed
 
 - **References**: Updated `jailed-path` → `strict-path` throughout codebase
+- **Table Formatting**: Fixed corrupted markdown tables in README with proper headers and structure
+- **Method Consistency**: Fixed examples to use `.as_unvirtual()` instead of `.unvirtual()` for borrowing patterns
 
 ## [0.1.0-alpha.1] - 2024-12-09
 

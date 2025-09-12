@@ -1,6 +1,6 @@
 [package]
 name = "strict-path"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 edition = "2021"
 # Minimum supported Rust version (MSRV)
 rust-version = "1.71"
