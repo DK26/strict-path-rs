@@ -24,28 +24,41 @@
         <link rel="stylesheet" href="fonts/fonts.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" href="highlight.css">
-        <link rel="stylesheet" href="tomorrow-night.css">
-        <link rel="stylesheet" href="ayu-highlight.css">
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
 
 
-        <!-- Provide site root to javascript -->
+        <!-- Provide site root and default themes to javascript -->
         <script>
-            var path_to_root = "";
-            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc.js"></script>
     </head>
     <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
     <div id="body-container">
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
-                var theme = localStorage.getItem('mdbook-theme');
-                var sidebar = localStorage.getItem('mdbook-sidebar');
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
 
                 if (theme.startsWith('"') && theme.endsWith('"')) {
                     localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
@@ -59,7 +72,8 @@
 
         <!-- Set the theme before any content is loaded, prevents flash -->
         <script>
-            var theme;
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             const html = document.documentElement;
@@ -72,17 +86,20 @@
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            var sidebar = null;
-            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
             } else {
                 sidebar = 'hidden';
+                sidebar_toggle.checked = false;
             }
-            sidebar_toggle.checked = sidebar === 'visible';
-            html.classList.remove('sidebar-visible');
-            html.classList.add("sidebar-" + sidebar);
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
@@ -109,13 +126,14 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
                         </ul>
-                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
                             <i class="fa fa-search"></i>
                         </button>
                     </div>
@@ -132,7 +150,12 @@
 
                 <div id="search-wrapper" class="hidden">
                     <form id="searchbar-outer" class="searchbar-outer">
-                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
                     </form>
                     <div id="searchresults-outer" class="searchresults-outer hidden">
                         <div id="searchresults-header" class="searchresults-header"></div>
@@ -154,16 +177,99 @@
                     <main>
                         <h1 id="best-practices--guidelines"><a class="header" href="#best-practices--guidelines">Best Practices &amp; Guidelines</a></h1>
 <p>This page distills how to use strict-path correctly and ergonomically. Pair it with the Anti‑Patterns page for tell‑offs to avoid.</p>
+<h2 id="why-every-simple-solution-fails"><a class="header" href="#why-every-simple-solution-fails">Why Every "Simple" Solution Fails</a></h2>
+<p>The path security rabbit hole is deeper than you think. Here's why every naive approach creates new vulnerabilities:</p>
+<h3 id="approach-1-just-check-for-"><a class="header" href="#approach-1-just-check-for-">Approach 1: "Just check for <code>../</code>"</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>if path.contains("../") { return Err("Invalid path"); }
+// ✅ Blocks: "../../../etc/passwd"
+// ❌ Bypassed by: "..%2F..%2F..%2Fetc%2Fpasswd" (URL encoding)
+// ❌ Bypassed by: "....//....//etc//passwd" (double encoding)
+// ❌ Bypassed by: "..\\..\\..\etc\passwd" (Windows separators)
+<span class="boring">}</span></code></pre></pre>
+<h3 id="approach-2-use-canonicalize-then-check"><a class="header" href="#approach-2-use-canonicalize-then-check">Approach 2: "Use canonicalize() then check"</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let canonical = fs::canonicalize(path)?;
+if !canonical.starts_with("/safe/") { return Err("Escape attempt"); }
+// ✅ Blocks: Most directory traversal
+// ❌ CVE-2022-21658: Race condition - symlink created between canonicalize and check
+// ❌ CVE-2019-9855: Windows 8.3 names ("PROGRA~1" → "Program Files")
+// ❌ Fails on non-existent files (can't canonicalize what doesn't exist)
+<span class="boring">}</span></code></pre></pre>
+<h3 id="approach-3-normalize-the-path-first"><a class="header" href="#approach-3-normalize-the-path-first">Approach 3: "Normalize the path first"</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let normalized = path.replace("\\", "/").replace("../", "");
+// ✅ Blocks: Basic traversal
+// ❌ Bypassed by: "....//" → "../" after one replacement
+// ❌ CVE-2020-12279: Unicode normalization attacks
+// ❌ CVE-2017-17793: NTFS Alternate Data Streams ("file.txt:hidden")
+// ❌ Misses absolute path replacement: "/etc/passwd" completely replaces base
+<span class="boring">}</span></code></pre></pre>
+<h3 id="approach-4-use-a-allowlist-of-safe-characters"><a class="header" href="#approach-4-use-a-allowlist-of-safe-characters">Approach 4: "Use a allowlist of safe characters"</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>if !path.chars().all(|c| c.is_alphanumeric() || c == '/') { return Err("Invalid"); }
+// ✅ Blocks: Most special characters
+// ❌ Still vulnerable to: "/etc/passwd" (absolute path replacement)
+// ❌ Too restrictive: blocks legitimate files like "report-2025.pdf"
+// ❌ CVE-2025-8088: Misses platform-specific issues (Windows UNC, device names)
+<span class="boring">}</span></code></pre></pre>
+<h3 id="approach-5-combine-multiple-checks"><a class="header" href="#approach-5-combine-multiple-checks">Approach 5: "Combine multiple checks"</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Check for ../, canonicalize, validate prefix, sanitize chars...
+// ✅ Blocks: Many attack vectors
+// ❌ Complex = Buggy: 20+ edge cases, hard to maintain
+// ❌ Platform-specific gaps: Windows vs Unix behavior differences  
+// ❌ Performance cost: Multiple filesystem calls per validation
+// ❌ Future CVEs: New attack vectors require updating every check
+<span class="boring">}</span></code></pre></pre>
+<h3 id="the-fundamental-problem"><a class="header" href="#the-fundamental-problem">The Fundamental Problem</a></h3>
+<p><strong>Each "fix" creates new attack surface.</strong> Path security isn't a single problem—it's a class of problems that interact in complex ways. You need:</p>
+<ol>
+<li><strong>Encoding normalization</strong> (but not breaking legitimate files)</li>
+<li><strong>Symlink resolution</strong> (but preventing race conditions)</li>
+<li><strong>Platform consistency</strong> (Windows ≠ Unix ≠ Web)</li>
+<li><strong>Boundary enforcement</strong> (mathematical, not string-based)</li>
+<li><strong>Future-proof design</strong> (resistant to new attack vectors)</li>
+</ol>
+<p><strong>This is why strict-path exists.</strong> We solved this problem class once, correctly, so you don't have to.</p>
 <h2 id="pick-the-right-type"><a class="header" href="#pick-the-right-type">Pick The Right Type</a></h2>
+<h3 id="quick-decision-guide"><a class="header" href="#quick-decision-guide">Quick Decision Guide</a></h3>
 <ul>
-<li>External/untrusted segments (HTTP/DB/manifest/LLM/archive entry):
+<li><strong>External/untrusted segments</strong> (HTTP/DB/manifest/LLM/archive entry):
 <ul>
 <li>UI/virtual flows: <code>VirtualRoot</code> + <code>VirtualPath</code> (clamped joins, user‑facing display)</li>
 <li>System flows: <code>PathBoundary</code> + <code>StrictPath</code> (rejected joins, system display)</li>
 </ul>
 </li>
-<li>Internal/trusted paths (hardcoded/CLI/env): use <code>Path</code>/<code>PathBuf</code>; only validate when combining with untrusted segments.</li>
+<li><strong>Internal/trusted paths</strong> (hardcoded/CLI/env): use <code>Path</code>/<code>PathBuf</code>; only validate when combining with untrusted segments.</li>
 </ul>
+<h3 id="detailed-decision-matrix"><a class="header" href="#detailed-decision-matrix">Detailed Decision Matrix</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Source</th><th>Typical Input</th><th>Use VirtualPath For</th><th>Use StrictPath For</th><th>Notes</th></tr></thead><tbody>
+<tr><td>🌐 <strong>HTTP requests</strong></td><td>URL path segments, file names</td><td>Display/logging, safe virtual joins</td><td>System-facing interop/I/O</td><td>Always clamp user paths via <code>VirtualRoot::virtual_join</code></td></tr>
+<tr><td>🌍 <strong>Web forms</strong></td><td>Form file fields, route params</td><td>User-facing display, UI navigation</td><td>System-facing interop/I/O</td><td>Treat all form inputs as untrusted</td></tr>
+<tr><td>⚙️ <strong>Configuration files</strong></td><td>Paths in config</td><td>UI display and I/O within boundary</td><td>System-facing interop/I/O</td><td>Validate each path before I/O</td></tr>
+<tr><td>💾 <strong>Database content</strong></td><td>Stored file paths</td><td>Rendering paths in UI dashboards</td><td>System-facing interop/I/O</td><td>Storage does not imply safety; validate on use</td></tr>
+<tr><td>📂 <strong>CLI arguments</strong></td><td>Command-line path args</td><td>Pretty printing, I/O within boundary</td><td>System-facing interop/I/O</td><td>Validate args before touching filesystem</td></tr>
+<tr><td>🔌 <strong>External APIs</strong></td><td>Webhooks, 3rd-party payloads</td><td>Present sanitized paths to logs</td><td>System-facing interop/I/O</td><td>Never trust external systems</td></tr>
+<tr><td>🤖 <strong>LLM/AI output</strong></td><td>Generated file names/paths</td><td>Display suggestions, I/O within boundary</td><td>System-facing interop/I/O</td><td>LLM output is untrusted by default</td></tr>
+<tr><td>📨 <strong>Inter-service msgs</strong></td><td>Queue/event payloads</td><td>Observability output, I/O within boundary</td><td>System-facing interop/I/O</td><td>Validate on the consumer side</td></tr>
+<tr><td>📱 <strong>Apps (desktop/mobile)</strong></td><td>Drag-and-drop, file pickers</td><td>Show picked paths in UI</td><td>System-facing interop/I/O</td><td>Validate selected paths before I/O</td></tr>
+<tr><td>📦 <strong>Archive contents</strong></td><td>Entry names from ZIP/TAR</td><td>Progress UI, virtual joins</td><td>System-facing interop/I/O</td><td>Validate each entry to block zip-slip</td></tr>
+<tr><td>🔧 <strong>File format internals</strong></td><td>Embedded path strings</td><td>Diagnostics, I/O within boundary</td><td>System-facing interop/I/O</td><td>Never dereference without validation</td></tr>
+</tbody></table>
+</div>
+<h3 id="security-philosophy"><a class="header" href="#security-philosophy">Security Philosophy</a></h3>
+<p><strong>Think of it this way:</strong></p>
+<ul>
+<li><code>StrictPath</code> = <strong>Security Filter</strong> — validates and rejects unsafe paths</li>
+<li><code>VirtualPath</code> = <strong>Complete Sandbox</strong> — clamps any input to stay safe</li>
+</ul>
+<p><strong>The Golden Rule</strong>: If you didn't create the path yourself, secure it first.</p>
 <h2 id="encode-guarantees-in-signatures"><a class="header" href="#encode-guarantees-in-signatures">Encode Guarantees In Signatures</a></h2>
 <ul>
 <li>Helpers that touch the filesystem must encode safety:
@@ -325,6 +431,7 @@ fn consume_virtual(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { co
         <script src="book.js"></script>
 
         <!-- Custom JS scripts -->
+
 
 
     </div>

@@ -1,6 +1,6 @@
 //! # strict-path
 //!
-//! Prevent directory traversal with a type-safe, virtualized filesystem API.
+//! Prevent directory traversal with type-safe path restriction and safe symlinks.
 //!
 //! 📚 **[Complete Guide & Examples](https://dk26.github.io/jailed-path-rs/)** | 📖 **[API Reference](https://docs.rs/strict-path)**
 //!

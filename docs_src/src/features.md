@@ -90,6 +90,80 @@ When features are unavailable:
 - Documentation clearly indicates feature requirements
 - Examples include feature guards for conditional compilation
 
+## API Reference Summary
+
+### Core Types Comparison
+
+| Feature                   | `Path`/`PathBuf`                      | `StrictPath`                         | `VirtualPath`                                |
+| ------------------------- | ------------------------------------- | ------------------------------------ | -------------------------------------------- |
+| **Security**              | None 💥                                | Validates & rejects ✅                | Clamps any input ✅                           |
+| **Join safety**           | Unsafe (can escape)                   | Boundary-checked                     | Boundary-clamped                             |
+| **Boundary guarantee**    | None                                  | Jailed (cannot escape)               | Jailed (virtual view)                        |
+| **Input permissiveness**  | Any path (no validation)              | Only safe paths                      | Any input (auto-clamped)                     |
+| **Display format**        | OS path                               | OS path                              | Virtual root path                            |
+| **Example: good input**   | `"file.txt"` → `"file.txt"`           | `"file.txt"` → `"boundary/file.txt"` | `"file.txt"` → `"/file.txt"`                 |
+| **Example: attack input** | `"/etc/passwd"` → **System breach** 💥 | `"/etc/passwd"` → **Error** ❌        | `"/etc/passwd"` → **`/etc/passwd`** (safe) ✅ |
+| **Best for**              | Known-safe paths                      | System boundaries                    | User interfaces                              |
+
+### Integration Examples
+
+#### Serde Integration
+
+```rust
+use strict_path::{PathBoundary, StrictPath};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize)]
+struct FileRequest {
+    filename: String,  // Accept as string first
+}
+
+#[derive(Serialize)]  
+struct FileResponse {
+    path: StrictPath<UserFiles>,  // Serialize safe path
+}
+
+async fn handle_upload(req: FileRequest) -> Result<FileResponse, Error> {
+    let uploads = PathBoundary::try_new("uploads")?;
+    let safe_path = uploads.strict_join(&req.filename)?;  // Validate here
+    
+    // ... process file ...
+    
+    Ok(FileResponse { path: safe_path })
+}
+```
+
+#### Axum Web Framework
+
+```rust
+use axum::{extract::Path, response::Result};
+use strict_path::PathBoundary;
+
+struct StaticFiles;
+
+async fn serve_static(Path(filename): Path<String>) -> Result<Vec<u8>> {
+    let static_dir = PathBoundary::<StaticFiles>::try_new("./static")?;
+    let safe_path = static_dir.strict_join(&filename)?; // Attack = Error
+    
+    Ok(safe_path.read_bytes()?)
+}
+```
+
+#### Configuration with app-path
+
+```rust
+use app_path::AppPath;
+use strict_path::PathBoundary;
+
+fn load_app_config() -> Result<Config, Box<dyn std::error::Error>> {
+    let app_dir = AppPath::new("MyApp").get_app_dir();
+    let config_boundary = PathBoundary::try_new_create(app_dir)?;
+    let config_file = config_boundary.strict_join("config.toml")?;
+    
+    Ok(toml::from_str(&config_file.read_to_string()?)?)
+}
+```
+
 ## Next Steps
 
 - **For OS directories**: See [OS Standard Directories](./os_directories.md)

@@ -502,6 +502,89 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 // cargo run -- /absolute/path/hack.txt       # ❌ Blocked!
 ```
 
+## Advanced: Type-Safe Context Separation
+
+One of the most powerful features is using marker types to prevent accidentally mixing different storage contexts at compile time:
+
+```rust
+use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+
+// Define marker types for different contexts
+struct WebAssets;    // CSS, JS, images
+struct UserFiles;    // Uploaded documents
+struct ConfigData;   // Application configuration
+
+// Functions enforce context via type system
+fn serve_asset(path: &StrictPath<WebAssets>) -> Result<Vec<u8>, std::io::Error> {
+    path.read_bytes()
+}
+
+fn process_upload(path: &StrictPath<UserFiles>) -> Result<(), std::io::Error> {
+    // Process user-uploaded file
+    let content = path.read_to_string()?;
+    println!("Processing user file: {}", content.len());
+    Ok(())
+}
+
+fn load_config(path: &StrictPath<ConfigData>) -> Result<String, std::io::Error> {
+    path.read_to_string()
+}
+
+fn example_type_safety() -> Result<(), Box<dyn std::error::Error>> {
+    // Create context-specific boundaries
+    let assets_root: VirtualRoot<WebAssets> = VirtualRoot::try_new("public")?;
+    let uploads_root: VirtualRoot<UserFiles> = VirtualRoot::try_new("uploads")?;
+    let config_boundary: PathBoundary<ConfigData> = PathBoundary::try_new("config")?;
+
+    // Create paths with proper contexts
+    let css: VirtualPath<WebAssets> = assets_root.virtual_join("app.css")?;
+    let doc: VirtualPath<UserFiles> = uploads_root.virtual_join("report.pdf")?;
+    let cfg: StrictPath<ConfigData> = config_boundary.strict_join("app.toml")?;
+
+    // Type system prevents context mixing
+    serve_asset(&css.unvirtual())?;         // ✅ Correct context
+    process_upload(&doc.unvirtual())?;      // ✅ Correct context  
+    load_config(&cfg)?;                     // ✅ Correct context
+
+    // These would be compile errors:
+    // serve_asset(&doc.unvirtual())?;      // ❌ Compile error - wrong context!
+    // process_upload(&css.unvirtual())?;   // ❌ Compile error - wrong context!
+    // load_config(&css.unvirtual())?;      // ❌ Compile error - wrong context!
+
+    Ok(())
+}
+```
+
+**Benefits of this approach:**
+
+1. **Compile-time safety**: Impossible to accidentally serve user uploads as web assets
+2. **Clear interfaces**: Function signatures document what type of files they expect
+3. **Refactoring safety**: If you change a function's context, the compiler finds all places that need updates
+4. **Team collaboration**: New developers can't make context mixing mistakes
+
+### Function Signatures That Enforce Security
+
+Design your functions to make security bypass impossible:
+
+```rust
+// ✅ SECURE: Function signature guarantees safety
+fn process_file<M>(path: &StrictPath<M>) -> std::io::Result<Vec<u8>> {
+    path.read_bytes() // No validation needed - type system enforces it
+}
+
+// ✅ SECURE: Caller must validate before calling  
+fn save_upload(file: &VirtualPath) -> std::io::Result<()> {
+    file.write_bytes(&data) // Guaranteed within boundaries
+}
+
+// ❌ INSECURE: Function accepts dangerous inputs
+fn dangerous_function(path: &str) -> std::io::Result<Vec<u8>> {
+    std::fs::read(path) // 🚨 Could read anything on filesystem
+}
+```
+
+**The Pattern**: Push validation to the boundary, then use safe types everywhere.
+
 ## Key Takeaways
 
 These examples show how strict-path helps in real scenarios:
@@ -511,6 +594,7 @@ These examples show how strict-path helps in real scenarios:
 3. **Multi-user**: Each user gets isolated storage that feels like their own filesystem
 4. **Archive extraction**: Automatic protection against zip-slip attacks
 5. **CLI tools**: User-provided paths are validated safely
+6. **Type safety**: Marker types prevent mixing different storage contexts
 
 The common pattern is:
 1. Create a `PathBoundary` or `VirtualRoot` for your safe area

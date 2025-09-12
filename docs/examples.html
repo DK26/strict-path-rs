@@ -24,28 +24,41 @@
         <link rel="stylesheet" href="fonts/fonts.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" href="highlight.css">
-        <link rel="stylesheet" href="tomorrow-night.css">
-        <link rel="stylesheet" href="ayu-highlight.css">
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
 
 
-        <!-- Provide site root to javascript -->
+        <!-- Provide site root and default themes to javascript -->
         <script>
-            var path_to_root = "";
-            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc.js"></script>
     </head>
     <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
     <div id="body-container">
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
-                var theme = localStorage.getItem('mdbook-theme');
-                var sidebar = localStorage.getItem('mdbook-sidebar');
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
 
                 if (theme.startsWith('"') && theme.endsWith('"')) {
                     localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
@@ -59,7 +72,8 @@
 
         <!-- Set the theme before any content is loaded, prevents flash -->
         <script>
-            var theme;
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             const html = document.documentElement;
@@ -72,17 +86,20 @@
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            var sidebar = null;
-            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
             } else {
                 sidebar = 'hidden';
+                sidebar_toggle.checked = false;
             }
-            sidebar_toggle.checked = sidebar === 'visible';
-            html.classList.remove('sidebar-visible');
-            html.classList.add("sidebar-" + sidebar);
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
@@ -109,13 +126,14 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
                         </ul>
-                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
                             <i class="fa fa-search"></i>
                         </button>
                     </div>
@@ -132,7 +150,12 @@
 
                 <div id="search-wrapper" class="hidden">
                     <form id="searchbar-outer" class="searchbar-outer">
-                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
                     </form>
                     <div id="searchresults-outer" class="searchresults-outer hidden">
                         <div id="searchresults-header" class="searchresults-header"></div>
@@ -629,6 +652,84 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 // cargo run -- data/sample2.txt              # ✅ Works  
 // cargo run -- ../../../etc/passwd           # ❌ Blocked!
 // cargo run -- /absolute/path/hack.txt       # ❌ Blocked!</code></pre></pre>
+<h2 id="advanced-type-safe-context-separation"><a class="header" href="#advanced-type-safe-context-separation">Advanced: Type-Safe Context Separation</a></h2>
+<p>One of the most powerful features is using marker types to prevent accidentally mixing different storage contexts at compile time:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+
+// Define marker types for different contexts
+struct WebAssets;    // CSS, JS, images
+struct UserFiles;    // Uploaded documents
+struct ConfigData;   // Application configuration
+
+// Functions enforce context via type system
+fn serve_asset(path: &amp;StrictPath&lt;WebAssets&gt;) -&gt; Result&lt;Vec&lt;u8&gt;, std::io::Error&gt; {
+    path.read_bytes()
+}
+
+fn process_upload(path: &amp;StrictPath&lt;UserFiles&gt;) -&gt; Result&lt;(), std::io::Error&gt; {
+    // Process user-uploaded file
+    let content = path.read_to_string()?;
+    println!("Processing user file: {}", content.len());
+    Ok(())
+}
+
+fn load_config(path: &amp;StrictPath&lt;ConfigData&gt;) -&gt; Result&lt;String, std::io::Error&gt; {
+    path.read_to_string()
+}
+
+fn example_type_safety() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create context-specific boundaries
+    let assets_root: VirtualRoot&lt;WebAssets&gt; = VirtualRoot::try_new("public")?;
+    let uploads_root: VirtualRoot&lt;UserFiles&gt; = VirtualRoot::try_new("uploads")?;
+    let config_boundary: PathBoundary&lt;ConfigData&gt; = PathBoundary::try_new("config")?;
+
+    // Create paths with proper contexts
+    let css: VirtualPath&lt;WebAssets&gt; = assets_root.virtual_join("app.css")?;
+    let doc: VirtualPath&lt;UserFiles&gt; = uploads_root.virtual_join("report.pdf")?;
+    let cfg: StrictPath&lt;ConfigData&gt; = config_boundary.strict_join("app.toml")?;
+
+    // Type system prevents context mixing
+    serve_asset(&amp;css.unvirtual())?;         // ✅ Correct context
+    process_upload(&amp;doc.unvirtual())?;      // ✅ Correct context  
+    load_config(&amp;cfg)?;                     // ✅ Correct context
+
+    // These would be compile errors:
+    // serve_asset(&amp;doc.unvirtual())?;      // ❌ Compile error - wrong context!
+    // process_upload(&amp;css.unvirtual())?;   // ❌ Compile error - wrong context!
+    // load_config(&amp;css.unvirtual())?;      // ❌ Compile error - wrong context!
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Benefits of this approach:</strong></p>
+<ol>
+<li><strong>Compile-time safety</strong>: Impossible to accidentally serve user uploads as web assets</li>
+<li><strong>Clear interfaces</strong>: Function signatures document what type of files they expect</li>
+<li><strong>Refactoring safety</strong>: If you change a function's context, the compiler finds all places that need updates</li>
+<li><strong>Team collaboration</strong>: New developers can't make context mixing mistakes</li>
+</ol>
+<h3 id="function-signatures-that-enforce-security"><a class="header" href="#function-signatures-that-enforce-security">Function Signatures That Enforce Security</a></h3>
+<p>Design your functions to make security bypass impossible:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ SECURE: Function signature guarantees safety
+fn process_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    path.read_bytes() // No validation needed - type system enforces it
+}
+
+// ✅ SECURE: Caller must validate before calling  
+fn save_upload(file: &amp;VirtualPath) -&gt; std::io::Result&lt;()&gt; {
+    file.write_bytes(&amp;data) // Guaranteed within boundaries
+}
+
+// ❌ INSECURE: Function accepts dangerous inputs
+fn dangerous_function(path: &amp;str) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    std::fs::read(path) // 🚨 Could read anything on filesystem
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>The Pattern</strong>: Push validation to the boundary, then use safe types everywhere.</p>
 <h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
 <p>These examples show how strict-path helps in real scenarios:</p>
 <ol>
@@ -637,6 +738,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 <li><strong>Multi-user</strong>: Each user gets isolated storage that feels like their own filesystem</li>
 <li><strong>Archive extraction</strong>: Automatic protection against zip-slip attacks</li>
 <li><strong>CLI tools</strong>: User-provided paths are validated safely</li>
+<li><strong>Type safety</strong>: Marker types prevent mixing different storage contexts</li>
 </ol>
 <p>The common pattern is:</p>
 <ol>
@@ -693,6 +795,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
         <script src="book.js"></script>
 
         <!-- Custom JS scripts -->
+
 
 
     </div>

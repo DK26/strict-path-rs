@@ -24,28 +24,41 @@
         <link rel="stylesheet" href="fonts/fonts.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" href="highlight.css">
-        <link rel="stylesheet" href="tomorrow-night.css">
-        <link rel="stylesheet" href="ayu-highlight.css">
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
 
 
-        <!-- Provide site root to javascript -->
+        <!-- Provide site root and default themes to javascript -->
         <script>
-            var path_to_root = "";
-            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc.js"></script>
     </head>
     <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
     <div id="body-container">
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
-                var theme = localStorage.getItem('mdbook-theme');
-                var sidebar = localStorage.getItem('mdbook-sidebar');
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
 
                 if (theme.startsWith('"') && theme.endsWith('"')) {
                     localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
@@ -59,7 +72,8 @@
 
         <!-- Set the theme before any content is loaded, prevents flash -->
         <script>
-            var theme;
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             const html = document.documentElement;
@@ -72,17 +86,20 @@
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            var sidebar = null;
-            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
             } else {
                 sidebar = 'hidden';
+                sidebar_toggle.checked = false;
             }
-            sidebar_toggle.checked = sidebar === 'visible';
-            html.classList.remove('sidebar-visible');
-            html.classList.add("sidebar-" + sidebar);
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
@@ -109,13 +126,14 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
                         </ul>
-                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
                             <i class="fa fa-search"></i>
                         </button>
                     </div>
@@ -132,7 +150,12 @@
 
                 <div id="search-wrapper" class="hidden">
                     <form id="searchbar-outer" class="searchbar-outer">
-                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
                     </form>
                     <div id="searchresults-outer" class="searchresults-outer hidden">
                         <div id="searchresults-header" class="searchresults-header"></div>
@@ -227,6 +250,74 @@ strict-path = {
 <li>Documentation clearly indicates feature requirements</li>
 <li>Examples include feature guards for conditional compilation</li>
 </ul>
+<h2 id="api-reference-summary"><a class="header" href="#api-reference-summary">API Reference Summary</a></h2>
+<h3 id="core-types-comparison"><a class="header" href="#core-types-comparison">Core Types Comparison</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th><code>Path</code>/<code>PathBuf</code></th><th><code>StrictPath</code></th><th><code>VirtualPath</code></th></tr></thead><tbody>
+<tr><td><strong>Security</strong></td><td>None 💥</td><td>Validates &amp; rejects ✅</td><td>Clamps any input ✅</td></tr>
+<tr><td><strong>Join safety</strong></td><td>Unsafe (can escape)</td><td>Boundary-checked</td><td>Boundary-clamped</td></tr>
+<tr><td><strong>Boundary guarantee</strong></td><td>None</td><td>Jailed (cannot escape)</td><td>Jailed (virtual view)</td></tr>
+<tr><td><strong>Input permissiveness</strong></td><td>Any path (no validation)</td><td>Only safe paths</td><td>Any input (auto-clamped)</td></tr>
+<tr><td><strong>Display format</strong></td><td>OS path</td><td>OS path</td><td>Virtual root path</td></tr>
+<tr><td><strong>Example: good input</strong></td><td><code>"file.txt"</code> → <code>"file.txt"</code></td><td><code>"file.txt"</code> → <code>"boundary/file.txt"</code></td><td><code>"file.txt"</code> → <code>"/file.txt"</code></td></tr>
+<tr><td><strong>Example: attack input</strong></td><td><code>"/etc/passwd"</code> → <strong>System breach</strong> 💥</td><td><code>"/etc/passwd"</code> → <strong>Error</strong> ❌</td><td><code>"/etc/passwd"</code> → <strong><code>/etc/passwd</code></strong> (safe) ✅</td></tr>
+<tr><td><strong>Best for</strong></td><td>Known-safe paths</td><td>System boundaries</td><td>User interfaces</td></tr>
+</tbody></table>
+</div>
+<h3 id="integration-examples"><a class="header" href="#integration-examples">Integration Examples</a></h3>
+<h4 id="serde-integration"><a class="header" href="#serde-integration">Serde Integration</a></h4>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize)]
+struct FileRequest {
+    filename: String,  // Accept as string first
+}
+
+#[derive(Serialize)]  
+struct FileResponse {
+    path: StrictPath&lt;UserFiles&gt;,  // Serialize safe path
+}
+
+async fn handle_upload(req: FileRequest) -&gt; Result&lt;FileResponse, Error&gt; {
+    let uploads = PathBoundary::try_new("uploads")?;
+    let safe_path = uploads.strict_join(&amp;req.filename)?;  // Validate here
+    
+    // ... process file ...
+    
+    Ok(FileResponse { path: safe_path })
+}
+<span class="boring">}</span></code></pre></pre>
+<h4 id="axum-web-framework"><a class="header" href="#axum-web-framework">Axum Web Framework</a></h4>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use axum::{extract::Path, response::Result};
+use strict_path::PathBoundary;
+
+struct StaticFiles;
+
+async fn serve_static(Path(filename): Path&lt;String&gt;) -&gt; Result&lt;Vec&lt;u8&gt;&gt; {
+    let static_dir = PathBoundary::&lt;StaticFiles&gt;::try_new("./static")?;
+    let safe_path = static_dir.strict_join(&amp;filename)?; // Attack = Error
+    
+    Ok(safe_path.read_bytes()?)
+}
+<span class="boring">}</span></code></pre></pre>
+<h4 id="configuration-with-app-path"><a class="header" href="#configuration-with-app-path">Configuration with app-path</a></h4>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use app_path::AppPath;
+use strict_path::PathBoundary;
+
+fn load_app_config() -&gt; Result&lt;Config, Box&lt;dyn std::error::Error&gt;&gt; {
+    let app_dir = AppPath::new("MyApp").get_app_dir();
+    let config_boundary = PathBoundary::try_new_create(app_dir)?;
+    let config_file = config_boundary.strict_join("config.toml")?;
+    
+    Ok(toml::from_str(&amp;config_file.read_to_string()?)?)
+}
+<span class="boring">}</span></code></pre></pre>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <ul>
 <li><strong>For OS directories</strong>: See <a href="./os_directories.html">OS Standard Directories</a></li>
@@ -280,6 +371,7 @@ strict-path = {
         <script src="book.js"></script>
 
         <!-- Custom JS scripts -->
+
 
 
     </div>

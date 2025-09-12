@@ -25,28 +25,41 @@
         <link rel="stylesheet" href="fonts/fonts.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" href="highlight.css">
-        <link rel="stylesheet" href="tomorrow-night.css">
-        <link rel="stylesheet" href="ayu-highlight.css">
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
 
 
-        <!-- Provide site root to javascript -->
+        <!-- Provide site root and default themes to javascript -->
         <script>
-            var path_to_root = "";
-            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc.js"></script>
     </head>
     <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
     <div id="body-container">
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
-                var theme = localStorage.getItem('mdbook-theme');
-                var sidebar = localStorage.getItem('mdbook-sidebar');
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
 
                 if (theme.startsWith('"') && theme.endsWith('"')) {
                     localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
@@ -60,7 +73,8 @@
 
         <!-- Set the theme before any content is loaded, prevents flash -->
         <script>
-            var theme;
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             const html = document.documentElement;
@@ -73,17 +87,20 @@
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            var sidebar = null;
-            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
             } else {
                 sidebar = 'hidden';
+                sidebar_toggle.checked = false;
             }
-            sidebar_toggle.checked = sidebar === 'visible';
-            html.classList.remove('sidebar-visible');
-            html.classList.add("sidebar-" + sidebar);
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
@@ -110,13 +127,14 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
                         </ul>
-                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
                             <i class="fa fa-search"></i>
                         </button>
                     </div>
@@ -133,7 +151,12 @@
 
                 <div id="search-wrapper" class="hidden">
                     <form id="searchbar-outer" class="searchbar-outer">
-                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
                     </form>
                     <div id="searchresults-outer" class="searchresults-outer hidden">
                         <div id="searchresults-header" class="searchresults-header"></div>
@@ -805,6 +828,84 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 // cargo run -- data/sample2.txt              # ✅ Works  
 // cargo run -- ../../../etc/passwd           # ❌ Blocked!
 // cargo run -- /absolute/path/hack.txt       # ❌ Blocked!</code></pre></pre>
+<h2 id="advanced-type-safe-context-separation"><a class="header" href="#advanced-type-safe-context-separation">Advanced: Type-Safe Context Separation</a></h2>
+<p>One of the most powerful features is using marker types to prevent accidentally mixing different storage contexts at compile time:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+
+// Define marker types for different contexts
+struct WebAssets;    // CSS, JS, images
+struct UserFiles;    // Uploaded documents
+struct ConfigData;   // Application configuration
+
+// Functions enforce context via type system
+fn serve_asset(path: &amp;StrictPath&lt;WebAssets&gt;) -&gt; Result&lt;Vec&lt;u8&gt;, std::io::Error&gt; {
+    path.read_bytes()
+}
+
+fn process_upload(path: &amp;StrictPath&lt;UserFiles&gt;) -&gt; Result&lt;(), std::io::Error&gt; {
+    // Process user-uploaded file
+    let content = path.read_to_string()?;
+    println!("Processing user file: {}", content.len());
+    Ok(())
+}
+
+fn load_config(path: &amp;StrictPath&lt;ConfigData&gt;) -&gt; Result&lt;String, std::io::Error&gt; {
+    path.read_to_string()
+}
+
+fn example_type_safety() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create context-specific boundaries
+    let assets_root: VirtualRoot&lt;WebAssets&gt; = VirtualRoot::try_new("public")?;
+    let uploads_root: VirtualRoot&lt;UserFiles&gt; = VirtualRoot::try_new("uploads")?;
+    let config_boundary: PathBoundary&lt;ConfigData&gt; = PathBoundary::try_new("config")?;
+
+    // Create paths with proper contexts
+    let css: VirtualPath&lt;WebAssets&gt; = assets_root.virtual_join("app.css")?;
+    let doc: VirtualPath&lt;UserFiles&gt; = uploads_root.virtual_join("report.pdf")?;
+    let cfg: StrictPath&lt;ConfigData&gt; = config_boundary.strict_join("app.toml")?;
+
+    // Type system prevents context mixing
+    serve_asset(&amp;css.unvirtual())?;         // ✅ Correct context
+    process_upload(&amp;doc.unvirtual())?;      // ✅ Correct context  
+    load_config(&amp;cfg)?;                     // ✅ Correct context
+
+    // These would be compile errors:
+    // serve_asset(&amp;doc.unvirtual())?;      // ❌ Compile error - wrong context!
+    // process_upload(&amp;css.unvirtual())?;   // ❌ Compile error - wrong context!
+    // load_config(&amp;css.unvirtual())?;      // ❌ Compile error - wrong context!
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Benefits of this approach:</strong></p>
+<ol>
+<li><strong>Compile-time safety</strong>: Impossible to accidentally serve user uploads as web assets</li>
+<li><strong>Clear interfaces</strong>: Function signatures document what type of files they expect</li>
+<li><strong>Refactoring safety</strong>: If you change a function's context, the compiler finds all places that need updates</li>
+<li><strong>Team collaboration</strong>: New developers can't make context mixing mistakes</li>
+</ol>
+<h3 id="function-signatures-that-enforce-security"><a class="header" href="#function-signatures-that-enforce-security">Function Signatures That Enforce Security</a></h3>
+<p>Design your functions to make security bypass impossible:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ SECURE: Function signature guarantees safety
+fn process_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    path.read_bytes() // No validation needed - type system enforces it
+}
+
+// ✅ SECURE: Caller must validate before calling  
+fn save_upload(file: &amp;VirtualPath) -&gt; std::io::Result&lt;()&gt; {
+    file.write_bytes(&amp;data) // Guaranteed within boundaries
+}
+
+// ❌ INSECURE: Function accepts dangerous inputs
+fn dangerous_function(path: &amp;str) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    std::fs::read(path) // 🚨 Could read anything on filesystem
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>The Pattern</strong>: Push validation to the boundary, then use safe types everywhere.</p>
 <h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
 <p>These examples show how strict-path helps in real scenarios:</p>
 <ol>
@@ -813,6 +914,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 <li><strong>Multi-user</strong>: Each user gets isolated storage that feels like their own filesystem</li>
 <li><strong>Archive extraction</strong>: Automatic protection against zip-slip attacks</li>
 <li><strong>CLI tools</strong>: User-provided paths are validated safely</li>
+<li><strong>Type safety</strong>: Marker types prevent mixing different storage contexts</li>
 </ol>
 <p>The common pattern is:</p>
 <ol>
@@ -897,6 +999,74 @@ strict-path = {
 <li>Documentation clearly indicates feature requirements</li>
 <li>Examples include feature guards for conditional compilation</li>
 </ul>
+<h2 id="api-reference-summary"><a class="header" href="#api-reference-summary">API Reference Summary</a></h2>
+<h3 id="core-types-comparison"><a class="header" href="#core-types-comparison">Core Types Comparison</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th><code>Path</code>/<code>PathBuf</code></th><th><code>StrictPath</code></th><th><code>VirtualPath</code></th></tr></thead><tbody>
+<tr><td><strong>Security</strong></td><td>None 💥</td><td>Validates &amp; rejects ✅</td><td>Clamps any input ✅</td></tr>
+<tr><td><strong>Join safety</strong></td><td>Unsafe (can escape)</td><td>Boundary-checked</td><td>Boundary-clamped</td></tr>
+<tr><td><strong>Boundary guarantee</strong></td><td>None</td><td>Jailed (cannot escape)</td><td>Jailed (virtual view)</td></tr>
+<tr><td><strong>Input permissiveness</strong></td><td>Any path (no validation)</td><td>Only safe paths</td><td>Any input (auto-clamped)</td></tr>
+<tr><td><strong>Display format</strong></td><td>OS path</td><td>OS path</td><td>Virtual root path</td></tr>
+<tr><td><strong>Example: good input</strong></td><td><code>"file.txt"</code> → <code>"file.txt"</code></td><td><code>"file.txt"</code> → <code>"boundary/file.txt"</code></td><td><code>"file.txt"</code> → <code>"/file.txt"</code></td></tr>
+<tr><td><strong>Example: attack input</strong></td><td><code>"/etc/passwd"</code> → <strong>System breach</strong> 💥</td><td><code>"/etc/passwd"</code> → <strong>Error</strong> ❌</td><td><code>"/etc/passwd"</code> → <strong><code>/etc/passwd</code></strong> (safe) ✅</td></tr>
+<tr><td><strong>Best for</strong></td><td>Known-safe paths</td><td>System boundaries</td><td>User interfaces</td></tr>
+</tbody></table>
+</div>
+<h3 id="integration-examples"><a class="header" href="#integration-examples">Integration Examples</a></h3>
+<h4 id="serde-integration"><a class="header" href="#serde-integration">Serde Integration</a></h4>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize)]
+struct FileRequest {
+    filename: String,  // Accept as string first
+}
+
+#[derive(Serialize)]  
+struct FileResponse {
+    path: StrictPath&lt;UserFiles&gt;,  // Serialize safe path
+}
+
+async fn handle_upload(req: FileRequest) -&gt; Result&lt;FileResponse, Error&gt; {
+    let uploads = PathBoundary::try_new("uploads")?;
+    let safe_path = uploads.strict_join(&amp;req.filename)?;  // Validate here
+    
+    // ... process file ...
+    
+    Ok(FileResponse { path: safe_path })
+}
+<span class="boring">}</span></code></pre></pre>
+<h4 id="axum-web-framework"><a class="header" href="#axum-web-framework">Axum Web Framework</a></h4>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use axum::{extract::Path, response::Result};
+use strict_path::PathBoundary;
+
+struct StaticFiles;
+
+async fn serve_static(Path(filename): Path&lt;String&gt;) -&gt; Result&lt;Vec&lt;u8&gt;&gt; {
+    let static_dir = PathBoundary::&lt;StaticFiles&gt;::try_new("./static")?;
+    let safe_path = static_dir.strict_join(&amp;filename)?; // Attack = Error
+    
+    Ok(safe_path.read_bytes()?)
+}
+<span class="boring">}</span></code></pre></pre>
+<h4 id="configuration-with-app-path"><a class="header" href="#configuration-with-app-path">Configuration with app-path</a></h4>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use app_path::AppPath;
+use strict_path::PathBoundary;
+
+fn load_app_config() -&gt; Result&lt;Config, Box&lt;dyn std::error::Error&gt;&gt; {
+    let app_dir = AppPath::new("MyApp").get_app_dir();
+    let config_boundary = PathBoundary::try_new_create(app_dir)?;
+    let config_file = config_boundary.strict_join("config.toml")?;
+    
+    Ok(toml::from_str(&amp;config_file.read_to_string()?)?)
+}
+<span class="boring">}</span></code></pre></pre>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <ul>
 <li><strong>For OS directories</strong>: See <a href="./os_directories.html">OS Standard Directories</a></li>
@@ -1315,16 +1485,99 @@ fn extract_all&lt;M: Default&gt;(dest: &amp;std::path::Path, entries: impl IntoI
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="best-practices--guidelines"><a class="header" href="#best-practices--guidelines">Best Practices &amp; Guidelines</a></h1>
 <p>This page distills how to use strict-path correctly and ergonomically. Pair it with the Anti‑Patterns page for tell‑offs to avoid.</p>
+<h2 id="why-every-simple-solution-fails"><a class="header" href="#why-every-simple-solution-fails">Why Every "Simple" Solution Fails</a></h2>
+<p>The path security rabbit hole is deeper than you think. Here's why every naive approach creates new vulnerabilities:</p>
+<h3 id="approach-1-just-check-for-"><a class="header" href="#approach-1-just-check-for-">Approach 1: "Just check for <code>../</code>"</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>if path.contains("../") { return Err("Invalid path"); }
+// ✅ Blocks: "../../../etc/passwd"
+// ❌ Bypassed by: "..%2F..%2F..%2Fetc%2Fpasswd" (URL encoding)
+// ❌ Bypassed by: "....//....//etc//passwd" (double encoding)
+// ❌ Bypassed by: "..\\..\\..\etc\passwd" (Windows separators)
+<span class="boring">}</span></code></pre></pre>
+<h3 id="approach-2-use-canonicalize-then-check"><a class="header" href="#approach-2-use-canonicalize-then-check">Approach 2: "Use canonicalize() then check"</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let canonical = fs::canonicalize(path)?;
+if !canonical.starts_with("/safe/") { return Err("Escape attempt"); }
+// ✅ Blocks: Most directory traversal
+// ❌ CVE-2022-21658: Race condition - symlink created between canonicalize and check
+// ❌ CVE-2019-9855: Windows 8.3 names ("PROGRA~1" → "Program Files")
+// ❌ Fails on non-existent files (can't canonicalize what doesn't exist)
+<span class="boring">}</span></code></pre></pre>
+<h3 id="approach-3-normalize-the-path-first"><a class="header" href="#approach-3-normalize-the-path-first">Approach 3: "Normalize the path first"</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let normalized = path.replace("\\", "/").replace("../", "");
+// ✅ Blocks: Basic traversal
+// ❌ Bypassed by: "....//" → "../" after one replacement
+// ❌ CVE-2020-12279: Unicode normalization attacks
+// ❌ CVE-2017-17793: NTFS Alternate Data Streams ("file.txt:hidden")
+// ❌ Misses absolute path replacement: "/etc/passwd" completely replaces base
+<span class="boring">}</span></code></pre></pre>
+<h3 id="approach-4-use-a-allowlist-of-safe-characters"><a class="header" href="#approach-4-use-a-allowlist-of-safe-characters">Approach 4: "Use a allowlist of safe characters"</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>if !path.chars().all(|c| c.is_alphanumeric() || c == '/') { return Err("Invalid"); }
+// ✅ Blocks: Most special characters
+// ❌ Still vulnerable to: "/etc/passwd" (absolute path replacement)
+// ❌ Too restrictive: blocks legitimate files like "report-2025.pdf"
+// ❌ CVE-2025-8088: Misses platform-specific issues (Windows UNC, device names)
+<span class="boring">}</span></code></pre></pre>
+<h3 id="approach-5-combine-multiple-checks"><a class="header" href="#approach-5-combine-multiple-checks">Approach 5: "Combine multiple checks"</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Check for ../, canonicalize, validate prefix, sanitize chars...
+// ✅ Blocks: Many attack vectors
+// ❌ Complex = Buggy: 20+ edge cases, hard to maintain
+// ❌ Platform-specific gaps: Windows vs Unix behavior differences  
+// ❌ Performance cost: Multiple filesystem calls per validation
+// ❌ Future CVEs: New attack vectors require updating every check
+<span class="boring">}</span></code></pre></pre>
+<h3 id="the-fundamental-problem"><a class="header" href="#the-fundamental-problem">The Fundamental Problem</a></h3>
+<p><strong>Each "fix" creates new attack surface.</strong> Path security isn't a single problem—it's a class of problems that interact in complex ways. You need:</p>
+<ol>
+<li><strong>Encoding normalization</strong> (but not breaking legitimate files)</li>
+<li><strong>Symlink resolution</strong> (but preventing race conditions)</li>
+<li><strong>Platform consistency</strong> (Windows ≠ Unix ≠ Web)</li>
+<li><strong>Boundary enforcement</strong> (mathematical, not string-based)</li>
+<li><strong>Future-proof design</strong> (resistant to new attack vectors)</li>
+</ol>
+<p><strong>This is why strict-path exists.</strong> We solved this problem class once, correctly, so you don't have to.</p>
 <h2 id="pick-the-right-type"><a class="header" href="#pick-the-right-type">Pick The Right Type</a></h2>
+<h3 id="quick-decision-guide"><a class="header" href="#quick-decision-guide">Quick Decision Guide</a></h3>
 <ul>
-<li>External/untrusted segments (HTTP/DB/manifest/LLM/archive entry):
+<li><strong>External/untrusted segments</strong> (HTTP/DB/manifest/LLM/archive entry):
 <ul>
 <li>UI/virtual flows: <code>VirtualRoot</code> + <code>VirtualPath</code> (clamped joins, user‑facing display)</li>
 <li>System flows: <code>PathBoundary</code> + <code>StrictPath</code> (rejected joins, system display)</li>
 </ul>
 </li>
-<li>Internal/trusted paths (hardcoded/CLI/env): use <code>Path</code>/<code>PathBuf</code>; only validate when combining with untrusted segments.</li>
+<li><strong>Internal/trusted paths</strong> (hardcoded/CLI/env): use <code>Path</code>/<code>PathBuf</code>; only validate when combining with untrusted segments.</li>
 </ul>
+<h3 id="detailed-decision-matrix"><a class="header" href="#detailed-decision-matrix">Detailed Decision Matrix</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Source</th><th>Typical Input</th><th>Use VirtualPath For</th><th>Use StrictPath For</th><th>Notes</th></tr></thead><tbody>
+<tr><td>🌐 <strong>HTTP requests</strong></td><td>URL path segments, file names</td><td>Display/logging, safe virtual joins</td><td>System-facing interop/I/O</td><td>Always clamp user paths via <code>VirtualRoot::virtual_join</code></td></tr>
+<tr><td>🌍 <strong>Web forms</strong></td><td>Form file fields, route params</td><td>User-facing display, UI navigation</td><td>System-facing interop/I/O</td><td>Treat all form inputs as untrusted</td></tr>
+<tr><td>⚙️ <strong>Configuration files</strong></td><td>Paths in config</td><td>UI display and I/O within boundary</td><td>System-facing interop/I/O</td><td>Validate each path before I/O</td></tr>
+<tr><td>💾 <strong>Database content</strong></td><td>Stored file paths</td><td>Rendering paths in UI dashboards</td><td>System-facing interop/I/O</td><td>Storage does not imply safety; validate on use</td></tr>
+<tr><td>📂 <strong>CLI arguments</strong></td><td>Command-line path args</td><td>Pretty printing, I/O within boundary</td><td>System-facing interop/I/O</td><td>Validate args before touching filesystem</td></tr>
+<tr><td>🔌 <strong>External APIs</strong></td><td>Webhooks, 3rd-party payloads</td><td>Present sanitized paths to logs</td><td>System-facing interop/I/O</td><td>Never trust external systems</td></tr>
+<tr><td>🤖 <strong>LLM/AI output</strong></td><td>Generated file names/paths</td><td>Display suggestions, I/O within boundary</td><td>System-facing interop/I/O</td><td>LLM output is untrusted by default</td></tr>
+<tr><td>📨 <strong>Inter-service msgs</strong></td><td>Queue/event payloads</td><td>Observability output, I/O within boundary</td><td>System-facing interop/I/O</td><td>Validate on the consumer side</td></tr>
+<tr><td>📱 <strong>Apps (desktop/mobile)</strong></td><td>Drag-and-drop, file pickers</td><td>Show picked paths in UI</td><td>System-facing interop/I/O</td><td>Validate selected paths before I/O</td></tr>
+<tr><td>📦 <strong>Archive contents</strong></td><td>Entry names from ZIP/TAR</td><td>Progress UI, virtual joins</td><td>System-facing interop/I/O</td><td>Validate each entry to block zip-slip</td></tr>
+<tr><td>🔧 <strong>File format internals</strong></td><td>Embedded path strings</td><td>Diagnostics, I/O within boundary</td><td>System-facing interop/I/O</td><td>Never dereference without validation</td></tr>
+</tbody></table>
+</div>
+<h3 id="security-philosophy"><a class="header" href="#security-philosophy">Security Philosophy</a></h3>
+<p><strong>Think of it this way:</strong></p>
+<ul>
+<li><code>StrictPath</code> = <strong>Security Filter</strong> — validates and rejects unsafe paths</li>
+<li><code>VirtualPath</code> = <strong>Complete Sandbox</strong> — clamps any input to stay safe</li>
+</ul>
+<p><strong>The Golden Rule</strong>: If you didn't create the path yourself, secure it first.</p>
 <h2 id="encode-guarantees-in-signatures"><a class="header" href="#encode-guarantees-in-signatures">Encode Guarantees In Signatures</a></h2>
 <ul>
 <li>Helpers that touch the filesystem must encode safety:
@@ -1703,106 +1956,222 @@ let safe_user_file = safe_dir.strict_join("user_file.txt")?; // Returns StrictPa
 <p>The Type-History pattern might seem complex at first, but it's really just a way to make the compiler remember what you've done and enforce what you need to do. It turns potential runtime errors into compile-time guarantees.</p>
 <p>In strict-path, this means that once you have a <code>StrictPath</code> or <code>VirtualPath</code>, you can be 100% confident it's safe to use - the type system guarantees it went through all the necessary security checks.</p>
 <p>For most users of strict-path, you don't need to understand these internals. Just know that the library uses advanced type system features to make it impossible to accidentally create security vulnerabilities. The compiler has your back!</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="antipatterns-telloffs-and-fixes"><a class="header" href="#antipatterns-telloffs-and-fixes">Anti‑Patterns (Tell‑offs and Fixes)</a></h1>
-<p>This page collects the most common smells that indicate strict-path is being misused, why they’re wrong, and how to fix them. Use this as a quick checklist during review.</p>
-<h2 id="telloffs-and-why-theyre-wrong"><a class="header" href="#telloffs-and-why-theyre-wrong">Tell‑offs and why they’re wrong</a></h2>
-<ul>
-<li>
-<p>Validating only constants (no real external input ever passes through validation)</p>
-<ul>
-<li>Smell: The code builds a <code>PathBoundary</code>/<code>VirtualRoot</code> and only ever calls joins with literals like <code>"docs"</code> or <code>"."</code>, never with user/DB/archive inputs.</li>
-<li>Why wrong: If no untrusted segment flows through <code>strict_join</code>/<code>virtual_join</code>, the crate adds no security value and may mislead readers about protections.</li>
-<li>Fix: Validate actual external segments (e.g., HTTP param, manifest/DB strings, archive entry names). For discovery of the root, use <code>interop_path()</code>; do not validate constants just to “use the API”.</li>
-</ul>
-</li>
-<li>
-<p>Constructing boundaries/roots inside helpers</p>
-<ul>
-<li>Smell: <code>fn load_config() { let cfg = PathBoundary::try_new(...); cfg.strict_join(name) ... }</code>.</li>
-<li>Why wrong: Boundary selection is policy; helpers should not decide it. It also hides where validation happens.</li>
-<li>Fix: Accept <code>&amp;PathBoundary</code> (or <code>&amp;VirtualRoot</code>) and an untrusted segment; or accept <code>&amp;StrictPath</code>/<code>&amp;VirtualPath</code> directly.</li>
-</ul>
-</li>
-<li>
-<p>Wrapping secure types in <code>Path::new</code> / <code>PathBuf::from</code></p>
-<ul>
-<li>Smell: <code>Path::new(spath.interop_path())</code>, <code>PathBuf::from(vpath.interop_path())</code>.</li>
-<li>Why wrong: It bypasses the secure API, reintroduces std joins/parents, and is redundant for interop.</li>
-<li>Fix: Pass <code>interop_path()</code> directly to <code>AsRef&lt;Path&gt;</code> APIs or use strict/virtual methods for ops.</li>
-</ul>
-</li>
-<li>
-<p>Mixing interop and display</p>
-<ul>
-<li>Smell: <code>println!("{}", path.interop_path().to_string_lossy())</code>.</li>
-<li>Why wrong: Interop is for external APIs; display requires stable, intentful formatting.</li>
-<li>Fix: Use <code>strictpath_display()</code> or <code>virtualpath_display()</code>.</li>
-</ul>
-</li>
-<li>
-<p><code>interop_path().as_ref()</code> chaining</p>
-<ul>
-<li>Smell: <code>external_api(path.interop_path().as_ref())</code>.</li>
-<li>Why wrong: <code>interop_path()</code> already implements <code>AsRef&lt;Path&gt;</code>; <code>.as_ref()</code> is redundant and a design smell.</li>
-<li>Fix: Call <code>external_api(path.interop_path())</code> directly.</li>
-</ul>
-</li>
-<li>
-<p><code>as_unvirtual().interop_path()</code> when <code>interop_path()</code> exists</p>
-<ul>
-<li>Smell: <code>vroot.as_unvirtual().interop_path()</code>; <code>vpath.as_unvirtual().interop_path()</code>.</li>
-<li>Why wrong: Both <code>VirtualRoot</code> and <code>VirtualPath</code> implement <code>interop_path()</code>.</li>
-<li>Fix: Call <code>vroot.interop_path()</code> or <code>vpath.interop_path()</code>.</li>
-</ul>
-</li>
-<li>
-<p>Using std joins/parents on leaked paths</p>
-<ul>
-<li>Smell: <code>leaked_path.join("child")</code>, <code>Path::parent()</code> on an unwrapped secure type.</li>
-<li>Why wrong: std ops ignore virtual/strict semantics and can escape boundaries.</li>
-<li>Fix: Use <code>strict_join</code>/<code>virtual_join</code>, <code>strictpath_parent</code>/<code>virtualpath_parent</code>.</li>
-</ul>
-</li>
-<li>
-<p>Function signatures that accept raw paths when safety is required</p>
-<ul>
-<li>Smell: <code>fn process(path: &amp;str)</code> then validating internally.</li>
-<li>Why wrong: Every caller must remember to validate; easy to misuse.</li>
-<li>Fix: Accept <code>&amp;StrictPath&lt;_&gt;</code> or <code>&amp;VirtualPath&lt;_&gt;</code>; or accept <code>&amp;PathBoundary/_</code> + untrusted segment.</li>
-</ul>
-</li>
-<li>
-<p>Single‑user patterns for multi‑user services</p>
-<ul>
-<li>Smell: Global <code>PathBoundary</code> for “uploads” in a multi‑user context.</li>
-<li>Why wrong: It doesn’t encode per‑user isolation and invites mixing.</li>
-<li>Fix: Use a per‑user <code>VirtualRoot</code>; helpers can take <code>&amp;StrictPath</code> for shared logic via <code>as_unvirtual()</code>.</li>
-</ul>
-</li>
-<li>
-<p>Lossy string conversions for logic</p>
-<ul>
-<li>Smell: Using <code>to_string_lossy()</code> for comparisons or display of secure types.</li>
-<li>Why wrong: Lossy and breaks on non‑UTF8; conflates display with logic.</li>
-<li>Fix: For display, use display helpers; for logic, rely on secure ops (starts_with/joins) or std Path values where appropriate.</li>
-</ul>
-</li>
-</ul>
-<h2 id="quick-fixes-bad--good"><a class="header" href="#quick-fixes-bad--good">Quick fixes (bad → good)</a></h2>
-<ul>
-<li><code>path.strict_join(".")</code> → use <code>path_boundary.interop_path()</code> to discover; validate only external segments.</li>
-<li><code>fn helper() { PathBoundary::try_new("..."); }</code> → <code>fn helper(boundary: &amp;PathBoundary, name: &amp;str)</code>.</li>
-<li><code>Path::new(sp.interop_path())</code> → <code>external_api(sp.interop_path())</code>.</li>
-<li><code>println!("{}", sp.interop_path().to_string_lossy())</code> → <code>println!("{}", sp.strictpath_display())</code>.</li>
-<li><code>vroot.as_unvirtual().interop_path()</code> → <code>vroot.interop_path()</code>.</li>
-<li><code>fn process(path: &amp;str)</code> → <code>fn process(path: &amp;StrictPath&lt;_&gt;)</code> (or <code>&amp;VirtualPath&lt;_&gt;</code>).</li>
-<li><code>uploads_dir.strict_join(name)</code> (multi‑user) → <code>user_vroot.virtual_join(name)</code>; call <code>as_unvirtual()</code> only for strict‑typed helpers.</li>
-</ul>
-<h2 id="naming-telloffs-from-agentsmd"><a class="header" href="#naming-telloffs-from-agentsmd">Naming tell‑offs (from AGENTS.md)</a></h2>
-<ul>
-<li>Variables must reflect their domain (config_dir, uploads_root, archive_src), not types (boundary, jail) or generic prefixes (source_).</li>
-<li>Path variables for boundaries/roots should match their actual content (e.g., <code>archive_src</code>, <code>mirror_src</code>, <code>uploads_root</code>).</li>
-</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="common-mistakes-to-avoid"><a class="header" href="#common-mistakes-to-avoid">Common Mistakes to Avoid</a></h1>
+<p>Here are the most common mistakes developers make with strict-path, and how to fix them.</p>
+<h2 id="the-big-picture-dont-defeat-your-own-security"><a class="header" href="#the-big-picture-dont-defeat-your-own-security">The Big Picture: Don't Defeat Your Own Security</a></h2>
+<p>Most anti-patterns come down to one thing: <strong>treating strict-path types like regular paths</strong>. When you convert back to <code>Path</code> or <code>String</code>, you're throwing away the safety you worked to create.</p>
+<p>The core principle is: <strong>make functions safe by design</strong>. Instead of accepting raw strings and validating inside every function, accept safe types that guarantee the validation already happened.</p>
+<h2 id="security-theater-only-validating-constants"><a class="header" href="#security-theater-only-validating-constants">Security Theater: Only Validating Constants</a></h2>
+<p><strong>❌ What not to do:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let config_dir = PathBoundary::try_new("./config")?;
+let settings = config_dir.strict_join("settings.toml")?;  // Only literals!
+let cache = config_dir.strict_join("cache")?;            // No user input validated
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why it's wrong:</strong> You're using strict-path but never validating untrusted input. This provides no security value—it's just security theater that looks safe but protects nothing.</p>
+<p><strong>✅ Do this instead:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let config_dir = PathBoundary::try_new("./config")?;
+// Actually validate untrusted input from users, HTTP, databases, archives, etc.
+let user_file = config_dir.strict_join(&amp;user_provided_filename)?;
+let archive_entry = config_dir.strict_join(&amp;entry_name_from_zip)?;
+let db_path = config_dir.strict_join(&amp;path_from_database)?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="hidden-policy-decisions-in-functions"><a class="header" href="#hidden-policy-decisions-in-functions">Hidden Policy Decisions in Functions</a></h2>
+<p><strong>❌ What not to do:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn load_user_data(filename: &amp;str) -&gt; Result&lt;String, Error&gt; {
+    // Policy hidden inside the function!
+    let data_dir = PathBoundary::try_new("./userdata")?;
+    let file = data_dir.strict_join(filename)?;
+    file.read_to_string()
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why it's wrong:</strong> Callers can't see or control the security policy. What if they want a different directory? What if different users need different boundaries? The function makes security decisions that should be visible.</p>
+<p><strong>✅ Do this instead:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn load_user_data(user_dir: &amp;PathBoundary, filename: &amp;str) -&gt; std::io::Result&lt;String&gt; {
+    let file = user_dir.strict_join(filename)?;
+    file.read_to_string()
+}
+
+// OR even better - accept the validated path directly:
+fn load_user_data(file_path: &amp;StrictPath) -&gt; std::io::Result&lt;String&gt; {
+    file_path.read_to_string()
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="converting-back-to-unsafe-types"><a class="header" href="#converting-back-to-unsafe-types">Converting Back to Unsafe Types</a></h2>
+<p><strong>❌ What not to do:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let safe_path = uploads_dir.strict_join("photo.jpg")?;
+// WHY are you converting back to the unsafe Path type?!
+if Path::new(safe_path.interop_path()).exists() {
+    std::fs::copy(
+        Path::new(safe_path.interop_path()), 
+        "./backup/photo.jpg"
+    )?;
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why it's wrong:</strong> <code>StrictPath</code> already has <code>.exists()</code>, <code>.read_bytes()</code>, <code>.write_bytes()</code>, and other methods. You're defeating the entire point by converting back to <code>Path</code>, which ignores all security restrictions.</p>
+<p><strong>✅ Do this instead:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let safe_path = uploads_dir.strict_join("photo.jpg")?;
+if safe_path.exists() {
+    let backup_dir = PathBoundary::try_new("./backup")?;
+    let backup_path = backup_dir.strict_join("photo.jpg")?;
+    std::fs::copy(safe_path.interop_path(), backup_path.interop_path())?;
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="using-std-path-operations-on-leaked-values"><a class="header" href="#using-std-path-operations-on-leaked-values">Using std Path Operations on Leaked Values</a></h2>
+<p><strong>❌ What not to do:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let uploads_dir = PathBoundary::try_new("uploads")?;
+let leaked = Path::new(uploads_dir.interop_path());
+let dangerous = leaked.join("../../../etc/passwd");  // Can escape!
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why it's wrong:</strong> <code>Path::join()</code> is the #1 cause of path traversal vulnerabilities. It completely replaces the base path when you pass an absolute path, ignoring all security restrictions.</p>
+<p><strong>✅ Do this instead:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let uploads_dir = PathBoundary::try_new("uploads")?;
+// This will return an error instead of escaping:
+let safe_result = uploads_dir.strict_join("../../../etc/passwd");
+match safe_result {
+    Ok(path) =&gt; println!("Safe path: {}", path.strictpath_display()),
+    Err(e) =&gt; println!("Rejected dangerous path: {}", e),
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="wrong-display-method"><a class="header" href="#wrong-display-method">Wrong Display Method</a></h2>
+<p><strong>❌ What not to do:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>println!("Processing: {}", file.interop_path().to_string_lossy());
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why it's wrong:</strong> <code>interop_path()</code> is for passing to external APIs that need <code>AsRef&lt;Path&gt;</code>, like <code>std::fs::File::open()</code>. For displaying to users, it's the wrong tool and can lose information.</p>
+<p><strong>✅ Do this instead:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>println!("Processing: {}", file.strictpath_display());
+
+// For VirtualPath:
+println!("Virtual path: {}", vpath.virtualpath_display());
+
+// For VirtualRoot:
+println!("Root: {}", vroot.as_unvirtual().strictpath_display());
+<span class="boring">}</span></code></pre></pre>
+<h2 id="terrible-variable-names"><a class="header" href="#terrible-variable-names">Terrible Variable Names</a></h2>
+<p><strong>❌ What not to do:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let boundary = PathBoundary::try_new("./uploads")?;
+let restriction = PathBoundary::try_new("./config")?;
+let jail = VirtualRoot::try_new("./user_data")?;
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why it's wrong:</strong> These names tell you the type but nothing about what the directories are for. When you see <code>boundary.strict_join("photo.jpg")</code>, you have no idea what boundary you're joining to.</p>
+<p><strong>✅ Do this instead:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let uploads_dir = PathBoundary::try_new("./uploads")?;
+let config_dir = PathBoundary::try_new("./config")?;
+let user_data = VirtualRoot::try_new("./user_data")?;
+<span class="boring">}</span></code></pre></pre>
+<p>Now <code>uploads_dir.strict_join("photo.jpg")</code> reads naturally as "uploads directory join photo.jpg".</p>
+<h2 id="functions-that-accept-dangerous-inputs"><a class="header" href="#functions-that-accept-dangerous-inputs">Functions That Accept Dangerous Inputs</a></h2>
+<p><strong>❌ What not to do:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn save_file(filename: &amp;str, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
+    // Every function has to validate - error prone!
+    let uploads = PathBoundary::try_new("uploads")?;
+    let safe_path = uploads.strict_join(filename)?;
+    safe_path.write_bytes(data)
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why it's wrong:</strong> Every caller has to trust that this function validates correctly. Someone could call <code>save_file("../../../etc/passwd", data)</code> and you're relying on runtime validation instead of the type system.</p>
+<p><strong>✅ Do this instead:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn save_file(safe_path: &amp;StrictPath, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
+    safe_path.write_bytes(data)  // Already guaranteed safe!
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Now it's <strong>impossible</strong> to call this function unsafely. The validation happens once when creating the <code>StrictPath</code>, and the type system prevents all misuse.</p>
+<h2 id="multi-user-data-with-single-boundary"><a class="header" href="#multi-user-data-with-single-boundary">Multi-User Data with Single Boundary</a></h2>
+<p><strong>❌ What not to do:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Global boundary for all users - dangerous!
+static UPLOADS: PathBoundary = /* ... */;
+
+fn save_user_file(user_id: u64, filename: &amp;str, data: &amp;[u8]) {
+    // All users share the same directory - data mixing risk!
+    let path = UPLOADS.strict_join(&amp;format!("{}/{}", user_id, filename))?;
+    path.write_bytes(data)?;
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why it's wrong:</strong> All users share the same boundary, making it easy to accidentally access another user's files or create insecure paths.</p>
+<p><strong>✅ Do this instead:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn get_user_root(user_id: u64) -&gt; Result&lt;VirtualRoot&lt;UserData&gt;, Error&gt; {
+    let user_dir = format!("./users/{}", user_id);
+    VirtualRoot::try_new(user_dir)
+}
+
+fn save_user_file(user_root: &amp;VirtualRoot&lt;UserData&gt;, filename: &amp;str, data: &amp;[u8]) -&gt; Result&lt;(), Error&gt; {
+    let safe_path = user_root.virtual_join(filename)?.as_unvirtual();
+    safe_path.write_bytes(data)?;
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="redundant-method-chaining"><a class="header" href="#redundant-method-chaining">Redundant Method Chaining</a></h2>
+<p><strong>❌ What not to do:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Redundant .as_ref() call
+external_api(path.interop_path().as_ref());
+
+// Redundant unvirtualization 
+vroot.as_unvirtual().interop_path();  // VirtualRoot already has interop_path()!
+<span class="boring">}</span></code></pre></pre>
+<p><strong>✅ Do this instead:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// interop_path() already implements AsRef&lt;Path&gt;
+external_api(path.interop_path());
+
+// VirtualRoot and VirtualPath have interop_path() directly
+vroot.interop_path();
+vpath.interop_path();
+<span class="boring">}</span></code></pre></pre>
+<h2 id="quick-reference-bad--good"><a class="header" href="#quick-reference-bad--good">Quick Reference: Bad → Good</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>❌ Bad Pattern</th><th>✅ Good Pattern</th></tr></thead><tbody>
+<tr><td><code>Path::new(secure_path.interop_path()).exists()</code></td><td><code>secure_path.exists()</code></td></tr>
+<tr><td><code>println!("{}", path.interop_path().to_string_lossy())</code></td><td><code>println!("{}", path.strictpath_display())</code></td></tr>
+<tr><td><code>fn process(path: &amp;str)</code></td><td><code>fn process(path: &amp;StrictPath&lt;_&gt;)</code></td></tr>
+<tr><td><code>let boundary = PathBoundary::try_new(...)?</code></td><td><code>let uploads_dir = PathBoundary::try_new(...)?</code></td></tr>
+<tr><td><code>leaked_path.join("child")</code></td><td><code>secure_path.strict_join("child")?</code></td></tr>
+<tr><td><code>vroot.as_unvirtual().interop_path()</code></td><td><code>vroot.interop_path()</code></td></tr>
+<tr><td><code>path.interop_path().as_ref()</code></td><td><code>path.interop_path()</code></td></tr>
+</tbody></table>
+</div>
+<h2 id="the-golden-rules"><a class="header" href="#the-golden-rules">The Golden Rules</a></h2>
+<ol>
+<li><strong>Never convert secure types back to <code>Path</code>/<code>PathBuf</code></strong> - use their native methods instead</li>
+<li><strong>Make functions accept safe types</strong> - don't validate inside every function</li>
+<li><strong>Name variables by purpose, not type</strong> - <code>config_dir</code> not <code>boundary</code></li>
+<li><strong>Use the right method for the job</strong> - <code>strictpath_display()</code> for display, <code>interop_path()</code> for external APIs</li>
+<li><strong>Let callers control security policy</strong> - don't hide <code>PathBoundary</code> creation inside helpers</li>
+<li><strong>Actually validate untrusted input</strong> - don't just validate constants</li>
+</ol>
+<p>Remember: The whole point of strict-path is to make path operations safe by design. If you find yourself converting back to regular paths or validating inside every function, you're probably doing it wrong!</p>
 
                     </main>
 
@@ -1844,6 +2213,7 @@ let safe_user_file = safe_dir.strict_join("user_file.txt")?; // Returns StrictPa
             window.setTimeout(window.print, 100);
         });
         </script>
+
 
     </div>
     </body>

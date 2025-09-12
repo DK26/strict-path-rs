@@ -8,4 +8,4 @@
 - [Best Practices & Guidelines](./best_practices.md)
 - [Design & Internals](./internals.md)
   - [Type-History Design Pattern](./type_history_design.md)
-- [Anti‑Patterns (Tell‑offs)](./anti_patterns.md)
+- [Common Mistakes to Avoid](./anti_patterns.md)

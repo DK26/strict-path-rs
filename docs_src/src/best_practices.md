@@ -2,12 +2,101 @@
 
 This page distills how to use strict-path correctly and ergonomically. Pair it with the Anti‑Patterns page for tell‑offs to avoid.
 
+## Why Every "Simple" Solution Fails
+
+The path security rabbit hole is deeper than you think. Here's why every naive approach creates new vulnerabilities:
+
+### Approach 1: "Just check for `../`"
+```rust
+if path.contains("../") { return Err("Invalid path"); }
+// ✅ Blocks: "../../../etc/passwd"
+// ❌ Bypassed by: "..%2F..%2F..%2Fetc%2Fpasswd" (URL encoding)
+// ❌ Bypassed by: "....//....//etc//passwd" (double encoding)
+// ❌ Bypassed by: "..\\..\\..\etc\passwd" (Windows separators)
+```
+
+### Approach 2: "Use canonicalize() then check"
+```rust
+let canonical = fs::canonicalize(path)?;
+if !canonical.starts_with("/safe/") { return Err("Escape attempt"); }
+// ✅ Blocks: Most directory traversal
+// ❌ CVE-2022-21658: Race condition - symlink created between canonicalize and check
+// ❌ CVE-2019-9855: Windows 8.3 names ("PROGRA~1" → "Program Files")
+// ❌ Fails on non-existent files (can't canonicalize what doesn't exist)
+```
+
+### Approach 3: "Normalize the path first"
+```rust
+let normalized = path.replace("\\", "/").replace("../", "");
+// ✅ Blocks: Basic traversal
+// ❌ Bypassed by: "....//" → "../" after one replacement
+// ❌ CVE-2020-12279: Unicode normalization attacks
+// ❌ CVE-2017-17793: NTFS Alternate Data Streams ("file.txt:hidden")
+// ❌ Misses absolute path replacement: "/etc/passwd" completely replaces base
+```
+
+### Approach 4: "Use a allowlist of safe characters"
+```rust
+if !path.chars().all(|c| c.is_alphanumeric() || c == '/') { return Err("Invalid"); }
+// ✅ Blocks: Most special characters
+// ❌ Still vulnerable to: "/etc/passwd" (absolute path replacement)
+// ❌ Too restrictive: blocks legitimate files like "report-2025.pdf"
+// ❌ CVE-2025-8088: Misses platform-specific issues (Windows UNC, device names)
+```
+
+### Approach 5: "Combine multiple checks"
+```rust
+// Check for ../, canonicalize, validate prefix, sanitize chars...
+// ✅ Blocks: Many attack vectors
+// ❌ Complex = Buggy: 20+ edge cases, hard to maintain
+// ❌ Platform-specific gaps: Windows vs Unix behavior differences  
+// ❌ Performance cost: Multiple filesystem calls per validation
+// ❌ Future CVEs: New attack vectors require updating every check
+```
+
+### The Fundamental Problem
+**Each "fix" creates new attack surface.** Path security isn't a single problem—it's a class of problems that interact in complex ways. You need:
+
+1. **Encoding normalization** (but not breaking legitimate files)
+2. **Symlink resolution** (but preventing race conditions)  
+3. **Platform consistency** (Windows ≠ Unix ≠ Web)
+4. **Boundary enforcement** (mathematical, not string-based)
+5. **Future-proof design** (resistant to new attack vectors)
+
+**This is why strict-path exists.** We solved this problem class once, correctly, so you don't have to.
+
 ## Pick The Right Type
 
-- External/untrusted segments (HTTP/DB/manifest/LLM/archive entry):
+### Quick Decision Guide
+
+- **External/untrusted segments** (HTTP/DB/manifest/LLM/archive entry):
   - UI/virtual flows: `VirtualRoot` + `VirtualPath` (clamped joins, user‑facing display)
   - System flows: `PathBoundary` + `StrictPath` (rejected joins, system display)
-- Internal/trusted paths (hardcoded/CLI/env): use `Path`/`PathBuf`; only validate when combining with untrusted segments.
+- **Internal/trusted paths** (hardcoded/CLI/env): use `Path`/`PathBuf`; only validate when combining with untrusted segments.
+
+### Detailed Decision Matrix
+
+| Source                      | Typical Input                  | Use VirtualPath For                       | Use StrictPath For        | Notes                                                   |
+| --------------------------- | ------------------------------ | ----------------------------------------- | ------------------------- | ------------------------------------------------------- |
+| 🌐 **HTTP requests**         | URL path segments, file names  | Display/logging, safe virtual joins       | System-facing interop/I/O | Always clamp user paths via `VirtualRoot::virtual_join` |
+| 🌍 **Web forms**             | Form file fields, route params | User-facing display, UI navigation        | System-facing interop/I/O | Treat all form inputs as untrusted                      |
+| ⚙️ **Configuration files**   | Paths in config                | UI display and I/O within boundary        | System-facing interop/I/O | Validate each path before I/O                           |
+| 💾 **Database content**      | Stored file paths              | Rendering paths in UI dashboards          | System-facing interop/I/O | Storage does not imply safety; validate on use          |
+| 📂 **CLI arguments**         | Command-line path args         | Pretty printing, I/O within boundary      | System-facing interop/I/O | Validate args before touching filesystem                |
+| 🔌 **External APIs**         | Webhooks, 3rd-party payloads   | Present sanitized paths to logs           | System-facing interop/I/O | Never trust external systems                            |
+| 🤖 **LLM/AI output**         | Generated file names/paths     | Display suggestions, I/O within boundary  | System-facing interop/I/O | LLM output is untrusted by default                      |
+| 📨 **Inter-service msgs**    | Queue/event payloads           | Observability output, I/O within boundary | System-facing interop/I/O | Validate on the consumer side                           |
+| 📱 **Apps (desktop/mobile)** | Drag-and-drop, file pickers    | Show picked paths in UI                   | System-facing interop/I/O | Validate selected paths before I/O                      |
+| 📦 **Archive contents**      | Entry names from ZIP/TAR       | Progress UI, virtual joins                | System-facing interop/I/O | Validate each entry to block zip-slip                   |
+| 🔧 **File format internals** | Embedded path strings          | Diagnostics, I/O within boundary          | System-facing interop/I/O | Never dereference without validation                    |
+
+### Security Philosophy
+
+**Think of it this way:**
+- `StrictPath` = **Security Filter** — validates and rejects unsafe paths
+- `VirtualPath` = **Complete Sandbox** — clamps any input to stay safe
+
+**The Golden Rule**: If you didn't create the path yourself, secure it first.
 
 ## Encode Guarantees In Signatures
 

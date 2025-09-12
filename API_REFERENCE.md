@@ -1,6 +1,6 @@
 # strict-path — API Reference (concise)
 
-Provides safe, validated filesystem paths inside a confined directory (restriction).
+Prevent directory traversal with type-safe path restriction and safe symlinks.
 
 ## Core Security Foundation: `StrictPath`
 
@@ -299,13 +299,26 @@ VirtualPath<Marker>
 ### Feature-gated APIs (complete list)
 These are available only when the corresponding Cargo features are enabled:
 
-- Feature `dirs` (user directories)
-  - `PathBoundary::try_new_config(app_name: &str) -> Result<PathBoundary>`
-  - `PathBoundary::try_new_data(app_name: &str) -> Result<PathBoundary>`
-  - `PathBoundary::try_new_cache(app_name: &str) -> Result<PathBoundary>`
-  - `VirtualRoot::try_new_config(app_name: &str) -> Result<VirtualRoot>`
-  - `VirtualRoot::try_new_data(app_name: &str) -> Result<VirtualRoot>`
-  - `VirtualRoot::try_new_cache(app_name: &str) -> Result<VirtualRoot>`
+- Feature `dirs` (OS standard directories)
+  - `PathBoundary::try_new_os_config(app_name: &str) -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_data(app_name: &str) -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_cache(app_name: &str) -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_config_local(app_name: &str) -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_data_local(app_name: &str) -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_home() -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_desktop() -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_documents() -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_downloads() -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_pictures() -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_audio() -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_videos() -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_executables() -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_runtime() -> Result<PathBoundary>`
+  - `PathBoundary::try_new_os_state(app_name: &str) -> Result<PathBoundary>`
+  - `VirtualRoot::try_new_os_config(app_name: &str) -> Result<VirtualRoot>`
+  - `VirtualRoot::try_new_os_data(app_name: &str) -> Result<VirtualRoot>`
+  - `VirtualRoot::try_new_os_cache(app_name: &str) -> Result<VirtualRoot>`
+  - (Plus matching `VirtualRoot` methods for all the above)
 
 - Feature `tempfile` (RAII temporary directories)
   - `PathBoundary::try_new_temp() -> Result<PathBoundary>`
