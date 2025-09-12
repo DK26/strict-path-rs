@@ -180,14 +180,12 @@ let user_file = Path::new(user_input); // 🚨 SECURITY DISASTER
 ```rust
 use strict_path::PathBoundary;
 
-// LLM suggests file operations - always contained
-async fn llm_file_operation(request: &LlmRequest) -> Result<String> {
-    let workspace = PathBoundary::try_new("ai_workspace")?;
-    
+// Encode guarantees in signature: pass workspace boundary and untrusted request
+async fn llm_file_operation(workspace: &PathBoundary, request: &LlmRequest) -> Result<String> {
     // LLM could suggest anything: "../../../etc/passwd", "C:/Windows/System32", etc.
     let safe_path = workspace.strict_join(&request.filename)?; // Attack = Error
-    
-    match request.operation {
+
+    match request.operation.as_str() {
         "write" => safe_path.write_string(&request.content)?,
         "read" => return Ok(safe_path.read_to_string()?),
         _ => return Err("Invalid operation".into()),
@@ -200,14 +198,13 @@ async fn llm_file_operation(request: &LlmRequest) -> Result<String> {
 ```rust
 use strict_path::VirtualRoot;
 
-fn extract_zip(zip_data: &[u8], dest: &Path) -> std::io::Result<()> {
-    let extract_root = VirtualRoot::try_new_create(dest)?;
-    
-    for entry in zip_archive.entries() {
+// Encode guarantees in signature: pass the extract root and untrusted entry names
+fn extract_zip(zip_entries: impl IntoIterator<Item=(String, Vec<u8>)>, extract_root: &VirtualRoot) -> std::io::Result<()> {
+    for (name, data) in zip_entries {
         // Hostile names like "../../../etc/passwd" get clamped to "/etc/passwd"
-        let safe_path = extract_root.virtual_join(entry.path())?;
-        safe_path.create_parent_dir_all()?;
-        safe_path.write_bytes(&entry.data())?;
+        let vpath = extract_root.virtual_join(&name)?;
+        vpath.create_parent_dir_all()?;
+        vpath.write_bytes(&data)?;
     }
     Ok(())
 }
@@ -219,10 +216,8 @@ use strict_path::PathBoundary;
 
 struct StaticFiles;
 
-async fn serve_static(path: &str) -> Result<Response> {
-    let static_dir = PathBoundary::<StaticFiles>::try_new("./static")?;
+async fn serve_static(static_dir: &PathBoundary<StaticFiles>, path: &str) -> Result<Response> {
     let safe_path = static_dir.strict_join(path)?; // "../../../" → Error
-    
     Ok(Response::new(safe_path.read_bytes()?))
 }
 
@@ -238,10 +233,8 @@ use strict_path::PathBoundary;
 
 struct UserConfigs;
 
-fn load_user_config(config_name: &str) -> Result<Config> {
-    let config_dir = PathBoundary::<UserConfigs>::try_new_create("./configs")?;
+fn load_user_config(config_dir: &PathBoundary<UserConfigs>, config_name: &str) -> Result<Config> {
     let config_file = config_dir.strict_join(config_name)?;
-    
     Ok(serde_json::from_str(&config_file.read_to_string()?)?)
 }
 ```
@@ -262,20 +255,21 @@ fn load_user_config(config_name: &str) -> Result<Config> {
 
 **Bottom line**: If attackers have root/admin access, they've already won. This library stops the 99% of practical attacks that don't require special privileges.
 
+## 📋 **Input Source Decision Matrix**
 
-
-
-| 🌐 HTTP requests         | URL path segments, file names  | Display/logging, safe virtual joins, and I/O within the boundary | System-facing interop/I/O (alternative) | Always clamp user paths via `VirtualRoot::virtual_join` |
-| 🌍 Web forms             | Form file fields, route params | User-facing display; UI navigation; I/O within the boundary      | System-facing interop/I/O (alternative) | Treat all form inputs as untrusted                      |
-| ⚙️ Configuration files   | Paths in config                | UI display and I/O within the boundary                           | System-facing interop/I/O (alternative) | Validate each path before I/O                           |
-| 💾 Database content      | Stored file paths              | Rendering paths in UI dashboards; I/O within the boundary        | System-facing interop/I/O (alternative) | Storage does not imply safety; validate on use          |
-| 📂 CLI arguments         | Command-line path args         | Pretty printing; I/O within the boundary                         | System-facing interop/I/O (alternative) | Validate args before touching the FS                    |
-| 🔌 External APIs         | Webhooks, 3rd-party payloads   | Present sanitized paths to logs; I/O within the boundary         | System-facing interop/I/O (alternative) | Never trust external systems                            |
-| 🤖 LLM/AI output         | Generated file names/paths     | Display suggestions; I/O within the boundary                     | System-facing interop/I/O (alternative) | LLM output is untrusted by default                      |
-| 📨 Inter-service msgs    | Queue/event payloads           | Observability output; I/O within the boundary                    | System-facing interop/I/O (alternative) | Validate on the consumer side                           |
-| 📱 Apps (desktop/mobile) | Drag-and-drop, file pickers    | Show picked paths in UI; I/O within the boundary                 | System-facing interop/I/O (alternative) | Validate selected paths before I/O                      |
-| 📦 Archive contents      | Entry names from ZIP/TAR       | Progress UI, virtual joins, and I/O within the boundary          | System-facing interop/I/O (alternative) | Validate each entry to block zip-slip                   |
-| 🔧 File format internals | Embedded path strings          | Diagnostics and I/O within the boundary                          | System-facing interop/I/O (alternative) | Never dereference without validation                    |
+| Source                      | Typical Input                  | Use VirtualPath For                       | Use StrictPath For        | Notes                                                   |
+| --------------------------- | ------------------------------ | ----------------------------------------- | ------------------------- | ------------------------------------------------------- |
+| 🌐 **HTTP requests**         | URL path segments, file names  | Display/logging, safe virtual joins       | System-facing interop/I/O | Always clamp user paths via `VirtualRoot::virtual_join` |
+| 🌍 **Web forms**             | Form file fields, route params | User-facing display, UI navigation        | System-facing interop/I/O | Treat all form inputs as untrusted                      |
+| ⚙️ **Configuration files**   | Paths in config                | UI display and I/O within boundary        | System-facing interop/I/O | Validate each path before I/O                           |
+| 💾 **Database content**      | Stored file paths              | Rendering paths in UI dashboards          | System-facing interop/I/O | Storage does not imply safety; validate on use          |
+| 📂 **CLI arguments**         | Command-line path args         | Pretty printing, I/O within boundary      | System-facing interop/I/O | Validate args before touching filesystem                |
+| 🔌 **External APIs**         | Webhooks, 3rd-party payloads   | Present sanitized paths to logs           | System-facing interop/I/O | Never trust external systems                            |
+| 🤖 **LLM/AI output**         | Generated file names/paths     | Display suggestions, I/O within boundary  | System-facing interop/I/O | LLM output is untrusted by default                      |
+| 📨 **Inter-service msgs**    | Queue/event payloads           | Observability output, I/O within boundary | System-facing interop/I/O | Validate on the consumer side                           |
+| 📱 **Apps (desktop/mobile)** | Drag-and-drop, file pickers    | Show picked paths in UI                   | System-facing interop/I/O | Validate selected paths before I/O                      |
+| 📦 **Archive contents**      | Entry names from ZIP/TAR       | Progress UI, virtual joins                | System-facing interop/I/O | Validate each entry to block zip-slip                   |
+| 🔧 **File format internals** | Embedded path strings          | Diagnostics, I/O within boundary          | System-facing interop/I/O | Never dereference without validation                    |
 
 Note: This is not “StrictPath vs VirtualPath.” `VirtualPath` conceptually extends `StrictPath` with a virtual-root view and restricted, path boundary-aware operations. Both support I/O and interop; choose based on whether you need virtual, user-facing path semantics or raw system-facing semantics.
 
@@ -286,13 +280,20 @@ Note: This is not “StrictPath vs VirtualPath.” `VirtualPath` conceptually ex
 **Unified Signatures (When Appropriate)**: Prefer marker-specific `&StrictPath<Marker>` for stronger guarantees. Use a generic `&StrictPath<_>` only when the function is intentionally shared across contexts; call with `vpath.as_unvirtual()` when starting from a `VirtualPath`.
 
 ```rust
+use strict_path::{PathBoundary, VirtualRoot};
+
 fn process_file<M>(path: &strict_path::StrictPath<M>) -> std::io::Result<Vec<u8>> {
   path.read_bytes()
 }
 
 // Call with either type
-process_file(&strict_path)?;
-process_file(virtual_path.as_unvirtual())?;
+let boundary = PathBoundary::try_new("directory")?;
+let spath = boundary.strict_join("file.txt")?;
+process_file(&spath)?;
+
+let vroot = VirtualRoot::try_new("directory")?;
+let vpath = vroot.virtual_join("file.txt")?;
+process_file(vpath.as_unvirtual())?;
 ```
 
 ## 🔐 **Advanced: Type-Safe Context Separation**
@@ -380,10 +381,11 @@ serve_static_file(&safe_path).await?;
 
 ### Archive Extraction (Zip Slip Prevention)
 ```rust
-let extract_dir = PathBoundary::try_new("./extracted")?;
-for entry in zip_archive.entries() {
-    let safe_path = extract_dir.strict_join(entry.path())?;  // Neutralizes zip slip
-    safe_path.write_bytes(entry.data())?;
+let extract_root = VirtualRoot::try_new("./extracted")?;
+for (name, data) in zip_entries {
+    let vpath = extract_root.virtual_join(&name)?;  // Neutralizes zip slip (clamps hostile)
+    vpath.create_parent_dir_all()?;
+    vpath.write_bytes(&data)?;
 }
 ```
 

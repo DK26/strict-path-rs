@@ -358,8 +358,8 @@
 //! let css_file: VirtualPath<StaticAssets> = assets_vroot.virtual_join("style.css")?;
 //! let user_file: VirtualPath<UserUploads> = uploads_vroot.virtual_join("avatar.jpg")?;
 //!
-//! serve_asset(&css_file.unvirtual())?; // ✅ Correct type
-//! // serve_asset(&user_file.unvirtual())?; // ❌ Compile error: wrong marker type!
+//! serve_asset(css_file.as_unvirtual())?; // ✅ Correct type
+//! // serve_asset(user_file.as_unvirtual())?; // ❌ Compile error: wrong marker type!
 //! # fs::remove_dir_all("assets").ok(); fs::remove_dir_all("uploads").ok();
 //! # Ok(())
 //! # }
