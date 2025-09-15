@@ -5,7 +5,7 @@ Thanks for your interest in contributing! 🦀
 ## Quick Start
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/jailed-path-rs.git`
+2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/strict-path-rs.git`
 3. Test locally:
    - Linux/macOS/WSL: `bash ci-local.sh`
    - Windows PowerShell: `.\ci-local.ps1`
@@ -13,7 +13,7 @@ Thanks for your interest in contributing! 🦀
 
 ## How to Contribute
 
-- 🐛 Bug reports: [Open an issue](https://github.com/DK26/jailed-path-rs/issues) with reproduction steps
+- 🐛 Bug reports: [Open an issue](https://github.com/DK26/strict-path-rs/issues) with reproduction steps
 - 💡 Features: Discuss in an issue before implementing (see [Feature Suggestions](#feature-suggestions) below)
 - 📝 Docs: Fix typos, add examples, improve clarity
 - 🔧 Code: Bug fixes and improvements welcome

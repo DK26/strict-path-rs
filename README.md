@@ -2,12 +2,12 @@
 
 [![Crates.io](https://img.shields.io/crates/v/strict-path.svg)](https://crates.io/crates/strict-path)
 [![Documentation](https://docs.rs/strict-path/badge.svg)](https://docs.rs/strict-path)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/DK26/jailed-path-rs#license)
-[![CI](https://github.com/DK26/jailed-path-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DK26/jailed-path-rs/actions/workflows/ci.yml)
-[![Security Audit](https://github.com/DK26/jailed-path-rs/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/DK26/jailed-path-rs/actions/workflows/audit.yml)
-[![Type-State Police](https://img.shields.io/badge/protected%20by-Type--State%20Police-blue.svg)](https://github.com/DK26/jailed-path-rs)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/DK26/strict-path-rs#license)
+[![CI](https://github.com/DK26/strict-path-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DK26/strict-path-rs/actions/workflows/ci.yml)
+[![Security Audit](https://github.com/DK26/strict-path-rs/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/DK26/strict-path-rs/actions/workflows/audit.yml)
+[![Type-State Police](https://img.shields.io/badge/protected%20by-Type--State%20Police-blue.svg)](https://github.com/DK26/strict-path-rs)
 
-📚 **[Complete Guide & Examples](https://dk26.github.io/jailed-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)**
+📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)**
 
 **Prevent directory traversal with type-safe path restriction and safe symlinks.**
 
@@ -456,7 +456,7 @@ vpath.read_to_string()?;
 ## 📚 **Documentation & Resources**
 
 - **📖 [Complete API Reference](https://docs.rs/strict-path)** - Comprehensive API documentation
-- **📚 [User Guide & Examples](https://dk26.github.io/jailed-path-rs/)** - In-depth tutorials and patterns  
+- **📚 [User Guide & Examples](https://dk26.github.io/strict-path-rs/)** - In-depth tutorials and patterns  
 - **🔧 [API_REFERENCE.md](API_REFERENCE.md)** - Quick reference for all methods
 - **🛠️ [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)** - The underlying path resolution engine
 

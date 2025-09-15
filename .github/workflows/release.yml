@@ -37,7 +37,7 @@ jobs:
           - Check the [changelog](CHANGELOG.md) for detailed changes
           - View the [documentation](https://docs.rs/strict-path) for usage examples
           
-          **Full Changelog**: https://github.com/DK26/jailed-path-rs/compare/v0.0.1...${{ github.ref_name }}
+          **Full Changelog**: https://github.com/DK26/strict-path-rs/compare/v0.0.1...${{ github.ref_name }}
         draft: false
         prerelease: false
         generate_release_notes: true

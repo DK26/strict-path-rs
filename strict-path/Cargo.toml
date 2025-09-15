@@ -1,16 +1,16 @@
 [package]
 name = "strict-path"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition = "2021"
 # Minimum supported Rust version (MSRV)
 rust-version = "1.71"
 authors = ["David Krasnitsky <dikaveman@gmail.com>"]
 description = "Prevent directory traversal with type-safe path restriction and safe symlinks"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/DK26/jailed-path-rs"
-homepage = "https://github.com/DK26/jailed-path-rs"
+repository = "https://github.com/DK26/strict-path-rs"
+homepage = "https://github.com/DK26/strict-path-rs"
 documentation = "https://docs.rs/strict-path"
-# Complete guide and examples: https://dk26.github.io/jailed-path-rs/
+# Complete guide and examples: https://dk26.github.io/strict-path-rs/
 readme = "../README.md"
 keywords = ["path", "security", "jail", "filesystem", "traversal"]
 categories = ["filesystem", "development-tools", "web-programming"]
@@ -18,7 +18,7 @@ categories = ["filesystem", "development-tools", "web-programming"]
 exclude = ["../demos/**"]
 
 [dependencies]
-soft-canonicalize = { version = "0.3.4", features = ["anchored"] }
+soft-canonicalize = { version = "0.3.6", features = ["anchored"] }
 serde = { version = "1", optional = true, default-features = false, features = [
     "alloc",
 ] }

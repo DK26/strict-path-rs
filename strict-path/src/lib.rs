@@ -2,7 +2,7 @@
 //!
 //! Prevent directory traversal with type-safe path restriction and safe symlinks.
 //!
-//! 📚 **[Complete Guide & Examples](https://dk26.github.io/jailed-path-rs/)** | 📖 **[API Reference](https://docs.rs/strict-path)**
+//! 📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Reference](https://docs.rs/strict-path)**
 //!
 //! ## Core Security Foundation: `StrictPath`
 //!
@@ -523,7 +523,7 @@
 //!
 //! For a minimal, copy-pastable guide to the API (optimized for both humans and LLMs),
 //! see the repository reference:
-//! <https://github.com/DK26/jailed-path-rs/blob/main/API_REFERENCE.md>
+//! <https://github.com/DK26/strict-path-rs/blob/main/API_REFERENCE.md>
 //!
 //! This link is provided here so readers coming from docs.rs can easily discover it.
 #![forbid(unsafe_code)]

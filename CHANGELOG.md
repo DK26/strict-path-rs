@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.3] - 2025-09-15
+
+### Changed
+- Renamed all repository links and badges from `DK26/jailed-path-rs` to `DK26/strict-path-rs` across the codebase
+  - README badges and guide URL now point to `https://github.com/DK26/strict-path-rs` and `https://dk26.github.io/strict-path-rs/`
+  - Crate metadata (`repository`, `homepage`) updated in `strict-path/Cargo.toml`
+  - Release workflow notes updated to reference the new repository
+- Crate-level docs link updated to the new repository path in `strict-path/src/lib.rs`
+
+### Dependencies
+- Bumped `soft-canonicalize` from `0.3.4` to `0.3.6` (feature `anchored` unchanged)
+
+### License
+- Refreshed `LICENSE-APACHE` wording to the standard Apache-2.0 template and updated copyright year
+
 ## [0.1.0-alpha.2] - 2025-09-13
 
 ### Added
