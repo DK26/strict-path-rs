@@ -2,7 +2,7 @@
 
 The `strict-path` crate provides several optional fea[dependencies]
 strict-path = { 
-    version = "0.1.0-alpha.2", 
+    version = "0.1.0-alpha.4", 
     features = ["dirs", "serde", "tempfile", "app-path"]
 } that extend functionality while maintaining the core security guarantees. All features are disabled by default to keep the core library lightweight.
 
@@ -13,7 +13,7 @@ Cross-platform access to operating system standard directories following platfor
 
 ```toml
 [dependencies]
-strict-path = { version = "0.1.0-alpha.2", features = ["dirs"] }
+strict-path = { version = "0.1.0-alpha.4", features = ["dirs"] }
 ```
 
 Enables constructors like:
@@ -30,7 +30,7 @@ Adds `Serialize` implementations for `StrictPath` and `VirtualPath`, plus deseri
 
 ```toml
 [dependencies]
-strict-path = { version = "0.1.0-alpha.2", features = ["serde"] }
+strict-path = { version = "0.1.0-alpha.4", features = ["serde"] }
 ```
 
 Enables:
@@ -43,7 +43,7 @@ RAII temporary directories that are automatically cleaned up when dropped, with 
 
 ```toml
 [dependencies]  
-strict-path = { version = "0.1.0-alpha.2", features = ["tempfile"] }
+strict-path = { version = "0.1.0-alpha.4", features = ["tempfile"] }
 ```
 
 Enables:
@@ -56,7 +56,7 @@ Integration with the `app-path` crate for discovering application directories re
 
 ```toml
 [dependencies]
-strict-path = { version = "0.1.0-alpha.2", features = ["app-path"] }
+strict-path = { version = "0.1.0-alpha.4", features = ["app-path"] }
 ```
 
 Enables portable application directory discovery for:

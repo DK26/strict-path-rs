@@ -9,13 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.4] - 2025-09-16
+
 ### Added
 - **Rename/Move Operations**: Safe file and directory renaming within boundaries
   - `StrictPath::strict_rename(dest)` - Renames within the same `PathBoundary`
   - `VirtualPath::virtual_rename(dest)` - Renames within virtual space with clamping
   - Relative destinations resolve as siblings; absolute destinations validated against boundaries
   - Comprehensive test suite with 225+ lines covering edge cases, escapes, and cross-platform behavior
-- API sugar constructors:
+- **API Sugar Constructors**: Ergonomic one-liner constructors for simple flows
   - `StrictPath::with_boundary(..)` and `StrictPath::with_boundary_create(..)`
   - `VirtualPath::with_root(..)` and `VirtualPath::with_root_create(..)`
 
