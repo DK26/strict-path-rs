@@ -61,9 +61,7 @@ impl TempFileProcessor {
         self.log_operation(&log_entry)?;
 
         // "Process" the file - copy to work directory with validation
-        let processed_file = self
-            .work_dir
-            .strict_join(&format!("processed_{filename}"))?;
+        let processed_file = self.work_dir.strict_join(format!("processed_{filename}"))?;
         processed_file.create_parent_dir_all()?;
 
         // Simulate processing (just copying for demo)
@@ -96,11 +94,9 @@ impl TempFileProcessor {
         let mut files = Vec::new();
 
         if let Ok(entries) = fs::read_dir(self.work_dir.interop_path()) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    if let Some(name) = entry.file_name().to_str() {
-                        files.push(name.to_string());
-                    }
+            for entry in entries.flatten() {
+                if let Some(name) = entry.file_name().to_str() {
+                    files.push(name.to_string());
                 }
             }
         }
@@ -142,15 +138,18 @@ fn demonstrate_compression_workflow() -> Result<()> {
 
     let temp_work = PathBoundary::<TempWork>::try_new_temp()?;
     let temp_archive = PathBoundary::<TempWork>::try_new_temp()?;
-    
+
     // Create sample files to compress
     let files_to_compress = [
         ("readme.txt", "Welcome to our application!"),
         ("config/settings.json", r#"{"theme": "dark", "lang": "en"}"#),
         ("data/users.csv", "id,name,role\n1,Alice,admin\n2,Bob,user"),
-        ("logs/app.log", "2024-01-01 10:00:00 INFO Application started"),
+        (
+            "logs/app.log",
+            "2024-01-01 10:00:00 INFO Application started",
+        ),
     ];
-    
+
     // Create files in work directory
     for (path, content) in &files_to_compress {
         let file_path = temp_work.strict_join(path)?;
@@ -159,12 +158,12 @@ fn demonstrate_compression_workflow() -> Result<()> {
         }
         file_path.write_string(content)?;
     }
-    
+
     // Simulate creating a compressed archive
     let archive_path = temp_archive.strict_join("backup.tar.gz")?;
     let mut archive_content = String::new();
     archive_content.push_str("# Simulated Archive Contents\n");
-    
+
     // List all files that would be archived
     let mut file_count = 0;
     if let Ok(entries) = std::fs::read_dir(temp_work.interop_path()) {
@@ -177,10 +176,13 @@ fn demonstrate_compression_workflow() -> Result<()> {
             }
         }
     }
-    
+
     archive_path.write_string(&archive_content)?;
-    println!("✅ Created archive: {} ({file_count} files)", archive_path.strictpath_display());
-    
+    println!(
+        "✅ Created archive: {} ({file_count} files)",
+        archive_path.strictpath_display()
+    );
+
     Ok(())
 }
 
@@ -211,6 +213,9 @@ fn main() -> Result<()> {
 
     // Demonstrate compression workflow
     demonstrate_compression_workflow()?;
+
+    // Demonstrate additional tempfile workflow patterns
+    demonstrate_temp_workflow_patterns()?;
 
     println!("\n🧹 Cleanup: All temp directories will be automatically removed when PathBoundary instances are dropped!");
     println!("This demonstrates the power of RAII cleanup with the tempfile integration.");
@@ -269,22 +274,22 @@ mod tests {
         assert_ne!(temp1.interop_path(), temp2.interop_path());
 
         // Both should exist
-        assert!(temp1.interop_path().exists());
-        assert!(temp2.interop_path().exists());
+        assert!(temp1.exists());
+        assert!(temp2.exists());
 
         Ok(())
     }
 
     #[test]
     fn test_temp_cleanup_on_drop() -> Result<()> {
-        let temp_path = {
-            let temp_boundary = PathBoundary::<()>::try_new_temp()?;
-            temp_boundary.interop_path().to_path_buf()
-        }; // temp_boundary dropped here
+        let temp_boundary = PathBoundary::<()>::try_new_temp()?;
+        let _temp_root_display = temp_boundary.strictpath_display().to_string();
+        drop(temp_boundary); // dropped here
 
         // Directory should be cleaned up automatically
         // Note: This test might be flaky due to timing, but demonstrates the concept
         std::thread::sleep(std::time::Duration::from_millis(10));
+        // We cannot reliably assert deletion without racy checks; this test ensures drop compiles.
 
         Ok(())
     }

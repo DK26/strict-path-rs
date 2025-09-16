@@ -4,6 +4,7 @@ mod filesystem;
 mod marker;
 mod method_coverage;
 mod methods;
+mod rename;
 mod security;
 mod serde;
 mod virtual_display;

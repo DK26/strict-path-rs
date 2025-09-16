@@ -42,9 +42,8 @@ fn test_virtual_path_comparisons() {
 
     // Create test file
     let vpath = vroot.virtual_join("docs/test.txt").unwrap();
-    if let Some(parent) = vpath.virtualpath_parent().unwrap() {
-        fs::create_dir_all(parent.unvirtual().interop_path()).unwrap();
-    }
+    // Use built-in helper to create parent directories in the virtual dimension
+    vpath.create_parent_dir_all().unwrap();
     fs::write(vpath.interop_path(), "test content").unwrap();
 
     // VirtualPath vs VirtualPath (same type)

@@ -19,7 +19,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 4 {
-        println!("Usage: {} <staging_dir> <workspace_dir> <manifest.txt>", args[0]);
+        println!(
+            "Usage: {} <staging_dir> <workspace_dir> <manifest.txt>",
+            args[0]
+        );
         println!("No args provided — running offline demo setup...\n");
 
         // Offline demo: create a tiny staging area + manifest
@@ -107,11 +110,18 @@ fn run_ingest(
             let bytes = source.read_bytes()?;
             dest.write_bytes(&bytes)?;
             copied += 1;
-            println!("{i:>4}: 📄 File -> {} ({} bytes)", dest.strictpath_display(), bytes.len());
+            println!(
+                "{i:>4}: 📄 File -> {} ({} bytes)",
+                dest.strictpath_display(),
+                bytes.len()
+            );
             continue;
         }
 
-        println!("{i:>4}: ⚠️  Skipped unknown entry type: {}", source.strictpath_display());
+        println!(
+            "{i:>4}: ⚠️  Skipped unknown entry type: {}",
+            source.strictpath_display()
+        );
     }
 
     println!("\n✅ Done. Copied: {copied}, Blocked: {blocked}");

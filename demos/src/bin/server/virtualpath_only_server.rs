@@ -1,11 +1,11 @@
 //! VirtualPath-Only Server Simulation
 //!
 //! Demonstrates serving files using only `VirtualPath` for I/O.
-//! - All user input is validated via `VirtualRoot::virtual_join(..)`.
+//! - All user input is validated via `VirtualPath::virtual_join(..)`.
 //! - Serving functions accept `&VirtualPath<_>` so the compiler enforces correct usage.
 
-use strict_path::{VirtualPath, VirtualRoot};
 use std::fs;
+use strict_path::{VirtualPath, VirtualRoot};
 
 #[derive(Clone)]
 struct Assets;
@@ -49,4 +49,3 @@ fn serve_asset(p: &VirtualPath<Assets>) -> std::io::Result<String> {
     }
     p.read_to_string()
 }
-

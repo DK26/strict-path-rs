@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Rename/Move Operations**: Safe file and directory renaming within boundaries
+  - `StrictPath::strict_rename(dest)` - Renames within the same `PathBoundary`
+  - `VirtualPath::virtual_rename(dest)` - Renames within virtual space with clamping
+  - Relative destinations resolve as siblings; absolute destinations validated against boundaries
+  - Comprehensive test suite with 225+ lines covering edge cases, escapes, and cross-platform behavior
+- API sugar constructors:
+  - `StrictPath::with_boundary(..)` and `StrictPath::with_boundary_create(..)`
+  - `VirtualPath::with_root(..)` and `VirtualPath::with_root_create(..)`
+
+### Changed
+- **Internal Refactoring**: Renamed `restriction` field to `boundary` throughout codebase for consistency
+  - Affects `StrictPath` and `VirtualPath` internal structure and debug output
+  - Public API unchanged; purely internal consistency improvement
+
+### Documentation
+- Crate-level Quick start now leads with the new sugar constructors
+- Updated all examples to use sugar constructors (`with_boundary`/`with_root`) over policy types for simple flows
+- Added comprehensive rename operation examples in lib.rs documentation
+- Doctests updated to use temporary directories for reliable CI execution
+
 ## [0.1.0-alpha.3] - 2025-09-15
 
 ### Changed

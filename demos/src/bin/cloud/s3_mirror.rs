@@ -12,10 +12,10 @@ fn main() {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use aws_config::BehaviorVersion;
-    use aws_sdk_s3::types::ByteStream;
+    use aws_sdk_s3::primitives::ByteStream;
     use aws_sdk_s3::Client;
-    use strict_path::{PathBoundary, VirtualPath, VirtualRoot};
     use std::fs;
+    use strict_path::{PathBoundary, VirtualPath, VirtualRoot};
     use walkdir::WalkDir;
 
     #[derive(Clone)]
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let source_file = mirror_src.strict_join(relative_path)?;
         if source_file.is_file() {
             let object_vpath: VirtualPath<Src> = mirror_src_vroot.virtual_join(relative_path)?;
-            let key_part_owned = object_vpath.virtualpath_display().into_owned();
+            let key_part_owned = format!("{}", object_vpath.virtualpath_display());
             let key_part = key_part_owned.trim_start_matches('/');
             let key = if prefix.is_empty() {
                 key_part.to_string()
@@ -61,7 +61,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             if let Some(ref s3c) = s3 {
                 let body = ByteStream::from_path(source_file.interop_path()).await?;
-                s3c.put_object().bucket(&bucket).key(&key).body(body).send().await?;
+                s3c.put_object()
+                    .bucket(&bucket)
+                    .key(&key)
+                    .body(body)
+                    .send()
+                    .await?;
                 println!("Uploaded s3://{}/{}", bucket, key);
             } else {
                 let src_disp = source_file.strictpath_display();
@@ -73,6 +78,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_dir_all("mirror_src").ok();
     Ok(())
 }
-
-
-

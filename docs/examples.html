@@ -691,14 +691,14 @@ fn example_type_safety() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt
     let cfg: StrictPath&lt;ConfigData&gt; = config_boundary.strict_join("app.toml")?;
 
     // Type system prevents context mixing
-    serve_asset(&amp;css.unvirtual())?;         // ✅ Correct context
-    process_upload(&amp;doc.unvirtual())?;      // ✅ Correct context  
+    serve_asset(css.as_unvirtual())?;         // Correct context
+    process_upload(doc.as_unvirtual())?;      // Correct context  
     load_config(&amp;cfg)?;                     // ✅ Correct context
 
     // These would be compile errors:
-    // serve_asset(&amp;doc.unvirtual())?;      // ❌ Compile error - wrong context!
-    // process_upload(&amp;css.unvirtual())?;   // ❌ Compile error - wrong context!
-    // load_config(&amp;css.unvirtual())?;      // ❌ Compile error - wrong context!
+    // serve_asset(doc.as_unvirtual())?;      // Compile error - wrong context!
+    // process_upload(css.as_unvirtual())?;   // Compile error - wrong context!
+    // load_config(css.as_unvirtual())?;      // Compile error - wrong context!
 
     Ok(())
 }

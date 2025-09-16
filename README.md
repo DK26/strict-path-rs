@@ -11,6 +11,20 @@
 
 **Prevent directory traversal with type-safe path restriction and safe symlinks.**
 
+Quick start
+
+```rust
+use strict_path::{StrictPath, VirtualPath};
+
+// Strict system path rooted at ./data
+let sp = StrictPath::with_boundary("./data")?
+    .strict_join("users/alice.txt")?;
+
+// Virtual view rooted at ./public (displays as "/...")
+let vp = VirtualPath::with_root("./public")?
+    .virtual_join("assets/logo.png")?;
+```
+
 > *The Type-State Police have set up PathBoundary checkpoints*  
 > *keeping your unruly paths in line, because your LLM is running wild*
 
@@ -21,7 +35,7 @@
 std::fs::write(user_input, data)?;  // user_input = "../../../etc/passwd"
 
 // ✅ This single line makes it mathematically impossible  
-PathBoundary::try_new("uploads")?.strict_join(user_input)?.write_bytes(data)?;
+StrictPath::with_boundary("uploads")?.strict_join(user_input)?.write_bytes(data)?;
 ```
 
 **The Reality**: Every web server, LLM agent, and file processor faces the same vulnerability. One unvalidated path from user input, config files, or AI responses can grant attackers full filesystem access.
@@ -53,17 +67,18 @@ PathBoundary::try_new("uploads")?.strict_join(user_input)?.write_bytes(data)?;
 
 ```toml
 [dependencies]
-strict-path = "0.1.0-alpha.2"
+strict-path = "0.1.0-alpha.3"
 ```
 
 ```rust
-use strict_path::PathBoundary;
+use strict_path::StrictPath;
 
 // 1. Create a boundary (your security perimeter)
-let uploads = PathBoundary::try_new_create("uploads")?;
+//    Use sugar for simple flows; switch to PathBoundary when you need reusable policy
+let safe_root = StrictPath::with_boundary("uploads")?;
 
-// 2. ANY external input becomes safe 
-let safe_path = uploads.strict_join(dangerous_user_input)?;  // Attack = Error
+// 2. ANY external input becomes safe
+let safe_path = safe_root.strict_join(dangerous_user_input)?;  // Attack = Error
 
 // 3. Use normal file operations - guaranteed secure
 safe_path.write_bytes(file_data)?;
@@ -116,18 +131,18 @@ Any path from untrusted sources (HTTP, CLI, config, DB, LLMs, archives) must be 
 *"Give users their own private universe"*
 
 ```rust
-use strict_path::VirtualRoot;
+use strict_path::VirtualPath;
 
 // Archive extraction - hostile names get clamped, not rejected
-let extract_dir = VirtualRoot::try_new("./extracted")?;
+let extract_root = VirtualPath::with_root("./extracted")?;
 for entry_name in malicious_zip_entries {
-    let safe_path = extract_dir.virtual_join(entry_name)?; // "../../../etc" → "/etc"  
+    let safe_path = extract_root.virtual_join(entry_name)?; // "../../../etc" → "/etc"  
     safe_path.write_bytes(entry.data())?; // Always safe
 }
 
 // User cloud storage - users see friendly paths
-let user_space = VirtualRoot::try_new(format!("users/{user_id}"))?;
-let doc = user_space.virtual_join("My Documents/report.pdf")?;
+let doc = VirtualPath::with_root(format!("users/{user_id}"))?
+    .virtual_join("My Documents/report.pdf")?;
 println!("Saved to: {}", doc.virtualpath_display()); // Shows "/My Documents/report.pdf"
 ```
 
@@ -196,10 +211,11 @@ async fn llm_file_operation(workspace: &PathBoundary, request: &LlmRequest) -> R
 
 ### Zip Extraction (Zip Slip Prevention)
 ```rust
-use strict_path::VirtualRoot;
+use strict_path::VirtualPath;
 
-// Encode guarantees in signature: pass the extract root and untrusted entry names
-fn extract_zip(zip_entries: impl IntoIterator<Item=(String, Vec<u8>)>, extract_root: &VirtualRoot) -> std::io::Result<()> {
+// Encode guarantees in signature: construct a root once; pass untrusted entry names
+fn extract_zip(zip_entries: impl IntoIterator<Item=(String, Vec<u8>)>) -> std::io::Result<()> {
+    let extract_root = VirtualPath::with_root("./extracted")?;
     for (name, data) in zip_entries {
         // Hostile names like "../../../etc/passwd" get clamped to "/etc/passwd"
         let vpath = extract_root.virtual_join(&name)?;
@@ -259,7 +275,7 @@ fn load_user_config(config_dir: &PathBoundary<UserConfigs>, config_name: &str) -
 
 | Source                      | Typical Input                  | Use VirtualPath For                       | Use StrictPath For        | Notes                                                   |
 | --------------------------- | ------------------------------ | ----------------------------------------- | ------------------------- | ------------------------------------------------------- |
-| 🌐 **HTTP requests**         | URL path segments, file names  | Display/logging, safe virtual joins       | System-facing interop/I/O | Always clamp user paths via `VirtualRoot::virtual_join` |
+| 🌐 **HTTP requests**         | URL path segments, file names  | Display/logging, safe virtual joins       | System-facing interop/I/O | Always clamp user paths via `VirtualPath::virtual_join` |
 | 🌍 **Web forms**             | Form file fields, route params | User-facing display, UI navigation        | System-facing interop/I/O | Treat all form inputs as untrusted                      |
 | ⚙️ **Configuration files**   | Paths in config                | UI display and I/O within boundary        | System-facing interop/I/O | Validate each path before I/O                           |
 | 💾 **Database content**      | Stored file paths              | Rendering paths in UI dashboards          | System-facing interop/I/O | Storage does not imply safety; validate on use          |
@@ -280,19 +296,17 @@ Note: This is not “StrictPath vs VirtualPath.” `VirtualPath` conceptually ex
 **Unified Signatures (When Appropriate)**: Prefer marker-specific `&StrictPath<Marker>` for stronger guarantees. Use a generic `&StrictPath<_>` only when the function is intentionally shared across contexts; call with `vpath.as_unvirtual()` when starting from a `VirtualPath`.
 
 ```rust
-use strict_path::{PathBoundary, VirtualRoot};
+use strict_path::{StrictPath, VirtualPath};
 
 fn process_file<M>(path: &strict_path::StrictPath<M>) -> std::io::Result<Vec<u8>> {
-  path.read_bytes()
+    path.read_bytes()
 }
 
 // Call with either type
-let boundary = PathBoundary::try_new("directory")?;
-let spath = boundary.strict_join("file.txt")?;
+let spath: StrictPath = StrictPath::with_boundary("directory")?.strict_join("file.txt")?;
 process_file(&spath)?;
 
-let vroot = VirtualRoot::try_new("directory")?;
-let vpath = vroot.virtual_join("file.txt")?;
+let vpath: VirtualPath = VirtualPath::with_root("directory")?.virtual_join("file.txt")?;
 process_file(vpath.as_unvirtual())?;
 ```
 
@@ -318,8 +332,8 @@ let css: VirtualPath<WebAssets> = assets_root.virtual_join("app.css")?;
 let doc: VirtualPath<UserFiles> = uploads_root.virtual_join("report.pdf")?;
 
 // Type system prevents context mixing
-serve_asset(&css.unvirtual());         // ✅ Correct context
-// serve_asset(&doc.unvirtual());      // ❌ Compile error!
+serve_asset(css.as_unvirtual());         // Correct context
+// serve_asset(doc.as_unvirtual());      // Compile error!
 ```
 
 **Your IDE and compiler become security guards.**
@@ -353,10 +367,11 @@ println!("Path: {}", boundary.interop_path().to_string_lossy());
 // ✅ CORRECT: Use proper display methods
 println!("Path: {}", boundary.strictpath_display());
 
-// For VirtualRoot, access the underlying StrictPath:
-use strict_path::VirtualRoot;
-let vroot = VirtualRoot::try_new("uploads")?;
-println!("Path: {}", vroot.as_unvirtual().strictpath_display());
+// For virtual flows, prefer `VirtualPath` and borrow strict view when needed:
+use strict_path::VirtualPath;
+let vpath = VirtualPath::with_root("uploads")?.virtual_join("file.txt")?;
+println!("Virtual: {}", vpath.virtualpath_display());
+println!("System: {}", vpath.as_unvirtual().strictpath_display());
 ```
 
 **Why this matters:**
@@ -381,7 +396,7 @@ serve_static_file(&safe_path).await?;
 
 ### Archive Extraction (Zip Slip Prevention)
 ```rust
-let extract_root = VirtualRoot::try_new("./extracted")?;
+let extract_root = VirtualPath::with_root("./extracted")?;
 for (name, data) in zip_entries {
     let vpath = extract_root.virtual_join(&name)?;  // Neutralizes zip slip (clamps hostile)
     vpath.create_parent_dir_all()?;
@@ -393,8 +408,8 @@ for (name, data) in zip_entries {
 
 ```rust
 // User chooses any path - always safe
-let user_storage = VirtualRoot::try_new(format!("/cloud/user_{id}"))?;
-let file_path = user_storage.virtual_join(&user_requested_path)?;
+let file_path = VirtualPath::with_root(format!("/cloud/user_{id}"))?
+    .virtual_join(&user_requested_path)?;
 file_path.write_bytes(upload_data)?;
 ```
 
@@ -441,12 +456,10 @@ safe_ai_path.write_string(&ai_generated_content)?;
 
 ```rust
 // StrictPath - validate and reject
-let boundary = PathBoundary::try_new("uploads")?;
-let path = boundary.strict_join("file.txt")?; // Error if unsafe
+let path = StrictPath::with_boundary("uploads")?.strict_join("file.txt")?; // Error if unsafe
 
 // VirtualPath - clamp any input safely  
-let vroot = VirtualRoot::try_new("userspace")?;
-let vpath = vroot.virtual_join("any/path/here")?; // Always works
+let vpath = VirtualPath::with_root("userspace")?.virtual_join("any/path/here")?; // Always works
 
 // Both support the same I/O operations
 path.write_bytes(data)?;

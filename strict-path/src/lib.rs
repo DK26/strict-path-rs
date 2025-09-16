@@ -4,6 +4,27 @@
 //!
 //! 📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Reference](https://docs.rs/strict-path)**
 //!
+//! ## Quick start: one‑liners
+//!
+//! Most apps can start with these constructors and chain joins:
+//!
+//! ```rust
+//! # use strict_path::{StrictPath, VirtualPath};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Use temporary directories in doctests so paths exist
+//! let d1 = tempfile::tempdir()?;
+//! let sp: StrictPath = StrictPath::with_boundary(d1.path())?    // validated strict root
+//!     .strict_join("users/alice.txt")?;                        // stays inside root
+//!
+//! let d2 = tempfile::tempdir()?;
+//! let vp: VirtualPath = VirtualPath::with_root(d2.path())?      // virtual root "/"
+//!     .virtual_join("assets/logo.png")?;                       // clamped to root
+//! # Ok(()) }
+//! ```
+//!
+//! For reusable policy and advanced flows (OS dirs, serde with context),
+//! use `PathBoundary`/`VirtualRoot` directly.
+//!
 //! ## Core Security Foundation: `StrictPath`
 //!
 //! **`StrictPath` is the fundamental security primitive** that provides our core guarantee: every
@@ -98,14 +119,14 @@
 //! ### Example: Isolation vs Shared System Space
 //!
 //! ```rust
-//! use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+//! use strict_path::{StrictPath, VirtualPath};
 //! use std::fs;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // ISOLATION: User upload directory - users see clean "/" paths
 //! fs::create_dir_all("uploads/user_42")?;
-//! let user_space: VirtualRoot = VirtualRoot::try_new("uploads/user_42")?;
-//! let user_file: VirtualPath = user_space.virtual_join("documents/report.pdf")?;
+//! let user_file: VirtualPath =
+//!     VirtualPath::with_root("uploads/user_42")?.virtual_join("documents/report.pdf")?;
 //!
 //! // User sees: "/documents/report.pdf" (clean, isolated)
 //! println!("User sees: {}", user_file.virtualpath_display());
@@ -114,8 +135,8 @@
 //!
 //! // SHARED SYSTEM: Application cache - you see real system paths
 //! fs::create_dir_all("app_cache")?;
-//! let cache_boundary: PathBoundary = PathBoundary::try_new("app_cache")?;
-//! let cache_file: StrictPath = cache_boundary.strict_join("build/output.json")?;
+//! let cache_file: StrictPath =
+//!     StrictPath::with_boundary("app_cache")?.strict_join("build/output.json")?;
 //!
 //! // Developer sees: "app_cache/build/output.json" (real system path)  
 //! println!("System path: {}", cache_file.strictpath_display());
@@ -145,7 +166,7 @@
 //!
 //!
 //! ```rust
-//! use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+//! use strict_path::{StrictPath, VirtualPath};
 //!
 //! // Write ONE function that works with both types
 //! fn process_file(path: &StrictPath) -> std::io::Result<String> {
@@ -153,10 +174,8 @@
 //! }
 //!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let restriction = PathBoundary::try_new_create("./data")?;
-//! let jpath = restriction.strict_join("config.toml")?;
-//! let vroot = VirtualRoot::try_new("./data")?;
-//! let vpath = vroot.virtual_join("config.toml")?;
+//! let jpath: StrictPath = StrictPath::with_boundary("./data")?.strict_join("config.toml")?;
+//! let vpath: VirtualPath = VirtualPath::with_root("./data")?.virtual_join("config.toml")?;
 //!
 //! let _ = process_file(&jpath)?;               // StrictPath
 //! process_file(vpath.as_unvirtual())?; // VirtualPath -> borrow strict view explicitly
@@ -164,7 +183,6 @@
 //! ```
 //!
 //! This keeps conversions explicit by dimension and aligns with the crate's security model.
-//! automatically, giving you the best of both worlds: type safety and API simplicity.
 //!
 //! The core security guarantee is that all paths are mathematically proven to stay within their
 //! designated boundaries, neutralizing traversal attacks like `../../../etc/passwd`.
@@ -179,8 +197,10 @@
 //! With `VirtualPath`, users are free to specify any path they like while you still guarantee it
 //! cannot leak outside the underlying restriction.
 //!
-//! Construct them with `PathBoundary::try_new(_create)` and `VirtualRoot::try_new(_create)`. Ingest
-//! untrusted paths as `VirtualPath` for UI/UX and safe joins; perform I/O from either type.
+//! Construct them via the sugar constructors (`StrictPath::with_boundary(_create)`,
+//! `VirtualPath::with_root(_create)`) for most flows. Use `PathBoundary`/`VirtualRoot` directly when
+//! you need to reuse policy across many paths or pass the policy as a parameter. Ingest untrusted
+//! paths as `VirtualPath` for UI/UX and safe joins; perform I/O from either type.
 //!
 //! ## Security Foundation
 //!
@@ -194,7 +214,8 @@
 //! against known attack patterns from real-world vulnerabilities.
 //!
 //! Guidance
-//! - Accept untrusted input via `VirtualRoot::virtual_join(..)` to obtain a `VirtualPath`.
+//! - Accept untrusted input via `VirtualPath::with_root(..).virtual_join(..)` (or keep a `VirtualRoot`
+//!   and call `virtual_join(..)`) to obtain a `VirtualPath`.
 //! - Perform I/O directly on `VirtualPath` or on `StrictPath`. Unvirtualize only when you need a
 //!   `StrictPath` explicitly (e.g., for a signature that requires it or for system-facing logs).
 //! - For `AsRef<Path>` interop, pass `interop_path()` from either type (no allocation).
@@ -209,11 +230,9 @@
 //! Markers and type inference
 //! - All public types are generic over a `Marker` with a default of `()`.
 //! - Inference usually works once a value is bound:
-//!   - `let vroot: VirtualRoot = VirtualRoot::try_new("root")?;`
-//!   - `let vp = vroot.virtual_join("a.txt")?; // inferred as VirtualPath<()>`
+//!   - `let vp: VirtualPath = VirtualPath::with_root("root")?.virtual_join("a.txt")?;`
 //! - When inference needs help, annotate the type or use an empty turbofish:
-//!   - `let vroot: VirtualRoot<()> = VirtualRoot::try_new("root")?;`
-//!   - `let vroot: VirtualRoot = VirtualRoot::try_new("root")?;`
+//!   - Or use explicit `VirtualRoot` when you want to reuse policy across paths: `let vroot: VirtualRoot<()> = VirtualRoot::try_new("root")?;`
 //! - With custom markers, annotate as needed:
 //!   - `struct UserFiles; let vroot: VirtualRoot<UserFiles> = VirtualRoot::try_new("uploads")?;`
 //!   - `let uploads = VirtualRoot::try_new::<UserFiles>("uploads")?;`
@@ -221,16 +240,16 @@
 //! ### Examples: Encode Guarantees in Signatures
 //!
 //! ```rust
-//! # use strict_path::{VirtualRoot, VirtualPath};
+//! # use strict_path::VirtualPath;
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Cloud storage per-user PathBoundary
 //! let user_id = 42u32;
 //! let root = format!("./cloud_user_{user_id}");
-//! let vroot: VirtualRoot = VirtualRoot::try_new_create(&root)?;
+//! let vp_root: VirtualPath = VirtualPath::with_root_create(&root)?;
 //!
 //! // Accept untrusted input, then pass VirtualPath by reference to functions
 //! let requested = "projects/2025/report.pdf";
-//! let vp: VirtualPath = vroot.virtual_join(requested)?;  // Stays inside ./cloud_user_42
+//! let vp: VirtualPath = vp_root.virtual_join(requested)?;  // Stays inside ./cloud_user_42
 //! // Ensure parent directory exists before writing
 //! vp.create_parent_dir_all()?;
 //!
@@ -244,12 +263,12 @@
 //! ```
 //!
 //! ```rust
-//! # use strict_path::{VirtualRoot, VirtualPath};
+//! # use strict_path::VirtualPath;
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Web/E-mail templates resolved in a user-scoped virtual root
 //! # let user_id = 7u32;
 //! let tpl_root = format!("./tpl_space_{user_id}");
-//! let templates: VirtualRoot = VirtualRoot::try_new_create(&tpl_root)?;
+//! let templates: VirtualPath = VirtualPath::with_root_create(&tpl_root)?;
 //! let tpl: VirtualPath = templates.virtual_join("emails/welcome.html")?;
 //! fn render(p: &VirtualPath) -> std::io::Result<String> { p.read_to_string() }
 //! let _ = render(&tpl);
@@ -261,17 +280,17 @@
 //! ## Quickstart: User-Facing Virtual Paths (with signatures)
 //!
 //! ```rust
-//! use strict_path::{VirtualRoot, VirtualPath};
+//! use strict_path::VirtualPath;
 //! use std::fs;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // 1. Create a virtual root, which corresponds to a real directory.
+//! // 1. Create a virtual root (sugar), which corresponds to a real directory.
 //! fs::create_dir_all("user_data")?;
-//! let vroot: VirtualRoot = VirtualRoot::try_new("user_data")?;
+//! let root = VirtualPath::with_root("user_data")?;
 //!
 //! // 2. Create a virtual path from user input. Traversal attacks are neutralized.
-//! let virtual_path: VirtualPath = vroot.virtual_join("documents/report.pdf")?;
-//! let attack_path: VirtualPath = vroot.virtual_join("../../../etc/hosts")?;
+//! let virtual_path: VirtualPath = root.virtual_join("documents/report.pdf")?;
+//! let attack_path: VirtualPath = root.virtual_join("../../../etc/hosts")?;
 //!
 //! // 3. Displaying the path is always safe and shows the virtual view.
 //! assert_eq!(virtual_path.virtualpath_display().to_string(), "/documents/report.pdf");
@@ -298,8 +317,9 @@
 //! - Cross-Platform: Works on Windows, macOS, and Linux.
 //!
 //! Display/Debug semantics
-//! - `Display` for `VirtualPath` shows a rooted virtual path (e.g., "/a/b.txt") for user-facing output.
-//! - `Debug` for `VirtualPath` is developer-facing and verbose (derived): it includes the inner
+//! - No implicit `Display` on `VirtualPath`. Use the explicit wrapper: `vpath.virtualpath_display()`
+//!   to show a rooted, forward‑slashed virtual path (e.g., "/a/b.txt").
+//! - `Debug` for `VirtualPath` is developer‑facing and verbose (derived): it includes the inner
 //!   `StrictPath` (system path and PathBoundary root) and the virtual view for diagnostics.
 //!
 //! ### Example: Display vs Debug
@@ -309,8 +329,8 @@
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # fs::create_dir_all("vp_demo")?;
-//! let vroot: VirtualRoot = VirtualRoot::try_new("vp_demo")?;
-//! let vp: VirtualPath = vroot.virtual_join("users/alice/report.txt")?;
+//! let vp: VirtualPath =
+//!     VirtualPath::with_root("vp_demo")?.virtual_join("users/alice/report.txt")?;
 //!
 //! // Display is user-facing, rooted, forward-slashed
 //! assert_eq!(vp.virtualpath_display().to_string(), "/users/alice/report.txt");
@@ -339,7 +359,7 @@
 //! Use marker types to prevent paths from different restrictions from being used interchangeably.
 //!
 //! ```rust
-//! use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+//! use strict_path::{PathBoundary, StrictPath, VirtualPath};
 //! use std::fs;
 //!
 //! struct StaticAssets;
@@ -352,11 +372,10 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # fs::create_dir_all("assets")?; fs::create_dir_all("uploads")?;
 //! # fs::write("assets/style.css", "body{}")?;
-//! let assets_vroot: VirtualRoot<StaticAssets> = VirtualRoot::try_new("assets")?;
-//! let uploads_vroot: VirtualRoot<UserUploads> = VirtualRoot::try_new("uploads")?;
-//!
-//! let css_file: VirtualPath<StaticAssets> = assets_vroot.virtual_join("style.css")?;
-//! let user_file: VirtualPath<UserUploads> = uploads_vroot.virtual_join("avatar.jpg")?;
+//! let css_file: VirtualPath<StaticAssets> =
+//!     VirtualPath::with_root("assets")?.virtual_join("style.css")?;
+//! let user_file: VirtualPath<UserUploads> =
+//!     VirtualPath::with_root("uploads")?.virtual_join("avatar.jpg")?;
 //!
 //! serve_asset(css_file.as_unvirtual())?; // ✅ Correct type
 //! // serve_asset(user_file.as_unvirtual())?; // ❌ Compile error: wrong marker type!
@@ -433,6 +452,29 @@
 //! - This naming applies broadly: `*_parent`, `*_with_file_name`, `*_with_extension`,
 //!   `*_starts_with`, `*_ends_with`, etc.
 //! - This makes API abuse easy to spot even when type declarations aren't visible.
+//!
+//! Safe rename/move
+//! ```rust
+//! # use strict_path::PathBoundary;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Strict (system-facing): validate destination via strict_join, then rename
+//! let td = tempfile::tempdir()?;
+//! let boundary: PathBoundary = PathBoundary::try_new_create(td.path())?;
+//! let file = boundary.strict_join("logs/app.log")?;
+//! file.create_parent_dir_all()?;
+//! file.write_string("ok")?;
+//!
+//! // Rename within the same directory (no implicit parent creation)
+//! // Relative destinations are resolved against the parent (sibling rename)
+//! let renamed = file.strict_rename("app.old")?;
+//! assert_eq!(renamed.read_to_string()?, "ok");
+//!
+//! // Virtual (user-facing): clamp + validate destination before rename
+//! let v = renamed.clone().virtualize();
+//! let v2 = v.virtual_rename("app.archived")?;
+//! assert!(v2.exists());
+//! # Ok(()) }
+//! ```
 //!
 //! Why `&OsStr` works well:
 //! - `OsStr`/`OsString` are OS-native string types; you don't lose platform-specific data.

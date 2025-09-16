@@ -29,6 +29,21 @@ fn clamp<Marker, H>(
 }
 
 impl<Marker> VirtualPath<Marker> {
+    /// Create the virtual root (`"/"`) for the given filesystem root.
+    ///
+    /// Sugar for `VirtualRoot::try_new(root)?.virtual_join("")`.
+    pub fn with_root<P: AsRef<Path>>(root: P) -> Result<Self> {
+        let vroot = crate::validator::virtual_root::VirtualRoot::try_new(root)?;
+        vroot.virtual_join("")
+    }
+
+    /// Create the virtual root (`"/"`), creating the filesystem root if missing.
+    ///
+    /// Sugar for `VirtualRoot::try_new_create(root)?.virtual_join("")`.
+    pub fn with_root_create<P: AsRef<Path>>(root: P) -> Result<Self> {
+        let vroot = crate::validator::virtual_root::VirtualRoot::try_new_create(root)?;
+        vroot.virtual_join("")
+    }
     #[inline]
     pub(crate) fn new(restricted_path: StrictPath<Marker>) -> Self {
         fn compute_virtual<Marker>(
@@ -122,7 +137,7 @@ impl<Marker> VirtualPath<Marker> {
             vb
         }
 
-        let virtual_path = compute_virtual(restricted_path.path(), restricted_path.restriction());
+        let virtual_path = compute_virtual(restricted_path.path(), restricted_path.boundary());
 
         Self {
             inner: restricted_path,
@@ -156,9 +171,9 @@ impl<Marker> VirtualPath<Marker> {
         // Compose candidate in virtual space (do not pre-normalize lexically to preserve symlink semantics)
         let candidate = self.virtual_path.join(path.as_ref());
         let anchored = crate::validator::path_history::PathHistory::new(candidate)
-            .canonicalize_anchored(self.inner.restriction())?;
-        let restricted_path = clamp(self.inner.restriction(), anchored)?;
-        Ok(VirtualPath::new(restricted_path))
+            .canonicalize_anchored(self.inner.boundary())?;
+        let boundary_path = clamp(self.inner.boundary(), anchored)?;
+        Ok(VirtualPath::new(boundary_path))
     }
 
     // No local clamping helpers; virtual flows should route through
@@ -171,8 +186,8 @@ impl<Marker> VirtualPath<Marker> {
                 let anchored = crate::validator::path_history::PathHistory::new(
                     parent_virtual_path.to_path_buf(),
                 )
-                .canonicalize_anchored(self.inner.restriction())?;
-                let restricted_path = clamp(self.inner.restriction(), anchored)?;
+                .canonicalize_anchored(self.inner.boundary())?;
+                let restricted_path = clamp(self.inner.boundary(), anchored)?;
                 Ok(Some(VirtualPath::new(restricted_path)))
             }
             None => Ok(None),
@@ -184,8 +199,8 @@ impl<Marker> VirtualPath<Marker> {
     pub fn virtualpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
         let candidate = self.virtual_path.with_file_name(file_name);
         let anchored = crate::validator::path_history::PathHistory::new(candidate)
-            .canonicalize_anchored(self.inner.restriction())?;
-        let restricted_path = clamp(self.inner.restriction(), anchored)?;
+            .canonicalize_anchored(self.inner.boundary())?;
+        let restricted_path = clamp(self.inner.boundary(), anchored)?;
         Ok(VirtualPath::new(restricted_path))
     }
 
@@ -194,14 +209,14 @@ impl<Marker> VirtualPath<Marker> {
         if self.virtual_path.file_name().is_none() {
             return Err(StrictPathError::path_escapes_boundary(
                 self.virtual_path.clone(),
-                self.inner.restriction().path().to_path_buf(),
+                self.inner.boundary().path().to_path_buf(),
             ));
         }
 
         let candidate = self.virtual_path.with_extension(extension);
         let anchored = crate::validator::path_history::PathHistory::new(candidate)
-            .canonicalize_anchored(self.inner.restriction())?;
-        let restricted_path = clamp(self.inner.restriction(), anchored)?;
+            .canonicalize_anchored(self.inner.boundary())?;
+        let restricted_path = clamp(self.inner.boundary(), anchored)?;
         Ok(VirtualPath::new(restricted_path))
     }
 
@@ -347,6 +362,42 @@ impl<Marker> VirtualPath<Marker> {
     pub fn remove_dir_all(&self) -> std::io::Result<()> {
         self.inner.remove_dir_all()
     }
+
+    /// Renames or moves this virtual path to a new location within the same virtual root.
+    ///
+    /// Destination paths are resolved in virtual space:
+    /// - Relative inputs are interpreted as siblings (resolved against the virtual parent).
+    /// - Absolute virtual inputs are treated as requests from the virtual root.
+    ///
+    /// Clamping and boundary checks are enforced by virtual joins. No parent directories are
+    /// created implicitly; call `create_parent_dir_all()` beforehand if needed.
+    pub fn virtual_rename<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<Self> {
+        let dest_ref = dest.as_ref();
+        let dest_v = if dest_ref.is_absolute() {
+            match self.virtual_join(dest_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        } else {
+            // Resolve as sibling under the current virtual parent (or root if at "/")
+            let parent = match self.virtualpath_parent() {
+                Ok(Some(p)) => p,
+                Ok(None) => match self.virtual_join("") {
+                    Ok(root) => root,
+                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                },
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            };
+            match parent.virtual_join(dest_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        };
+
+        // Perform the actual rename via StrictPath
+        let moved_strict = self.inner.strict_rename(dest_v.inner.path())?;
+        Ok(moved_strict.virtualize())
+    }
 }
 
 pub struct VirtualPathDisplay<'a, Marker>(&'a VirtualPath<Marker>);
@@ -378,7 +429,7 @@ impl<Marker> fmt::Debug for VirtualPath<Marker> {
         f.debug_struct("VirtualPath")
             .field("system_path", &self.inner.path())
             .field("virtual", &format!("{}", self.virtualpath_display()))
-            .field("restriction", &self.inner.restriction().path())
+            .field("boundary", &self.inner.boundary().path())
             .field("marker", &std::any::type_name::<Marker>())
             .finish()
     }

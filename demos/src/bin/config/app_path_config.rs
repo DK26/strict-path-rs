@@ -10,8 +10,8 @@ fn main() {
 
 #[cfg(feature = "with-app-path")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use strict_path::{PathBoundary, StrictPath};
     use std::fs;
+    use strict_path::{PathBoundary, StrictPath};
 
     #[derive(Clone)]
     struct AppCfg;
@@ -31,7 +31,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Wrote config to {disp}");
 
     // Read it back via a function that encodes guarantees in the signature
-    fn read_cfg(p: &StrictPath<AppCfg>) -> std::io::Result<String> { p.read_to_string() }
+    fn read_cfg(p: &StrictPath<AppCfg>) -> std::io::Result<String> {
+        p.read_to_string()
+    }
     let content = read_cfg(&path)?;
     println!("Config loaded ({} bytes)", content.len());
 
@@ -39,6 +41,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_file(path.interop_path()).ok();
     Ok(())
 }
-
-
-

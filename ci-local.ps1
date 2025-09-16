@@ -85,6 +85,34 @@ function Run-Check {
     }
 }
 
+# Execute a scriptblock as a CI check (avoids quoting/interpolation pitfalls)
+function Run-Check-Block {
+    param(
+        [string]$Name,
+        [scriptblock]$Block
+    )
+
+    Write-Host "Running: $Name" -ForegroundColor Blue
+    $startTime = Get-Date
+    try {
+        & $Block
+        if ($LASTEXITCODE -ne 0) {
+            throw "Block failed with exit code $LASTEXITCODE"
+        }
+        $endTime = Get-Date
+        $duration = ($endTime - $startTime).TotalSeconds
+        Write-Host "SUCCESS: $Name completed in $([math]::Round($duration))s" -ForegroundColor Green
+        Write-Host ""
+        return
+    } catch {
+        $endTime = Get-Date
+        $duration = ($endTime - $startTime).TotalSeconds
+        Write-Host "FAILED: $Name failed after $([math]::Round($duration))s" -ForegroundColor Red
+        Write-Host "ERROR: CI checks failed. Fix issues before pushing." -ForegroundColor Red
+        exit 1
+    }
+}
+
 function Run-Fix {
     param(
         [string]$Name,
@@ -246,19 +274,82 @@ Write-Host ""
 # Auto-fix common issues first
 Write-Host "Auto-fixing common issues..." -ForegroundColor Cyan
 Run-Fix "Format" "cargo fmt --all"
+Run-Fix "Format demos" "Push-Location demos; cargo fmt --all; Pop-Location"
 Run-Fix "Clippy Fixable Issues" "cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
+Run-Fix "Format (after clippy fix)" "cargo fmt --all"
+Run-Fix "Format demos (after clippy fix)" "Push-Location demos; cargo fmt --all; Pop-Location"
 Write-Host "Now running CI checks (same as GitHub Actions)..." -ForegroundColor Cyan
 Write-Host ""
 
 # Run all CI checks in order
-Run-Check "Format Check" "cargo fmt --all -- --check"
+Run-Check-Block "Format Check" {
+    cargo fmt --all -- --check
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Formatting check failed. Run 'cargo fmt --all' to fix." -ForegroundColor Red
+        Write-Host "Here's what would be changed:" -ForegroundColor Gray
+        cargo fmt --all -- --check --verbose | Out-String | Write-Host
+        exit 1
+    }
+}
+
+Run-Check-Block "Format Check (demos)" {
+    Push-Location demos
+    try {
+        cargo fmt --all -- --check
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Demos formatting check failed. Run 'cd demos; cargo fmt --all' to fix." -ForegroundColor Red
+            Write-Host "Here's what would be changed:" -ForegroundColor Gray
+            cargo fmt --all -- --check --verbose | Out-String | Write-Host
+            exit 1
+        }
+    } finally {
+        Pop-Location
+    }
+}
 # Lint and tests on the latest installed Rust toolchain
 Run-Check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warnings"
-# Explicitly build all demo binaries (demos are not workspace members)
-Run-Check "Build Demos (bins)" "Push-Location demos; cargo build --bins --features with-zip; Pop-Location"
-Run-Check "Clippy Demos (all targets)" "Push-Location demos; cargo clippy --all-targets --features with-zip -- -D warnings; Pop-Location"
+# Build library examples to ensure examples compile
+Run-Check "Build library examples" "cargo build -p strict-path --examples --all-features"
+
+# Lint demos across feature matrix (demos are not workspace members). We do not build/run demos in CI.
+Run-Check-Block "Clippy Demos (feature matrix)" {
+    Push-Location demos
+    try {
+        $hasCmake = [bool](Get-Command cmake -ErrorAction SilentlyContinue)
+        $hasNasm  = [bool](Get-Command nasm -ErrorAction SilentlyContinue)
+        $includeAws = $hasCmake -and $hasNasm
+        if (-not $includeAws) {
+            Write-Host "WARNING: Skipping 'with-aws' demos: cmake and/or nasm not found on PATH" -ForegroundColor Yellow
+        }
+
+        $featureSets = New-Object System.Collections.Generic.List[string]
+        $featureSets.Add('') | Out-Null
+        $featureSets.Add('with-zip') | Out-Null
+        $featureSets.Add('with-app-path') | Out-Null
+        $featureSets.Add('with-dirs') | Out-Null
+        $featureSets.Add('with-tempfile') | Out-Null
+        $featureSets.Add('with-rmcp') | Out-Null
+        if ($includeAws) { $featureSets.Add('with-aws') | Out-Null }
+        if ($includeAws) { $featureSets.Add('with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp') | Out-Null } else { $featureSets.Add('with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp') | Out-Null }
+
+        foreach ($feats in $featureSets) {
+            if ([string]::IsNullOrEmpty($feats)) {
+                Write-Host "==> Clippy demos with features: <none>"
+                cargo clippy --all-targets -- -D warnings
+                if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
+            } else {
+                Write-Host "==> Clippy demos with features: $feats"
+                cargo clippy --all-targets --features $feats -- -D warnings
+                if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
+            }
+        }
+    } finally {
+        Pop-Location
+    }
+}
 # Run workspace tests for the library only
 Run-Check "Tests (library all features)" "cargo test -p strict-path --all-features --verbose"
+
 # Doc tests are included in 'cargo test --workspace', so no separate --doc run needed
 $env:RUSTDOCFLAGS = "-D warnings"
 Run-Check "Documentation" "cargo doc --no-deps --document-private-items --all-features"

@@ -38,7 +38,9 @@ impl TempFileManager {
             "[TempManager] Created temporary PathBoundary at: {}",
             temp_dir_boundary.strictpath_display()
         );
-        Ok(Self { temp_dir: temp_dir_boundary })
+        Ok(Self {
+            temp_dir: temp_dir_boundary,
+        })
     }
 
     /// Creates a new temporary file with the given content.

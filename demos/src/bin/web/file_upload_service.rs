@@ -9,7 +9,7 @@
 // tower-http = { version = "0.5", features = ["fs"] }
 
 use axum::{
-    extract::{Path, State, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::{get, post},
@@ -53,13 +53,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         save_uploaded_file(vdest.as_unvirtual(), b"demo content").await?;
         let where_to = vdest.virtualpath_display();
         println!("Offline demo: saved {where_to}");
-        return Ok(())
+        return Ok(());
     }
 
     let app = Router::new()
         .route("/", get(upload_form))
         .route("/users/:user/upload", post(handle_upload_user))
-        .route("/users/:user/files/:filename", get(serve_uploaded_file_user))
+        .route(
+            "/users/:user/files/:filename",
+            get(serve_uploaded_file_user),
+        )
         .route("/users/:user/process/:filename", post(process_file_user))
         .with_state(state);
 
@@ -110,7 +113,10 @@ async fn handle_upload_user(
     Query(params): Query<std::collections::HashMap<String, String>>, // name?=file
     body: String, // Simplified - in real app use multipart
 ) -> impl IntoResponse {
-    let filename = params.get("name").cloned().unwrap_or_else(|| format!("{}.txt", Uuid::new_v4()));
+    let filename = params
+        .get("name")
+        .cloned()
+        .unwrap_or_else(|| format!("{}.txt", Uuid::new_v4()));
     let file_content = body.as_bytes();
 
     // Create a VirtualRoot for the user under uploads_root
@@ -121,7 +127,12 @@ async fn handle_upload_user(
     let user_vroot: VirtualRoot<UserUploads> =
         match VirtualRoot::try_new_create(user_dir.interop_path()) {
             Ok(v) => v,
-            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Init failed: {e}")),
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Init failed: {e}"),
+                )
+            }
         };
 
     let vdest = match user_vroot.virtual_join(&filename) {
@@ -201,7 +212,8 @@ async fn process_user_file(
 ) -> Result<String, Box<dyn std::error::Error>> {
     // Build a VirtualRoot for the user and validate the file path
     let user_dir = uploads_root.strict_join(user)?;
-    let user_vroot: VirtualRoot<UserUploads> = VirtualRoot::try_new_create(user_dir.interop_path())?;
+    let user_vroot: VirtualRoot<UserUploads> =
+        VirtualRoot::try_new_create(user_dir.interop_path())?;
     let vpath = user_vroot.virtual_join(filename)?;
     let content = vpath.read_to_string()?;
 
@@ -220,4 +232,3 @@ async fn process_user_file(
 
 // Helper function to demonstrate secure file operations
 // cleanup_old_files removed; it was unused in this example.
-

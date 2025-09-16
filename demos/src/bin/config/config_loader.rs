@@ -18,9 +18,9 @@
 //! It will simulate loading a valid config, a valid theme, and show a failed
 //! attempt to load a theme from the config directory.
 
-use strict_path::{PathBoundary, StrictPath};
 use std::fs;
 use std::path::Path;
+use strict_path::{PathBoundary, StrictPath};
 
 // --- Marker Types for Type-Safe Jails ---
 
@@ -87,10 +87,10 @@ fn main() {
     }
 
     // 2. Create two separate, type-safe jails.
-    let config_jail: PathBoundary<AppConfigJail> =
-        PathBoundary::try_new_create("example_config").expect("Failed to create config PathBoundary");
-    let theme_jail: PathBoundary<ThemeJail> =
-        PathBoundary::try_new_create("example_themes").expect("Failed to create theme PathBoundary");
+    let config_jail: PathBoundary<AppConfigJail> = PathBoundary::try_new_create("example_config")
+        .expect("Failed to create config PathBoundary");
+    let theme_jail: PathBoundary<ThemeJail> = PathBoundary::try_new_create("example_themes")
+        .expect("Failed to create theme PathBoundary");
 
     println!("\n--- Scenario 1: Loading valid app config ---");
     let app_config_filename = "app.conf";
@@ -143,6 +143,3 @@ fn main() {
     fs::remove_dir_all("example_config").ok();
     fs::remove_dir_all("example_themes").ok();
 }
-
-
-

@@ -45,14 +45,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if archive_src_path.is_dir() {
             // Add directory entry (optional; tar can infer)
-            let archive_entry_vpath: VirtualPath<Source> = archive_src_vroot.virtual_join(&relative_str)?;
+            let archive_entry_vpath: VirtualPath<Source> =
+                archive_src_vroot.virtual_join(&relative_str)?;
             let entry_name = archive_entry_vpath.virtualpath_display().to_string();
             builder.append_dir(entry_name, archive_src_path.interop_path())?;
             continue;
         }
 
         // Compute virtual (relative) name for the archive entry
-        let archive_entry_vpath: VirtualPath<Source> = archive_src_vroot.virtual_join(&relative_str)?;
+        let archive_entry_vpath: VirtualPath<Source> =
+            archive_src_vroot.virtual_join(&relative_str)?;
         let mut file_handle = fs::File::open(archive_src_path.interop_path())?;
         let entry_name = archive_entry_vpath.virtualpath_display().to_string();
         builder.append_file(entry_name, &mut file_handle)?;

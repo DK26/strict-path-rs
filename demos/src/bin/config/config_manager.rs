@@ -5,9 +5,9 @@
 //! application from accessing files outside of the designated config directory.
 
 use anyhow::Result;
-use strict_path::PathBoundary;
 use std::collections::HashMap;
 use std::fs;
+use strict_path::PathBoundary;
 
 /// A simple configuration manager.
 struct ConfigManager {
@@ -18,8 +18,8 @@ impl ConfigManager {
     /// Initializes the configuration manager with a config directory.
     pub fn new(config_dir: &str) -> Result<Self> {
         fs::create_dir_all(config_dir)?;
-        let config_jail =
-            PathBoundary::<()>::try_new(config_dir).map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
+        let config_jail = PathBoundary::<()>::try_new(config_dir)
+            .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
         Ok(Self { config_jail })
     }
 
@@ -59,7 +59,9 @@ fn main() -> Result<()> {
     // --- Request for non-existent config ---
     let db_config = config_manager.get_config("db.conf")?;
     println!("Loaded db.conf: {db_config:?}");
-    if db_config.is_empty() { println!("db.conf not found (expected for demo)"); }
+    if db_config.is_empty() {
+        println!("db.conf not found (expected for demo)");
+    }
 
     // --- Malicious Config Request ---
     let result = config_manager.get_config("../../../etc/hosts");
@@ -73,6 +75,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-
-
-

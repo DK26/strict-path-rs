@@ -10,8 +10,8 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use strict_path::{VirtualPath, VirtualRoot};
 use std::fs;
+use strict_path::{VirtualPath, VirtualRoot};
 
 #[derive(Clone)]
 struct Assets;
@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let display = vp.virtualpath_display();
         println!("Offline demo: {bytes} bytes from {display}");
         fs::remove_dir_all("axum_assets").ok();
-        return Ok(())
+        return Ok(());
     }
 
     let app = Router::new()
@@ -92,12 +92,13 @@ async fn serve_json(
                 path: vp.clone(),
                 system: format!("{}", vp.as_unvirtual().strictpath_display()),
             };
-            let value = serde_json::to_value(info).unwrap_or_else(|_| serde_json::json!({"error":"serialize"}));
+            let value = serde_json::to_value(info)
+                .unwrap_or_else(|_| serde_json::json!({"error":"serialize"}));
             (StatusCode::OK, Json(value))
         }
-        Err(_) => (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":"invalid path"}))),
+        Err(_) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error":"invalid path"})),
+        ),
     }
 }
-
-
-

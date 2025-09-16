@@ -5,10 +5,10 @@
 // via `virtual_join`, so traversal attempts cannot escape the config root.
 
 use anyhow::Result;
-use strict_path::{VirtualPath, VirtualRoot};
 use std::collections::HashMap;
 use std::fs;
 use std::io;
+use strict_path::{VirtualPath, VirtualRoot};
 
 #[derive(Clone)]
 struct ConfigRoot;
@@ -80,6 +80,3 @@ fn load_config_from_vpath(
     }
     Ok(map)
 }
-
-
-

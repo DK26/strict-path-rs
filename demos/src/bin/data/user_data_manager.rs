@@ -1,6 +1,6 @@
 use anyhow::Result;
-use strict_path::{PathBoundary, StrictPath};
 use std::fs;
+use strict_path::{PathBoundary, StrictPath};
 
 // --- Marker Types for Different Data Contexts //
 /// Marker for user-provided data that needs processing.
@@ -19,17 +19,19 @@ fn main() -> Result<()> {
     fs::write("data/ingest/user2_report.pdf", "report_data_2")?;
 
     // --- Security Setup: Create jails for each stage of the pipeline //
-    let ingest_dir =
-        PathBoundary::<Ingest>::try_new("data/ingest").map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
+    let ingest_dir = PathBoundary::<Ingest>::try_new("data/ingest")
+        .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
 
-    let storage_dir =
-        PathBoundary::<Storage>::try_new("data/storage").map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
+    let storage_dir = PathBoundary::<Storage>::try_new("data/storage")
+        .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
 
     // --- Discover files to process from the ingest jail (external FS input) //
     println!("--- Starting User Data Processing ---");
     for entry in std::fs::read_dir(ingest_dir.interop_path())? {
         let entry = entry?;
-        if !entry.file_type()?.is_file() { continue; }
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
         let file_name = entry.file_name();
         let fname_disp = file_name.to_string_lossy();
         println!("\nProcessing: {fname_disp}");
@@ -37,7 +39,9 @@ fn main() -> Result<()> {
             Ok(stored_path) => {
                 let disp = stored_path.strictpath_display();
                 println!("  -> Successfully processed and stored at: {disp}");
-                if stored_path.is_file() { println!("  -> Verified file exists"); }
+                if stored_path.is_file() {
+                    println!("  -> Verified file exists");
+                }
             }
             Err(e) => {
                 println!("  -> Error: {e}");
@@ -47,7 +51,9 @@ fn main() -> Result<()> {
     println!("\n--- Processing Complete ---");
 
     // --- Verification //
-    let _stored_file = storage_dir.strict_join("user1_config.txt.processed").unwrap();
+    let _stored_file = storage_dir
+        .strict_join("user1_config.txt.processed")
+        .unwrap();
 
     println!("\nDemonstrated compile-time safety (see code comments).");
 
@@ -94,12 +100,7 @@ fn archive_ingested_file(path_to_archive: &StrictPath<Ingest>) -> Result<()> {
 
     let arch_disp = archive_name.strictpath_display();
     println!("  -> Archiving ingest file to: {arch_disp}");
-    fs::rename(
-        path_to_archive.interop_path(),
-        archive_name.interop_path(),
-    )?;
+    // Use StrictPath API to perform the rename safely within the boundary
+    let _moved = path_to_archive.strict_rename(archive_name.interop_path())?;
     Ok(())
 }
-
-
-

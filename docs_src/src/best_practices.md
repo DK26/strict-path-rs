@@ -70,15 +70,15 @@ if !path.chars().all(|c| c.is_alphanumeric() || c == '/') { return Err("Invalid"
 ### Quick Decision Guide
 
 - **External/untrusted segments** (HTTP/DB/manifest/LLM/archive entry):
-  - UI/virtual flows: `VirtualRoot` + `VirtualPath` (clamped joins, user‑facing display)
-  - System flows: `PathBoundary` + `StrictPath` (rejected joins, system display)
+  - UI/virtual flows: start with `VirtualPath::with_root(..).virtual_join(..)` for clamped joins and user‑facing display. For reuse across many joins, keep either the virtual root path value (`let root = VirtualPath::with_root(..)?;`) or a `VirtualRoot` and call `virtual_join(..)` — both take `&self` and return a new `VirtualPath` (no ownership taken).
+  - System flows: start with `StrictPath::with_boundary(..).strict_join(..)` to reject unsafe joins and for system display. For reuse across many joins, keep a `PathBoundary` and call `strict_join(..)`.
 - **Internal/trusted paths** (hardcoded/CLI/env): use `Path`/`PathBuf`; only validate when combining with untrusted segments.
 
 ### Detailed Decision Matrix
 
 | Source                      | Typical Input                  | Use VirtualPath For                       | Use StrictPath For        | Notes                                                   |
 | --------------------------- | ------------------------------ | ----------------------------------------- | ------------------------- | ------------------------------------------------------- |
-| 🌐 **HTTP requests**         | URL path segments, file names  | Display/logging, safe virtual joins       | System-facing interop/I/O | Always clamp user paths via `VirtualRoot::virtual_join` |
+| 🌐 **HTTP requests**         | URL path segments, file names  | Display/logging, safe virtual joins       | System-facing interop/I/O | Always clamp user paths via `VirtualPath::virtual_join` |
 | 🌍 **Web forms**             | Form file fields, route params | User-facing display, UI navigation        | System-facing interop/I/O | Treat all form inputs as untrusted                      |
 | ⚙️ **Configuration files**   | Paths in config                | UI display and I/O within boundary        | System-facing interop/I/O | Validate each path before I/O                           |
 | 💾 **Database content**      | Stored file paths              | Rendering paths in UI dashboards          | System-facing interop/I/O | Storage does not imply safety; validate on use          |
@@ -98,6 +98,45 @@ if !path.chars().all(|c| c.is_alphanumeric() || c == '/') { return Err("Invalid"
 
 **The Golden Rule**: If you didn't create the path yourself, secure it first.
 
+## Why Keep `VirtualRoot` and `PathBoundary` (Even With Sugar)
+
+The sugar constructors (`StrictPath::with_boundary(..)`, `VirtualPath::with_root(..)`) are great for simple flows, but the root/boundary types still matter for correctness, reuse, and ergonomics as your code grows.
+
+- Policy reuse and separation of concerns
+  - Roots/boundaries represent the security policy (the restriction) while paths represent validated values within that policy.
+  - Construct once, reuse everywhere: join many untrusted segments against the same `&PathBoundary`/`&VirtualRoot` without re‑choosing policy.
+  - Don’t construct boundaries inside helpers — boundary choice is policy; encoding it at call sites improves reviewability and testing.
+
+- Clear function signatures (stronger guarantees)
+  - Two canonical patterns that make intent obvious:
+    - Take `&StrictPath<_>` / `&VirtualPath<_>` when the call site has already validated the input.
+    - Take `&PathBoundary<_>` / `&VirtualRoot<_>` plus the untrusted segment when the helper performs validation.
+  - These signatures prevent helpers from “picking a root” silently and make security rules visible in code review.
+
+- Contextual deserialization (serde)
+  - `StrictPath`/`VirtualPath` can’t implement a blanket `Deserialize` safely — they need runtime context (the boundary/root) to validate.
+  - The serde seeds live on the context types: `serde_ext::WithBoundary(&boundary)` and `serde_ext::WithVirtualRoot(&vroot)`.
+  - This makes deserialization explicit and auditable: where did the policy come from? what are we validating against?
+
+- Interop and trait boundaries
+  - We intentionally do not implement `AsRef<Path>` on path types; this prevents leaking raw paths into APIs without review.
+  - Roots/boundaries do implement `AsRef<Path>` so you can discover/walk directories at the root while keeping joins validated.
+  - Display stays explicit: system display via `strictpath_display()`, virtual display via `virtualpath_display()`.
+
+- OS directories and RAII helpers
+  - Discovery helpers (`try_new_os_*`, feature `dirs`) and temporary roots (`try_new_temp*`, feature `tempfile`) are on the root types.
+  - Sugar constructors build on these — you can still start simple and “upgrade” to explicit roots when needed.
+
+- Performance and canonicalization
+  - Canonicalize the root once; strict/virtual joins reuse that canonicalized state.
+  - Virtual joins use anchored canonicalization to apply virtual semantics safely and consistently.
+
+- Auditability and testing
+  - Centralizing the policy in a root value simplifies logging, tracing, and tests (e.g., pass `&vroot` into helpers).
+  - Debug for `VirtualPath` is intentionally verbose (system path + virtual view + restriction root) to aid audits.
+
+When not to use them: if your flow is small and local, the sugar constructors are perfectly fine. Start with sugar; keep `PathBoundary`/`VirtualRoot` handy for policy reuse, serde, and shared helpers.
+
 ## Encode Guarantees In Signatures
 
 - Helpers that touch the filesystem must encode safety:
@@ -116,17 +155,21 @@ fn create_config(boundary: &PathBoundary, name: &str) -> std::io::Result<()> {
 }
 ```
 
-## Multi‑User Isolation (VirtualRoot)
+## Multi‑User Isolation (VirtualPath root)
 
-- Per‑user/tenant: create a `VirtualRoot` per user and join untrusted names with `virtual_join`.
+- Per‑user/tenant: for small flows, construct a root via `VirtualPath::with_root(..)` and join untrusted names with `virtual_join(..)`. For larger flows and reuse, create a `VirtualRoot` per user and call `virtual_join(..)`.
 - Share strict helpers by borrowing the strict view: `vpath.as_unvirtual()`.
 
 ```rust
 fn upload(user_root: &VirtualRoot, filename: &str, bytes: &[u8]) -> std::io::Result<()> {
-    let vpath = user_root.virtual_join(filename)?;
-    vpath.create_parent_dir_all()?;
-    vpath.write_bytes(bytes)
+  let vpath = user_root.virtual_join(filename)?;
+  vpath.create_parent_dir_all()?;
+  vpath.write_bytes(bytes)
 }
+
+// Sugar-first call site (one-off):
+// let vroot = VirtualPath::with_root(format!("./cloud/user_{user_id}"))?;
+// let vpath = vroot.virtual_join(filename)?; // same guarantees; keep VirtualRoot for reuse
 ```
 
 ## Interop & Display
@@ -140,7 +183,7 @@ fn upload(user_root: &VirtualRoot, filename: &str, bytes: &[u8]) -> std::io::Res
 ## Directory Discovery vs Validation
 
 - Discovery (walking): call `read_dir(boundary.interop_path())` and `strip_prefix(boundary.interop_path())` to get relatives.
-- Validation: join those relatives via `boundary.strict_join(..)` or `vroot.virtual_join(..)` before I/O.
+- Validation: join those relatives via `boundary.strict_join(..)` or `vroot.virtual_join(..)` before I/O. For small flows without a reusable root, you can construct via `StrictPath::with_boundary(..)` or `VirtualPath::with_root(..)` and then join.
 - Don’t validate constants like `"."`; only validate untrusted segments.
 
 ## Operations (Use Explicit Methods)
@@ -148,7 +191,29 @@ fn upload(user_root: &VirtualRoot, filename: &str, bytes: &[u8]) -> std::io::Res
 - Joins: `strict_join(..)` / `virtual_join(..)`
 - Parents: `strictpath_parent()` / `virtualpath_parent()`
 - With file name/ext: `strictpath_with_file_name()` / `virtualpath_with_file_name()`, etc.
+- Rename/move: `strict_rename(..)` / `virtual_rename(..)`
 - Avoid std `Path::join`/`parent` on leaked paths — they ignore strict/virtual semantics.
+
+Example (rename):
+```rust
+use strict_path::{PathBoundary, StrictPath, VirtualPath};
+
+fn rotate_log(boundary: &PathBoundary) -> std::io::Result<()> {
+    let current = boundary.strict_join("logs/app.log")?;
+    current.create_parent_dir_all()?;
+    current.write_string("ok")?;
+
+    // Strict rename within same directory
+    let rotated = current.strict_rename("logs/app.old")?;
+    assert!(rotated.exists());
+
+    // Virtual rename (user-facing path)
+    let vp = rotated.clone().virtualize();
+    let vp2 = vp.virtual_rename("app.archived")?;
+    assert!(vp2.exists());
+    Ok(())
+}
+```
 
 ## Naming (from AGENTS.md)
 
@@ -169,7 +234,7 @@ fn upload(user_root: &VirtualRoot, filename: &str, bytes: &[u8]) -> std::io::Res
 ## Testing & Doctests
 
 - Make doctests encode guarantees (signatures) and use the explicit ops.
-- Create temporary roots via `PathBoundary::try_new_create(..)` / `VirtualRoot::try_new_create(..)` in setup; clean up afterwards.
+- Create temporary roots via `PathBoundary::try_new_create(..)` / `VirtualRoot::try_new_create(..)` in setup; clean up afterwards. Or use the sugar constructors for tests: `StrictPath::with_boundary_create(..)` / `VirtualPath::with_root_create(..)`.
 - For archive/HTTP examples, prefer offline simulations with deterministic inputs.
 
 ## Quick Patterns

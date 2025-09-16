@@ -26,8 +26,8 @@ Do not implement leaky trait impls for secure types:
 
 - Stable job (linux/windows/macos):
   - `cargo fmt --all -- --check` and `cargo clippy --all-targets --all-features -- -D warnings` (library).
-  - Build demos separately: `cd demos && cargo build --bins --features with-zip`.
-  - Lint demos: `cd demos && cargo clippy --all-targets --features with-zip -- -D warnings`.
+  - Demos are linted only (not built/run): `cd demos && cargo clippy --all-targets --features "with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp" -- -D warnings`.
+    - Heavier integrations like `with-aws` are included when toolchain prerequisites (e.g., `cmake`, `nasm`) are available on runners.
   - `cargo test -p strict-path --all-features` (library only).
 - MSRV job (linux, Rust 1.71.0):
   - `check`/`clippy`/`test` scoped to `-p strict-path --lib --locked` using separate target dir.
@@ -41,14 +41,24 @@ Do not implement leaky trait impls for secure types:
 ## Demos Policy (Non‑MSRV)
 
 - `demos/` is a separate crate (`publish = false`), path‑dep on `../strict-path`.
-- Built only on latest stable CI; demos may use newer ecosystem crates/features.
+- Linted on latest stable CI; demos may use newer ecosystem crates/features.
+- Do not build or run demos in CI by default. Keep binaries runnable locally: `cd demos && cargo run --features <...> --bin <name>`.
 - Keep heavy deps optional with namespaced features (e.g., `with-zip = ["dep:zip", "dep:flate2"]`).
 - Demo projects must model real scenarios; avoid “API‑only” snippets (those belong in `strict-path/examples/`).
+- Realism is mandatory: Prefer integrating the official ecosystem crates instead of hand‑rolled stubs when demonstrating protocols, runtimes, or services. It’s acceptable to add small “offline fallbacks” only when explicitly justified, but flagship demos must default to the real integration.
 
 ## Examples vs Demos (Critical)
 
 - API usage examples → `strict-path/examples/*.rs` (built with the library). Run with `cargo run --example <name>` from `strict-path/`.
 - Real demo projects → `demos/src/bin/<category>/<name>.rs`. Run with `cd demos && cargo run --bin <name>`.
+
+### Realistic, Teach‑Through Demos (Important)
+
+- Demos must be production‑authentic: use the same protocols and official crates that real teams would pick (avoid ad‑hoc mocks for protocol/runtime concerns).
+- Demos must encode strict/virtual path guarantees in handlers so users learn the correct integration patterns (validate received paths → operate through `StrictPath`/`VirtualPath`).
+- No #[allow(...)] in demos — fix the code and naming to pass clippy with `-D warnings`.
+- Use domain names for variables (e.g., `user_project_root`, `system_root`, `entry_path`) — never one‑letter variables for paths.
+- Demonstrate directory discovery vs. validation: `read_dir(root.interop_path())` to discover names, then re‑join each name through `strict_join`/`virtual_join` for safe display and I/O.
 
 Directory convention for demos:
 - Web servers: `demos/src/bin/web/...`
@@ -62,6 +72,14 @@ Directory convention for demos:
   - Accept `&StrictPath<Marker>` / `&VirtualPath<Marker>` (or structs containing them), or
   - Accept `&PathBoundary<Marker>` / `&VirtualRoot<Marker>` plus the untrusted segment.
   - Do not construct boundaries/roots inside helpers — boundary choice is policy.
+- Sugar vs policy types (when to use which):
+  - Small/local flows: use sugar constructors, then explicit joins:
+    - `StrictPath::with_boundary(_create)(root)?.strict_join(segment)?`
+    - `VirtualPath::with_root(_create)(root)?.virtual_join(segment)?`
+    - Both `virtual_join`/`strict_join` take `&self` and return new values; you can call them multiple times off the same root value.
+  - Larger/reusable flows: prefer policy types in signatures and modules:
+    - Keep a `PathBoundary`/`VirtualRoot` and call `strict_join`/`virtual_join` repeatedly.
+    - Use policy types whenever passing “the root” across module boundaries, or when serde/OS-dirs/temp RAII are involved.
 - Interop vs display:
   - Interop (`AsRef<Path>`): `interop_path()` on `StrictPath`/`VirtualPath`/`PathBoundary`/`VirtualRoot` (no allocations).
   - Display: `strictpath_display()` (system) / `virtualpath_display()` (virtual).
@@ -74,6 +92,16 @@ Directory convention for demos:
 - Variable naming:
   - Name by domain/purpose, not type. Examples: `config_dir`, `uploads_root`, `archive_src`, `mirror_src`, `user_vroot`.
   - Avoid `boundary`, `jail`, `source_` prefixes and one‑letter names.
+  - For demos, prioritize names that explain the role in the real flow (e.g., `user_project_root`, `tenant_vroot`, `system_root`, `ingest_dir`).
+
+### Serde Guidelines
+
+- Feature `serde` adds `Serialize` for `StrictPath`/`VirtualPath`.
+- Safe deserialization requires runtime policy; use seeds on policy types:
+  - `serde_ext::WithBoundary(&boundary)` → `StrictPath`
+  - `serde_ext::WithVirtualRoot(&vroot)` → `VirtualPath`
+- For config structs: deserialize raw `String`/path-like fields and validate by calling `strict_join` or `virtual_join` using either a sugar-constructed root or a policy root.
+- Do not add blanket `Deserialize` impls for the secure path types; they need context.
 
 ### Internal Design: PathHistory & Type‑State
 
@@ -152,6 +180,9 @@ See also mdBook pages:
 - Keep README focused on why, core features, and simple‑to‑advanced examples.
 - Align README examples with `strict-path/src/lib.rs` doc examples where appropriate.
 - Use doctested examples in source whenever possible; examples must compile and follow path‑handling rules.
+- Examples should be runnable and realistic: prefer end‑to‑end flows over contrived snippets; show policy types for reusable flows.
+- Doctests and examples must not rely on `#[allow(..)]` to pass lints; fix code and naming instead.
+- Lead with sugar for ergonomics in simple flows; demonstrate policy types for reuse, serde context, OS dirs, and temp RAII.
 - For multi‑user flows, prefer `VirtualRoot`/`VirtualPath`; for shared strict logic, borrow `as_unvirtual()`.
 
 mdBook documentation system:
@@ -165,6 +196,16 @@ mdBook documentation system:
 - Do not add helper functions ad‑hoc; propose design (scope, signature, naming, tests, security notes) first.
 - Follow existing module layout: `src/error`, `src/path`, `src/validator`, public re‑exports in `src/lib.rs`.
 - Respect MSRV in the library; demos may use newer crates behind features.
+
+### Examples & Tests Principles
+
+- Examples:
+  - Compile and run (doctests or `cargo run --example ...`); no `#[allow(..)]`.
+  - Use domain‑based variable names and explicit strict/virtual API calls; never ad‑hoc std path ops on leaked values.
+  - Demonstrate discovery vs. validation patterns clearly.
+- Tests:
+  - Library: thorough unit/integration tests for new behavior (e.g., rename semantics across strict/virtual, cross‑platform differences).
+  - Demos: generally do not compile or run in CI; keep any demo tests to minimal smoke checks and run them locally as needed. CI enforces lint‑clean code only for demos.
 
 ## Local CI Parity
 

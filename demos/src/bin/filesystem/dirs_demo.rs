@@ -1,7 +1,7 @@
 //! System Directories Integration Demo  
 //!
 //! Demonstrates the `dirs` feature integration with strict-path.
-//! Shows how to use `PathBoundary::try_new_config()`, `try_new_data()`, and `try_new_cache()`
+//! Shows how to use `PathBoundary::try_new_os_config()`, `try_new_os_data()`, and `try_new_os_cache()`
 //! for secure access to platform-appropriate system directories.
 
 #![cfg_attr(not(feature = "with-dirs"), allow(unused))]
@@ -18,7 +18,6 @@ use strict_path::{PathBoundary, StrictPath};
 struct Config;
 struct Data;
 struct Cache;
-struct UserPrefs;
 
 /// Application configuration that gets stored in the config directory
 #[derive(Serialize, Deserialize, Debug)]
@@ -47,7 +46,6 @@ struct SystemDirectoryManager {
     config_dir: PathBoundary<Config>,
     data_dir: PathBoundary<Data>,
     cache_dir: PathBoundary<Cache>,
-    app_name: String,
 }
 
 impl SystemDirectoryManager {
@@ -56,9 +54,9 @@ impl SystemDirectoryManager {
         println!("🔧 Setting up system directories for: {app_name}");
 
         // Use library's dirs integration - creates directories if needed!
-        let config_dir = PathBoundary::<Config>::try_new_config(app_name)?;
-        let data_dir = PathBoundary::<Data>::try_new_data(app_name)?;
-        let cache_dir = PathBoundary::<Cache>::try_new_cache(app_name)?;
+        let config_dir = PathBoundary::<Config>::try_new_os_config(app_name)?;
+        let data_dir = PathBoundary::<Data>::try_new_os_data(app_name)?;
+        let cache_dir = PathBoundary::<Cache>::try_new_os_cache(app_name)?;
 
         println!("✅ Config: {}", config_dir.strictpath_display());
         println!("✅ Data:   {}", data_dir.strictpath_display());
@@ -68,7 +66,6 @@ impl SystemDirectoryManager {
             config_dir,
             data_dir,
             cache_dir,
-            app_name: app_name.to_string(),
         })
     }
 
@@ -123,7 +120,7 @@ impl SystemDirectoryManager {
     fn cache_data(&self, key: &str, data: &str) -> Result<StrictPath<Cache>> {
         println!("\n🗂️  Caching data with key: {key}");
 
-        let cache_file = self.cache_dir.strict_join(&format!("{key}.cache"))?;
+        let cache_file = self.cache_dir.strict_join(format!("{key}.cache"))?;
         fs::write(cache_file.interop_path(), data)?;
 
         // Check total cache size (simplified example)
@@ -145,12 +142,10 @@ impl SystemDirectoryManager {
         let mut total_size = 0;
 
         if let Ok(entries) = fs::read_dir(self.cache_dir.interop_path()) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    if let Ok(metadata) = entry.metadata() {
-                        if metadata.is_file() {
-                            total_size += metadata.len();
-                        }
+            for entry in entries.flatten() {
+                if let Ok(metadata) = entry.metadata() {
+                    if metadata.is_file() {
+                        total_size += metadata.len();
                     }
                 }
             }
@@ -196,13 +191,11 @@ impl SystemDirectoryManager {
         let mut files = Vec::new();
 
         if let Ok(entries) = fs::read_dir(self.data_dir.interop_path()) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    if let Ok(metadata) = entry.metadata() {
-                        if metadata.is_file() {
-                            if let Some(name) = entry.file_name().to_str() {
-                                files.push(name.to_string());
-                            }
+            for entry in entries.flatten() {
+                if let Ok(metadata) = entry.metadata() {
+                    if metadata.is_file() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            files.push(name.to_string());
                         }
                     }
                 }
@@ -261,31 +254,31 @@ fn show_platform_info() {
 /// Demonstrate cross-platform configuration management
 fn demonstrate_config_migration() -> Result<()> {
     println!("\n� Demonstrating configuration migration...");
-    
-    let config_dir = PathBoundary::<Config>::try_new_config("StrictPathDemo")?;
+
+    let config_dir = PathBoundary::<Config>::try_new_os_config("StrictPathDemo")?;
     let old_config = config_dir.strict_join("config_v1.toml")?;
     let new_config = config_dir.strict_join("config_v2.toml")?;
-    
+
     // Simulate upgrading from v1 to v2 config format
     if old_config.exists() {
         println!("📄 Found old config, migrating to new format...");
         let old_data = old_config.read_to_string()?;
-        
+
         // Simple migration example
         let new_data = old_data.replace("old_setting", "new_setting");
         new_config.write_string(&new_data)?;
-        
+
         // Archive the old config
         let archive = config_dir.strict_join("archive")?;
         archive.create_dir_all()?;
         let archived = archive.strict_join("config_v1_backup.toml")?;
         archived.write_string(&old_data)?;
-        
+
         println!("✅ Config migrated and old version archived");
     } else {
         println!("ℹ️  No legacy config found");
     }
-    
+
     Ok(())
 }
 
@@ -335,8 +328,11 @@ fn main() -> Result<()> {
         println!("  • {file}");
     }
 
-    // Show config migration patterns  
+    // Show config migration patterns
     demonstrate_config_migration()?;
+
+    // Exercise advanced configuration patterns to demonstrate usage
+    demonstrate_advanced_config_patterns()?;
 
     println!("\n✨ Demo complete!");
     println!("All data is stored in platform-appropriate directories using best practices.");
@@ -349,12 +345,12 @@ fn demonstrate_advanced_config_patterns() -> Result<()> {
     println!("\n⚙️ Advanced configuration patterns:");
 
     // Multi-environment configs
-    let config_dir = PathBoundary::<Config>::try_new_config("MultiEnvApp")?;
+    let config_dir = PathBoundary::<Config>::try_new_os_config("MultiEnvApp")?;
 
     let environments = ["development", "staging", "production"];
 
     for env in &environments {
-        let env_config_file = config_dir.strict_join(&format!("config.{env}.toml"))?;
+        let env_config_file = config_dir.strict_join(format!("config.{env}.toml"))?;
 
         let config = AppConfig {
             app_name: format!("MultiEnvApp-{env}"),
@@ -391,19 +387,30 @@ mod tests {
 
     #[test]
     fn test_system_dirs_are_different() -> Result<()> {
-        let config_dir = PathBoundary::<Config>::try_new_config("test_app")?;
-        let data_dir = PathBoundary::<Data>::try_new_data("test_app")?;
-        let cache_dir = PathBoundary::<Cache>::try_new_cache("test_app")?;
+        let config_dir = PathBoundary::<Config>::try_new_os_config("test_app")?;
+        let data_dir = PathBoundary::<Data>::try_new_os_data("test_app")?;
+        let cache_dir = PathBoundary::<Cache>::try_new_os_cache("test_app")?;
 
-        // All directories should be different
-        assert_ne!(config_dir.interop_path(), data_dir.interop_path());
-        assert_ne!(config_dir.interop_path(), cache_dir.interop_path());
-        assert_ne!(data_dir.interop_path(), cache_dir.interop_path());
+        // Platform-specific expectations:
+        // - Windows: Config and Data are both under %APPDATA% (<Roaming>), Cache under %LOCALAPPDATA% (<Local>)
+        // - macOS/Linux: XDG-style locations are distinct for Config/Data/Cache
+        #[cfg(target_os = "windows")]
+        {
+            assert_eq!(config_dir.interop_path(), data_dir.interop_path());
+            assert_ne!(config_dir.interop_path(), cache_dir.interop_path());
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            assert_ne!(config_dir.interop_path(), data_dir.interop_path());
+            assert_ne!(config_dir.interop_path(), cache_dir.interop_path());
+            assert_ne!(data_dir.interop_path(), cache_dir.interop_path());
+        }
 
         // All should exist (created automatically)
-        assert!(config_dir.interop_path().exists());
-        assert!(data_dir.interop_path().exists());
-        assert!(cache_dir.interop_path().exists());
+        assert!(config_dir.exists());
+        assert!(data_dir.exists());
+        assert!(cache_dir.exists());
 
         Ok(())
     }

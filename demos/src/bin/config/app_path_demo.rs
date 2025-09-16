@@ -162,21 +162,19 @@ impl PortableApp {
         };
 
         if let Ok(entries) = read_dir_result {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let name = entry.file_name();
-                    if let Some(name_str) = name.to_str() {
-                        let virtual_path = if virtual_subdir.is_empty() {
-                            name_str.to_string()
-                        } else {
-                            format!("{virtual_subdir}/{name_str}")
-                        };
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                if let Some(name_str) = name.to_str() {
+                    let virtual_path = if virtual_subdir.is_empty() {
+                        name_str.to_string()
+                    } else {
+                        format!("{virtual_subdir}/{name_str}")
+                    };
 
-                        if entry.path().is_dir() {
-                            self.collect_documents_recursive(&virtual_path, documents)?;
-                        } else {
-                            documents.push(format!("/{virtual_path}"));
-                        }
+                    if entry.path().is_dir() {
+                        self.collect_documents_recursive(&virtual_path, documents)?;
+                    } else {
+                        documents.push(format!("/{virtual_path}"));
                     }
                 }
             }
@@ -212,7 +210,7 @@ impl PortableApp {
 
         let plugin_file = self
             .plugins_dir
-            .strict_join(&format!("{plugin_name}.plugin"))?;
+            .strict_join(format!("{plugin_name}.plugin"))?; // remove needless borrow per clippy
         fs::write(plugin_file.interop_path(), plugin_content)?;
 
         self.log_event("INFO", &format!("Plugin installed: {plugin_name}"))?;
@@ -225,13 +223,11 @@ impl PortableApp {
         let mut plugins = Vec::new();
 
         if let Ok(entries) = fs::read_dir(self.plugins_dir.interop_path()) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    if let Some(name) = entry.file_name().to_str() {
-                        if name.ends_with(".plugin") {
-                            let plugin_name = name.strip_suffix(".plugin").unwrap_or(name);
-                            plugins.push(plugin_name.to_string());
-                        }
+            for entry in entries.flatten() {
+                if let Some(name) = entry.file_name().to_str() {
+                    if name.ends_with(".plugin") {
+                        let plugin_name = name.strip_suffix(".plugin").unwrap_or(name);
+                        plugins.push(plugin_name.to_string());
                     }
                 }
             }
@@ -257,10 +253,14 @@ impl PortableApp {
 
         // Show actual directory locations
         println!("\n📁 Directory Locations:");
-        println!("Config:  {}", self.config_dir.interop_path().display());
-        println!("Data:    {}", self.data_root.interop_path().display());
-        println!("Logs:    {}", self.logs_dir.interop_path().display());
-        println!("Plugins: {}", self.plugins_dir.interop_path().display());
+        let config = self.config_dir.strictpath_display();
+        println!("Config:  {config}");
+        let data = self.data_root.as_unvirtual().strictpath_display();
+        println!("Data:    {data}");
+        let logs = self.logs_dir.strictpath_display();
+        println!("Logs:    {logs}");
+        let plugins = self.plugins_dir.strictpath_display();
+        println!("Plugins: {plugins}");
 
         Ok(())
     }
@@ -287,16 +287,16 @@ impl PortableApp {
 /// Demonstrate application backup and restore functionality
 fn demonstrate_backup_restore() -> Result<()> {
     println!("\n� Demonstrating backup and restore...");
-    
+
     let data_dir = PathBoundary::<AppData>::try_new_app_path("data", None)?;
     let backup_dir = PathBoundary::<AppData>::try_new_app_path("backups", None)?;
-    
+
     // Create backup with timestamp
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
     let backup_name = format!("backup_{timestamp}");
     let backup_path = backup_dir.strict_join(&backup_name)?;
     backup_path.create_dir_all()?;
-    
+
     // Copy all data files to backup
     let mut backup_count = 0;
     if let Ok(entries) = std::fs::read_dir(data_dir.interop_path()) {
@@ -311,9 +311,9 @@ fn demonstrate_backup_restore() -> Result<()> {
             }
         }
     }
-    
+
     println!("✅ Backup created: {backup_name} ({backup_count} files)");
-    
+
     // Show backup listing
     println!("📦 Available backups:");
     if let Ok(entries) = std::fs::read_dir(backup_dir.interop_path()) {
@@ -325,7 +325,7 @@ fn demonstrate_backup_restore() -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -453,14 +453,14 @@ mod tests {
         let app = PortableApp::new()?;
 
         // All directories should exist
-        assert!(app.config_dir.interop_path().exists());
-        assert!(app.data_root.interop_path().exists());
-        assert!(app.logs_dir.interop_path().exists());
-        assert!(app.plugins_dir.interop_path().exists());
+        assert!(app.config_dir.exists());
+        assert!(app.data_root.exists());
+        assert!(app.logs_dir.exists());
+        assert!(app.plugins_dir.exists());
 
         // Config should be loaded
         assert_eq!(app.config.app_name, "PortableDemo");
-        assert_eq!(app.config.portable_mode, true);
+        assert!(app.config.portable_mode);
 
         Ok(())
     }

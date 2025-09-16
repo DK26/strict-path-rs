@@ -28,25 +28,42 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct StrictPath<Marker = ()> {
     path: PathHistory<((Raw, Canonicalized), BoundaryChecked)>,
-    restriction: Arc<crate::PathBoundary<Marker>>,
+    boundary: Arc<crate::PathBoundary<Marker>>,
     _marker: PhantomData<Marker>,
 }
 
 impl<Marker> StrictPath<Marker> {
+    /// Create a root `StrictPath` anchored at the provided boundary directory.
+    ///
+    /// This is sugar for `PathBoundary::try_new(root)?.strict_join("")`.
+    /// Prefer this in simple flows; use `PathBoundary` directly when you need
+    /// to reuse policy across many paths or pass it as a parameter.
+    pub fn with_boundary<P: AsRef<Path>>(root: P) -> Result<Self> {
+        let boundary = crate::PathBoundary::try_new(root)?;
+        boundary.strict_join("")
+    }
+
+    /// Create a root `StrictPath`, creating the boundary directory if missing.
+    ///
+    /// This is sugar for `PathBoundary::try_new_create(root)?.strict_join("")`.
+    pub fn with_boundary_create<P: AsRef<Path>>(root: P) -> Result<Self> {
+        let boundary = crate::PathBoundary::try_new_create(root)?;
+        boundary.strict_join("")
+    }
     pub(crate) fn new(
-        restriction: Arc<crate::PathBoundary<Marker>>,
+        boundary: Arc<crate::PathBoundary<Marker>>,
         validated_path: PathHistory<((Raw, Canonicalized), BoundaryChecked)>,
     ) -> Self {
         Self {
             path: validated_path,
-            restriction,
+            boundary,
             _marker: PhantomData,
         }
     }
 
     #[inline]
-    pub(crate) fn restriction(&self) -> &crate::PathBoundary<Marker> {
-        &self.restriction
+    pub(crate) fn boundary(&self) -> &crate::PathBoundary<Marker> {
+        &self.boundary
     }
 
     #[inline]
@@ -104,13 +121,13 @@ impl<Marker> StrictPath<Marker> {
     #[inline]
     pub fn strict_join<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_systempath = self.path.join(path);
-        self.restriction.strict_join(new_systempath)
+        self.boundary.strict_join(new_systempath)
     }
 
     /// Returns the parent directory as a new `StrictPath`, or `None` if at the PathBoundary root.
     pub fn strictpath_parent(&self) -> Result<Option<Self>> {
         match self.path.parent() {
-            Some(p) => match self.restriction.strict_join(p) {
+            Some(p) => match self.boundary.strict_join(p) {
                 Ok(p) => Ok(Some(p)),
                 Err(e) => Err(e),
             },
@@ -122,7 +139,7 @@ impl<Marker> StrictPath<Marker> {
     #[inline]
     pub fn strictpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
         let new_systempath = self.path.with_file_name(file_name);
-        self.restriction.strict_join(new_systempath)
+        self.boundary.strict_join(new_systempath)
     }
 
     /// Returns a new `StrictPath` with the extension changed, or an error if at PathBoundary root.
@@ -131,11 +148,11 @@ impl<Marker> StrictPath<Marker> {
         if system_path.file_name().is_none() {
             return Err(StrictPathError::path_escapes_boundary(
                 self.path.to_path_buf(),
-                self.restriction.path().to_path_buf(),
+                self.boundary.path().to_path_buf(),
             ));
         }
         let new_systempath = system_path.with_extension(extension);
-        self.restriction.strict_join(new_systempath)
+        self.boundary.strict_join(new_systempath)
     }
 
     /// Returns the file name component of the system path, if any.
@@ -246,6 +263,40 @@ impl<Marker> StrictPath<Marker> {
         }
     }
 
+    /// Renames or moves this path to a new location within the same `PathBoundary`.
+    ///
+    /// Relative destinations are interpreted as siblings (resolved against this path's parent
+    /// directory), not children. Absolute destinations are validated against the `PathBoundary`.
+    /// No parent directories are created implicitly; call `create_parent_dir_all()` on the
+    /// desired destination path beforehand if needed. Returns the destination `StrictPath`.
+    pub fn strict_rename<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<Self> {
+        let dest_ref = dest.as_ref();
+
+        // Compute destination under the parent directory for relative paths; allow absolute too
+        let dest_path = if dest_ref.is_absolute() {
+            match self.boundary.strict_join(dest_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        } else {
+            let parent = match self.strictpath_parent() {
+                Ok(Some(p)) => p,
+                Ok(None) => match self.boundary.strict_join("") {
+                    Ok(root) => root,
+                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                },
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            };
+            match parent.strict_join(dest_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        };
+
+        std::fs::rename(self.path(), dest_path.path())?;
+        Ok(dest_path)
+    }
+
     /// Removes the file at the system path.
     pub fn remove_file(&self) -> std::io::Result<()> {
         std::fs::remove_file(&self.path)
@@ -276,7 +327,7 @@ impl<Marker> fmt::Debug for StrictPath<Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("StrictPath")
             .field("path", &self.path)
-            .field("restriction", &self.restriction.path())
+            .field("boundary", &self.boundary.path())
             .field("marker", &std::any::type_name::<Marker>())
             .finish()
     }

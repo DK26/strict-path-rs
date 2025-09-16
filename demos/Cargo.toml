@@ -24,8 +24,7 @@ publish = false
 # non-existent features on the library here; keep example-only features
 # local to this crate so MSRV checks for the library remain isolated.
 strict-path = { path = "../strict-path", features = ["serde"] }
-anyhow = "1.0"
-config = "0.15.15"
+config = "0.15.16"
 # Zip-related deps are optional and only enabled via the `with-zip` feature.
 # Use namespaced dependency features to avoid relying on removed implicit
 # features in newer `zip` versions.
@@ -41,19 +40,24 @@ indicatif = "0.18"
 tar = "0.4"
 walkdir = "2.3"
 tokio = { version = "1.39", features = ["full"] }
+anyhow = "1.0.99"
+# MCP server runtime (official). We target the latest; update as needed in lockfile.
+rmcp = { version = "0.6.4", features = ["server", "transport-io"], optional = true }
+schemars = { version = "1.0.4", features = ["derive"] }
 axum = "0.8.4"
 uuid = { version = "1.18.1", features = ["v4"] }
 pulldown-cmark = "0.13.0"
 tera = "1.17"
-serde_json = "1.0"
+serde_json = "1.0.145"
 chrono = { version = "0.4.42", features = ["serde"] }
 serde_yaml = "0.9.33"
-toml = "0.9.5"
+toml = "0.9.6"
 aws-config = { version = "1.8.6", optional = true }
-aws-sdk-s3 = { version = "1.105.0", optional = true }
+aws-sdk-s3 = { version = "1.106.0", optional = true }
 app-path = { version = "1.1.2", optional = true }
 dirs = { version = "6.0.0", optional = true }
 tempfile = { version = "3.22", optional = true }
+futures = "0.3"
 
 [dev-dependencies]
 
@@ -67,6 +71,7 @@ with-aws = ["dep:aws-config", "dep:aws-sdk-s3"]
 with-app-path = ["dep:app-path", "strict-path/app-path"]
 with-dirs = ["dep:dirs", "strict-path/dirs"]
 with-tempfile = ["dep:tempfile", "strict-path/tempfile"]
+with-rmcp = ["dep:rmcp"]
 
 [[bin]]
 name = "cli_backup_tool"
@@ -95,7 +100,6 @@ path = "src/bin/config/config_management_example.rs"
 [[bin]]
 name = "user_data_manager"
 path = "src/bin/data/user_data_manager.rs"
-
 
 
 [[bin]]
@@ -153,6 +157,15 @@ path = "src/bin/web/file_upload_service.rs"
 [[bin]]
 name = "llm_workspace"
 path = "src/bin/llm/llm_workspace.rs"
+
+[[bin]]
+name = "mcp_file_service"
+path = "src/bin/llm/mcp_file_service.rs"
+
+[[bin]]
+name = "mcp_file_service_rmcp"
+path = "src/bin/llm/mcp_file_service_rmcp.rs"
+required-features = ["with-rmcp"]
 
 [[bin]]
 name = "axum_static_server"

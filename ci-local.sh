@@ -258,17 +258,68 @@ echo
 # Auto-fix common issues first
 echo "🔧 Auto-fixing common issues..."
 run_fix "Format" "cargo fmt --all"
+run_fix "Format demos" "(cd demos && cargo fmt --all)"
 run_fix "Clippy Fixable Issues" "cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
+run_fix "Format (after clippy fix)" "cargo fmt --all"
+run_fix "Format demos (after clippy fix)" "(cd demos && cargo fmt --all)"
 echo "🦀 Now running CI checks (same as GitHub Actions)..."
 echo
 
 # Run all CI checks in order
-run_check "Format Check" "cargo fmt --all -- --check"
+run_check "Format Check" '
+    set -e
+    if ! cargo fmt --all -- --check; then
+        echo "❌ Formatting check failed. Run cargo fmt --all to fix."
+        echo "Here is what would be changed:"
+        cargo fmt --all -- --check --verbose || true
+        exit 1
+    fi
+'
+
+run_check "Format Check demos" '
+    set -e
+    # Run in a subshell to avoid leaking directory changes
+    (
+      cd demos
+      if ! cargo fmt --all -- --check; then
+          echo "❌ Demos formatting check failed. Run cd demos && cargo fmt --all to fix."
+          echo "Here is what would be changed:"
+          cargo fmt --all -- --check --verbose || true
+          exit 1
+      fi
+    )
+'
 # Lint and tests on the latest installed Rust toolchain
 run_check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warnings"
-# Explicitly build all demo binaries (demos is not in workspace)
-run_check "Build Demos (bins)" "(cd demos && cargo build --bins --features with-zip)"
-run_check "Clippy Demos (all targets)" "(cd demos && cargo clippy --all-targets --features with-zip -- -D warnings)"
+# Build library examples
+run_check "Build examples (library)" "cargo build -p strict-path --examples --all-features"
+# Lint demos across feature matrix (we do not build/run demos in CI)
+run_check "Clippy Demos (matrix)" '
+    # Run in a subshell to avoid leaking directory changes
+    (
+        set -e
+        cd demos
+        for FEATS in "" \
+                                 "with-zip" \
+                                 "with-app-path" \
+                                 "with-dirs" \
+                                 "with-tempfile" \
+                                 "with-rmcp" \
+                                 "with-aws" \
+                                 "with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp" \
+                                 "with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp"; do
+            if [ -z "$FEATS" ]; then
+                echo "==> Clippy demos with features: <none>"
+                cargo clippy --all-targets -- -D warnings
+            else
+                echo "==> Clippy demos with features: $FEATS"
+                cargo clippy --all-targets --features "$FEATS" -- -D warnings
+            fi
+        done
+    )
+'
+
+# Run demos tests across feature sets
 # Run workspace tests for the library only
 run_check "Tests (library all features)" "cargo test -p strict-path --all-features --verbose"
 # Doc tests are included in 'cargo test --verbose', so no separate --doc run needed

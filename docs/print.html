@@ -867,14 +867,14 @@ fn example_type_safety() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt
     let cfg: StrictPath&lt;ConfigData&gt; = config_boundary.strict_join("app.toml")?;
 
     // Type system prevents context mixing
-    serve_asset(&amp;css.unvirtual())?;         // ✅ Correct context
-    process_upload(&amp;doc.unvirtual())?;      // ✅ Correct context  
+    serve_asset(css.as_unvirtual())?;         // Correct context
+    process_upload(doc.as_unvirtual())?;      // Correct context  
     load_config(&amp;cfg)?;                     // ✅ Correct context
 
     // These would be compile errors:
-    // serve_asset(&amp;doc.unvirtual())?;      // ❌ Compile error - wrong context!
-    // process_upload(&amp;css.unvirtual())?;   // ❌ Compile error - wrong context!
-    // load_config(&amp;css.unvirtual())?;      // ❌ Compile error - wrong context!
+    // serve_asset(doc.as_unvirtual())?;      // Compile error - wrong context!
+    // process_upload(css.as_unvirtual())?;   // Compile error - wrong context!
+    // load_config(css.as_unvirtual())?;      // Compile error - wrong context!
 
     Ok(())
 }
@@ -925,12 +925,16 @@ fn dangerous_function(path: &amp;str) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt;
 </ol>
 <p>This makes your code both secure and maintainable - security isn't something you have to remember to check, it's built into the type system!</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="features"><a class="header" href="#features">Features</a></h1>
-<p>The <code>strict-path</code> crate provides several optional features that extend functionality while maintaining the core security guarantees. All features are disabled by default to keep the core library lightweight.</p>
+<p>The <code>strict-path</code> crate provides several optional fea[dependencies]
+strict-path = {
+version = "0.1.0-alpha.2",
+features = ["dirs", "serde", "tempfile", "app-path"]
+} that extend functionality while maintaining the core security guarantees. All features are disabled by default to keep the core library lightweight.</p>
 <h2 id="available-features"><a class="header" href="#available-features">Available Features</a></h2>
 <h3 id="dirs---os-standard-directories"><a class="header" href="#dirs---os-standard-directories"><code>dirs</code> - OS Standard Directories</a></h3>
 <p>Cross-platform access to operating system standard directories following platform conventions (XDG Base Directory on Linux, Known Folder API on Windows, Apple Standard Directories on macOS).</p>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-alpha.1", features = ["dirs"] }
+strict-path = { version = "0.1.0-alpha.2", features = ["dirs"] }
 </code></pre>
 <p>Enables constructors like:</p>
 <ul>
@@ -944,7 +948,7 @@ strict-path = { version = "0.1.0-alpha.1", features = ["dirs"] }
 <h3 id="serde---serialization-support"><a class="header" href="#serde---serialization-support"><code>serde</code> - Serialization Support</a></h3>
 <p>Adds <code>Serialize</code> implementations for <code>StrictPath</code> and <code>VirtualPath</code>, plus deserialization helpers for secure path handling in web APIs and configuration files.</p>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-alpha.1", features = ["serde"] }
+strict-path = { version = "0.1.0-alpha.2", features = ["serde"] }
 </code></pre>
 <p>Enables:</p>
 <ul>
@@ -955,7 +959,7 @@ strict-path = { version = "0.1.0-alpha.1", features = ["serde"] }
 <h3 id="tempfile---temporary-directories"><a class="header" href="#tempfile---temporary-directories"><code>tempfile</code> - Temporary Directories</a></h3>
 <p>RAII temporary directories that are automatically cleaned up when dropped, with each <code>PathBoundary</code> getting a unique temporary directory.</p>
 <pre><code class="language-toml">[dependencies]  
-strict-path = { version = "0.1.0-alpha.1", features = ["tempfile"] }
+strict-path = { version = "0.1.0-alpha.2", features = ["tempfile"] }
 </code></pre>
 <p>Enables:</p>
 <ul>
@@ -966,7 +970,7 @@ strict-path = { version = "0.1.0-alpha.1", features = ["tempfile"] }
 <h3 id="app-path---portable-application-directories"><a class="header" href="#app-path---portable-application-directories"><code>app-path</code> - Portable Application Directories</a></h3>
 <p>Integration with the <code>app-path</code> crate for discovering application directories relative to the executable with environment variable overrides.</p>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-alpha.1", features = ["app-path"] }
+strict-path = { version = "0.1.0-alpha.2", features = ["app-path"] }
 </code></pre>
 <p>Enables portable application directory discovery for:</p>
 <ul>
@@ -1080,7 +1084,7 @@ fn load_app_config() -&gt; Result&lt;Config, Box&lt;dyn std::error::Error&gt;&gt
 <p>The <code>strict-path</code> crate provides seamless integration with operating system standard directories through the <a href="https://crates.io/crates/dirs"><code>dirs</code></a> crate. This enables cross-platform applications to securely access user and system directories like configuration, data storage, cache, and user content locations.</p>
 <p><strong>Quick Start:</strong></p>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-alpha.1", features = ["dirs"] }
+strict-path = { version = "0.1.0-alpha.2", features = ["dirs"] }
 </code></pre>
 <h2 id="cross-platform-standards"><a class="header" href="#cross-platform-standards">Cross-Platform Standards</a></h2>
 <p>The integration follows established cross-platform directory standards:</p>
@@ -1550,15 +1554,15 @@ if !canonical.starts_with("/safe/") { return Err("Escape attempt"); }
 <ul>
 <li><strong>External/untrusted segments</strong> (HTTP/DB/manifest/LLM/archive entry):
 <ul>
-<li>UI/virtual flows: <code>VirtualRoot</code> + <code>VirtualPath</code> (clamped joins, user‑facing display)</li>
-<li>System flows: <code>PathBoundary</code> + <code>StrictPath</code> (rejected joins, system display)</li>
+<li>UI/virtual flows: start with <code>VirtualPath::with_root(..).virtual_join(..)</code> for clamped joins and user‑facing display. For reuse across many joins, keep either the virtual root path value (<code>let root = VirtualPath::with_root(..)?;</code>) or a <code>VirtualRoot</code> and call <code>virtual_join(..)</code> — both take <code>&amp;self</code> and return a new <code>VirtualPath</code> (no ownership taken).</li>
+<li>System flows: start with <code>StrictPath::with_boundary(..).strict_join(..)</code> to reject unsafe joins and for system display. For reuse across many joins, keep a <code>PathBoundary</code> and call <code>strict_join(..)</code>.</li>
 </ul>
 </li>
 <li><strong>Internal/trusted paths</strong> (hardcoded/CLI/env): use <code>Path</code>/<code>PathBuf</code>; only validate when combining with untrusted segments.</li>
 </ul>
 <h3 id="detailed-decision-matrix"><a class="header" href="#detailed-decision-matrix">Detailed Decision Matrix</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Source</th><th>Typical Input</th><th>Use VirtualPath For</th><th>Use StrictPath For</th><th>Notes</th></tr></thead><tbody>
-<tr><td>🌐 <strong>HTTP requests</strong></td><td>URL path segments, file names</td><td>Display/logging, safe virtual joins</td><td>System-facing interop/I/O</td><td>Always clamp user paths via <code>VirtualRoot::virtual_join</code></td></tr>
+<tr><td>🌐 <strong>HTTP requests</strong></td><td>URL path segments, file names</td><td>Display/logging, safe virtual joins</td><td>System-facing interop/I/O</td><td>Always clamp user paths via <code>VirtualPath::virtual_join</code></td></tr>
 <tr><td>🌍 <strong>Web forms</strong></td><td>Form file fields, route params</td><td>User-facing display, UI navigation</td><td>System-facing interop/I/O</td><td>Treat all form inputs as untrusted</td></tr>
 <tr><td>⚙️ <strong>Configuration files</strong></td><td>Paths in config</td><td>UI display and I/O within boundary</td><td>System-facing interop/I/O</td><td>Validate each path before I/O</td></tr>
 <tr><td>💾 <strong>Database content</strong></td><td>Stored file paths</td><td>Rendering paths in UI dashboards</td><td>System-facing interop/I/O</td><td>Storage does not imply safety; validate on use</td></tr>
@@ -1578,6 +1582,68 @@ if !canonical.starts_with("/safe/") { return Err("Escape attempt"); }
 <li><code>VirtualPath</code> = <strong>Complete Sandbox</strong> — clamps any input to stay safe</li>
 </ul>
 <p><strong>The Golden Rule</strong>: If you didn't create the path yourself, secure it first.</p>
+<h2 id="why-keep-virtualroot-and-pathboundary-even-with-sugar"><a class="header" href="#why-keep-virtualroot-and-pathboundary-even-with-sugar">Why Keep <code>VirtualRoot</code> and <code>PathBoundary</code> (Even With Sugar)</a></h2>
+<p>The sugar constructors (<code>StrictPath::with_boundary(..)</code>, <code>VirtualPath::with_root(..)</code>) are great for simple flows, but the root/boundary types still matter for correctness, reuse, and ergonomics as your code grows.</p>
+<ul>
+<li>
+<p>Policy reuse and separation of concerns</p>
+<ul>
+<li>Roots/boundaries represent the security policy (the restriction) while paths represent validated values within that policy.</li>
+<li>Construct once, reuse everywhere: join many untrusted segments against the same <code>&amp;PathBoundary</code>/<code>&amp;VirtualRoot</code> without re‑choosing policy.</li>
+<li>Don’t construct boundaries inside helpers — boundary choice is policy; encoding it at call sites improves reviewability and testing.</li>
+</ul>
+</li>
+<li>
+<p>Clear function signatures (stronger guarantees)</p>
+<ul>
+<li>Two canonical patterns that make intent obvious:
+<ul>
+<li>Take <code>&amp;StrictPath&lt;_&gt;</code> / <code>&amp;VirtualPath&lt;_&gt;</code> when the call site has already validated the input.</li>
+<li>Take <code>&amp;PathBoundary&lt;_&gt;</code> / <code>&amp;VirtualRoot&lt;_&gt;</code> plus the untrusted segment when the helper performs validation.</li>
+</ul>
+</li>
+<li>These signatures prevent helpers from “picking a root” silently and make security rules visible in code review.</li>
+</ul>
+</li>
+<li>
+<p>Contextual deserialization (serde)</p>
+<ul>
+<li><code>StrictPath</code>/<code>VirtualPath</code> can’t implement a blanket <code>Deserialize</code> safely — they need runtime context (the boundary/root) to validate.</li>
+<li>The serde seeds live on the context types: <code>serde_ext::WithBoundary(&amp;boundary)</code> and <code>serde_ext::WithVirtualRoot(&amp;vroot)</code>.</li>
+<li>This makes deserialization explicit and auditable: where did the policy come from? what are we validating against?</li>
+</ul>
+</li>
+<li>
+<p>Interop and trait boundaries</p>
+<ul>
+<li>We intentionally do not implement <code>AsRef&lt;Path&gt;</code> on path types; this prevents leaking raw paths into APIs without review.</li>
+<li>Roots/boundaries do implement <code>AsRef&lt;Path&gt;</code> so you can discover/walk directories at the root while keeping joins validated.</li>
+<li>Display stays explicit: system display via <code>strictpath_display()</code>, virtual display via <code>virtualpath_display()</code>.</li>
+</ul>
+</li>
+<li>
+<p>OS directories and RAII helpers</p>
+<ul>
+<li>Discovery helpers (<code>try_new_os_*</code>, feature <code>dirs</code>) and temporary roots (<code>try_new_temp*</code>, feature <code>tempfile</code>) are on the root types.</li>
+<li>Sugar constructors build on these — you can still start simple and “upgrade” to explicit roots when needed.</li>
+</ul>
+</li>
+<li>
+<p>Performance and canonicalization</p>
+<ul>
+<li>Canonicalize the root once; strict/virtual joins reuse that canonicalized state.</li>
+<li>Virtual joins use anchored canonicalization to apply virtual semantics safely and consistently.</li>
+</ul>
+</li>
+<li>
+<p>Auditability and testing</p>
+<ul>
+<li>Centralizing the policy in a root value simplifies logging, tracing, and tests (e.g., pass <code>&amp;vroot</code> into helpers).</li>
+<li>Debug for <code>VirtualPath</code> is intentionally verbose (system path + virtual view + restriction root) to aid audits.</li>
+</ul>
+</li>
+</ul>
+<p>When not to use them: if your flow is small and local, the sugar constructors are perfectly fine. Start with sugar; keep <code>PathBoundary</code>/<code>VirtualRoot</code> handy for policy reuse, serde, and shared helpers.</p>
 <h2 id="encode-guarantees-in-signatures"><a class="header" href="#encode-guarantees-in-signatures">Encode Guarantees In Signatures</a></h2>
 <ul>
 <li>Helpers that touch the filesystem must encode safety:
@@ -1599,18 +1665,22 @@ fn create_config(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Res
     boundary.strict_join(name)?.write_string("cfg")
 }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="multiuser-isolation-virtualroot"><a class="header" href="#multiuser-isolation-virtualroot">Multi‑User Isolation (VirtualRoot)</a></h2>
+<h2 id="multiuser-isolation-virtualpath-root"><a class="header" href="#multiuser-isolation-virtualpath-root">Multi‑User Isolation (VirtualPath root)</a></h2>
 <ul>
-<li>Per‑user/tenant: create a <code>VirtualRoot</code> per user and join untrusted names with <code>virtual_join</code>.</li>
+<li>Per‑user/tenant: for small flows, construct a root via <code>VirtualPath::with_root(..)</code> and join untrusted names with <code>virtual_join(..)</code>. For larger flows and reuse, create a <code>VirtualRoot</code> per user and call <code>virtual_join(..)</code>.</li>
 <li>Share strict helpers by borrowing the strict view: <code>vpath.as_unvirtual()</code>.</li>
 </ul>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>fn upload(user_root: &amp;VirtualRoot, filename: &amp;str, bytes: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
-    let vpath = user_root.virtual_join(filename)?;
-    vpath.create_parent_dir_all()?;
-    vpath.write_bytes(bytes)
+  let vpath = user_root.virtual_join(filename)?;
+  vpath.create_parent_dir_all()?;
+  vpath.write_bytes(bytes)
 }
+
+// Sugar-first call site (one-off):
+// let vroot = VirtualPath::with_root(format!("./cloud/user_{user_id}"))?;
+// let vpath = vroot.virtual_join(filename)?; // same guarantees; keep VirtualRoot for reuse
 <span class="boring">}</span></code></pre></pre>
 <h2 id="interop--display"><a class="header" href="#interop--display">Interop &amp; Display</a></h2>
 <ul>
@@ -1626,7 +1696,7 @@ fn create_config(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Res
 <h2 id="directory-discovery-vs-validation"><a class="header" href="#directory-discovery-vs-validation">Directory Discovery vs Validation</a></h2>
 <ul>
 <li>Discovery (walking): call <code>read_dir(boundary.interop_path())</code> and <code>strip_prefix(boundary.interop_path())</code> to get relatives.</li>
-<li>Validation: join those relatives via <code>boundary.strict_join(..)</code> or <code>vroot.virtual_join(..)</code> before I/O.</li>
+<li>Validation: join those relatives via <code>boundary.strict_join(..)</code> or <code>vroot.virtual_join(..)</code> before I/O. For small flows without a reusable root, you can construct via <code>StrictPath::with_boundary(..)</code> or <code>VirtualPath::with_root(..)</code> and then join.</li>
 <li>Don’t validate constants like <code>"."</code>; only validate untrusted segments.</li>
 </ul>
 <h2 id="operations-use-explicit-methods"><a class="header" href="#operations-use-explicit-methods">Operations (Use Explicit Methods)</a></h2>
@@ -1634,8 +1704,30 @@ fn create_config(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Res
 <li>Joins: <code>strict_join(..)</code> / <code>virtual_join(..)</code></li>
 <li>Parents: <code>strictpath_parent()</code> / <code>virtualpath_parent()</code></li>
 <li>With file name/ext: <code>strictpath_with_file_name()</code> / <code>virtualpath_with_file_name()</code>, etc.</li>
+<li>Rename/move: <code>strict_rename(..)</code> / <code>virtual_rename(..)</code></li>
 <li>Avoid std <code>Path::join</code>/<code>parent</code> on leaked paths — they ignore strict/virtual semantics.</li>
 </ul>
+<p>Example (rename):</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath, VirtualPath};
+
+fn rotate_log(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    let current = boundary.strict_join("logs/app.log")?;
+    current.create_parent_dir_all()?;
+    current.write_string("ok")?;
+
+    // Strict rename within same directory
+    let rotated = current.strict_rename("logs/app.old")?;
+    assert!(rotated.exists());
+
+    // Virtual rename (user-facing path)
+    let vp = rotated.clone().virtualize();
+    let vp2 = vp.virtual_rename("app.archived")?;
+    assert!(vp2.exists());
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
 <h2 id="naming-from-agentsmd"><a class="header" href="#naming-from-agentsmd">Naming (from AGENTS.md)</a></h2>
 <ul>
 <li>Variables reflect domain, not type:
@@ -1658,7 +1750,7 @@ fn create_config(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Res
 <h2 id="testing--doctests"><a class="header" href="#testing--doctests">Testing &amp; Doctests</a></h2>
 <ul>
 <li>Make doctests encode guarantees (signatures) and use the explicit ops.</li>
-<li>Create temporary roots via <code>PathBoundary::try_new_create(..)</code> / <code>VirtualRoot::try_new_create(..)</code> in setup; clean up afterwards.</li>
+<li>Create temporary roots via <code>PathBoundary::try_new_create(..)</code> / <code>VirtualRoot::try_new_create(..)</code> in setup; clean up afterwards. Or use the sugar constructors for tests: <code>StrictPath::with_boundary_create(..)</code> / <code>VirtualPath::with_root_create(..)</code>.</li>
 <li>For archive/HTTP examples, prefer offline simulations with deterministic inputs.</li>
 </ul>
 <h2 id="quick-patterns"><a class="header" href="#quick-patterns">Quick Patterns</a></h2>
@@ -1979,6 +2071,36 @@ let user_file = config_dir.strict_join(&amp;user_provided_filename)?;
 let archive_entry = config_dir.strict_join(&amp;entry_name_from_zip)?;
 let db_path = config_dir.strict_join(&amp;path_from_database)?;
 <span class="boring">}</span></code></pre></pre>
+<h2 id="constructing-root-via-strict_join"><a class="header" href="#constructing-root-via-strict_join">Constructing “root” via <code>strict_join("")</code></a></h2>
+<p><strong>🚫 What not to do:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let uploads_dir = PathBoundary::try_new("./uploads")?;
+// Anti-pattern: validating an empty string just to obtain a "root" StrictPath
+let root = uploads_dir.strict_join("")?; // ← meaningless validation; noise
+let photo = root.strict_join(user_filename)?; // extra hop for no benefit
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why it's wrong:</strong> Joining an empty string does not add security or clarity. It’s a no-op that obscures intent and trains teams to “validate constants,” which helps no one.</p>
+<p><strong>✅ Do this instead:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let uploads_dir = PathBoundary::try_new("./uploads")?;
+// Validate only untrusted segments directly against the boundary
+let photo = uploads_dir.strict_join(user_filename)?;
+<span class="boring">}</span></code></pre></pre>
+<p>If you truly want a root StrictPath value (for ergonomic chaining), prefer the sugar constructor which keeps the pattern explicit and consistent:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let root: StrictPath = StrictPath::with_boundary("./uploads")?;  // sugar for one-off flows
+let photo = root.strict_join(user_filename)?;
+<span class="boring">}</span></code></pre></pre>
+<p>For virtual flows, start from a real root type instead of empty joins:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let vroot = VirtualRoot::try_new("./uploads")?;   // policy is explicit
+let vpath = vroot.virtual_join(user_filename)?;    // clamps to virtual root
+<span class="boring">}</span></code></pre></pre>
+<p>Rule of thumb: validate real, untrusted segments; avoid validating constants just to “use the API.”</p>
 <h2 id="hidden-policy-decisions-in-functions"><a class="header" href="#hidden-policy-decisions-in-functions">Hidden Policy Decisions in Functions</a></h2>
 <p><strong>❌ What not to do:</strong></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]

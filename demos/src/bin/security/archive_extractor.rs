@@ -120,14 +120,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn detect_archive_format(path: impl AsRef<Path>) -> Option<ArchiveFormat> {
-    let p = path.as_ref();
-    let ext = p.extension().and_then(|e| e.to_str()).map(|s| s.to_ascii_lowercase());
+    let path_ref = path.as_ref();
+    let ext = path_ref
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_ascii_lowercase());
     match ext.as_deref() {
         Some("zip") => Some(ArchiveFormat::Zip),
         Some("tar") => Some(ArchiveFormat::Tar),
         Some("gz") => {
             // Detect ".tar.gz" via file_stem ending with ".tar"
-            let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            let stem = path_ref.file_stem().and_then(|s| s.to_str()).unwrap_or("");
             if stem.ends_with(".tar") {
                 Some(ArchiveFormat::TarGz)
             } else {
@@ -293,7 +296,11 @@ fn extract_tar_entries<R: Read>(
                     stats.total_bytes += content.len() as u64;
 
                     if cli.verbose {
-                        println!("📄 Extracted: {} ({} bytes)", entry_path_disp, content.len());
+                        println!(
+                            "📄 Extracted: {} ({} bytes)",
+                            entry_path_disp,
+                            content.len()
+                        );
                     }
                 }
             }

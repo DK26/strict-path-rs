@@ -104,8 +104,7 @@ fn init_site(project_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Initializing new static site project in: {project_path}");
 
     // Create secure project structure
-    let project_dir: PathBoundary<SourceContent> =
-        PathBoundary::try_new_create(project_path)?;
+    let project_dir: PathBoundary<SourceContent> = PathBoundary::try_new_create(project_path)?;
 
     // Create directory structure
     let dirs = [

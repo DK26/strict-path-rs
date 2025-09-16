@@ -109,18 +109,49 @@ jobs:
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
 
-    - name: Build demos (bins)
-      # Build demos OUTSIDE the workspace using latest stable. This keeps
-      # demo dependencies from influencing the library's MSRV or lockfile.
+    - name: Check formatting (demos)
       run: |
         cd demos
-        cargo build --bins --features with-zip
+        cargo fmt --all -- --check
 
-    - name: Clippy demos (all targets)
-      # Enforce the same lint quality bar on demos across bins/tests/benches
+    - name: Show formatting diff (demos) if check failed
+      if: failure()
       run: |
+        echo "❌ Demos formatting check failed. Run 'cd demos && cargo fmt --all' to fix."
+        echo "Here's what would be changed:"
         cd demos
-        cargo clippy --all-targets --features with-zip -- -D warnings
+        cargo fmt --all -- --check --verbose || true
+        echo ""
+        echo "To fix locally, run:"
+        echo "  cd demos"
+        echo "  cargo fmt --all"
+
+    - name: Build examples (library)
+      run: cargo build -p strict-path --examples --all-features
+
+    - name: Clippy demos (feature matrix)
+      # Lint demos across feature sets without building binaries or running them
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd demos
+        for FEATS in "" \
+                     "with-zip" \
+                     "with-app-path" \
+                     "with-dirs" \
+                     "with-tempfile" \
+                     "with-rmcp" \
+                     "with-aws" \
+                     "with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp" \
+                     "with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp"; do
+          if [ -z "${FEATS}" ]; then
+            echo "==> Clippy demos with features: <none>"
+            cargo clippy --all-targets -- -D warnings
+          else
+            echo "==> Clippy demos with features: ${FEATS}"
+            cargo clippy --all-targets --features "${FEATS}" -- -D warnings
+          fi
+        done
 
     - name: Show clippy fixes (if check failed)  
       if: failure()
