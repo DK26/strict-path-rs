@@ -185,6 +185,15 @@ See also mdBook pages:
 - Lead with sugar for ergonomics in simple flows; demonstrate policy types for reuse, serde context, OS dirs, and temp RAII.
 - For multi‑user flows, prefer `VirtualRoot`/`VirtualPath`; for shared strict logic, borrow `as_unvirtual()`.
 
+### Doctest setup vs. visible guidance (exception rule)
+
+- Prefer using the crate's safe I/O helpers and the `*_create` constructors (`with_root_create`, `with_boundary_create`) in visible example code.
+- Exception: It is acceptable to demonstrate the regular constructors (`with_root`, `with_boundary`) in examples to teach their semantics.
+  - In such cases, create the required directories in doctest hidden lines using `std::fs::create_dir_all(...)` so the example compiles and runs:
+    - Hidden setup line style: `# std::fs::create_dir_all("some_dir")?;`
+  - In the visible code, include a brief note that these constructors require the directory to exist and must be a directory; advise using the `*_create` variants when creation is desired.
+- Do not use `std::fs` in visible example code unless strictly demonstrating interop via `interop_path()`; keep raw filesystem calls confined to hidden setup/cleanup.
+
 mdBook documentation system:
 - Source: `docs_src/` (markdown), built to `docs/` (published via GitHub Pages).
 - Build locally: `cd docs_src && mdbook build`; serve: `mdbook serve`.
@@ -212,6 +221,31 @@ mdBook documentation system:
 - Windows: `./ci-local.ps1`.
 - Unix/WSL: `bash ./ci-local.sh`.
 - Scripts auto‑fix format/clippy where safe and mirror CI behavior (including mdBook build).
+
+### When a CI Step Fails: Targeted Isolation Workflow
+
+Always reproduce and fix the failure on the same platform where it occurred (Windows vs. Linux/macOS) before re‑running the full pipeline.
+
+- Windows (PowerShell): run only the failing test
+  - Command pattern:
+    - `cargo test [-p <package>] <test_filter> --all-features -- --nocapture`
+  - Notes:
+    - Use `-p <package>` only in workspaces or when multiple packages are present.
+    - You may scope to `--lib` or `--bin <name>` when helpful.
+
+- Linux/macOS/WSL (bash): run only the failing test
+  - Command pattern:
+    - `cargo test [-p <package>] <test_filter> --all-features -- --nocapture`
+
+Other targeted checks (when applicable):
+- Lints: `cargo clippy [-p <package>] --all-targets -- -D warnings`
+- Formatting: `cargo fmt --all -- --check` (and `cargo fmt --all` to fix)
+- Doc-tests: `cargo test --doc [-p <package>] <test_filter> -- --nocapture`
+
+Guidelines:
+- Keep the test’s intent intact; don’t weaken semantics to “make it pass.”
+- Prefer MSRV‑ and cross‑platform‑safe assertions; avoid unstable variants and, if needed, check raw OS error codes alongside stable kinds.
+- Once the targeted run is green, re‑run the full local CI script for that platform to validate end‑to‑end.
 
 ## Quick Do/Don’t
 

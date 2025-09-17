@@ -9,7 +9,7 @@ fn test_strict_path_accessors_and_manipulation() {
     let dir = restriction.strict_join("dir").unwrap();
     dir.create_dir_all().unwrap();
     let file = restriction.strict_join("dir/file.txt").unwrap();
-    file.write_string("hello").unwrap();
+    file.write("hello").unwrap();
 
     // Basic accessors
     assert!(file.strictpath_to_str().is_some());
@@ -51,7 +51,8 @@ fn test_strict_path_accessors_and_manipulation() {
     assert!(changed_ext.strictpath_ends_with("dir/file.bak"));
 
     // Error case: cannot apply extension at PathBoundary root (no file name)
-    let root = restriction.strict_join("").unwrap();
+    let root: crate::path::strict_path::StrictPath<()> =
+        crate::path::strict_path::StrictPath::with_boundary(temp.path()).unwrap();
     let err = root.strictpath_with_extension("x").unwrap_err();
     match err {
         StrictPathError::PathEscapesBoundary { .. } => {}
@@ -66,14 +67,14 @@ fn test_strict_path_accessors_and_manipulation() {
     let md = file.metadata().unwrap();
     assert!(md.len() > 0);
     assert_eq!(file.read_to_string().unwrap(), "hello");
-    let bytes = file.read_bytes().unwrap();
+    let bytes = file.read().unwrap();
     assert_eq!(bytes, b"hello");
 
     // Removal APIs
     let tmp_sub = restriction.strict_join("dir/tmp").unwrap();
     tmp_sub.create_dir_all().unwrap();
     let tmp_file = restriction.strict_join("dir/tmp/note.txt").unwrap();
-    tmp_file.write_string("bye").unwrap();
+    tmp_file.write("bye").unwrap();
     assert!(tmp_file.exists());
     tmp_file.remove_file().unwrap();
     assert!(!tmp_file.exists());
@@ -131,11 +132,11 @@ fn test_virtual_path_components_and_checks() {
         .virtualize();
     let vdir = restriction.strict_join("delegated").unwrap().virtualize();
     vdir.create_dir_all().unwrap();
-    vfile.write_bytes(b"vdata").unwrap();
+    vfile.write(b"vdata").unwrap();
     assert!(vfile.exists());
     assert!(vfile.is_file());
     assert!(vdir.is_dir());
-    assert_eq!(vfile.read_bytes().unwrap(), b"vdata");
+    assert_eq!(vfile.read().unwrap(), b"vdata");
     assert_eq!(vfile.read_to_string().unwrap(), "vdata");
     vfile.remove_file().unwrap();
     assert!(!vfile.exists());

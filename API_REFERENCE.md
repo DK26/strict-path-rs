@@ -57,6 +57,7 @@ This design makes the API read naturally:
 - strictpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self>
 - strictpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
 - strict_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<Self>
+- strict_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<Self>
 
 All operations prevent traversal and symlink/junction escapes. Do not use `std::path::Path::join` on untrusted input; use the explicit `strict_*/virtual_*` operations documented below.
 
@@ -118,7 +119,7 @@ let bad = PathBuf::from(user_input).join("file.txt"); // 🚨 Vulnerable to trav
 ```rust
 // Generic across storage contexts — use only when required to have a function that works for multiple restrictions and contexts
 fn process_file<M>(path: &StrictPath<M>) -> std::io::Result<Vec<u8>> {
-  path.read_bytes()
+  path.read()
 }
 
 // Callers pass either a borrowed StrictPath directly, or a borrowed StrictPath from VirtualPath::as_unvirtual()
@@ -192,10 +193,10 @@ Top-level exports
 - Convert between types: `vpath.unvirtual()` → `StrictPath`, `spath.virtualize()` → `VirtualPath`
 - Unified functions: take `&StrictPath<_>` and call with `vpath.as_unvirtual()`
 - Display paths: `spath.strictpath_display()`, `vpath.virtualpath_display()` (no automatic Display trait)
-- Type-safe function signatures: `fn serve_file<M>(p: &StrictPath<M>) -> io::Result<Vec<u8>> { p.read_bytes() }`
-- Type-safe virtual signatures: `fn serve_user_file(p: &VirtualPath) -> io::Result<Vec<u8>> { p.read_bytes() }`
+- Type-safe function signatures: `fn serve_file<M>(p: &StrictPath<M>) -> io::Result<Vec<u8>> { p.read() }`
+- Type-safe virtual signatures: `fn serve_user_file(p: &VirtualPath) -> io::Result<Vec<u8>> { p.read() }`
 - Interop: when an API expects `AsRef<Path>`, pass `.interop_path()` (returns `&OsStr`, which implements `AsRef<Path>`). Example: `std::fs::copy(src.interop_path(), dst.interop_path())?;`
-- Create parent dirs: `vp.create_parent_dir_all()?; vp.write_string("content")?;`
+- Create parent dirs: `vp.create_parent_dir_all()?; vp.write("content")?;`
 
 Markers and type inference
 - All core types are generic over a `Marker` with a default of `()`.
@@ -220,6 +221,9 @@ PathBoundary<Marker>
 - exists(&self) -> bool
 - strictpath_display(&self) -> std::path::Display<'_>
 - virtualize(self) -> VirtualRoot<Marker>
+ - read_dir(&self) -> io::Result<std::fs::ReadDir>
+ - remove_dir(&self) -> io::Result<()>
+ - remove_dir_all(&self) -> io::Result<()>
 
 StrictPath<Marker>
 Note: `.unstrict()` is an explicit escape hatch. Interop doesn’t require it — prefer `.interop_path()`; use `.unstrict()` only when an owned `PathBuf` is strictly required.
@@ -227,6 +231,8 @@ Note: `.unstrict()` is an explicit escape hatch. Interop doesn’t require it �
 - with_boundary_create<P: AsRef<Path>>(root: P) -> Result<Self>  // sugar; creates root if missing
 - unstrict(self) -> PathBuf  // consumes — escape hatch (avoid)
 - virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
+- try_into_boundary(self) -> PathBoundary<Marker>
+- try_into_boundary_create(self) -> PathBoundary<Marker>
 - strictpath_to_string_lossy(&self) -> Cow<'_, str>
 - strictpath_to_str(&self) -> Option<&str>
 - interop_path(&self) -> &OsStr
@@ -245,10 +251,10 @@ Note: `.unstrict()` is an explicit escape hatch. Interop doesn’t require it �
 - is_file(&self) -> bool
 - is_dir(&self) -> bool
 - metadata(&self) -> io::Result<std::fs::Metadata>
+- read_dir(&self) -> io::Result<std::fs::ReadDir>
 - read_to_string(&self) -> io::Result<String>
-- read_bytes(&self) -> io::Result<Vec<u8>>
-- write_bytes(&self, data: &[u8]) -> io::Result<()>
-- write_string(&self, data: &str) -> io::Result<()>
+- read(&self) -> io::Result<Vec<u8>>
+- write<C: AsRef<[u8]>>(&self, data: C) -> io::Result<()>
 - create_dir(&self) -> io::Result<()>
 - create_dir_all(&self) -> io::Result<()>
 - create_parent_dir(&self) -> io::Result<()>
@@ -265,6 +271,9 @@ VirtualRoot<Marker>
 - exists(&self) -> bool
 - as_unvirtual(&self) -> &PathBoundary<Marker>
 - unvirtual(self) -> PathBoundary<Marker>
+ - read_dir(&self) -> io::Result<std::fs::ReadDir>
+ - remove_dir(&self) -> io::Result<()>
+ - remove_dir_all(&self) -> io::Result<()>
 
 VirtualPath<Marker>
 - with_root<P: AsRef<Path>>(root: P) -> Result<Self>  // sugar; root must exist
@@ -277,13 +286,17 @@ VirtualPath<Marker>
 - virtualpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self>
 - virtualpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
 - virtual_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<Self>
+- virtual_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<Self>
 - virtualpath_file_name(&self) -> Option<&OsStr>
 - virtualpath_file_stem(&self) -> Option<&OsStr>
 - virtualpath_extension(&self) -> Option<&OsStr>
 - virtualpath_starts_with<P: AsRef<Path>>(&self, p: P) -> bool
 - virtualpath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool
 - virtualpath_display(&self) -> VirtualPathDisplay<'_, Marker>  // explicit display method
-- exists / is_file / is_dir / metadata / read_to_string / read_bytes / write_bytes / write_string / create_dir / create_dir_all / create_parent_dir / create_parent_dir_all / remove_file / remove_dir / remove_dir_all (delegates to `StrictPath`; parents derived via virtual semantics)
+ - try_into_root(self) -> VirtualRoot<Marker>
+ - try_into_root_create(self) -> VirtualRoot<Marker>
+ - read_dir(&self) -> io::Result<std::fs::ReadDir>
+ - exists / is_file / is_dir / metadata / read_to_string / read / write / create_dir / create_dir_all / create_parent_dir / create_parent_dir_all / remove_file / remove_dir / remove_dir_all (delegates to `StrictPath`; parents derived via virtual semantics)
 
 ### Feature-gated APIs (complete list)
 These are available only when the corresponding Cargo features are enabled:
@@ -325,6 +338,8 @@ These are available only when the corresponding Cargo features are enabled:
 - Feature `tempfile` (RAII temporary directories)
   - `PathBoundary::try_new_temp() -> Result<PathBoundary>`
   - `PathBoundary::try_new_temp_with_prefix(prefix: &str) -> Result<PathBoundary>`
+  - `VirtualRoot::try_new_temp() -> Result<VirtualRoot>`
+  - `VirtualRoot::try_new_temp_with_prefix(prefix: &str) -> Result<VirtualRoot>`
   - VirtualRoot holds RAII of temp dirs when constructed from a temp PathBoundary
 
 - Feature `app-path` (portable app‑relative dirs with optional env overrides)

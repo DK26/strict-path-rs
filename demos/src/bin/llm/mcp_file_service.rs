@@ -177,7 +177,7 @@ fn handle_write_virtual(root: &VirtualRoot<()>, params: &Value) -> Value {
                 if let Err(e) = file_vpath.create_parent_dir_all() {
                     return json!({"error": format!("Create parent error: {e}")});
                 }
-                match file_vpath.write_string(&content) {
+                match file_vpath.write(&content) {
                     Ok(()) => json!({
                         "virtualPath": format!("{}", file_vpath.virtualpath_display()),
                         "bytes": content.len(),
@@ -200,7 +200,7 @@ fn handle_list_virtual(root: &VirtualRoot<()>, params: &Value) -> Value {
                     return json!({"error": "Not a directory or does not exist"});
                 }
                 let mut entries_json = Vec::new();
-                match std::fs::read_dir(dir_vpath.as_unvirtual().interop_path()) {
+                match dir_vpath.read_dir() {
                     Ok(read_dir) => {
                         for entry in read_dir.flatten() {
                             if let Some(name) = entry.file_name().to_str() {
@@ -299,7 +299,7 @@ fn handle_write_strict(root: &PathBoundary<()>, params: &Value) -> Value {
                 if let Err(e) = file_spath.create_parent_dir_all() {
                     return json!({"error": format!("Create parent error: {e}")});
                 }
-                match file_spath.write_string(&content) {
+                match file_spath.write(&content) {
                     Ok(()) => json!({
                         "systemPath": format!("{}", file_spath.strictpath_display()),
                         "bytes": content.len(),
@@ -322,7 +322,7 @@ fn handle_list_strict(root: &PathBoundary<()>, params: &Value) -> Value {
                     return json!({"error": "Not a directory or does not exist"});
                 }
                 let mut entries_json = Vec::new();
-                match std::fs::read_dir(dir_spath.interop_path()) {
+                match dir_spath.read_dir() {
                     Ok(read_dir) => {
                         for entry in read_dir.flatten() {
                             if let Some(name) = entry.file_name().to_str() {

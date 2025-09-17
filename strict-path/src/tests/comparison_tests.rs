@@ -278,7 +278,8 @@ fn test_edge_cases() {
     let vroot: VirtualRoot = VirtualRoot::try_new_create(temp_dir.path()).unwrap();
 
     // Root virtual path
-    let root_vpath = vroot.virtual_join("").unwrap();
+    let root_vpath: crate::path::virtual_path::VirtualPath<()> =
+        crate::path::virtual_path::VirtualPath::with_root(&vroot).unwrap();
     assert_eq!(root_vpath, Path::new("/"));
 
     // Nested paths

@@ -114,7 +114,7 @@ fn init_backup_destination(dest_path: &str) -> Result<(), Box<dyn std::error::Er
     let registry_path = backup_jail.strict_join("_metadata/registry.json")?;
     let empty_registry: HashMap<String, String> = HashMap::new();
     let registry_content = serde_json::to_string_pretty(&empty_registry)?;
-    registry_path.write_string(&registry_content)?;
+    registry_path.write(&registry_content)?;
 
     println!(
         "Backup destination initialized at: {}",
@@ -167,8 +167,8 @@ fn create_backup(
             backup_file.create_parent_dir_all()?;
 
             // Copy file content
-            let content = source_file.read_bytes()?;
-            backup_file.write_bytes(&content)?;
+            let content = source_file.read()?;
+            backup_file.write(&content)?;
 
             backup_files.push(BackupFileEntry {
                 relative_path: relative_str.clone(),
@@ -201,7 +201,7 @@ fn create_backup(
     let manifest_path = format!("_metadata/{backup_name}.json");
     let manifest_file = backup_dir.strict_join(manifest_path)?;
     let manifest_content = serde_json::to_string_pretty(&manifest)?;
-    manifest_file.write_string(&manifest_content)?;
+    manifest_file.write(&manifest_content)?;
 
     println!(
         "Backup '{}' created successfully with {} items",
@@ -239,7 +239,7 @@ fn restore_backup(
             // Read from backup
             let backup_file_path = format!("backups/{}/{}", backup_name, file_entry.relative_path);
             let backup_file = backup_jail.strict_join(&backup_file_path)?;
-            let content = backup_file.read_bytes()?;
+            let content = backup_file.read()?;
 
             // Write to target (securely validated path)
             let target_file = target_jail.strict_join(&file_entry.relative_path)?;
@@ -247,7 +247,7 @@ fn restore_backup(
             // Create parent directories
             target_file.create_parent_dir_all()?;
 
-            target_file.write_bytes(&content)?;
+            target_file.write(&content)?;
             println!(
                 "  Restored: {} ({} bytes)",
                 file_entry.relative_path, file_entry.size

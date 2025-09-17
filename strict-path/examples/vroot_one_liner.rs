@@ -8,8 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // True one-liner: create nested path with parents and write
     let tmp_dir = tempfile::tempdir()?;
     let vp = VirtualRoot::<()>::try_new(&tmp_dir)?.virtual_join("nested/output.txt")?;
-    vp.create_parent_dir_all()
-        .and_then(|_| vp.write_bytes(b"ok\n"))?;
+    vp.create_parent_dir_all().and_then(|_| vp.write(b"ok\n"))?;
 
     // One-liner read with display
     let len = vp.read_to_string()?.len();

@@ -61,7 +61,7 @@ fn main() -> Result<()> {
 // Signatures encode guarantees: only operates on the backups PathBoundary
 fn create_backup(target: &StrictPath<BackupDir>) -> Result<()> {
     target.create_parent_dir_all()?;
-    target.write_string("-- simulated backup\n-- (write real dump here)")?;
+    target.write("-- simulated backup\n-- (write real dump here)")?;
     Ok(())
 }
 

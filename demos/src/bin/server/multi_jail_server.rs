@@ -108,7 +108,7 @@ fn serve_public_asset(asset_path: &VirtualPath<PublicAssets>) -> Result<()> {
 fn save_user_upload(upload_path: &VirtualPath<UserUploads>, content: &[u8]) -> Result<()> {
     // Create the parent directory if it doesn't exist.
     upload_path.create_parent_dir_all()?;
-    upload_path.write_bytes(content)?;
+    upload_path.write(content)?;
     let path = upload_path.virtualpath_display();
     println!("  -> Saved upload: {path}");
     if upload_path.exists() {

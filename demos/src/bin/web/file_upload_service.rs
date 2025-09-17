@@ -152,7 +152,7 @@ async fn save_uploaded_file(
     path: &StrictPath<UserUploads>,
     content: &[u8],
 ) -> Result<(), Box<dyn std::error::Error>> {
-    path.write_bytes(content)?;
+    path.write(content)?;
     let where_to = path.strictpath_display();
     println!("Saved file to: {where_to}");
     Ok(())
@@ -223,7 +223,7 @@ async fn process_user_file(
     // Save processed version to temp area with different PathBoundary type
     let temp_filename = format!("processed_{filename}");
     let temp_path = temp_dir.strict_join(temp_filename)?;
-    temp_path.write_string(&processed)?;
+    temp_path.write(&processed)?;
 
     // Return result path information
     let where_to = temp_path.strictpath_display();

@@ -100,5 +100,5 @@ fn serve_vpath(path: &VirtualPath<WebAssets>) -> Result<Vec<u8>> {
     if !path.is_file() {
         return Err(anyhow::anyhow!("File not found or is a directory."));
     }
-    Ok(path.read_bytes()?)
+    Ok(path.read()?)
 }

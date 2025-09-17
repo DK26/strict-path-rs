@@ -11,7 +11,6 @@ compile_error!("Enable with --features with-app-path to run this example");
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::io::{self, Write};
 use strict_path::{PathBoundary, StrictPath, VirtualPath, VirtualRoot};
 
@@ -100,7 +99,7 @@ impl PortableApp {
         let config_file = config_dir.strict_join("app.toml")?;
 
         if config_file.exists() {
-            let content = fs::read_to_string(config_file.interop_path())?;
+            let content = config_file.read_to_string()?;
             let config: PortableAppConfig = toml::from_str(&content)?;
             println!(
                 "📖 Loaded existing config from: {}",
@@ -110,7 +109,7 @@ impl PortableApp {
         } else {
             let config = PortableAppConfig::default();
             let content = toml::to_string_pretty(&config)?;
-            fs::write(config_file.interop_path(), content)?;
+            config_file.write(&content)?;
             println!(
                 "📝 Created default config at: {}",
                 config_file.strictpath_display()
@@ -123,7 +122,7 @@ impl PortableApp {
     fn save_config(&self) -> Result<()> {
         let config_file = self.config_dir.strict_join("app.toml")?;
         let content = toml::to_string_pretty(&self.config)?;
-        fs::write(config_file.interop_path(), content)?;
+        config_file.write(&content)?;
         println!("💾 Saved config to: {}", config_file.strictpath_display());
         Ok(())
     }
@@ -135,7 +134,7 @@ impl PortableApp {
         let doc_path = self.data_root.virtual_join(virtual_path)?;
         doc_path.create_parent_dir_all()?;
 
-        fs::write(doc_path.interop_path(), content)?;
+        doc_path.write(content)?;
         println!("✅ Document created: {}", doc_path.virtualpath_display());
         Ok(doc_path)
     }
@@ -155,10 +154,10 @@ impl PortableApp {
         documents: &mut Vec<String>,
     ) -> Result<()> {
         let read_dir_result = if virtual_subdir.is_empty() {
-            fs::read_dir(self.data_root.interop_path())
+            self.data_root.read_dir()
         } else {
             let vpath = self.data_root.virtual_join(virtual_subdir)?;
-            fs::read_dir(vpath.interop_path())
+            vpath.read_dir()
         };
 
         if let Ok(entries) = read_dir_result {
@@ -171,10 +170,12 @@ impl PortableApp {
                         format!("{virtual_subdir}/{name_str}")
                     };
 
-                    if entry.path().is_dir() {
-                        self.collect_documents_recursive(&virtual_path, documents)?;
-                    } else {
-                        documents.push(format!("/{virtual_path}"));
+                    if let Ok(candidate) = self.data_root.virtual_join(&virtual_path) {
+                        if candidate.is_dir() {
+                            self.collect_documents_recursive(&virtual_path, documents)?;
+                        } else {
+                            documents.push(format!("/{virtual_path}"));
+                        }
                     }
                 }
             }
@@ -190,12 +191,14 @@ impl PortableApp {
 
         let log_file = self.logs_dir.strict_join("app.log")?;
 
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_file.interop_path())?;
-
-        file.write_all(log_entry.as_bytes())?;
+        // Emulate append using read-modify-write via StrictPath I/O
+        if log_file.exists() {
+            let mut existing = log_file.read_to_string().unwrap_or_default();
+            existing.push_str(&log_entry);
+            log_file.write(existing)?;
+        } else {
+            log_file.write(log_entry)?;
+        }
         println!("📋 Logged: [{level}] {message}");
         Ok(())
     }
@@ -211,7 +214,7 @@ impl PortableApp {
         let plugin_file = self
             .plugins_dir
             .strict_join(format!("{plugin_name}.plugin"))?; // remove needless borrow per clippy
-        fs::write(plugin_file.interop_path(), plugin_content)?;
+        plugin_file.write(plugin_content)?;
 
         self.log_event("INFO", &format!("Plugin installed: {plugin_name}"))?;
         println!("✅ Plugin installed: {}", plugin_file.strictpath_display());
@@ -222,12 +225,14 @@ impl PortableApp {
     fn list_plugins(&self) -> Result<Vec<String>> {
         let mut plugins = Vec::new();
 
-        if let Ok(entries) = fs::read_dir(self.plugins_dir.interop_path()) {
+        if let Ok(entries) = self.plugins_dir.read_dir() {
             for entry in entries.flatten() {
                 if let Some(name) = entry.file_name().to_str() {
-                    if name.ends_with(".plugin") {
-                        let plugin_name = name.strip_suffix(".plugin").unwrap_or(name);
-                        plugins.push(plugin_name.to_string());
+                    if let Ok(sp) = self.plugins_dir.strict_join(name) {
+                        if sp.is_file() && name.ends_with(".plugin") {
+                            let plugin_name = name.strip_suffix(".plugin").unwrap_or(name);
+                            plugins.push(plugin_name.to_string());
+                        }
                     }
                 }
             }
@@ -299,13 +304,15 @@ fn demonstrate_backup_restore() -> Result<()> {
 
     // Copy all data files to backup
     let mut backup_count = 0;
-    if let Ok(entries) = std::fs::read_dir(data_dir.interop_path()) {
+    if let Ok(entries) = data_dir.read_dir() {
         for entry in entries.flatten() {
-            if entry.path().is_file() {
-                if let Some(filename) = entry.file_name().to_str() {
-                    let src = data_dir.strict_join(filename)?;
+            if let Some(filename) = entry.file_name().to_str() {
+                let src = data_dir.strict_join(filename)?;
+                if src.is_file() {
                     let dst = backup_path.strict_join(filename)?;
-                    std::fs::copy(src.interop_path(), dst.interop_path())?;
+                    // Use strict-path I/O to copy validated files
+                    let bytes = src.read()?;
+                    dst.write(&bytes)?;
                     backup_count += 1;
                 }
             }
@@ -316,10 +323,11 @@ fn demonstrate_backup_restore() -> Result<()> {
 
     // Show backup listing
     println!("📦 Available backups:");
-    if let Ok(entries) = std::fs::read_dir(backup_dir.interop_path()) {
+    if let Ok(entries) = backup_dir.read_dir() {
         for entry in entries.flatten() {
-            if entry.path().is_dir() {
-                if let Some(name) = entry.file_name().to_str() {
+            if let Some(name) = entry.file_name().to_str() {
+                let sp = backup_dir.strict_join(name)?;
+                if sp.is_dir() {
                     println!("  • {name}");
                 }
             }

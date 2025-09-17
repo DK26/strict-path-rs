@@ -1,0 +1,326 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>The Journey to strict-path - The Complete StrictPath Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="the-journey-to-strict-path"><a class="header" href="#the-journey-to-strict-path">The Journey to strict-path</a></h1>
+<h2 id="why-do-i-need-this-library"><a class="header" href="#why-do-i-need-this-library">Why Do I Need This Library?</a></h2>
+<p>The development of <code>strict-path</code> is a story of discovering security gaps in path handling and iteratively building a comprehensive solution. Here's the complete development journey that led to the creation of this crate.</p>
+<h2 id="the-development-process-story"><a class="header" href="#the-development-process-story">The Development Process Story</a></h2>
+<h3 id="the-simple-beginning"><a class="header" href="#the-simple-beginning">The Simple Beginning</a></h3>
+<p>It started as an apparently simple idea for a crate that validates paths by making sure they are within an expected boundary, using canonicalization. The concept was straightforward: create a type that validates the correct path (<code>PathValidator</code>) and a generated byproduct that serves as proof of validation (<code>JailedPath</code>).</p>
+<p>That wasn't too hard to do... except...</p>
+<h3 id="the-first-major-obstacle"><a class="header" href="#the-first-major-obstacle">The First Major Obstacle</a></h3>
+<p><strong>The std::canonicalize Problem</strong>: Rust's standard library <code>canonicalize()</code> could only accept and work with paths that already exist. This was a fundamental limitation that broke the entire concept.</p>
+<p><strong>Existing Crates Were Insufficient</strong>: Other Rust crates were only offering lexical path resolution, ignoring symlinks and unable to deliver the promise of canonicalized/realpath values without demanding that the target path must exist.</p>
+<p>This was a big problem! How could I validate that a location for a future file is within a legal boundary if the file doesn't exist yet?</p>
+<h3 id="the-python-inspiration"><a class="header" href="#the-python-inspiration">The Python Inspiration</a></h3>
+<p>A quick search revealed that Python had already faced this exact problem and solved it in Python 3.6 by adding the following feature: <code>pathlib.Path.resolve(strict=False)</code>.</p>
+<p>That's when I realized I'd need to create another crate! One that mimics that same logic—both to solve my problem and as an opportunity to give back to the Rust community.</p>
+<p><strong>Enter soft-canonicalize</strong>: This became the foundation crate that would enable proper path validation without requiring file existence.</p>
+<h3 id="building-soft-canonicalize"><a class="header" href="#building-soft-canonicalize">Building soft-canonicalize</a></h3>
+<p>I asked an LLM agent to fetch Python's implementation unit tests, translate them to Rust, and run them over our <code>soft-canonicalize</code> implementation. This revealed gaps in my own implementation and led me to ask for the same algorithm that Python uses (later modified for optimizations and CVE resolutions).</p>
+<p>Voilà! I had a working <code>soft-canonicalize</code> crate, so I could publish it and continue work on my jailed-path crate.</p>
+<h3 id="the-marker-type-innovation"><a class="header" href="#the-marker-type-innovation">The Marker Type Innovation</a></h3>
+<p>Continuing work on <code>JailedPath</code>, I realized that sometimes we might wish to have more than one validated path, but how could we identify them correctly? That's when I came up with the <strong>Marker type</strong> idea: simply create your very own Marker type, providing additional context for the compiler and allowing us to prevent mixing up paths!</p>
+<h3 id="security-research-and-cve-analysis"><a class="header" href="#security-research-and-cve-analysis">Security Research and CVE Analysis</a></h3>
+<p>OK, now we have a really cool <code>JailedPath</code> crate! Let's further validate that we are safe by researching CVEs.</p>
+<p>Oops! It looked like we had some gaps in our <code>soft-canonicalize</code> crate. That's where I took additional time investing in improving correctness, resilience, and performance. I created comprehensive Python benchmarks where I could validate <code>soft-canonicalize</code> performance vs Python's C language implementation. That took a while to perfect, but it was worth it because it could improve scalability in heavy usage cases.</p>
+<h3 id="the-virtual-path-discovery"><a class="header" href="#the-virtual-path-discovery">The Virtual Path Discovery</a></h3>
+<p>Researching existing alternatives, I discovered a use case for <strong>virtual paths</strong>—paths that are clamped to a virtual root. This made me reconsider my own use case for creating this crate, revealing a lot of potential.</p>
+<p>I started wondering if this should be our default behavior. Eventually, I came to this conclusion: All I needed was a secure, validated Path type. So I applied the KISS method (Keep It Simple, Stupid) and decided that the core <code>JailedPath</code> should represent simply a path that has been validated.</p>
+<p>However, there were clear uses for <code>VirtualPath</code>. After long consideration about whether this should be in a different crate, I decided to keep it inside <code>JailedPath</code> because:</p>
+<ul>
+<li>They share the same foundation</li>
+<li>I didn't want to scatter logic across two crates</li>
+<li>It's easier to maintain, use, and perform transitions between the two</li>
+</ul>
+<h3 id="the-great-renaming-journey"><a class="header" href="#the-great-renaming-journey">The Great Renaming Journey</a></h3>
+<h4 id="from-pathvalidator-to-jail"><a class="header" href="#from-pathvalidator-to-jail">From PathValidator to Jail</a></h4>
+<p>My first gut feeling was that while our <code>PathValidator</code> type was quite self-explanatory, it felt like an extra tool we needed to carry around. I was aiming to simplify the developer experience. <code>PathValidator</code> seemed easy to understand but not fun, with no clear relation to <code>JailedPath</code>.</p>
+<p>So I decided to rename <code>PathValidator</code> to <code>Jail</code>. It made sense: we set up a jail and then validate paths against it.</p>
+<h4 id="from-jail-to-pathboundary"><a class="header" href="#from-jail-to-pathboundary">From Jail to PathBoundary</a></h4>
+<p>Eventually, <code>Jail</code> didn't feel completely right either, only because we were also supporting <code>VirtualPath</code> (created from a <code>VirtualRoot</code>). I realized that a newcomer (or someone returning to code after a long while) might get confused about what behavior to expect from a <code>Jail</code> and <code>JailedPath</code> type.</p>
+<h4 id="the-api-surface-problem"><a class="header" href="#the-api-surface-problem">The API Surface Problem</a></h4>
+<p>As a result of LLM agents generating faulty code, I could see how the API was being misused. This motivated me to reduce the API surface to the minimum required and ensure all methods are explicit about the difference between <code>JailedPath</code> and <code>VirtualPath</code>. No vague method names (such as <code>as_ref()</code>). No <code>Path</code> type escapes—the LLM would simply defeat the purpose of my crate by calling its inner path and calling <code>.join()</code> on it.</p>
+<p><strong>The Problem with .join()</strong>: Calling <code>Path::join()</code> is no longer validated. The path could escape easily. And joining to a full path would completely override the path it's being joined to.</p>
+<h4 id="the-three-join-problem"><a class="header" href="#the-three-join-problem">The "Three join() Problem"</a></h4>
+<p>This led me to the "Three join() problem"—each time I saw a generated <code>.join()</code> in test code, I had to take a moment following the chain of methods to figure out if a <code>join()</code> belongs to <code>Path</code>, <code>JailedPath</code>, or <code>VirtualPath</code>.</p>
+<p>This is where I decided that methods must be explicit. Seeing them in generated code helps immediately notice and understand their behavior:</p>
+<ul>
+<li><code>jailedpath_join()</code> vs <code>virtualpath_join()</code> vs <code>join()</code></li>
+</ul>
+<p>Seeing <code>join()</code> in our code would mean unsafe behavior that we could notice immediately.</p>
+<h4 id="finding-the-right-balance"><a class="header" href="#finding-the-right-balance">Finding the Right Balance</a></h4>
+<p>Fixing my demo projects, these methods seemed verbose. Since they were very common, I decided on shorter, easier names:</p>
+<ul>
+<li><code>jailed_join()</code>, <code>virtual_join()</code></li>
+</ul>
+<p>But we're back to behavior differences. Seeing <code>jailed_join()</code>, what does it mean? We'd need to refer to docs. While docs are important, wouldn't it be nicer if we could understand from the method name what's happening?</p>
+<h4 id="the-final-names"><a class="header" href="#the-final-names">The Final Names</a></h4>
+<p>Eventually (and finally), I did another rename:</p>
+<ul>
+<li><code>JailedPath</code> → <code>StrictPath</code> (clear that the path is restricted!)</li>
+<li><code>Jail</code> → <code>PathBoundary</code> (goes hand-in-hand with <code>VirtualRoot</code>)</li>
+<li><code>strict_join()</code> vs <code>virtual_join()</code> (perfect clarity!)</li>
+</ul>
+<h3 id="path-ergonomics-and-safety"><a class="header" href="#path-ergonomics-and-safety">Path Ergonomics and Safety</a></h3>
+<p>Path ergonomics were crucial! I wanted to be as ergonomic as possible without breaking our established safety rules—especially not leaking out a <code>Path</code> type that could do a <code>.join()</code>.</p>
+<p>Eventually, I came up with <code>.interop_path()</code>. It contains the suffix <code>_path</code> to hint that this is what API users need to interop <code>VirtualPath</code> and <code>StrictPath</code> directly in places where <code>AsRef&lt;Path&gt;</code> is expected. But we do not expose a <code>Path</code> type! Instead, we expose a borrow of an <code>OsStr</code>.</p>
+<p>This is perfect! <code>OsStr</code>:</p>
+<ul>
+<li>Implements <code>AsRef&lt;Path&gt;</code> for integration with everything expecting <code>AsRef&lt;Path&gt;</code></li>
+<li>Is cross-platform and fits the underlying operating system</li>
+<li>Doesn't lose any data</li>
+<li>Is what <code>Path</code> wraps anyway—we're just stripping off all the dangerous methods</li>
+</ul>
+<h3 id="feature-integration"><a class="header" href="#feature-integration">Feature Integration</a></h3>
+<p>I wanted to explore additional features by integrating with popular crates:</p>
+<ul>
+<li><strong>app-path</strong>: My own crate for easily referring to files near our executable, ensuring operations cannot escape our application directory</li>
+<li><strong>dirs</strong>: Cross-platform access to system directories</li>
+<li><strong>tempfile</strong>: Generate temporary directories with <code>PathBoundary::try_new_temp()</code></li>
+</ul>
+<h3 id="api-simplification"><a class="header" href="#api-simplification">API Simplification</a></h3>
+<p>I kept improving demo examples and API clarity. Eventually, I realized: <code>StrictPath</code> contains the boundary path within it, just as <code>VirtualRoot</code> contains its root path (which is a <code>StrictPath</code>).</p>
+<p>I explored whether we could work with just 2 types: <code>VirtualPath</code> and <code>StrictPath</code>. While possible, it wouldn't be ideal—sometimes we want to be explicit about roots and boundaries as promises.</p>
+<p>I decided to keep <code>VirtualRoot</code> and <code>PathBoundary</code> but make common usage more concise with <code>StrictPath::with_boundary()</code> and <code>VirtualPath::with_root()</code>. This made code much more concise while remaining highly readable.</p>
+<h3 id="the-road-to-publication"><a class="header" href="#the-road-to-publication">The Road to Publication</a></h3>
+<p>This was a long journey, but it isn't over yet. It's time to make this crate public, ensuring all generated docs are correct and we don't have leftovers.</p>
+<p>The version is now good enough to be the first stable foundation for a security crate! I hope this catches on (I didn't really expect it when I started), and at some point, I began thinking of it as a potential new standard for securing paths.</p>
+<p>If this succeeds, I'd like to port it to other programming languages—JavaScript, Java, and Python first! In a way, I hope this will be what prepared statements are for SQL: a fundamental security practice that becomes standard across the ecosystem.</p>
+<h2 id="lessons-learned"><a class="header" href="#lessons-learned">Lessons Learned</a></h2>
+<p>The journey taught me several important lessons:</p>
+<ol>
+<li><strong>Security requires iteration</strong>: Each security review revealed new edge cases</li>
+<li><strong>API design is crucial</strong>: Small naming decisions have huge impacts on usability</li>
+<li><strong>Ergonomics vs Safety</strong>: You can have both, but it requires careful design</li>
+<li><strong>Community feedback matters</strong>: LLM-generated code revealed real usage patterns</li>
+<li><strong>Standards evolve</strong>: What seems like a simple idea often grows into something much more comprehensive</li>
+</ol>
+<p>The result is <code>strict-path</code>—a crate that not only solves the original path validation problem but provides a comprehensive, ergonomic, and secure foundation for all path operations in Rust applications.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="chapter_1.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="examples.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="chapter_1.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="examples.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

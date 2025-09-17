@@ -10,7 +10,6 @@ fn main() {
 
 #[cfg(feature = "with-app-path")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use std::fs;
     use strict_path::{PathBoundary, StrictPath};
 
     #[derive(Clone)]
@@ -26,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Write a sample config
     let path: StrictPath<AppCfg> = cfg_jail.strict_join("app.yaml")?;
-    path.write_string("host: 127.0.0.1\nport: 8080\n")?;
+    path.write("host: 127.0.0.1\nport: 8080\n")?;
     let disp = path.strictpath_display();
     println!("Wrote config to {disp}");
 
@@ -38,6 +37,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Config loaded ({} bytes)", content.len());
 
     // Cleanup demo file (in real apps, keep config)
-    fs::remove_file(path.interop_path()).ok();
+    path.remove_file().ok();
     Ok(())
 }

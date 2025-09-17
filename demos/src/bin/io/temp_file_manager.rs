@@ -4,7 +4,6 @@
 //! sensitive locations.
 
 use anyhow::Result;
-use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 use strict_path::{PathBoundary, StrictPath};
 
@@ -52,7 +51,7 @@ impl TempFileManager {
             .strict_join(file_name)
             .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
 
-        temp_path.write_string(content)?;
+        temp_path.write(content)?;
 
         println!(
             "  -> Wrote {} bytes to {}",
@@ -65,7 +64,8 @@ impl TempFileManager {
     /// Cleans up the entire temporary directory.
     pub fn cleanup(&self) -> Result<()> {
         println!("[TempManager] Cleaning up temporary directory...");
-        fs::remove_dir_all(self.temp_dir.interop_path())?;
+        // Use built-in deletion on PathBoundary instead of std::fs with interop_path
+        self.temp_dir.remove_dir_all()?;
         Ok(())
     }
 }

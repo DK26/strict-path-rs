@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Temporary Directory Support**: Missing RAII-backed temporary directory constructors for the virtual dimension
+  - `VirtualRoot::try_new_temp()` - Creates virtual root with automatic cleanup
+  - `VirtualRoot::try_new_temp_with_prefix(prefix)` - Temporary directory with custom prefix
+- **Metadata Access**: New methods to inspect filesystem properties
+  - `PathBoundary::metadata()`, `VirtualRoot::metadata()`, `StrictPath::metadata()` & `VirtualPath::metadata()` - Returns filesystem metadata 
+- **Directory Discovery**: Consistent helpers to enumerate entries safely before re-joining
+  - `StrictPath::read_dir()`, `VirtualPath::read_dir()`, `PathBoundary::read_dir()` & `VirtualRoot::read_dir()`
+- **Conversion Helpers**: Ergonomic conversions between path values and policy roots
+  - `StrictPath::try_into_boundary()` and `StrictPath::try_into_boundary_create()`
+  - `VirtualPath::try_into_root()` and `VirtualPath::try_into_root_create()`
+- **Root Deletion Helpers**: Manage root directories directly at policy types
+  - `PathBoundary::remove_dir()` and `PathBoundary::remove_dir_all()`
+  - `VirtualRoot::remove_dir()` and `VirtualRoot::remove_dir_all()`
+- **VirtualPath API Expansion**: Complete implementation of virtual path operations
+  - `virtual_copy(dest)` - Copies files/directories within virtual space with clamping
+  - `virtual_rename(dest)` - Enhanced rename with proper virtual space resolution  
+  - `create_parent_dir()` / `create_parent_dir_all()` - Directory creation in virtual dimension
+  - `read()` / `write()` - Simplified I/O methods (replacing deprecated `read_bytes`/`write_string`)
+  - Virtual path manipulation: `virtualpath_with_*`, `virtualpath_file_*`, `virtualpath_*_with` methods
+
+### Deprecated
+- **I/O Methods**: Older I/O methods replaced with simplified alternatives
+  - `read_bytes()` → use `read()` instead
+  - `write_bytes()` / `write_string()` → use `write()` instead
+
+### Documentation
+- API reference updated to include `read_dir()` on all core types, root deletion helpers, and the new conversion helpers
+- Examples and best practices now use `boundary.read_dir()`/`vroot.read_dir()` instead of `std::fs::read_dir(boundary.interop_path())`
+- Removed outdated guidance around constructing roots via empty joins; constructor docs and anti-patterns guide reflect current APIs
+
 ## [0.1.0-alpha.4] - 2025-09-16
 
 ### Added

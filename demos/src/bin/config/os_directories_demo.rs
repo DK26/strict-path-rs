@@ -119,7 +119,7 @@ impl MediaOrganizerApp {
     fn save_config(&self, config: &AppConfig) -> Result<(), Box<dyn std::error::Error>> {
         let config_file = self.config_root.strict_join("config.json")?;
         let content = serde_json::to_string_pretty(config)?;
-        config_file.write_bytes(content.as_bytes())?;
+        config_file.write(content)?;
         println!("💾 Configuration saved");
         Ok(())
     }
@@ -150,7 +150,7 @@ impl MediaOrganizerApp {
     fn save_database(&self, db: &MediaDatabase) -> Result<(), Box<dyn std::error::Error>> {
         let db_file = self.data_root.strict_join("media_database.json")?;
         let content = serde_json::to_string_pretty(db)?;
-        db_file.write_bytes(content.as_bytes())?;
+        db_file.write(content)?;
         println!("💾 Media database saved with {} entries", db.entries.len());
         Ok(())
     }
@@ -258,7 +258,7 @@ impl MediaOrganizerApp {
             let safe_filename = filename;
 
             let thumb_file = thumbnails_dir.strict_join(format!("{}.thumb", safe_filename))?;
-            thumb_file.write_bytes(b"simulated thumbnail data")?;
+            thumb_file.write(b"simulated thumbnail data")?;
 
             let meta_file = metadata_dir.strict_join(format!("{}.meta", safe_filename))?;
             let metadata = serde_json::json!({
@@ -267,7 +267,7 @@ impl MediaOrganizerApp {
                 "processed_at": chrono::Utc::now().to_rfc3339(),
                 "thumbnail_generated": true
             });
-            meta_file.write_bytes(metadata.to_string().as_bytes())?;
+            meta_file.write(metadata.to_string())?;
 
             entry.has_thumbnail = true;
             println!("   🖼️ Generated thumbnail for: {}", safe_filename);
@@ -288,7 +288,7 @@ impl MediaOrganizerApp {
             "files_cleaned": 3
         });
 
-        cache_info_file.write_bytes(cache_info.to_string().as_bytes())?;
+        cache_info_file.write(cache_info.to_string())?;
         println!("   ✅ Cache cleanup completed");
 
         Ok(())
@@ -352,7 +352,7 @@ impl MediaOrganizerApp {
 
         // Create the file through virtual path
         project_file.create_parent_dir_all()?;
-        project_file.write_bytes(
+        project_file.write(
             b"Media Organizer Project Notes\n\
               - Uses OS standard directories\n\
               - Secure path boundaries\n\

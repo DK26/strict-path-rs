@@ -27,7 +27,7 @@ fn main() -> Result<()> {
 
     // --- Discover files to process from the ingest jail (external FS input) //
     println!("--- Starting User Data Processing ---");
-    for entry in std::fs::read_dir(ingest_dir.interop_path())? {
+    for entry in ingest_dir.read_dir()? {
         let entry = entry?;
         if !entry.file_type()?.is_file() {
             continue;
@@ -86,7 +86,7 @@ fn process_and_store_data(
     let storage_disp = storage_path.strictpath_display();
     println!("  -> Target storage path: {storage_disp}");
 
-    storage_path.write_string(&processed_data)?;
+    storage_path.write(&processed_data)?;
 
     archive_ingested_file(&ingest_path)?;
 

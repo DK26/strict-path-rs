@@ -46,6 +46,96 @@ impl<Marker> VirtualRoot<Marker> {
         })
     }
 
+    /// Creates a VirtualRoot backed by a unique temporary directory with RAII cleanup.
+    ///
+    /// Returns a virtual root whose backing directory is automatically removed when dropped.
+    ///
+    /// # Example
+    /// ```
+    /// # #[cfg(feature = "tempfile")] {
+    /// use strict_path::VirtualRoot;
+    ///
+    /// let uploads_root = VirtualRoot::<()>::try_new_temp()?;
+    /// let tenant_file = uploads_root.virtual_join("tenant/document.pdf")?;
+    /// let display = tenant_file.virtualpath_display().to_string();
+    /// assert!(display.starts_with("/"));
+    /// # }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[cfg(feature = "tempfile")]
+    #[inline]
+    pub fn try_new_temp() -> Result<Self> {
+        let root = PathBoundary::try_new_temp()?;
+        let temp_dir = root.temp_dir_arc();
+        Ok(Self {
+            root,
+            #[cfg(feature = "tempfile")]
+            _temp_dir: temp_dir,
+            _marker: PhantomData,
+        })
+    }
+
+    /// Creates a VirtualRoot in a temporary directory with a custom prefix and RAII cleanup.
+    ///
+    /// Returns a virtual root whose backing directory is automatically removed when dropped.
+    ///
+    /// # Example
+    /// ```
+    /// # #[cfg(feature = "tempfile")] {
+    /// use strict_path::VirtualRoot;
+    ///
+    /// let session_root = VirtualRoot::<()>::try_new_temp_with_prefix("session")?;
+    /// let export_path = session_root.virtual_join("exports/report.txt")?;
+    /// let display = export_path.virtualpath_display().to_string();
+    /// assert!(display.starts_with("/exports"));
+    /// # }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[cfg(feature = "tempfile")]
+    #[inline]
+    pub fn try_new_temp_with_prefix(prefix: &str) -> Result<Self> {
+        let root = PathBoundary::try_new_temp_with_prefix(prefix)?;
+        let temp_dir = root.temp_dir_arc();
+        Ok(Self {
+            root,
+            #[cfg(feature = "tempfile")]
+            _temp_dir: temp_dir,
+            _marker: PhantomData,
+        })
+    }
+
+    /// Returns filesystem metadata for the underlying root directory.
+    #[inline]
+    pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
+        self.root.metadata()
+    }
+
+    /// Reads the directory entries at the virtual root (like `std::fs::read_dir`).
+    ///
+    /// This is intended for discovery. Prefer collecting each entry's file name via
+    /// `entry.file_name()` and re-joining using `virtual_join(...)` (or `strict_join(...)`
+    /// after converting) before performing I/O on child paths.
+    #[inline]
+    pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
+        self.root.read_dir()
+    }
+
+    /// Removes the underlying root directory (non-recursive).
+    ///
+    /// Equivalent to `std::fs::remove_dir(root)`. Fails if the directory is not empty.
+    #[inline]
+    pub fn remove_dir(&self) -> std::io::Result<()> {
+        self.root.remove_dir()
+    }
+
+    /// Recursively removes the underlying root directory and all its contents.
+    ///
+    /// Equivalent to `std::fs::remove_dir_all(root)`.
+    #[inline]
+    pub fn remove_dir_all(&self) -> std::io::Result<()> {
+        self.root.remove_dir_all()
+    }
+
     /// Creates the directory if missing, then returns a `VirtualRoot`.
     ///
     /// Uses `AsRef<Path>` for maximum ergonomics, including direct `TempDir` support for clean shadowing patterns:

@@ -9,12 +9,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tmp_dir = tempfile::tempdir()?;
     PathBoundary::<()>::try_new(&tmp_dir)?
         .strict_join("hello.txt")?
-        .write_string("hello from a strict path\n")?;
+        .write("hello from a strict path\n")?;
 
     // One-liner read with size calculation
     let bytes_read = PathBoundary::<()>::try_new(&tmp_dir)?
         .strict_join("hello.txt")?
-        .read_bytes()?
+        .read()?
         .len();
     println!("One-liner PathBoundary: read {bytes_read} bytes");
 

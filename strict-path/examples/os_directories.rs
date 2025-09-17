@@ -18,18 +18,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_dir = PathBoundary::<()>::try_new_os_config("myapp")?;
     println!("Config: {}", config_dir.strictpath_display());
     let settings = config_dir.strict_join("settings.toml")?;
-    settings.write_string("theme = 'dark'\nversion = '1.0'")?;
+    settings.write("theme = 'dark'\nversion = '1.0'")?;
     println!("  └─ settings.toml: {}", settings.read_to_string()?);
 
     let data_dir = PathBoundary::<()>::try_new_os_data("myapp")?;
     println!("Data: {}", data_dir.strictpath_display());
     let database = data_dir.strict_join("app.db")?;
-    database.write_string("-- SQLite database placeholder")?;
+    database.write("-- SQLite database placeholder")?;
 
     let cache_dir = PathBoundary::<()>::try_new_os_cache("myapp")?;
     println!("Cache: {}", cache_dir.strictpath_display());
     let temp_cache = cache_dir.strict_join("temp.json")?;
-    temp_cache.write_string(r#"{"cached_at": "2024-01-01"}"#)?;
+    temp_cache.write(r#"{"cached_at": "2024-01-01"}"#)?;
 
     // Platform-specific local directories (Windows/Linux only)
     #[cfg(any(target_os = "windows", target_os = "linux"))]
@@ -107,7 +107,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Virtual path: {}", vconfig.virtualpath_display());
     // App sees "/app.toml", system stores in OS config directory
 
-    std::fs::write(vconfig.interop_path(), "name = 'Demo App'\nversion = '1.0'")?;
+    vconfig.write("name = 'Demo App'\nversion = '1.0'")?;
     println!("Content: {}", vconfig.read_to_string()?);
 
     println!("\n✅ All OS directory operations completed successfully!");

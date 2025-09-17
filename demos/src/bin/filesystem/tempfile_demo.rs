@@ -54,7 +54,7 @@ impl TempFileProcessor {
         // Stage the upload first - validates filename
         let staged_file = self.upload_staging.strict_join(filename)?;
         staged_file.create_parent_dir_all()?;
-        fs::write(staged_file.interop_path(), content)?;
+        staged_file.write(content)?;
 
         // Log the operation
         let log_entry = format!("Processed: {filename} ({} bytes)\n", content.len());
@@ -65,7 +65,8 @@ impl TempFileProcessor {
         processed_file.create_parent_dir_all()?;
 
         // Simulate processing (just copying for demo)
-        fs::copy(staged_file.interop_path(), processed_file.interop_path())?;
+        let bytes = staged_file.read()?;
+        processed_file.write(&bytes)?;
 
         println!("✅ File processed: {}", processed_file.strictpath_display());
         Ok(processed_file)
@@ -93,7 +94,7 @@ impl TempFileProcessor {
     fn list_processed_files(&self) -> Result<Vec<String>> {
         let mut files = Vec::new();
 
-        if let Ok(entries) = fs::read_dir(self.work_dir.interop_path()) {
+        if let Ok(entries) = self.work_dir.read_dir() {
             for entry in entries.flatten() {
                 if let Some(name) = entry.file_name().to_str() {
                     files.push(name.to_string());
@@ -156,7 +157,7 @@ fn demonstrate_compression_workflow() -> Result<()> {
         if let Ok(Some(parent)) = file_path.strictpath_parent() {
             parent.create_dir_all()?;
         }
-        file_path.write_string(content)?;
+        file_path.write(content)?;
     }
 
     // Simulate creating a compressed archive
@@ -166,7 +167,7 @@ fn demonstrate_compression_workflow() -> Result<()> {
 
     // List all files that would be archived
     let mut file_count = 0;
-    if let Ok(entries) = std::fs::read_dir(temp_work.interop_path()) {
+    if let Ok(entries) = temp_work.read_dir() {
         for entry in entries.flatten() {
             if entry.path().is_file() {
                 if let Some(name) = entry.file_name().to_str() {
@@ -177,7 +178,7 @@ fn demonstrate_compression_workflow() -> Result<()> {
         }
     }
 
-    archive_path.write_string(&archive_content)?;
+    archive_path.write(&archive_content)?;
     println!(
         "✅ Created archive: {} ({file_count} files)",
         archive_path.strictpath_display()
@@ -255,7 +256,7 @@ fn demonstrate_temp_workflow_patterns() -> Result<()> {
     let temp_file = atomic_temp.strict_join("atomic_write.tmp")?;
 
     // Write to temp, then atomic rename (in real code, would rename to final location)
-    fs::write(temp_file.interop_path(), b"atomic content")?;
+    temp_file.write(b"atomic content")?;
     println!("⚛️  Atomic temp file: {}", temp_file.strictpath_display());
 
     Ok(())

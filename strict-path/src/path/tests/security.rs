@@ -496,7 +496,7 @@ fn test_zip_slip_style_extraction() {
                 if should_succeed {
                     // Simulate extraction: ensure parents and write
                     vp.create_parent_dir_all().unwrap();
-                    vp.write_string("data").unwrap();
+                    vp.write("data").unwrap();
                     assert!(vp.exists());
                     // Ensure the resolved system path lives under PathBoundary
                     // Compare against the canonical PathBoundary path to avoid Windows verbatim prefix issues
@@ -547,7 +547,7 @@ fn test_tar_slip_style_extraction() {
             Ok(vp) => {
                 if should_succeed {
                     vp.create_parent_dir_all().unwrap();
-                    vp.write_string("data").unwrap();
+                    vp.write("data").unwrap();
                     assert!(vp
                         .as_unvirtual()
                         .strictpath_starts_with(vroot.interop_path()));
@@ -645,7 +645,7 @@ fn test_hard_link_inside_to_outside_documents_limitation() {
         .expect("join should succeed within PathBoundary");
 
     // Write via jailed API
-    vp.write_string("modified").unwrap();
+    vp.write("modified").unwrap();
 
     // Outside file reflects the change (documented limitation)
     let out = std::fs::read_to_string(&outside_file).unwrap();
@@ -890,7 +890,7 @@ fn test_winrar_ads_traversal_payload_is_clamped() {
 
     // Ensure the decoy file exists (ADS writes typically require the base file)
     let decoy = vroot.virtual_join("decoy.txt").expect("join decoy");
-    decoy.write_string("decoy").unwrap();
+    decoy.write("decoy").unwrap();
 
     // The malicious entry name used by attackers
     let payload = "decoy.txt:..\\..\\evil.exe";
@@ -906,7 +906,7 @@ fn test_winrar_ads_traversal_payload_is_clamped() {
     // Attempt to write the payload; on NTFS this writes an ADS on decoy.txt.
     // On filesystems without ADS support this may error; both outcomes are acceptable
     // as long as no file is created outside the restriction.
-    match vp.write_string("malware-bytes") {
+    match vp.write("malware-bytes") {
         Ok(()) => {
             // Optional: attempt to read the ADS back to confirm write stayed attached to decoy
             let read_back = vp.read_to_string();

@@ -180,7 +180,7 @@ fn tool_virtual_file_write(
             .create_parent_dir_all()
             .map_err(|e| ErrorData::internal_error(format!("Create parent error: {e}"), None))?;
         file_vpath
-            .write_string(&content)
+            .write(&content)
             .map_err(|e| ErrorData::internal_error(format!("I/O error: {e}"), None))?;
         let result = WriteResultVirtual {
             virtual_path: format!("{}", file_vpath.virtualpath_display()),
@@ -208,7 +208,8 @@ fn tool_virtual_file_list(
             ));
         }
         let mut entries = Vec::new();
-        for entry in std::fs::read_dir(dir_vpath.as_unvirtual().interop_path())
+        for entry in dir_vpath
+            .read_dir()
             .map_err(|e| ErrorData::internal_error(format!("read_dir: {e}"), None))?
             .flatten()
         {
@@ -268,7 +269,7 @@ fn tool_strict_file_write(
             .create_parent_dir_all()
             .map_err(|e| ErrorData::internal_error(format!("Create parent error: {e}"), None))?;
         file_spath
-            .write_string(&content)
+            .write(&content)
             .map_err(|e| ErrorData::internal_error(format!("I/O error: {e}"), None))?;
         let result = WriteResultStrict {
             system_path: format!("{}", file_spath.strictpath_display()),
@@ -296,7 +297,8 @@ fn tool_strict_file_list(
             ));
         }
         let mut entries = Vec::new();
-        for entry in std::fs::read_dir(dir_spath.interop_path())
+        for entry in dir_spath
+            .read_dir()
             .map_err(|e| ErrorData::internal_error(format!("read_dir: {e}"), None))?
             .flatten()
         {

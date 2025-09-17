@@ -19,6 +19,11 @@
 //! let d2 = tempfile::tempdir()?;
 //! let vp: VirtualPath = VirtualPath::with_root(d2.path())?      // virtual root "/"
 //!     .virtual_join("assets/logo.png")?;                       // clamped to root
+//! // Create the file before inspecting/removing it in the example
+//! sp.create_parent_dir_all()?;
+//! sp.write("hello")?;
+//! sp.metadata()?;                      // inspect filesystem metadata safely
+//! sp.remove_file()?;                   // remove files through the wrapper
 //! # Ok(()) }
 //! ```
 //!
@@ -91,7 +96,7 @@
 //! // Encode guarantees in the signature: pass the virtual root and the untrusted segment
 //! fn process_upload(uploads: &VirtualRoot, user_filename: &str) -> Result<(), Box<dyn std::error::Error>> {
 //!     let safe_file: VirtualPath = uploads.virtual_join(user_filename)?;  // Sandbox!
-//!     safe_file.write_bytes(b"data")?;
+//!     safe_file.write(b"data")?;
 //!     Ok(())
 //! }
 //!
@@ -120,30 +125,33 @@
 //!
 //! ```rust
 //! use strict_path::{StrictPath, VirtualPath};
-//! use std::fs;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // ISOLATION: User upload directory - users see clean "/" paths
-//! fs::create_dir_all("uploads/user_42")?;
-//! let user_file: VirtualPath =
-//!     VirtualPath::with_root("uploads/user_42")?.virtual_join("documents/report.pdf")?;
+//! // Note: `.with_root()` requires the directory to already exist. Use
+//! // `.with_root_create()` if you want it to be created automatically.
+//! # std::fs::create_dir_all("uploads/user_42")?; // hidden setup
+//! let user_root: VirtualPath = VirtualPath::with_root("uploads/user_42")?;
+//! let user_file: VirtualPath = user_root.virtual_join("documents/report.pdf")?;
 //!
 //! // User sees: "/documents/report.pdf" (clean, isolated)
 //! println!("User sees: {}", user_file.virtualpath_display());
 //! user_file.create_parent_dir_all()?;
-//! user_file.write_bytes(b"user content")?;
+//! user_file.write(b"user content")?;
 //!
 //! // SHARED SYSTEM: Application cache - you see real system paths
-//! fs::create_dir_all("app_cache")?;
-//! let cache_file: StrictPath =
-//!     StrictPath::with_boundary("app_cache")?.strict_join("build/output.json")?;
+//! // Note: `.with_boundary()` requires an existing directory. Prefer
+//! // `.with_boundary_create()` to auto-create the boundary as needed.
+//! # std::fs::create_dir_all("app_cache")?; // hidden setup
+//! let cache_root: StrictPath = StrictPath::with_boundary("app_cache")?;
+//! let cache_file: StrictPath = cache_root.strict_join("build/output.json")?;
 //!
 //! // Developer sees: "app_cache/build/output.json" (real system path)  
 //! println!("System path: {}", cache_file.strictpath_display());
 //! cache_file.create_parent_dir_all()?;
-//! cache_file.write_bytes(b"cache data")?;
+//! cache_file.write(b"cache data")?;
 //!
-//! # fs::remove_dir_all("uploads").ok(); fs::remove_dir_all("app_cache").ok();
+//! # user_root.remove_dir_all().ok(); cache_root.remove_dir_all().ok();
 //! # Ok(()) }
 //! ```
 //!
@@ -253,12 +261,12 @@
 //! // Ensure parent directory exists before writing
 //! vp.create_parent_dir_all()?;
 //!
-//! fn save_doc(p: &VirtualPath) -> std::io::Result<()> { p.write_bytes(b"user file content") }
+//! fn save_doc(p: &VirtualPath) -> std::io::Result<()> { p.write(b"user file content") }
 //! save_doc(&vp)?; // Compiler enforces correct usage via the type
 //! println!("virtual: {}", vp.virtualpath_display());
 //!
 //! # // Cleanup
-//! # std::fs::remove_dir_all(&root).ok();
+//! # vp_root.remove_dir_all().ok();
 //! # Ok(()) }
 //! ```
 //!
@@ -273,7 +281,7 @@
 //! fn render(p: &VirtualPath) -> std::io::Result<String> { p.read_to_string() }
 //! let _ = render(&tpl);
 //!
-//! # std::fs::remove_dir_all(&tpl_root).ok();
+//! # templates.remove_dir_all().ok();
 //! # Ok(()) }
 //! ```
 //!
@@ -281,12 +289,10 @@
 //!
 //! ```rust
 //! use strict_path::VirtualPath;
-//! use std::fs;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // 1. Create a virtual root (sugar), which corresponds to a real directory.
-//! fs::create_dir_all("user_data")?;
-//! let root = VirtualPath::with_root("user_data")?;
+//! let root = VirtualPath::with_root_create("user_data")?;
 //!
 //! // 2. Create a virtual path from user input. Traversal attacks are neutralized.
 //! let virtual_path: VirtualPath = root.virtual_join("documents/report.pdf")?;
@@ -301,7 +307,7 @@
 //! ensure_dir(&virtual_path)?;
 //! assert!(virtual_path.exists());
 //!
-//! fs::remove_dir_all("user_data")?;
+//! root.remove_dir_all()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -325,12 +331,10 @@
 //! ### Example: Display vs Debug
 //! ```rust
 //! # use strict_path::{VirtualRoot, VirtualPath};
-//! # use std::fs;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # fs::create_dir_all("vp_demo")?;
-//! let vp: VirtualPath =
-//!     VirtualPath::with_root("vp_demo")?.virtual_join("users/alice/report.txt")?;
+//! let vp_root: VirtualPath = VirtualPath::with_root_create("vp_demo")?;
+//! let vp: VirtualPath = vp_root.virtual_join("users/alice/report.txt")?;
 //!
 //! // Display is user-facing, rooted, forward-slashed
 //! assert_eq!(vp.virtualpath_display().to_string(), "/users/alice/report.txt");
@@ -341,7 +345,7 @@
 //! assert!(dbg.contains("system_path"));
 //! assert!(dbg.contains("virtual"));
 //!
-//! # fs::remove_dir_all("vp_demo").ok();
+//! # vp_root.remove_dir_all().ok();
 //! # Ok(()) }
 //! ```
 //!
@@ -351,7 +355,7 @@
 //! | -------------------------------------- | -------------------------- | ----------------------------------------------------------- |
 //! | Displaying a path in a UI or log       | `VirtualPath`              | `println!("File: {}", virtual_path.virtualpath_display());` |
 //! | Manipulating a path based on user view | `VirtualPath`              | `virtual_path.virtualpath_parent()`                         |
-//! | Reading or writing a file              | `VirtualPath` or `StrictPath` | `virtual_path.read_bytes()?` or `strict_path.read_bytes()?` |
+//! | Reading or writing a file              | `VirtualPath` or `StrictPath` | `virtual_path.read()?` or `strict_path.read()?` |
 //! | Integrating with an external API       | Either (borrow `&OsStr`)   | `external_api(virtual_path.interop_path())`         |
 //!
 //! ## Multi-PathBoundary Type Safety
@@ -360,18 +364,19 @@
 //!
 //! ```rust
 //! use strict_path::{PathBoundary, StrictPath, VirtualPath};
-//! use std::fs;
 //!
 //! struct StaticAssets;
 //! struct UserUploads;
 //!
 //! fn serve_asset(asset: &StrictPath<StaticAssets>) -> Result<Vec<u8>, std::io::Error> {
-//!     asset.read_bytes()
+//!     asset.read()
 //! }
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # fs::create_dir_all("assets")?; fs::create_dir_all("uploads")?;
-//! # fs::write("assets/style.css", "body{}")?;
+//! # let css_root: VirtualPath<StaticAssets> = VirtualPath::with_root_create("assets")?;
+//! # let css_pre: VirtualPath<StaticAssets> = css_root.virtual_join("style.css")?;
+//! # css_pre.create_parent_dir_all()?; css_pre.write("body{}")?;
+//! # let uploads_root: VirtualPath<UserUploads> = VirtualPath::with_root_create("uploads")?;
 //! let css_file: VirtualPath<StaticAssets> =
 //!     VirtualPath::with_root("assets")?.virtual_join("style.css")?;
 //! let user_file: VirtualPath<UserUploads> =
@@ -379,7 +384,7 @@
 //!
 //! serve_asset(css_file.as_unvirtual())?; // ✅ Correct type
 //! // serve_asset(user_file.as_unvirtual())?; // ❌ Compile error: wrong marker type!
-//! # fs::remove_dir_all("assets").ok(); fs::remove_dir_all("uploads").ok();
+//! # css_root.remove_dir_all().ok(); uploads_root.remove_dir_all().ok();
 //! # Ok(())
 //! # }
 //! ```
@@ -462,7 +467,7 @@
 //! let boundary: PathBoundary = PathBoundary::try_new_create(td.path())?;
 //! let file = boundary.strict_join("logs/app.log")?;
 //! file.create_parent_dir_all()?;
-//! file.write_string("ok")?;
+//! file.write("ok")?;
 //!
 //! // Rename within the same directory (no implicit parent creation)
 //! // Relative destinations are resolved against the parent (sibling rename)
@@ -473,6 +478,28 @@
 //! let v = renamed.clone().virtualize();
 //! let v2 = v.virtual_rename("app.archived")?;
 //! assert!(v2.exists());
+//! # Ok(()) }
+//! ```
+//!
+//! Safe copy
+//! ```rust
+//! # use strict_path::PathBoundary;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Strict (system-facing): copy a file to a sibling name (no implicit parent creation)
+//! let td = tempfile::tempdir()?;
+//! let boundary: PathBoundary = PathBoundary::try_new_create(td.path())?;
+//! let src = boundary.strict_join("docs/a.txt")?;
+//! src.create_parent_dir_all()?;
+//! src.write("copy me")?;
+//!
+//! let dst = src.strict_copy("b.txt")?; // resolved against parent directory
+//! assert_eq!(dst.read_to_string()?, "copy me");
+//!
+//! // Virtual (user-facing): clamp + validate destination before copy
+//! let v = dst.clone().virtualize();
+//! let vcopy = v.virtual_copy("c.txt")?; // sibling within the same virtual parent
+//! assert!(vcopy.exists());
+//! assert_eq!(vcopy.read_to_string()?, "copy me");
 //! # Ok(()) }
 //! ```
 //!
@@ -557,7 +584,8 @@
 //! let back: strict_path::StrictPath = v.clone().unvirtual();
 //! let owned_again: std::path::PathBuf = v.unvirtual().unstrict();
 //! # // Cleanup created PathBoundary directory for doctest hygiene
-//! # std::fs::remove_dir_all("./safe").ok();
+//! # let root_cleanup: strict_path::StrictPath = strict_path::StrictPath::with_boundary("./safe")?;
+//! # root_cleanup.remove_dir_all().ok();
 //! # Ok(()) }
 //! ```
 //!

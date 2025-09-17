@@ -39,7 +39,7 @@ impl FileUploadService {
         user_root: &VirtualRoot,
     ) -> Result<Vec<VirtualPath>, Box<dyn std::error::Error>> {
         let mut files = Vec::new();
-        for entry in std::fs::read_dir(user_root.interop_path())? {
+        for entry in user_root.read_dir()? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
                 let vpath = user_root.virtual_join(entry.file_name())?;
@@ -155,7 +155,7 @@ impl ConfigManager {
     fn list_configs(&self) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let mut configs = Vec::new();
         
-        for entry in std::fs::read_dir(self.config_dir.interop_path())? {
+        for entry in self.config_dir.read_dir()? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
                 if let Some(name) = entry.file_name().to_str() {

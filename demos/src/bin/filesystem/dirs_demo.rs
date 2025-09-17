@@ -11,7 +11,6 @@ compile_error!("Enable with --features with-dirs to run this example");
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::fs;
 use strict_path::{PathBoundary, StrictPath};
 
 /// Marker types for different system directory purposes
@@ -76,7 +75,7 @@ impl SystemDirectoryManager {
         let config_file = self.config_dir.strict_join("config.toml")?;
 
         if config_file.exists() {
-            let content = fs::read_to_string(config_file.interop_path())?;
+            let content = config_file.read_to_string()?;
             let config: AppConfig = toml::from_str(&content)?;
             println!(
                 "✅ Loaded existing config from: {}",
@@ -99,7 +98,7 @@ impl SystemDirectoryManager {
         let config_file = self.config_dir.strict_join("config.toml")?;
         let content = toml::to_string_pretty(config)?;
 
-        fs::write(config_file.interop_path(), content)?;
+        config_file.write(&content)?;
         println!("💾 Saved config to: {}", config_file.strictpath_display());
         Ok(config_file)
     }
@@ -111,7 +110,7 @@ impl SystemDirectoryManager {
         let data_file = self.data_dir.strict_join(filename)?;
         data_file.create_parent_dir_all()?;
 
-        fs::write(data_file.interop_path(), content)?;
+        data_file.write(content)?;
         println!("✅ Saved to: {}", data_file.strictpath_display());
         Ok(data_file)
     }
@@ -121,7 +120,7 @@ impl SystemDirectoryManager {
         println!("\n🗂️  Caching data with key: {key}");
 
         let cache_file = self.cache_dir.strict_join(format!("{key}.cache"))?;
-        fs::write(cache_file.interop_path(), data)?;
+        cache_file.write(data)?;
 
         // Check total cache size (simplified example)
         let cache_size = self.calculate_cache_size()?;
@@ -141,11 +140,15 @@ impl SystemDirectoryManager {
     fn calculate_cache_size(&self) -> Result<u64> {
         let mut total_size = 0;
 
-        if let Ok(entries) = fs::read_dir(self.cache_dir.interop_path()) {
+        if let Ok(entries) = self.cache_dir.read_dir() {
             for entry in entries.flatten() {
-                if let Ok(metadata) = entry.metadata() {
-                    if metadata.is_file() {
-                        total_size += metadata.len();
+                if let Some(name) = entry.file_name().to_str() {
+                    if let Ok(file_path) = self.cache_dir.strict_join(name) {
+                        if let Ok(metadata) = file_path.metadata() {
+                            if metadata.is_file() {
+                                total_size += metadata.len();
+                            }
+                        }
                     }
                 }
             }
@@ -156,29 +159,39 @@ impl SystemDirectoryManager {
 
     /// Clean up old cache files (simplified LRU)
     fn cleanup_old_cache_files(&self) -> Result<()> {
-        if let Ok(entries) = fs::read_dir(self.cache_dir.interop_path()) {
-            let mut files: Vec<_> = entries
+        if let Ok(entries) = self.cache_dir.read_dir() {
+            use std::time::UNIX_EPOCH;
+            let mut files: Vec<(StrictPath<Cache>, std::time::SystemTime)> = entries
                 .filter_map(|entry| entry.ok())
                 .filter_map(|entry| {
-                    entry
-                        .metadata()
-                        .ok()
-                        .map(|metadata| (entry.path(), metadata))
+                    let name = entry.file_name();
+                    let name = name.to_str()?;
+                    let sp = self.cache_dir.strict_join(name).ok()?;
+                    let meta = sp.metadata().ok()?;
+                    if meta.is_file() {
+                        let mtime = meta.modified().unwrap_or(UNIX_EPOCH);
+                        Some((sp, mtime))
+                    } else {
+                        None
+                    }
                 })
-                .filter(|(_, metadata)| metadata.is_file())
                 .collect();
 
             // Sort by modification time (oldest first)
-            files.sort_by_key(|(_, metadata)| metadata.modified().unwrap_or(std::time::UNIX_EPOCH));
+            files.sort_by_key(|(_, mtime)| *mtime);
 
             // Remove oldest files until we're under the limit
             let files_to_remove = files.len().saturating_sub(5); // Keep newest 5 files
 
-            for (path, _) in files.into_iter().take(files_to_remove) {
-                if let Err(e) = fs::remove_file(&path) {
-                    println!("⚠️  Failed to remove cache file {}: {}", path.display(), e);
+            for (sp, _) in files.into_iter().take(files_to_remove) {
+                if let Err(e) = sp.remove_file() {
+                    println!(
+                        "⚠️  Failed to remove cache file {}: {}",
+                        sp.strictpath_display(),
+                        e
+                    );
                 } else {
-                    println!("🗑️  Removed old cache file: {}", path.display());
+                    println!("🗑️  Removed old cache file: {}", sp.strictpath_display());
                 }
             }
         }
@@ -190,11 +203,11 @@ impl SystemDirectoryManager {
     fn list_user_data(&self) -> Result<Vec<String>> {
         let mut files = Vec::new();
 
-        if let Ok(entries) = fs::read_dir(self.data_dir.interop_path()) {
+        if let Ok(entries) = self.data_dir.read_dir() {
             for entry in entries.flatten() {
-                if let Ok(metadata) = entry.metadata() {
-                    if metadata.is_file() {
-                        if let Some(name) = entry.file_name().to_str() {
+                if let Some(name) = entry.file_name().to_str() {
+                    if let Ok(sp) = self.data_dir.strict_join(name) {
+                        if sp.is_file() {
                             files.push(name.to_string());
                         }
                     }
@@ -266,13 +279,13 @@ fn demonstrate_config_migration() -> Result<()> {
 
         // Simple migration example
         let new_data = old_data.replace("old_setting", "new_setting");
-        new_config.write_string(&new_data)?;
+        new_config.write(&new_data)?;
 
         // Archive the old config
         let archive = config_dir.strict_join("archive")?;
         archive.create_dir_all()?;
         let archived = archive.strict_join("config_v1_backup.toml")?;
-        archived.write_string(&old_data)?;
+        archived.write(&old_data)?;
 
         println!("✅ Config migrated and old version archived");
     } else {
@@ -370,7 +383,7 @@ fn demonstrate_advanced_config_patterns() -> Result<()> {
         };
 
         let content = toml::to_string_pretty(&config)?;
-        fs::write(env_config_file.interop_path(), content)?;
+        env_config_file.write(&content)?;
 
         println!(
             "📝 Created {env} config: {}",

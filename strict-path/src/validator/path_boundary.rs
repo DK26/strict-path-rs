@@ -302,6 +302,44 @@ impl<Marker> PathBoundary<Marker> {
         self.path().display()
     }
 
+    /// Internal helper: exposes the tempfile RAII handle so `VirtualRoot` constructors can mirror cleanup semantics when constructed from temporary directories.
+    #[cfg(feature = "tempfile")]
+    #[inline]
+    pub(crate) fn temp_dir_arc(&self) -> Option<Arc<TempDir>> {
+        self._temp_dir.clone()
+    }
+
+    /// Returns filesystem metadata for the PathBoundary root path.
+    #[inline]
+    pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
+        std::fs::metadata(self.path())
+    }
+
+    /// Reads the directory entries under this PathBoundary root (like `std::fs::read_dir`).
+    ///
+    /// This is intended for discovery. Prefer collecting entry names and joining via
+    /// `strict_join`/`virtual_join` before performing I/O.
+    #[inline]
+    pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
+        std::fs::read_dir(self.path())
+    }
+
+    /// Removes this PathBoundary root directory (non-recursive).
+    ///
+    /// Equivalent to `std::fs::remove_dir(root)`. Fails if the directory is not empty.
+    #[inline]
+    pub fn remove_dir(&self) -> std::io::Result<()> {
+        std::fs::remove_dir(self.path())
+    }
+
+    /// Recursively removes this PathBoundary root directory and all its contents.
+    ///
+    /// Equivalent to `std::fs::remove_dir_all(root)`.
+    #[inline]
+    pub fn remove_dir_all(&self) -> std::io::Result<()> {
+        std::fs::remove_dir_all(self.path())
+    }
+
     /// Converts this `PathBoundary` into a `VirtualRoot`.
     ///
     /// This creates a virtual root view of the PathBoundary, allowing virtual path operations

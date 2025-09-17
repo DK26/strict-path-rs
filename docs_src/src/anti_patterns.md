@@ -28,38 +28,6 @@ let archive_entry = config_dir.strict_join(&entry_name_from_zip)?;
 let db_path = config_dir.strict_join(&path_from_database)?;
 ```
 
-## Constructing “root” via `strict_join("")`
-
-**🚫 What not to do:**
-```rust
-let uploads_dir = PathBoundary::try_new("./uploads")?;
-// Anti-pattern: validating an empty string just to obtain a "root" StrictPath
-let root = uploads_dir.strict_join("")?; // ← meaningless validation; noise
-let photo = root.strict_join(user_filename)?; // extra hop for no benefit
-```
-
-**Why it's wrong:** Joining an empty string does not add security or clarity. It’s a no-op that obscures intent and trains teams to “validate constants,” which helps no one.
-
-**✅ Do this instead:**
-```rust
-let uploads_dir = PathBoundary::try_new("./uploads")?;
-// Validate only untrusted segments directly against the boundary
-let photo = uploads_dir.strict_join(user_filename)?;
-```
-
-If you truly want a root StrictPath value (for ergonomic chaining), prefer the sugar constructor which keeps the pattern explicit and consistent:
-```rust
-let root: StrictPath = StrictPath::with_boundary("./uploads")?;  // sugar for one-off flows
-let photo = root.strict_join(user_filename)?;
-```
-
-For virtual flows, start from a real root type instead of empty joins:
-```rust
-let vroot = VirtualRoot::try_new("./uploads")?;   // policy is explicit
-let vpath = vroot.virtual_join(user_filename)?;    // clamps to virtual root
-```
-
-Rule of thumb: validate real, untrusted segments; avoid validating constants just to “use the API.”
 
 ## Hidden Policy Decisions in Functions
 

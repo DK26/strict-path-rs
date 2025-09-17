@@ -182,7 +182,7 @@ fn upload(user_root: &VirtualRoot, filename: &str, bytes: &[u8]) -> std::io::Res
 
 ## Directory Discovery vs Validation
 
-- Discovery (walking): call `read_dir(boundary.interop_path())` and `strip_prefix(boundary.interop_path())` to get relatives.
+- Discovery (walking): call `boundary.read_dir()` (or `vroot.read_dir()`), collect names via `entry.file_name()`, then re‑join with `strict_join`/`virtual_join` to validate before I/O.
 - Validation: join those relatives via `boundary.strict_join(..)` or `vroot.virtual_join(..)` before I/O. For small flows without a reusable root, you can construct via `StrictPath::with_boundary(..)` or `VirtualPath::with_root(..)` and then join.
 - Don’t validate constants like `"."`; only validate untrusted segments.
 
@@ -192,6 +192,8 @@ fn upload(user_root: &VirtualRoot, filename: &str, bytes: &[u8]) -> std::io::Res
 - Parents: `strictpath_parent()` / `virtualpath_parent()`
 - With file name/ext: `strictpath_with_file_name()` / `virtualpath_with_file_name()`, etc.
 - Rename/move: `strict_rename(..)` / `virtual_rename(..)`
+- Deletion: `remove_file()` / `remove_dir()` / `remove_dir_all()`
+- Metadata: `metadata()` (inspect filesystem info without leaking boundaries)
 - Avoid std `Path::join`/`parent` on leaked paths — they ignore strict/virtual semantics.
 
 Example (rename):

@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tmp_dir = tempfile::tempdir()?;
     PathBoundary::<()>::try_new(&tmp_dir)?
         .strict_join("hello.txt")?
-        .write_string("Hello world!")?;
+        .write("Hello world!")?;
     println!("-> Wrote file in one line");
 
     // 2. File existence check - one-liner
@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tmp_dir = tempfile::tempdir()?;
     VirtualRoot::<()>::try_new(&tmp_dir)?
         .virtual_join("simple.txt")?
-        .write_string("VirtualRoot content")?;
+        .write("VirtualRoot content")?;
     println!("-> VirtualRoot file write in one line");
 
     // 4. Custom marker type - one-liner
@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tmp_dir = tempfile::tempdir()?;
     PathBoundary::<Demo>::try_new(&tmp_dir)?
         .strict_join("demo.txt")?
-        .write_string("Demo content")?;
+        .write("Demo content")?;
     println!("-> Custom marker works");
 
     println!("=== All one-liners completed! ===");

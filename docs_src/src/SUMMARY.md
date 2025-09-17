@@ -1,6 +1,7 @@
 # Summary
 
 - [Getting Started](./chapter_1.md)
+- [The Journey to strict-path](./development_story.md)
 - [Real-World Examples](./examples.md)
 - [Features](./features.md)
   - [OS Standard Directories](./os_directories.md)

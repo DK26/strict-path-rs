@@ -70,7 +70,7 @@ impl TenantStorage {
         let vdisp = vp.virtualpath_display();
         println!("Tenant '{tenant_id}' uploading to: {vdisp}");
         vp.create_parent_dir_all()?;
-        vp.write_bytes(content)?;
+        vp.write(content)?;
         let bytes = content.len();
         let sdisp = vp.as_unvirtual().strictpath_display();
         println!("Successfully wrote {bytes} bytes to System path: {sdisp}");
@@ -81,7 +81,7 @@ impl TenantStorage {
     fn read_file_vpath(&self, tenant_id: &str, vp: &VirtualPath<()>) -> Result<Vec<u8>> {
         let vdisp = vp.virtualpath_display();
         println!("Tenant '{tenant_id}' reading from: {vdisp}");
-        Ok(vp.read_bytes()?)
+        Ok(vp.read()?)
     }
 
     /// Delete a file at a VirtualPath for the tenant.

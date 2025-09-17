@@ -35,7 +35,6 @@ pub struct StrictPath<Marker = ()> {
 impl<Marker> StrictPath<Marker> {
     /// Create a root `StrictPath` anchored at the provided boundary directory.
     ///
-    /// This is sugar for `PathBoundary::try_new(root)?.strict_join("")`.
     /// Prefer this in simple flows; use `PathBoundary` directly when you need
     /// to reuse policy across many paths or pass it as a parameter.
     pub fn with_boundary<P: AsRef<Path>>(root: P) -> Result<Self> {
@@ -45,7 +44,7 @@ impl<Marker> StrictPath<Marker> {
 
     /// Create a root `StrictPath`, creating the boundary directory if missing.
     ///
-    /// This is sugar for `PathBoundary::try_new_create(root)?.strict_join("")`.
+    /// Ensures the boundary directory exists by creating it when needed.
     pub fn with_boundary_create<P: AsRef<Path>>(root: P) -> Result<Self> {
         let boundary = crate::PathBoundary::try_new_create(root)?;
         boundary.strict_join("")
@@ -112,6 +111,31 @@ impl<Marker> StrictPath<Marker> {
     #[inline]
     pub fn virtualize(self) -> crate::path::virtual_path::VirtualPath<Marker> {
         crate::path::virtual_path::VirtualPath::new(self)
+    }
+
+    /// Consumes this `StrictPath` and returns its associated `PathBoundary`.
+    ///
+    /// This is infallible because a `StrictPath` always carries a boundary reference.
+    /// Provided as ergonomic symmetry with other `try_*` constructors.
+    #[inline]
+    pub fn try_into_boundary(self) -> crate::PathBoundary<Marker> {
+        // Clone the underlying boundary reference (cheap, small struct)
+        self.boundary.as_ref().clone()
+    }
+
+    /// Consumes this `StrictPath` and returns its `PathBoundary`, creating the
+    /// underlying directory if it does not exist.
+    ///
+    /// This is typically a no-op since a `StrictPath` is constructed only from an
+    /// existing boundary, but this method is provided for API symmetry and robustness.
+    #[inline]
+    pub fn try_into_boundary_create(self) -> crate::PathBoundary<Marker> {
+        let boundary = self.boundary.as_ref().clone();
+        if !boundary.exists() {
+            // Best-effort create; ignore error and let later operations surface it
+            let _ = std::fs::create_dir_all(boundary.as_ref());
+        }
+        boundary
     }
 
     /// Safely joins a system path segment and re-validates against the restriction.
@@ -205,24 +229,49 @@ impl<Marker> StrictPath<Marker> {
         std::fs::metadata(&self.path)
     }
 
+    /// Reads the directory entries at the system path (like `std::fs::read_dir`).
+    ///
+    /// This is intended for discovery. Prefer collecting each entry's file name via
+    /// `entry.file_name()` and re‑joining it with `strict_join(...)` (or `virtual_join(...)`
+    /// when working from a `VirtualRoot`) before performing I/O.
+    pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
+        std::fs::read_dir(&self.path)
+    }
+
     /// Reads the file contents as `String`.
     pub fn read_to_string(&self) -> std::io::Result<String> {
         std::fs::read_to_string(&self.path)
     }
 
     /// Reads the file contents as raw bytes.
+    #[deprecated(since = "0.1.0-alpha.5", note = "Use read() instead")]
     pub fn read_bytes(&self) -> std::io::Result<Vec<u8>> {
         std::fs::read(&self.path)
     }
 
     /// Writes raw bytes to the file, creating it if it does not exist.
+    #[deprecated(since = "0.1.0-alpha.5", note = "Use write(...) instead")]
     pub fn write_bytes(&self, data: &[u8]) -> std::io::Result<()> {
         std::fs::write(&self.path, data)
     }
 
     /// Writes a UTF-8 string to the file, creating it if it does not exist.
+    #[deprecated(since = "0.1.0-alpha.5", note = "Use write(...) instead")]
     pub fn write_string(&self, data: &str) -> std::io::Result<()> {
         std::fs::write(&self.path, data)
+    }
+
+    /// Reads the file contents as raw bytes (replacement for `read_bytes`).
+    #[inline]
+    pub fn read(&self) -> std::io::Result<Vec<u8>> {
+        std::fs::read(&self.path)
+    }
+
+    /// Writes data to the file, creating it if it does not exist.
+    /// Accepts any type that can be viewed as a byte slice (e.g., `&str`, `String`, `&[u8]`, `Vec<u8]`).
+    #[inline]
+    pub fn write<C: AsRef<[u8]>>(&self, contents: C) -> std::io::Result<()> {
+        std::fs::write(&self.path, contents)
     }
 
     /// Creates all directories in the system path if missing (like `std::fs::create_dir_all`).
@@ -294,6 +343,44 @@ impl<Marker> StrictPath<Marker> {
         };
 
         std::fs::rename(self.path(), dest_path.path())?;
+        Ok(dest_path)
+    }
+
+    /// Copies this file to a new location within the same `PathBoundary`.
+    ///
+    /// Semantics mirror `strict_rename` for destination resolution:
+    /// - Relative destinations are interpreted as siblings (resolved against this path's parent).
+    /// - Absolute destinations are validated against the `PathBoundary`.
+    ///
+    /// No parent directories are created implicitly; call `create_parent_dir_all()` on the
+    /// desired destination path beforehand if needed. Returns the destination `StrictPath` on
+    /// success. Equivalent to `std::fs::copy(self.interop_path(), dest.interop_path())` but with
+    /// restriction‑aware destination validation.
+    pub fn strict_copy<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<Self> {
+        let dest_ref = dest.as_ref();
+
+        // Compute destination under the parent directory for relative paths; allow absolute too
+        let dest_path = if dest_ref.is_absolute() {
+            match self.boundary.strict_join(dest_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        } else {
+            let parent = match self.strictpath_parent() {
+                Ok(Some(p)) => p,
+                Ok(None) => match self.boundary.strict_join("") {
+                    Ok(root) => root,
+                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                },
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            };
+            match parent.strict_join(dest_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        };
+
+        std::fs::copy(self.path(), dest_path.path())?;
         Ok(dest_path)
     }
 

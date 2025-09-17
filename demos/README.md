@@ -73,7 +73,7 @@ The MCP server communicates over stdio using JSON‑RPC 2.0 + Content‑Length f
 - No `#[allow(..)]` in demo code; pass clippy with `-D warnings`.
 - Encode guarantees in signatures (accept policy types or validated `StrictPath`/`VirtualPath`).
 - Use domain names for variables (e.g., `user_project_root`, `system_root`, `entry_path`); never one‑letter path vars.
-- Show discovery vs. validation: enumerate with `read_dir(root.interop_path())`, then strict/virtual join names for safe display/I/O.
+- Show discovery vs. validation: enumerate with `root.read_dir()`, then strict/virtual join names for safe display/I/O.
 - Keep demo “tests” to lightweight smoke checks only when needed; full coverage lives in the library test suite.
 
 ## Notes

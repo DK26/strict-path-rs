@@ -13,7 +13,7 @@ fn strict_rename_file_in_same_boundary() {
 
     // Create file
     let src = boundary.strict_join("a.txt").unwrap();
-    src.write_string("hello").unwrap();
+    src.write("hello").unwrap();
 
     // Rename to new name (same directory)
     let dst = src.strict_rename("b.txt").unwrap();
@@ -37,7 +37,7 @@ fn virtual_rename_file_simple() {
     // Prepare a directory and file
     let file = boundary.strict_join("docs/file.txt").unwrap();
     file.create_parent_dir_all().unwrap();
-    file.write_string("v").unwrap();
+    file.write("v").unwrap();
 
     // Work with virtual view rooted at the same boundary
     let v = file.clone().virtualize();
@@ -59,7 +59,7 @@ fn strict_rename_nested_relative_and_absolute() {
     // tree: ./docs/file.txt
     let src = boundary.strict_join("docs/file.txt").unwrap();
     src.create_parent_dir_all().unwrap();
-    src.write_string("content").unwrap();
+    src.write("content").unwrap();
 
     // Create the nested parent
     boundary
@@ -98,7 +98,7 @@ fn strict_rename_rejects_escape_outside_boundary() {
     let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
 
     let src = boundary.strict_join("a.txt").unwrap();
-    src.write_string("x").unwrap();
+    src.write("x").unwrap();
     // Attempt to escape with an absolute outside path should map to io::Error(Other)
     let outside = td.path().parent().unwrap().join("oops.txt");
     let err = src.strict_rename(&outside).unwrap_err();
@@ -116,7 +116,7 @@ fn strict_rename_directory_tree() {
     let dir = boundary.strict_join("dir").unwrap();
     dir.create_dir_all().unwrap();
     let file = boundary.strict_join("dir/note.txt").unwrap();
-    file.write_string("notes").unwrap();
+    file.write("notes").unwrap();
 
     // Move the directory under a new name
     let moved = dir.strict_rename("dir2").unwrap();
@@ -132,9 +132,9 @@ fn strict_rename_destination_exists_behavior() {
     let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
 
     let src = boundary.strict_join("src.txt").unwrap();
-    src.write_string("S").unwrap();
+    src.write("S").unwrap();
     let dst = boundary.strict_join("dst.txt").unwrap();
-    dst.write_string("D").unwrap();
+    dst.write("D").unwrap();
 
     let result = src.strict_rename("dst.txt");
     match result {
@@ -164,7 +164,7 @@ fn virtual_rename_relative_sibling_and_absolute() {
     let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
     let file = boundary.strict_join("docs/file.txt").unwrap();
     file.create_parent_dir_all().unwrap();
-    file.write_string("v").unwrap();
+    file.write("v").unwrap();
     let v = file.virtualize();
 
     // Relative: sibling under /docs
@@ -182,7 +182,7 @@ fn virtual_rename_with_parent_components_is_clamped() {
     let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
     let file = boundary.strict_join("docs/file.txt").unwrap();
     file.create_parent_dir_all().unwrap();
-    file.write_string("v").unwrap();
+    file.write("v").unwrap();
     let v = file.virtualize();
 
     let v2 = v.virtual_rename("../outside.txt").unwrap();
@@ -196,7 +196,7 @@ fn virtual_rename_fails_when_parent_missing() {
     let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
     let file = boundary.strict_join("docs/file.txt").unwrap();
     file.create_parent_dir_all().unwrap();
-    file.write_string("v").unwrap();
+    file.write("v").unwrap();
     let v = file.virtualize();
 
     // Destination parent (/docs/sub) doesn't exist; rename should fail
@@ -214,7 +214,7 @@ fn virtual_rename_directory() {
     let dir = boundary.strict_join("docs").unwrap();
     dir.create_dir_all().unwrap();
     let file = boundary.strict_join("docs/a.txt").unwrap();
-    file.write_string("x").unwrap();
+    file.write("x").unwrap();
     let vdir = dir.virtualize();
 
     // Move folder as sibling under root (absolute)

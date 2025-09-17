@@ -31,7 +31,8 @@ fn clamp<Marker, H>(
 impl<Marker> VirtualPath<Marker> {
     /// Create the virtual root (`"/"`) for the given filesystem root.
     ///
-    /// Sugar for `VirtualRoot::try_new(root)?.virtual_join("")`.
+    /// Prefer this ergonomic constructor when you want to start from the
+    /// virtual root for a given filesystem directory.
     pub fn with_root<P: AsRef<Path>>(root: P) -> Result<Self> {
         let vroot = crate::validator::virtual_root::VirtualRoot::try_new(root)?;
         vroot.virtual_join("")
@@ -39,7 +40,7 @@ impl<Marker> VirtualPath<Marker> {
 
     /// Create the virtual root (`"/"`), creating the filesystem root if missing.
     ///
-    /// Sugar for `VirtualRoot::try_new_create(root)?.virtual_join("")`.
+    /// Creates the backing directory if needed.
     pub fn with_root_create<P: AsRef<Path>>(root: P) -> Result<Self> {
         let vroot = crate::validator::virtual_root::VirtualRoot::try_new_create(root)?;
         vroot.virtual_join("")
@@ -149,6 +150,30 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub fn unvirtual(self) -> StrictPath<Marker> {
         self.inner
+    }
+
+    /// Consumes this `VirtualPath` and returns the `VirtualRoot` for its boundary.
+    ///
+    /// Equivalent to `self.unvirtual().try_into_boundary().virtualize()` but without
+    /// requiring intermediate variables. Does not create any directories.
+    #[inline]
+    pub fn try_into_root(self) -> crate::validator::virtual_root::VirtualRoot<Marker> {
+        self.inner.try_into_boundary().virtualize()
+    }
+
+    /// Consumes this `VirtualPath` and returns a `VirtualRoot`, creating the
+    /// underlying directory if it does not exist.
+    ///
+    /// If the boundary directory is somehow missing, it will be created before
+    /// producing the `VirtualRoot`.
+    #[inline]
+    pub fn try_into_root_create(self) -> crate::validator::virtual_root::VirtualRoot<Marker> {
+        let boundary = self.inner.try_into_boundary();
+        if !boundary.exists() {
+            // Best-effort create; ignore error and let later operations surface it
+            let _ = std::fs::create_dir_all(boundary.as_ref());
+        }
+        boundary.virtualize()
     }
 
     /// Borrows the underlying system-facing `StrictPath` (no allocation).
@@ -287,21 +312,44 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// Reads the file contents as raw bytes from the underlying system path.
+    #[deprecated(since = "0.1.0-alpha.5", note = "Use read() instead")]
     #[inline]
     pub fn read_bytes(&self) -> std::io::Result<Vec<u8>> {
-        self.inner.read_bytes()
+        self.inner.read()
     }
 
     /// Writes raw bytes to the underlying system path.
+    #[deprecated(since = "0.1.0-alpha.5", note = "Use write(...) instead")]
     #[inline]
     pub fn write_bytes(&self, data: &[u8]) -> std::io::Result<()> {
-        self.inner.write_bytes(data)
+        self.inner.write(data)
     }
 
     /// Writes a UTF-8 string to the underlying system path.
+    #[deprecated(since = "0.1.0-alpha.5", note = "Use write(...) instead")]
     #[inline]
     pub fn write_string(&self, data: &str) -> std::io::Result<()> {
-        self.inner.write_string(data)
+        self.inner.write(data)
+    }
+
+    /// Reads the file contents as raw bytes (replacement for `read_bytes`).
+    #[inline]
+    pub fn read(&self) -> std::io::Result<Vec<u8>> {
+        self.inner.read()
+    }
+
+    /// Reads the directory entries at the underlying system path (like `std::fs::read_dir`).
+    ///
+    /// This is intended for discovery in the virtual space. Collect each entry's file name via
+    /// `entry.file_name()` and re‑join with `virtual_join(...)` to preserve clamping before I/O.
+    pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
+        self.inner.read_dir()
+    }
+
+    /// Writes data to the underlying system path. Accepts `&str`, `String`, `&[u8]`, `Vec<u8]`, etc.
+    #[inline]
+    pub fn write<C: AsRef<[u8]>>(&self, contents: C) -> std::io::Result<()> {
+        self.inner.write(contents)
     }
 
     /// Creates all directories in the underlying system path if missing.
@@ -397,6 +445,43 @@ impl<Marker> VirtualPath<Marker> {
         // Perform the actual rename via StrictPath
         let moved_strict = self.inner.strict_rename(dest_v.inner.path())?;
         Ok(moved_strict.virtualize())
+    }
+
+    /// Copies this virtual path to a new location within the same virtual root.
+    ///
+    /// Destination paths are resolved in virtual space:
+    /// - Relative inputs are interpreted as siblings (resolved against the virtual parent).
+    /// - Absolute virtual inputs are treated as requests from the virtual root.
+    ///
+    /// Clamping and boundary checks are enforced by virtual joins. No parent directories are
+    /// created implicitly; call `create_parent_dir_all()` beforehand if needed. Returns the
+    /// destination `VirtualPath` on success.
+    pub fn virtual_copy<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<Self> {
+        let dest_ref = dest.as_ref();
+        let dest_v = if dest_ref.is_absolute() {
+            match self.virtual_join(dest_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        } else {
+            // Resolve as sibling under the current virtual parent (or root if at "/")
+            let parent = match self.virtualpath_parent() {
+                Ok(Some(p)) => p,
+                Ok(None) => match self.virtual_join("") {
+                    Ok(root) => root,
+                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                },
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            };
+            match parent.virtual_join(dest_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        };
+
+        // Perform the actual copy via StrictPath
+        std::fs::copy(self.inner.path(), dest_v.inner.path())?;
+        Ok(dest_v)
     }
 }
 

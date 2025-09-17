@@ -59,9 +59,10 @@ fn strictpath_parent_helpers_parity() {
 #[test]
 fn root_parent_helpers_are_noops() {
     let td = tempfile::tempdir().unwrap();
-    let restriction: crate::PathBoundary = crate::PathBoundary::try_new(td.path()).unwrap();
-    let root_jp = restriction.strict_join("").unwrap();
-    let root_vp = root_jp.clone().virtualize();
+    let root_jp: crate::path::strict_path::StrictPath<()> =
+        crate::path::strict_path::StrictPath::with_boundary(td.path()).unwrap();
+    let root_vp: crate::path::virtual_path::VirtualPath<()> =
+        crate::path::virtual_path::VirtualPath::with_root(td.path()).unwrap();
 
     // Root has no parent; helpers should be Ok and no-ops
     root_jp.create_parent_dir().unwrap();

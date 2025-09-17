@@ -82,7 +82,9 @@ let safe_path = safe_root.strict_join(dangerous_user_input)?;  // Attack = Error
 
 // 3. Use normal file operations - guaranteed secure
 safe_path.write_bytes(file_data)?;
-safe_path.read_to_string()?;
+let info = safe_path.metadata()?; // Inspect filesystem metadata when needed
+safe_path.remove_file()?; // Remove when cleanup is required
+safe_path.remove_file()?; // Remove when cleanup is required
 ```
 
 **That's it.** No complex validation logic. No CVE research. No security expertise required.

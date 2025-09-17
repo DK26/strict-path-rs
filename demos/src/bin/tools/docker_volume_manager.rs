@@ -130,7 +130,7 @@ fn create_volume(
 
     // Save metadata
     let metadata_file = volume_path.strict_join("metadata.json")?;
-    metadata_file.write_string(&serde_json::to_string_pretty(&metadata)?)?;
+    metadata_file.write(serde_json::to_string_pretty(&metadata)?)?;
 
     // Report success
     println!("Volume '{volume_name}' created successfully");
@@ -151,7 +151,7 @@ fn list_volumes(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         "Name", "Size (MB)", "Created", "Containers", "Status"
     );
     println!("{}", "-".repeat(80));
-    for entry in std::fs::read_dir(volumes_dir.interop_path())? {
+    for entry in volumes_dir.read_dir()? {
         let entry = entry?;
         if !entry.file_type()?.is_dir() {
             continue;
@@ -231,9 +231,11 @@ fn backup_volume(
             };
             let dest_file = backup_data_dir.strict_join(relative_path)?;
             dest_file.create_parent_dir_all()?;
-            let bytes = std::fs::read(entry_path)?;
+            // Reconstruct a StrictPath for the source file via boundary + relative path
+            let src_file = data_root.strict_join(relative_path)?;
+            let bytes = src_file.read()?;
             total_size += bytes.len() as u64;
-            dest_file.write_bytes(&bytes)?;
+            dest_file.write(&bytes)?;
             file_count += 1;
         }
     }
@@ -248,7 +250,7 @@ fn backup_volume(
     };
 
     let backup_meta_file = backup_path.strict_join("backup.json")?;
-    backup_meta_file.write_string(&serde_json::to_string_pretty(&backup_metadata)?)?;
+    backup_meta_file.write(serde_json::to_string_pretty(&backup_metadata)?)?;
 
     // Report success
     println!("Backup '{backup_name}' created successfully");
@@ -301,8 +303,10 @@ fn restore_volume(
         };
         let dest_file = data_dir.strict_join(relative_path)?;
         dest_file.create_parent_dir_all()?;
-        let bytes = std::fs::read(entry_path)?;
-        dest_file.write_bytes(&bytes)?;
+        // Read from backup via StrictPath using the same relative path
+        let src_file = backup_data_dir.strict_join(relative_path)?;
+        let bytes = src_file.read()?;
+        dest_file.write(&bytes)?;
     }
     // Update metadata
     let volume_metadata = VolumeMetadata {
@@ -315,7 +319,7 @@ fn restore_volume(
         description: Some(format!("Restored from backup '{backup_name}'")),
     };
     let volume_meta_file = volume_path.strict_join("metadata.json")?;
-    volume_meta_file.write_string(&serde_json::to_string_pretty(&volume_metadata)?)?;
+    volume_meta_file.write(serde_json::to_string_pretty(&volume_metadata)?)?;
     println!("Volume '{volume_name}' restored successfully from backup '{backup_name}'");
     Ok(())
 }
@@ -383,7 +387,7 @@ fn cleanup_volumes(cli: &Cli, older_than_days: u64) -> Result<(), Box<dyn std::e
     let cutoff = chrono::Utc::now() - chrono::Duration::days(older_than_days as i64);
     let mut cleaned_count = 0u32;
     let mut cleaned_size = 0u64;
-    for entry in std::fs::read_dir(volumes_dir.interop_path())? {
+    for entry in volumes_dir.read_dir()? {
         let entry = entry?;
         if !entry.file_type()?.is_dir() {
             continue;

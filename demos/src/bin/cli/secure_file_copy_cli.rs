@@ -107,8 +107,8 @@ fn run_ingest(
         if source.is_file() {
             // Copy file contents using built-in helpers
             dest.create_parent_dir_all()?;
-            let bytes = source.read_bytes()?;
-            dest.write_bytes(&bytes)?;
+            let bytes = source.read()?;
+            dest.write(&bytes)?;
             copied += 1;
             println!(
                 "{i:>4}: 📄 File -> {} ({} bytes)",

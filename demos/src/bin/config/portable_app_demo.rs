@@ -146,7 +146,7 @@ impl QuickNotes {
         let note_path: VirtualPath<Notes> = self.storage.notes_root.virtual_join(&filename)?;
         let ts = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
         let body = format!("Title: {title}\nCreated: {ts}\n\n{content}");
-        note_path.write_string(&body)?;
+        note_path.write(&body)?;
 
         self.update_recent_cache(&filename)?;
         Self::log_event(&self.storage.logs_jail, &format!("Created note: {title}"))?;
@@ -155,12 +155,12 @@ impl QuickNotes {
     }
 
     fn list_notes(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let notes_dir = self.storage.notes_root.virtual_join("")?;
         let mut notes = Vec::new();
-        for entry in fs::read_dir(notes_dir.interop_path())? {
+        for entry in self.storage.notes_root.read_dir()? {
             let entry = entry?;
             if let Some(name) = entry.file_name().to_str() {
-                if name.ends_with(".txt") {
+                let sp = self.storage.notes_root.as_unvirtual().strict_join(name)?;
+                if sp.is_file() && name.ends_with(".txt") {
                     notes.push(name.trim_end_matches(".txt").to_string());
                 }
             }
@@ -206,15 +206,13 @@ impl QuickNotes {
         let mut query = String::new();
         io::stdin().read_line(&mut query)?;
         let query = query.trim().to_lowercase();
-
-        let notes_dir = self.storage.notes_root.virtual_join("")?;
         let mut matches = Vec::new();
-        for entry in fs::read_dir(notes_dir.interop_path())? {
+        for entry in self.storage.notes_root.read_dir()? {
             let entry = entry?;
             if let Some(name) = entry.file_name().to_str() {
-                if name.ends_with(".txt") {
-                    let note_path = self.storage.notes_root.virtual_join(name)?;
-                    let content = note_path.read_to_string()?;
+                let vchild = self.storage.notes_root.virtual_join(name)?;
+                if vchild.is_file() && name.ends_with(".txt") {
+                    let content = vchild.read_to_string()?;
                     if content.to_lowercase().contains(&query) {
                         matches.push(name.trim_end_matches(".txt").to_string());
                     }
@@ -241,14 +239,16 @@ impl QuickNotes {
     }
 
     fn cleanup_cache(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let cache_dir = self.storage.cache_jail.strict_join("")?;
         let mut cleaned = 0usize;
-        if cache_dir.exists() {
-            for entry in fs::read_dir(cache_dir.interop_path())? {
+        if self.storage.cache_jail.exists() {
+            for entry in self.storage.cache_jail.read_dir()? {
                 let entry = entry?;
-                if entry.path().is_file() {
-                    fs::remove_file(entry.path())?;
-                    cleaned += 1;
+                if let Some(name) = entry.file_name().to_str() {
+                    let sp = self.storage.cache_jail.strict_join(name)?;
+                    if sp.is_file() {
+                        sp.remove_file()?;
+                        cleaned += 1;
+                    }
                 }
             }
         }
@@ -286,7 +286,7 @@ impl QuickNotes {
             let theme = &default_config.theme;
             let max = default_config.max_recent;
             let content = format!("auto_save = {auto}\ntheme = \"{theme}\"\nmax_recent = {max}\n");
-            config_path.write_string(&content)?;
+            config_path.write(&content)?;
             Ok(default_config)
         }
     }
@@ -305,7 +305,7 @@ impl QuickNotes {
         recent.retain(|f| f != filename);
         recent.insert(0, filename.to_string());
         recent.truncate(self.config.max_recent);
-        recent_path.write_string(&recent.join("\n"))?;
+        recent_path.write(&recent.join("\n"))?;
         Ok(())
     }
 
@@ -319,9 +319,9 @@ impl QuickNotes {
         if log_path.exists() {
             let mut content = log_path.read_to_string()?;
             content.push_str(&entry);
-            log_path.write_string(&content)?;
+            log_path.write(&content)?;
         } else {
-            log_path.write_string(&entry)?;
+            log_path.write(&entry)?;
         }
         Ok(())
     }

@@ -197,7 +197,7 @@ fn extract_zip(
                     let mut content = Vec::new();
                     zip_file.read_to_end(&mut content)?;
 
-                    safe_path.write_bytes(&content)?;
+                    safe_path.write(&content)?;
                     stats.files_extracted += 1;
                     stats.total_bytes += content.len() as u64;
 
@@ -291,7 +291,7 @@ fn extract_tar_entries<R: Read>(
                     let mut content = Vec::new();
                     entry.read_to_end(&mut content)?;
 
-                    safe_path.write_bytes(&content)?;
+                    safe_path.write(&content)?;
                     stats.files_extracted += 1;
                     stats.total_bytes += content.len() as u64;
 

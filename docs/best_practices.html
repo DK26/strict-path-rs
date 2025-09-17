@@ -383,7 +383,7 @@ fn create_config(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Res
 </ul>
 <h2 id="directory-discovery-vs-validation"><a class="header" href="#directory-discovery-vs-validation">Directory Discovery vs Validation</a></h2>
 <ul>
-<li>Discovery (walking): call <code>read_dir(boundary.interop_path())</code> and <code>strip_prefix(boundary.interop_path())</code> to get relatives.</li>
+<li>Discovery (walking): call <code>boundary.read_dir()</code> (or <code>vroot.read_dir()</code>), collect names via <code>entry.file_name()</code>, then re‑join with <code>strict_join</code>/<code>virtual_join</code> to validate before I/O.</li>
 <li>Validation: join those relatives via <code>boundary.strict_join(..)</code> or <code>vroot.virtual_join(..)</code> before I/O. For small flows without a reusable root, you can construct via <code>StrictPath::with_boundary(..)</code> or <code>VirtualPath::with_root(..)</code> and then join.</li>
 <li>Don’t validate constants like <code>"."</code>; only validate untrusted segments.</li>
 </ul>
@@ -393,6 +393,8 @@ fn create_config(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Res
 <li>Parents: <code>strictpath_parent()</code> / <code>virtualpath_parent()</code></li>
 <li>With file name/ext: <code>strictpath_with_file_name()</code> / <code>virtualpath_with_file_name()</code>, etc.</li>
 <li>Rename/move: <code>strict_rename(..)</code> / <code>virtual_rename(..)</code></li>
+<li>Deletion: <code>remove_file()</code> / <code>remove_dir()</code> / <code>remove_dir_all()</code></li>
+<li>Metadata: <code>metadata()</code> (inspect filesystem info without leaking boundaries)</li>
 <li>Avoid std <code>Path::join</code>/<code>parent</code> on leaked paths — they ignore strict/virtual semantics.</li>
 </ul>
 <p>Example (rename):</p>

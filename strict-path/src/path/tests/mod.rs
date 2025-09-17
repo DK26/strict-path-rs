@@ -4,6 +4,7 @@ mod filesystem;
 mod marker;
 mod method_coverage;
 mod methods;
+mod read_dir_and_conversions;
 mod rename;
 mod security;
 mod serde;

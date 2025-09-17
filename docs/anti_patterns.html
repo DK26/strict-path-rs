@@ -198,36 +198,6 @@ let user_file = config_dir.strict_join(&amp;user_provided_filename)?;
 let archive_entry = config_dir.strict_join(&amp;entry_name_from_zip)?;
 let db_path = config_dir.strict_join(&amp;path_from_database)?;
 <span class="boring">}</span></code></pre></pre>
-<h2 id="constructing-root-via-strict_join"><a class="header" href="#constructing-root-via-strict_join">Constructing “root” via <code>strict_join("")</code></a></h2>
-<p><strong>🚫 What not to do:</strong></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let uploads_dir = PathBoundary::try_new("./uploads")?;
-// Anti-pattern: validating an empty string just to obtain a "root" StrictPath
-let root = uploads_dir.strict_join("")?; // ← meaningless validation; noise
-let photo = root.strict_join(user_filename)?; // extra hop for no benefit
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Why it's wrong:</strong> Joining an empty string does not add security or clarity. It’s a no-op that obscures intent and trains teams to “validate constants,” which helps no one.</p>
-<p><strong>✅ Do this instead:</strong></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let uploads_dir = PathBoundary::try_new("./uploads")?;
-// Validate only untrusted segments directly against the boundary
-let photo = uploads_dir.strict_join(user_filename)?;
-<span class="boring">}</span></code></pre></pre>
-<p>If you truly want a root StrictPath value (for ergonomic chaining), prefer the sugar constructor which keeps the pattern explicit and consistent:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let root: StrictPath = StrictPath::with_boundary("./uploads")?;  // sugar for one-off flows
-let photo = root.strict_join(user_filename)?;
-<span class="boring">}</span></code></pre></pre>
-<p>For virtual flows, start from a real root type instead of empty joins:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let vroot = VirtualRoot::try_new("./uploads")?;   // policy is explicit
-let vpath = vroot.virtual_join(user_filename)?;    // clamps to virtual root
-<span class="boring">}</span></code></pre></pre>
-<p>Rule of thumb: validate real, untrusted segments; avoid validating constants just to “use the API.”</p>
 <h2 id="hidden-policy-decisions-in-functions"><a class="header" href="#hidden-policy-decisions-in-functions">Hidden Policy Decisions in Functions</a></h2>
 <p><strong>❌ What not to do:</strong></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]

@@ -131,7 +131,7 @@ fn init_site(project_path: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     let config_path = project_dir.strict_join("site.yaml")?;
     let config_content = serde_yaml::to_string(&config)?;
-    config_path.write_string(&config_content)?;
+    config_path.write(&config_content)?;
     println!("⚙️  Created: site.yaml");
 
     // Create sample content
@@ -164,7 +164,7 @@ This is the home page of your new static site. Edit this file in `src/pages/inde
 "#;
 
     let index_path = project_dir.strict_join("src/pages/index.md")?;
-    index_path.write_string(index_content)?;
+    index_path.write(index_content)?;
 
     // Sample blog post
     let post_content = r#"---
@@ -190,7 +190,7 @@ This generator uses `strict-path` to ensure all content stays within designated 
 "#;
 
     let post_path = project_dir.strict_join("src/posts/first-post.md")?;
-    post_path.write_string(post_content)?;
+    post_path.write(post_content)?;
 
     println!("📝 Created sample content");
     Ok(())
@@ -226,7 +226,7 @@ fn create_default_theme(
 </html>"#;
 
     let base_path = project_dir.strict_join("themes/default/layouts/base.html")?;
-    base_path.write_string(base_layout)?;
+    base_path.write(base_layout)?;
 
     // Page layout
     let page_layout = r#"{% extends "base.html" %}
@@ -239,7 +239,7 @@ fn create_default_theme(
 {% endblock %}"#;
 
     let page_path = project_dir.strict_join("themes/default/layouts/page.html")?;
-    page_path.write_string(page_layout)?;
+    page_path.write(page_layout)?;
 
     // Post layout
     let post_layout = r#"{% extends "base.html" %}
@@ -267,7 +267,7 @@ fn create_default_theme(
 {% endblock %}"#;
 
     let post_path = project_dir.strict_join("themes/default/layouts/post.html")?;
-    post_path.write_string(post_layout)?;
+    post_path.write(post_layout)?;
 
     // Basic CSS
     let css_content = r#"/* Default theme styles */
@@ -330,7 +330,7 @@ pre {
 "#;
 
     let css_path = project_dir.strict_join("themes/default/assets/style.css")?;
-    css_path.write_string(css_content)?;
+    css_path.write(css_content)?;
 
     println!("🎨 Created default theme");
     Ok(())
@@ -536,7 +536,7 @@ fn generate_page_html(
     // Create parent directories
     output_file.create_parent_dir_all()?;
 
-    output_file.write_string(&html)?;
+    output_file.write(&html)?;
     println!("📃 Generated: {output_path}");
 
     Ok(())
@@ -570,8 +570,8 @@ fn copy_theme_assets(
             dest_path.create_parent_dir_all()?;
 
             // Copy file
-            let content = source_path.read_bytes()?;
-            dest_path.write_bytes(&content)?;
+            let content = source_path.read()?;
+            dest_path.write(&content)?;
 
             println!("🎨 Copied asset: {relative_str}");
         }
@@ -605,8 +605,8 @@ fn copy_static_files(
             dest_path.create_parent_dir_all()?;
 
             // Copy file
-            let content = source_path.read_bytes()?;
-            dest_path.write_bytes(&content)?;
+            let content = source_path.read()?;
+            dest_path.write(&content)?;
 
             println!("📁 Copied static file: {relative_str}");
         }

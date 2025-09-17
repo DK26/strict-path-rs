@@ -211,7 +211,7 @@ impl FileUploadService {
         user_root: &amp;VirtualRoot,
     ) -&gt; Result&lt;Vec&lt;VirtualPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
         let mut files = Vec::new();
-        for entry in std::fs::read_dir(user_root.interop_path())? {
+        for entry in user_root.read_dir()? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
                 let vpath = user_root.virtual_join(entry.file_name())?;
@@ -322,7 +322,7 @@ impl ConfigManager {
     fn list_configs(&amp;self) -&gt; Result&lt;Vec&lt;String&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
         let mut configs = Vec::new();
         
-        for entry in std::fs::read_dir(self.config_dir.interop_path())? {
+        for entry in self.config_dir.read_dir()? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
                 if let Some(name) = entry.file_name().to_str() {
@@ -753,7 +753,7 @@ fn dangerous_function(path: &amp;str) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt;
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="chapter_1.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="development_story.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
@@ -767,7 +767,7 @@ fn dangerous_function(path: &amp;str) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt;
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="chapter_1.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="development_story.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
