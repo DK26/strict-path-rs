@@ -176,16 +176,25 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="features"><a class="header" href="#features">Features</a></h1>
-<p>The <code>strict-path</code> crate provides several optional fea[dependencies]
+<p>The <code>strict-path</code> crate provides several optional fea[de```toml
+[dependencies]
 strict-path = {
-version = "0.1.0-alpha.4",
+version = "0.1.0-alpha.5",
 features = ["dirs", "serde", "tempfile", "app-path"]
-} that extend functionality while maintaining the core security guarantees. All features are disabled by default to keep the core library lightweight.</p>
-<h2 id="available-features"><a class="header" href="#available-features">Available Features</a></h2>
-<h3 id="dirs---os-standard-directories"><a class="header" href="#dirs---os-standard-directories"><code>dirs</code> - OS Standard Directories</a></h3>
-<p>Cross-platform access to operating system standard directories following platform conventions (XDG Base Directory on Linux, Known Folder API on Windows, Apple Standard Directories on macOS).</p>
-<pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-alpha.4", features = ["dirs"] }
+}</p>
+<pre><code class="language-ies]">strict-path = { 
+    version = "0.1.0-alpha.5", 
+    features = ["dirs", "serde", "tempfile", "app-path"]
+} that extend functionality while maintaining the core security guarantees. All features are disabled by default to keep the core library lightweight.
+
+## Available Features
+
+### `dirs` - OS Standard Directories
+Cross-platform access to operating system standard directories following platform conventions (XDG Base Directory on Linux, Known Folder API on Windows, Apple Standard Directories on macOS).
+
+```toml
+[dependencies]
+strict-path = { version = "0.1.0-alpha.5", features = ["dirs"] }
 </code></pre>
 <p>Enables constructors like:</p>
 <ul>
@@ -199,7 +208,7 @@ strict-path = { version = "0.1.0-alpha.4", features = ["dirs"] }
 <h3 id="serde---serialization-support"><a class="header" href="#serde---serialization-support"><code>serde</code> - Serialization Support</a></h3>
 <p>Adds <code>Serialize</code> implementations for <code>StrictPath</code> and <code>VirtualPath</code>, plus deserialization helpers for secure path handling in web APIs and configuration files.</p>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-alpha.4", features = ["serde"] }
+strict-path = { version = "0.1.0-alpha.5", features = ["serde"] }
 </code></pre>
 <p>Enables:</p>
 <ul>
@@ -209,19 +218,19 @@ strict-path = { version = "0.1.0-alpha.4", features = ["serde"] }
 </ul>
 <h3 id="tempfile---temporary-directories"><a class="header" href="#tempfile---temporary-directories"><code>tempfile</code> - Temporary Directories</a></h3>
 <p>RAII temporary directories that are automatically cleaned up when dropped, with each <code>PathBoundary</code> getting a unique temporary directory.</p>
-<pre><code class="language-toml">[dependencies]  
-strict-path = { version = "0.1.0-alpha.4", features = ["tempfile"] }
-</code></pre>
-<p>Enables:</p>
-<ul>
-<li><code>PathBoundary::try_new_temp()</code> - Unique temporary directory</li>
-<li><code>PathBoundary::try_new_temp_with_prefix("my-prefix")</code> - Custom prefix</li>
-<li>Automatic cleanup when the boundary is dropped</li>
-</ul>
-<h3 id="app-path---portable-application-directories"><a class="header" href="#app-path---portable-application-directories"><code>app-path</code> - Portable Application Directories</a></h3>
-<p>Integration with the <code>app-path</code> crate for discovering application directories relative to the executable with environment variable overrides.</p>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-alpha.4", features = ["app-path"] }
+strict-path = { version = "0.1.0-alpha.5", features = ["tempfile"] }
+```Enables:
+- `PathBoundary::try_new_temp()` - Unique temporary directory
+- `PathBoundary::try_new_temp_with_prefix("my-prefix")` - Custom prefix
+- Automatic cleanup when the boundary is dropped
+
+### `app-path` - Portable Application Directories
+Integration with the `app-path` crate for discovering application directories relative to the executable with environment variable overrides.
+
+```toml
+[dependencies]
+strict-path = { version = "0.1.0-alpha.5", features = ["app-path"] }
 </code></pre>
 <p>Enables portable application directory discovery for:</p>
 <ul>

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.5] - 2025-09-17
+
 ### Added
 - **Temporary Directory Support**: Missing RAII-backed temporary directory constructors for the virtual dimension
   - `VirtualRoot::try_new_temp()` - Creates virtual root with automatic cleanup

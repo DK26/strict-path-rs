@@ -1021,16 +1021,25 @@ fn dangerous_function(path: &amp;str) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt;
 </ol>
 <p>This makes your code both secure and maintainable - security isn't something you have to remember to check, it's built into the type system!</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="features"><a class="header" href="#features">Features</a></h1>
-<p>The <code>strict-path</code> crate provides several optional fea[dependencies]
+<p>The <code>strict-path</code> crate provides several optional fea[de```toml
+[dependencies]
 strict-path = {
-version = "0.1.0-alpha.4",
+version = "0.1.0-alpha.5",
 features = ["dirs", "serde", "tempfile", "app-path"]
-} that extend functionality while maintaining the core security guarantees. All features are disabled by default to keep the core library lightweight.</p>
-<h2 id="available-features"><a class="header" href="#available-features">Available Features</a></h2>
-<h3 id="dirs---os-standard-directories"><a class="header" href="#dirs---os-standard-directories"><code>dirs</code> - OS Standard Directories</a></h3>
-<p>Cross-platform access to operating system standard directories following platform conventions (XDG Base Directory on Linux, Known Folder API on Windows, Apple Standard Directories on macOS).</p>
-<pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-alpha.4", features = ["dirs"] }
+}</p>
+<pre><code class="language-ies]">strict-path = { 
+    version = "0.1.0-alpha.5", 
+    features = ["dirs", "serde", "tempfile", "app-path"]
+} that extend functionality while maintaining the core security guarantees. All features are disabled by default to keep the core library lightweight.
+
+## Available Features
+
+### `dirs` - OS Standard Directories
+Cross-platform access to operating system standard directories following platform conventions (XDG Base Directory on Linux, Known Folder API on Windows, Apple Standard Directories on macOS).
+
+```toml
+[dependencies]
+strict-path = { version = "0.1.0-alpha.5", features = ["dirs"] }
 </code></pre>
 <p>Enables constructors like:</p>
 <ul>
@@ -1044,7 +1053,7 @@ strict-path = { version = "0.1.0-alpha.4", features = ["dirs"] }
 <h3 id="serde---serialization-support"><a class="header" href="#serde---serialization-support"><code>serde</code> - Serialization Support</a></h3>
 <p>Adds <code>Serialize</code> implementations for <code>StrictPath</code> and <code>VirtualPath</code>, plus deserialization helpers for secure path handling in web APIs and configuration files.</p>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-alpha.4", features = ["serde"] }
+strict-path = { version = "0.1.0-alpha.5", features = ["serde"] }
 </code></pre>
 <p>Enables:</p>
 <ul>
@@ -1054,19 +1063,19 @@ strict-path = { version = "0.1.0-alpha.4", features = ["serde"] }
 </ul>
 <h3 id="tempfile---temporary-directories"><a class="header" href="#tempfile---temporary-directories"><code>tempfile</code> - Temporary Directories</a></h3>
 <p>RAII temporary directories that are automatically cleaned up when dropped, with each <code>PathBoundary</code> getting a unique temporary directory.</p>
-<pre><code class="language-toml">[dependencies]  
-strict-path = { version = "0.1.0-alpha.4", features = ["tempfile"] }
-</code></pre>
-<p>Enables:</p>
-<ul>
-<li><code>PathBoundary::try_new_temp()</code> - Unique temporary directory</li>
-<li><code>PathBoundary::try_new_temp_with_prefix("my-prefix")</code> - Custom prefix</li>
-<li>Automatic cleanup when the boundary is dropped</li>
-</ul>
-<h3 id="app-path---portable-application-directories"><a class="header" href="#app-path---portable-application-directories"><code>app-path</code> - Portable Application Directories</a></h3>
-<p>Integration with the <code>app-path</code> crate for discovering application directories relative to the executable with environment variable overrides.</p>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-alpha.4", features = ["app-path"] }
+strict-path = { version = "0.1.0-alpha.5", features = ["tempfile"] }
+```Enables:
+- `PathBoundary::try_new_temp()` - Unique temporary directory
+- `PathBoundary::try_new_temp_with_prefix("my-prefix")` - Custom prefix
+- Automatic cleanup when the boundary is dropped
+
+### `app-path` - Portable Application Directories
+Integration with the `app-path` crate for discovering application directories relative to the executable with environment variable overrides.
+
+```toml
+[dependencies]
+strict-path = { version = "0.1.0-alpha.5", features = ["app-path"] }
 </code></pre>
 <p>Enables portable application directory discovery for:</p>
 <ul>
@@ -1180,7 +1189,7 @@ fn load_app_config() -&gt; Result&lt;Config, Box&lt;dyn std::error::Error&gt;&gt
 <p>The <code>strict-path</code> crate provides seamless integration with operating system standard directories through the <a href="https://crates.io/crates/dirs"><code>dirs</code></a> crate. This enables cross-platform applications to securely access user and system directories like configuration, data storage, cache, and user content locations.</p>
 <p><strong>Quick Start:</strong></p>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-alpha.4", features = ["dirs"] }
+strict-path = { version = "0.1.0-alpha.5", features = ["dirs"] }
 </code></pre>
 <h2 id="cross-platform-standards"><a class="header" href="#cross-platform-standards">Cross-Platform Standards</a></h2>
 <p>The integration follows established cross-platform directory standards:</p>

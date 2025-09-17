@@ -67,7 +67,7 @@ StrictPath::with_boundary("uploads")?.strict_join(user_input)?.write_bytes(data)
 
 ```toml
 [dependencies]
-strict-path = "0.1.0-alpha.4"
+strict-path = "0.1.0-alpha.5"
 ```
 
 ```rust

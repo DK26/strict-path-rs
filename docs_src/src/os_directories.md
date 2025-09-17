@@ -7,7 +7,7 @@ The `strict-path` crate provides seamless integration with operating system stan
 **Quick Start:**
 ```toml
 [dependencies]
-strict-path = { version = "0.1.0-alpha.4", features = ["dirs"] }
+strict-path = { version = "0.1.0-alpha.5", features = ["dirs"] }
 ```
 
 ## Cross-Platform Standards

@@ -1,8 +1,14 @@
 # Features
 
-The `strict-path` crate provides several optional fea[dependencies]
+The `strict-path` crate provides several optional fea[de```toml
+[dependencies]
 strict-path = { 
-    version = "0.1.0-alpha.4", 
+    version = "0.1.0-alpha.5", 
+    features = ["dirs", "serde", "tempfile", "app-path"] 
+}
+```ies]
+strict-path = { 
+    version = "0.1.0-alpha.5", 
     features = ["dirs", "serde", "tempfile", "app-path"]
 } that extend functionality while maintaining the core security guarantees. All features are disabled by default to keep the core library lightweight.
 
@@ -13,7 +19,7 @@ Cross-platform access to operating system standard directories following platfor
 
 ```toml
 [dependencies]
-strict-path = { version = "0.1.0-alpha.4", features = ["dirs"] }
+strict-path = { version = "0.1.0-alpha.5", features = ["dirs"] }
 ```
 
 Enables constructors like:
@@ -30,7 +36,7 @@ Adds `Serialize` implementations for `StrictPath` and `VirtualPath`, plus deseri
 
 ```toml
 [dependencies]
-strict-path = { version = "0.1.0-alpha.4", features = ["serde"] }
+strict-path = { version = "0.1.0-alpha.5", features = ["serde"] }
 ```
 
 Enables:
@@ -42,11 +48,9 @@ Enables:
 RAII temporary directories that are automatically cleaned up when dropped, with each `PathBoundary` getting a unique temporary directory.
 
 ```toml
-[dependencies]  
-strict-path = { version = "0.1.0-alpha.4", features = ["tempfile"] }
-```
-
-Enables:
+[dependencies]
+strict-path = { version = "0.1.0-alpha.5", features = ["tempfile"] }
+```Enables:
 - `PathBoundary::try_new_temp()` - Unique temporary directory
 - `PathBoundary::try_new_temp_with_prefix("my-prefix")` - Custom prefix
 - Automatic cleanup when the boundary is dropped
@@ -56,7 +60,7 @@ Integration with the `app-path` crate for discovering application directories re
 
 ```toml
 [dependencies]
-strict-path = { version = "0.1.0-alpha.4", features = ["app-path"] }
+strict-path = { version = "0.1.0-alpha.5", features = ["app-path"] }
 ```
 
 Enables portable application directory discovery for:
