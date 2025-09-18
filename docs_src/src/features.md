@@ -153,7 +153,7 @@ async fn serve_static(Path(filename): Path<String>) -> Result<Vec<u8>> {
     let static_dir = PathBoundary::<StaticFiles>::try_new("./static")?;
     let safe_path = static_dir.strict_join(&filename)?; // Attack = Error
     
-    Ok(safe_path.read_bytes()?)
+    Ok(safe_path.read()?)
 }
 ```
 

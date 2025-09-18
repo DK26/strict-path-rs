@@ -60,7 +60,7 @@ Creates a secure boundary for application data storage.
 ```rust
 let data_dir = PathBoundary::<()>::try_new_os_data("MyApp")?;
 let database = data_dir.strict_join("app.db")?;
-database.write_bytes(b"SQLite database content")?;
+database.write(b"SQLite database content")?;
 ```
 
 **Platform paths:**

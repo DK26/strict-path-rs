@@ -471,12 +471,14 @@
 //!
 //! // Rename within the same directory (no implicit parent creation)
 //! // Relative destinations are resolved against the parent (sibling rename)
-//! let renamed = file.strict_rename("app.old")?;
+//! file.strict_rename("app.old")?;
+//! let renamed = boundary.strict_join("logs/app.old")?;
 //! assert_eq!(renamed.read_to_string()?, "ok");
 //!
 //! // Virtual (user-facing): clamp + validate destination before rename
 //! let v = renamed.clone().virtualize();
-//! let v2 = v.virtual_rename("app.archived")?;
+//! v.virtual_rename("app.archived")?;
+//! let v2 = boundary.strict_join("logs/app.archived")?.virtualize();
 //! assert!(v2.exists());
 //! # Ok(()) }
 //! ```
@@ -492,12 +494,16 @@
 //! src.create_parent_dir_all()?;
 //! src.write("copy me")?;
 //!
-//! let dst = src.strict_copy("b.txt")?; // resolved against parent directory
+//! let bytes = src.strict_copy("b.txt")?; // resolved against parent directory
+//! assert_eq!(bytes, "copy me".len() as u64);
+//! let dst = boundary.strict_join("docs/b.txt")?;
 //! assert_eq!(dst.read_to_string()?, "copy me");
 //!
 //! // Virtual (user-facing): clamp + validate destination before copy
 //! let v = dst.clone().virtualize();
-//! let vcopy = v.virtual_copy("c.txt")?; // sibling within the same virtual parent
+//! let bytes = v.virtual_copy("c.txt")?; // sibling within the same virtual parent
+//! assert_eq!(bytes, "copy me".len() as u64);
+//! let vcopy = boundary.strict_join("docs/c.txt")?.virtualize();
 //! assert!(vcopy.exists());
 //! assert_eq!(vcopy.read_to_string()?, "copy me");
 //! # Ok(()) }

@@ -204,7 +204,7 @@ fn extract_all&lt;M: Default&gt;(dest: &amp;std::path::Path, entries: impl IntoI
         vpath.create_parent_dir_all()?;
 
         // 3) Perform the write safely
-        vpath.write_bytes(&amp;data)?;
+        vpath.write(&amp;data)?;
     }
     Ok(())
 }

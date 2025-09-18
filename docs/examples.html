@@ -203,7 +203,7 @@ impl FileUploadService {
     // Internal helper: signature encodes guarantee (accepts only &amp;StrictPath)
     fn save_uploaded(&amp;self, path: &amp;StrictPath, content: &amp;[u8]) -&gt; io::Result&lt;()&gt; {
         path.create_parent_dir_all()?;
-        path.write_bytes(content)
+        path.write(content)
     }
 
     fn list_files(
@@ -223,7 +223,7 @@ impl FileUploadService {
 
     fn download_file(&amp;self, path: &amp;VirtualPath) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
         // Read and return the file content — type ensures safety
-        path.read_bytes()
+        path.read()
     }
 }
 
@@ -497,7 +497,7 @@ impl SafeArchiveExtractor {
 
         // Create parent directories and write the file
         safe_path.create_parent_dir_all()?;
-        safe_path.write_bytes(content)?;
+        safe_path.write(content)?;
 
         println!("📦 Extracted: {entry_path} -&gt; {}", safe_path.strictpath_display());
         Ok(safe_path)
@@ -665,7 +665,7 @@ struct ConfigData;   // Application configuration
 
 // Functions enforce context via type system
 fn serve_asset(path: &amp;StrictPath&lt;WebAssets&gt;) -&gt; Result&lt;Vec&lt;u8&gt;, std::io::Error&gt; {
-    path.read_bytes()
+    path.read()
 }
 
 fn process_upload(path: &amp;StrictPath&lt;UserFiles&gt;) -&gt; Result&lt;(), std::io::Error&gt; {
@@ -716,12 +716,12 @@ fn example_type_safety() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt
 </span><span class="boring">fn main() {
 </span>// ✅ SECURE: Function signature guarantees safety
 fn process_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
-    path.read_bytes() // No validation needed - type system enforces it
+    path.read() // No validation needed - type system enforces it
 }
 
 // ✅ SECURE: Caller must validate before calling  
 fn save_upload(file: &amp;VirtualPath) -&gt; std::io::Result&lt;()&gt; {
-    file.write_bytes(&amp;data) // Guaranteed within boundaries
+    file.write(&amp;data) // Guaranteed within boundaries
 }
 
 // ❌ INSECURE: Function accepts dangerous inputs

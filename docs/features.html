@@ -314,7 +314,7 @@ async fn serve_static(Path(filename): Path&lt;String&gt;) -&gt; Result&lt;Vec&lt
     let static_dir = PathBoundary::&lt;StaticFiles&gt;::try_new("./static")?;
     let safe_path = static_dir.strict_join(&amp;filename)?; // Attack = Error
     
-    Ok(safe_path.read_bytes()?)
+    Ok(safe_path.read()?)
 }
 <span class="boring">}</span></code></pre></pre>
 <h4 id="configuration-with-app-path"><a class="header" href="#configuration-with-app-path">Configuration with app-path</a></h4>

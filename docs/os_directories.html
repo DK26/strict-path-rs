@@ -232,7 +232,7 @@ config_file.write_string(r#"{"theme": "dark"}"#)?;
 </span><span class="boring">fn main() {
 </span>let data_dir = PathBoundary::&lt;()&gt;::try_new_os_data("MyApp")?;
 let database = data_dir.strict_join("app.db")?;
-database.write_bytes(b"SQLite database content")?;
+database.write(b"SQLite database content")?;
 <span class="boring">}</span></code></pre></pre>
 <p><strong>Platform paths:</strong></p>
 <ul>

@@ -312,13 +312,59 @@ impl<Marker> StrictPath<Marker> {
         }
     }
 
+    /// Creates a symbolic link at this location pointing to `target`.
+    ///
+    /// Both the link path (`self`) and the target must belong to the same `PathBoundary`. The caller
+    /// is responsible for ensuring the parent directory exists. On Windows the target's current
+    /// metadata determines whether a file or directory symbolic link is created; if the target does
+    /// not yet exist a file symbolic link is attempted first.
+    pub fn strict_symlink(&self, link_path: &Self) -> std::io::Result<()> {
+        if self.boundary.path() != link_path.boundary.path() {
+            let err = StrictPathError::path_escapes_boundary(
+                link_path.path().to_path_buf(),
+                self.boundary.path().to_path_buf(),
+            );
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
+        }
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(self.path(), link_path.path())?;
+        }
+
+        #[cfg(windows)]
+        {
+            create_windows_symlink(self.path(), link_path.path())?;
+        }
+
+        Ok(())
+    }
+
+    /// Creates a hard link at `link_path` pointing to this path.
+    ///
+    /// Both paths must belong to the same `PathBoundary`. The caller is responsible for ensuring the
+    /// parent directory of `link_path` exists.
+    pub fn strict_hard_link(&self, link_path: &Self) -> std::io::Result<()> {
+        if self.boundary.path() != link_path.boundary.path() {
+            let err = StrictPathError::path_escapes_boundary(
+                link_path.path().to_path_buf(),
+                self.boundary.path().to_path_buf(),
+            );
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
+        }
+
+        std::fs::hard_link(self.path(), link_path.path())?;
+
+        Ok(())
+    }
+
     /// Renames or moves this path to a new location within the same `PathBoundary`.
     ///
     /// Relative destinations are interpreted as siblings (resolved against this path's parent
     /// directory), not children. Absolute destinations are validated against the `PathBoundary`.
     /// No parent directories are created implicitly; call `create_parent_dir_all()` on the
-    /// desired destination path beforehand if needed. Returns the destination `StrictPath`.
-    pub fn strict_rename<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<Self> {
+    /// desired destination path beforehand if needed.
+    pub fn strict_rename<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<()> {
         let dest_ref = dest.as_ref();
 
         // Compute destination under the parent directory for relative paths; allow absolute too
@@ -342,8 +388,7 @@ impl<Marker> StrictPath<Marker> {
             }
         };
 
-        std::fs::rename(self.path(), dest_path.path())?;
-        Ok(dest_path)
+        std::fs::rename(self.path(), dest_path.path())
     }
 
     /// Copies this file to a new location within the same `PathBoundary`.
@@ -353,10 +398,10 @@ impl<Marker> StrictPath<Marker> {
     /// - Absolute destinations are validated against the `PathBoundary`.
     ///
     /// No parent directories are created implicitly; call `create_parent_dir_all()` on the
-    /// desired destination path beforehand if needed. Returns the destination `StrictPath` on
-    /// success. Equivalent to `std::fs::copy(self.interop_path(), dest.interop_path())` but with
-    /// restriction‑aware destination validation.
-    pub fn strict_copy<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<Self> {
+    /// desired destination path beforehand if needed. Equivalent to
+    /// `std::fs::copy(self.interop_path(), dest.interop_path())` but with restriction-aware
+    /// destination validation. Returns the number of bytes copied.
+    pub fn strict_copy<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<u64> {
         let dest_ref = dest.as_ref();
 
         // Compute destination under the parent directory for relative paths; allow absolute too
@@ -380,8 +425,7 @@ impl<Marker> StrictPath<Marker> {
             }
         };
 
-        std::fs::copy(self.path(), dest_path.path())?;
-        Ok(dest_path)
+        std::fs::copy(self.path(), dest_path.path())
     }
 
     /// Removes the file at the system path.
@@ -417,6 +461,36 @@ impl<Marker> fmt::Debug for StrictPath<Marker> {
             .field("boundary", &self.boundary.path())
             .field("marker", &std::any::type_name::<Marker>())
             .finish()
+    }
+}
+
+#[cfg(windows)]
+fn create_windows_symlink(src: &Path, link: &Path) -> std::io::Result<()> {
+    use std::os::windows::fs::{symlink_dir, symlink_file};
+
+    match std::fs::metadata(src) {
+        Ok(metadata) => {
+            if metadata.is_dir() {
+                symlink_dir(src, link)
+            } else {
+                symlink_file(src, link)
+            }
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            match symlink_file(src, link) {
+                Ok(()) => Ok(()),
+                Err(file_err) => {
+                    if let Some(code) = file_err.raw_os_error() {
+                        const ERROR_DIRECTORY: i32 = 267; // target resolved as directory
+                        if code == ERROR_DIRECTORY {
+                            return symlink_dir(src, link);
+                        }
+                    }
+                    Err(file_err)
+                }
+            }
+        }
+        Err(err) => Err(err),
     }
 }
 

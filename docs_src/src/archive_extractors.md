@@ -29,7 +29,7 @@ fn extract_all<M: Default>(dest: &std::path::Path, entries: impl IntoIterator<It
         vpath.create_parent_dir_all()?;
 
         // 3) Perform the write safely
-        vpath.write_bytes(&data)?;
+        vpath.write(&data)?;
     }
     Ok(())
 }

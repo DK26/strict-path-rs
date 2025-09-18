@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Symlink and Hard Link Support**: Complete support for creating symbolic and hard links within path boundaries
+  - `StrictPath::strict_symlink(link_path)` - Creates symbolic links between paths in the same boundary
+  - `StrictPath::strict_hard_link(link_path)` - Creates hard links between paths in the same boundary
+  - `VirtualPath::virtual_symlink(link_path)` - Creates symbolic links between virtual paths in the same root
+  - `VirtualPath::virtual_hard_link(link_path)` - Creates hard links between virtual paths in the same root
+  - `PathBoundary::strict_symlink(link_path)` - Creates symbolic links pointing to the PathBoundary root directory
+  - `PathBoundary::strict_hard_link(link_path)` - Creates hard links pointing to the PathBoundary root directory  
+  - `VirtualRoot::virtual_symlink(link_path)` - Creates symbolic links pointing to the virtual root directory
+  - `VirtualRoot::virtual_hard_link(link_path)` - Creates hard links pointing to the virtual root directory
+
+### Enhanced
+- **Security Testing**: Added comprehensive advanced security test suite covering edge cases and attack vectors
+- **Link Resolution**: Improved symlink resolution and junction handling on Windows platforms
+
+### Fixed  
+- **Code Quality**: Fixed clippy lints including unnecessary let bindings in demos
+
 ## [0.1.0-alpha.5] - 2025-09-17
 
 ### Added

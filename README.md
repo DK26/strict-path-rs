@@ -35,7 +35,9 @@ let vp = VirtualPath::with_root("./public")?
 std::fs::write(user_input, data)?;  // user_input = "../../../etc/passwd"
 
 // ✅ This single line makes it mathematically impossible  
-StrictPath::with_boundary("uploads")?.strict_join(user_input)?.write_bytes(data)?;
+StrictPath::with_boundary("uploads")?
+    .strict_join(user_input)?
+    .write(data)?;
 ```
 
 **The Reality**: Every web server, LLM agent, and file processor faces the same vulnerability. One unvalidated path from user input, config files, or AI responses can grant attackers full filesystem access.
@@ -81,9 +83,8 @@ let safe_root = StrictPath::with_boundary("uploads")?;
 let safe_path = safe_root.strict_join(dangerous_user_input)?;  // Attack = Error
 
 // 3. Use normal file operations - guaranteed secure
-safe_path.write_bytes(file_data)?;
+safe_path.write(file_data)?;
 let info = safe_path.metadata()?; // Inspect filesystem metadata when needed
-safe_path.remove_file()?; // Remove when cleanup is required
 safe_path.remove_file()?; // Remove when cleanup is required
 ```
 
@@ -139,7 +140,7 @@ use strict_path::VirtualPath;
 let extract_root = VirtualPath::with_root("./extracted")?;
 for entry_name in malicious_zip_entries {
     let safe_path = extract_root.virtual_join(entry_name)?; // "../../../etc" → "/etc"  
-    safe_path.write_bytes(entry.data())?; // Always safe
+    safe_path.write(entry.data())?; // Always safe
 }
 
 // User cloud storage - users see friendly paths
@@ -222,7 +223,7 @@ fn extract_zip(zip_entries: impl IntoIterator<Item=(String, Vec<u8>)>) -> std::i
         // Hostile names like "../../../etc/passwd" get clamped to "/etc/passwd"
         let vpath = extract_root.virtual_join(&name)?;
         vpath.create_parent_dir_all()?;
-        vpath.write_bytes(&data)?;
+        vpath.write(&data)?;
     }
     Ok(())
 }
@@ -236,12 +237,12 @@ struct StaticFiles;
 
 async fn serve_static(static_dir: &PathBoundary<StaticFiles>, path: &str) -> Result<Response> {
     let safe_path = static_dir.strict_join(path)?; // "../../../" → Error
-    Ok(Response::new(safe_path.read_bytes()?))
+    Ok(Response::new(safe_path.read()?))
 }
 
 // Function signature prevents bypass - no validation needed inside!
 async fn serve_file(safe_path: &strict_path::StrictPath<StaticFiles>) -> Response {
-    Response::new(safe_path.read_bytes().unwrap_or_default())
+    Response::new(safe_path.read().unwrap_or_default())
 }
 ```
 
@@ -301,7 +302,7 @@ Note: This is not “StrictPath vs VirtualPath.” `VirtualPath` conceptually ex
 use strict_path::{StrictPath, VirtualPath};
 
 fn process_file<M>(path: &strict_path::StrictPath<M>) -> std::io::Result<Vec<u8>> {
-    path.read_bytes()
+    path.read()
 }
 
 // Call with either type
@@ -387,7 +388,7 @@ struct StaticFiles; // Marker for static assets
 
 async fn serve_static_file(safe_path: &StrictPath<StaticFiles>) -> Result<Response> {
     // Function signature enforces safety - no validation needed inside!
-    Ok(Response::new(safe_path.read_bytes()?))
+    Ok(Response::new(safe_path.read()?))
 }
 
 // Caller handles validation once:
@@ -402,7 +403,7 @@ let extract_root = VirtualPath::with_root("./extracted")?;
 for (name, data) in zip_entries {
     let vpath = extract_root.virtual_join(&name)?;  // Neutralizes zip slip (clamps hostile)
     vpath.create_parent_dir_all()?;
-    vpath.write_bytes(&data)?;
+    vpath.write(&data)?;
 }
 ```
 
@@ -412,7 +413,7 @@ for (name, data) in zip_entries {
 // User chooses any path - always safe
 let file_path = VirtualPath::with_root(format!("/cloud/user_{id}"))?
     .virtual_join(&user_requested_path)?;
-file_path.write_bytes(upload_data)?;
+file_path.write(upload_data)?;
 ```
 
 ### Configuration Files
@@ -464,7 +465,7 @@ let path = StrictPath::with_boundary("uploads")?.strict_join("file.txt")?; // Er
 let vpath = VirtualPath::with_root("userspace")?.virtual_join("any/path/here")?; // Always works
 
 // Both support the same I/O operations
-path.write_bytes(data)?;
+path.write(data)?;
 vpath.read_to_string()?;
 ```
 

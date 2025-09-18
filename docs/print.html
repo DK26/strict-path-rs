@@ -324,7 +324,7 @@ fn handle_file_upload(filename: &amp;str, content: &amp;[u8]) -&gt; Result&lt;()
 // Internal helper encodes guarantee in its signature
 fn save_uploaded(path: &amp;StrictPath, content: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
     path.create_parent_dir_all()?;
-    path.write_bytes(content)
+    path.write(content)
 }
 <span class="boring">}</span></code></pre></pre>
 <h3 id="configuration-files"><a class="header" href="#configuration-files">Configuration Files</a></h3>
@@ -475,7 +475,7 @@ impl FileUploadService {
     // Internal helper: signature encodes guarantee (accepts only &amp;StrictPath)
     fn save_uploaded(&amp;self, path: &amp;StrictPath, content: &amp;[u8]) -&gt; io::Result&lt;()&gt; {
         path.create_parent_dir_all()?;
-        path.write_bytes(content)
+        path.write(content)
     }
 
     fn list_files(
@@ -495,7 +495,7 @@ impl FileUploadService {
 
     fn download_file(&amp;self, path: &amp;VirtualPath) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
         // Read and return the file content — type ensures safety
-        path.read_bytes()
+        path.read()
     }
 }
 
@@ -769,7 +769,7 @@ impl SafeArchiveExtractor {
 
         // Create parent directories and write the file
         safe_path.create_parent_dir_all()?;
-        safe_path.write_bytes(content)?;
+        safe_path.write(content)?;
 
         println!("📦 Extracted: {entry_path} -&gt; {}", safe_path.strictpath_display());
         Ok(safe_path)
@@ -937,7 +937,7 @@ struct ConfigData;   // Application configuration
 
 // Functions enforce context via type system
 fn serve_asset(path: &amp;StrictPath&lt;WebAssets&gt;) -&gt; Result&lt;Vec&lt;u8&gt;, std::io::Error&gt; {
-    path.read_bytes()
+    path.read()
 }
 
 fn process_upload(path: &amp;StrictPath&lt;UserFiles&gt;) -&gt; Result&lt;(), std::io::Error&gt; {
@@ -988,12 +988,12 @@ fn example_type_safety() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt
 </span><span class="boring">fn main() {
 </span>// ✅ SECURE: Function signature guarantees safety
 fn process_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
-    path.read_bytes() // No validation needed - type system enforces it
+    path.read() // No validation needed - type system enforces it
 }
 
 // ✅ SECURE: Caller must validate before calling  
 fn save_upload(file: &amp;VirtualPath) -&gt; std::io::Result&lt;()&gt; {
-    file.write_bytes(&amp;data) // Guaranteed within boundaries
+    file.write(&amp;data) // Guaranteed within boundaries
 }
 
 // ❌ INSECURE: Function accepts dangerous inputs
@@ -1159,7 +1159,7 @@ async fn serve_static(Path(filename): Path&lt;String&gt;) -&gt; Result&lt;Vec&lt
     let static_dir = PathBoundary::&lt;StaticFiles&gt;::try_new("./static")?;
     let safe_path = static_dir.strict_join(&amp;filename)?; // Attack = Error
     
-    Ok(safe_path.read_bytes()?)
+    Ok(safe_path.read()?)
 }
 <span class="boring">}</span></code></pre></pre>
 <h4 id="configuration-with-app-path"><a class="header" href="#configuration-with-app-path">Configuration with app-path</a></h4>
@@ -1239,7 +1239,7 @@ config_file.write_string(r#"{"theme": "dark"}"#)?;
 </span><span class="boring">fn main() {
 </span>let data_dir = PathBoundary::&lt;()&gt;::try_new_os_data("MyApp")?;
 let database = data_dir.strict_join("app.db")?;
-database.write_bytes(b"SQLite database content")?;
+database.write(b"SQLite database content")?;
 <span class="boring">}</span></code></pre></pre>
 <p><strong>Platform paths:</strong></p>
 <ul>
@@ -1568,7 +1568,7 @@ fn extract_all&lt;M: Default&gt;(dest: &amp;std::path::Path, entries: impl IntoI
         vpath.create_parent_dir_all()?;
 
         // 3) Perform the write safely
-        vpath.write_bytes(&amp;data)?;
+        vpath.write(&amp;data)?;
     }
     Ok(())
 }
@@ -1780,7 +1780,7 @@ fn create_config(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Res
 </span>fn upload(user_root: &amp;VirtualRoot, filename: &amp;str, bytes: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
   let vpath = user_root.virtual_join(filename)?;
   vpath.create_parent_dir_all()?;
-  vpath.write_bytes(bytes)
+  vpath.write(bytes)
 }
 
 // Sugar-first call site (one-off):
@@ -1869,7 +1869,7 @@ fn rotate_log(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
 </span>fn write(boundary: &amp;PathBoundary, name: &amp;str, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
     let sp = boundary.strict_join(name)?;
     sp.create_parent_dir_all()?;
-    sp.write_bytes(data)
+    sp.write(data)
 }
 <span class="boring">}</span></code></pre></pre>
 <ul>
@@ -1880,7 +1880,7 @@ fn rotate_log(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
 </span>fn extract(vroot: &amp;VirtualRoot, entry: &amp;str, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
     let vp = vroot.virtual_join(entry)?;
     vp.create_parent_dir_all()?;
-    vp.write_bytes(data)
+    vp.write(data)
 }
 <span class="boring">}</span></code></pre></pre>
 <ul>
@@ -2216,7 +2216,7 @@ if Path::new(safe_path.interop_path()).exists() {
     )?;
 }
 <span class="boring">}</span></code></pre></pre>
-<p><strong>Why it's wrong:</strong> <code>StrictPath</code> already has <code>.exists()</code>, <code>.read_bytes()</code>, <code>.write_bytes()</code>, and other methods. You're defeating the entire point by converting back to <code>Path</code>, which ignores all security restrictions.</p>
+<p><strong>Why it's wrong:</strong> <code>StrictPath</code> already has <code>.exists()</code>, <code>.read()</code>, <code>.write()</code>, and other methods. You're defeating the entire point by converting back to <code>Path</code>, which ignores all security restrictions.</p>
 <p><strong>✅ Do this instead:</strong></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -2290,7 +2290,7 @@ let user_data = VirtualRoot::try_new("./user_data")?;
     // Every function has to validate - error prone!
     let uploads = PathBoundary::try_new("uploads")?;
     let safe_path = uploads.strict_join(filename)?;
-    safe_path.write_bytes(data)
+    safe_path.write(data)
 }
 <span class="boring">}</span></code></pre></pre>
 <p><strong>Why it's wrong:</strong> Every caller has to trust that this function validates correctly. Someone could call <code>save_file("../../../etc/passwd", data)</code> and you're relying on runtime validation instead of the type system.</p>
@@ -2298,7 +2298,7 @@ let user_data = VirtualRoot::try_new("./user_data")?;
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>fn save_file(safe_path: &amp;StrictPath, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
-    safe_path.write_bytes(data)  // Already guaranteed safe!
+    safe_path.write(data)  // Already guaranteed safe!
 }
 <span class="boring">}</span></code></pre></pre>
 <p>Now it's <strong>impossible</strong> to call this function unsafely. The validation happens once when creating the <code>StrictPath</code>, and the type system prevents all misuse.</p>
@@ -2312,7 +2312,7 @@ static UPLOADS: PathBoundary = /* ... */;
 fn save_user_file(user_id: u64, filename: &amp;str, data: &amp;[u8]) {
     // All users share the same directory - data mixing risk!
     let path = UPLOADS.strict_join(&amp;format!("{}/{}", user_id, filename))?;
-    path.write_bytes(data)?;
+    path.write(data)?;
 }
 <span class="boring">}</span></code></pre></pre>
 <p><strong>Why it's wrong:</strong> All users share the same boundary, making it easy to accidentally access another user's files or create insecure paths.</p>
@@ -2326,7 +2326,7 @@ fn save_user_file(user_id: u64, filename: &amp;str, data: &amp;[u8]) {
 
 fn save_user_file(user_root: &amp;VirtualRoot&lt;UserData&gt;, filename: &amp;str, data: &amp;[u8]) -&gt; Result&lt;(), Error&gt; {
     let safe_path = user_root.virtual_join(filename)?.as_unvirtual();
-    safe_path.write_bytes(data)?;
+    safe_path.write(data)?;
     Ok(())
 }
 <span class="boring">}</span></code></pre></pre>

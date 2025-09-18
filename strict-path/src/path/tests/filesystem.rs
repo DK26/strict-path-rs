@@ -31,7 +31,9 @@ fn strict_copy_file_in_same_boundary() {
     src.write("hello").unwrap();
 
     // Copy to sibling name
-    let dst = src.strict_copy("b.txt").unwrap();
+    let dst = boundary.strict_join("b.txt").unwrap();
+    let bytes = src.strict_copy("b.txt").unwrap();
+    assert_eq!(bytes, "hello".len() as u64);
     assert!(src.exists());
     assert!(dst.exists());
     assert_eq!(dst.read_to_string().unwrap(), "hello");
@@ -47,7 +49,9 @@ fn strict_copy_absolute_inside_boundary() {
     src.write("x").unwrap();
 
     let abs_inside = td.path().join("copy_here.txt");
-    let dst = src.strict_copy(&abs_inside).unwrap();
+    let dst = boundary.strict_join("copy_here.txt").unwrap();
+    let bytes = src.strict_copy(&abs_inside).unwrap();
+    assert_eq!(bytes, 1);
     assert!(dst.exists());
     assert_eq!(dst.read_to_string().unwrap(), "x");
 }
@@ -74,7 +78,9 @@ fn virtual_copy_file_simple() {
     let v = src.virtualize();
 
     // Relative sibling copy
-    let vdst = v.virtual_copy("b.txt").unwrap();
+    let vdst = boundary.strict_join("docs/b.txt").unwrap().virtualize();
+    let bytes = v.virtual_copy("b.txt").unwrap();
+    assert_eq!(bytes, "v".len() as u64);
     assert_eq!(format!("{}", vdst.virtualpath_display()), "/docs/b.txt");
     assert!(vdst.exists());
     assert_eq!(vdst.read_to_string().unwrap(), "v");
@@ -91,7 +97,9 @@ fn virtual_copy_absolute_under_root() {
     src.write("v").unwrap();
     let v = src.virtualize();
 
-    let vdst = v.virtual_copy("/rooted.txt").unwrap();
+    let vdst = boundary.strict_join("rooted.txt").unwrap().virtualize();
+    let bytes = v.virtual_copy("/rooted.txt").unwrap();
+    assert_eq!(bytes, "v".len() as u64);
     assert_eq!(format!("{}", vdst.virtualpath_display()), "/rooted.txt");
     assert!(vdst.exists());
     assert_eq!(vdst.read_to_string().unwrap(), "v");
@@ -172,7 +180,9 @@ fn virtual_copy_with_parent_components_is_clamped() {
     src.create_parent_dir_all().unwrap();
     src.write("v").unwrap();
     let v = src.virtualize();
-    let v2 = v.virtual_copy("../outside.txt").unwrap();
+    let v2 = boundary.strict_join("outside.txt").unwrap().virtualize();
+    let bytes = v.virtual_copy("../outside.txt").unwrap();
+    assert_eq!(bytes, "v".len() as u64);
     assert_eq!(format!("{}", v2.virtualpath_display()), "/outside.txt");
 }
 
@@ -184,8 +194,10 @@ fn strict_copy_overwrites_existing_destination() {
     src.write("NEW").unwrap();
     let dst = boundary.strict_join("dst.txt").unwrap();
     dst.write("OLD").unwrap();
-    let replaced = src.strict_copy("dst.txt").unwrap();
-    assert_eq!(replaced.read_to_string().unwrap(), "NEW");
+    let dst = boundary.strict_join("dst.txt").unwrap();
+    let bytes = src.strict_copy("dst.txt").unwrap();
+    assert_eq!(bytes, "NEW".len() as u64);
+    assert_eq!(dst.read_to_string().unwrap(), "NEW");
 }
 #[test]
 fn test_strict_path_display_formatting() {

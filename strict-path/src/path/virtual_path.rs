@@ -411,6 +411,33 @@ impl<Marker> VirtualPath<Marker> {
         self.inner.remove_dir_all()
     }
 
+    /// Creates a symbolic link at this virtual location pointing to `target`, ensuring both remain
+    /// within the same virtual root restriction.
+    pub fn virtual_symlink(&self, link_path: &Self) -> std::io::Result<()> {
+        if self.inner.boundary().path() != link_path.inner.boundary().path() {
+            let err = StrictPathError::path_escapes_boundary(
+                link_path.inner.path().to_path_buf(),
+                self.inner.boundary().path().to_path_buf(),
+            );
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
+        }
+
+        self.inner.strict_symlink(&link_path.inner)
+    }
+
+    /// Creates a hard link at this virtual location pointing to `target`.
+    pub fn virtual_hard_link(&self, link_path: &Self) -> std::io::Result<()> {
+        if self.inner.boundary().path() != link_path.inner.boundary().path() {
+            let err = StrictPathError::path_escapes_boundary(
+                link_path.inner.path().to_path_buf(),
+                self.inner.boundary().path().to_path_buf(),
+            );
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
+        }
+
+        self.inner.strict_hard_link(&link_path.inner)
+    }
+
     /// Renames or moves this virtual path to a new location within the same virtual root.
     ///
     /// Destination paths are resolved in virtual space:
@@ -419,7 +446,7 @@ impl<Marker> VirtualPath<Marker> {
     ///
     /// Clamping and boundary checks are enforced by virtual joins. No parent directories are
     /// created implicitly; call `create_parent_dir_all()` beforehand if needed.
-    pub fn virtual_rename<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<Self> {
+    pub fn virtual_rename<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<()> {
         let dest_ref = dest.as_ref();
         let dest_v = if dest_ref.is_absolute() {
             match self.virtual_join(dest_ref) {
@@ -443,8 +470,7 @@ impl<Marker> VirtualPath<Marker> {
         };
 
         // Perform the actual rename via StrictPath
-        let moved_strict = self.inner.strict_rename(dest_v.inner.path())?;
-        Ok(moved_strict.virtualize())
+        self.inner.strict_rename(dest_v.inner.path())
     }
 
     /// Copies this virtual path to a new location within the same virtual root.
@@ -455,8 +481,8 @@ impl<Marker> VirtualPath<Marker> {
     ///
     /// Clamping and boundary checks are enforced by virtual joins. No parent directories are
     /// created implicitly; call `create_parent_dir_all()` beforehand if needed. Returns the
-    /// destination `VirtualPath` on success.
-    pub fn virtual_copy<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<Self> {
+    /// number of bytes copied, mirroring `std::fs::copy`.
+    pub fn virtual_copy<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<u64> {
         let dest_ref = dest.as_ref();
         let dest_v = if dest_ref.is_absolute() {
             match self.virtual_join(dest_ref) {
@@ -480,8 +506,7 @@ impl<Marker> VirtualPath<Marker> {
         };
 
         // Perform the actual copy via StrictPath
-        std::fs::copy(self.inner.path(), dest_v.inner.path())?;
-        Ok(dest_v)
+        std::fs::copy(self.inner.path(), dest_v.inner.path())
     }
 }
 

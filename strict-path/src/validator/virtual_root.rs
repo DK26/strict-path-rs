@@ -110,6 +110,31 @@ impl<Marker> VirtualRoot<Marker> {
         self.root.metadata()
     }
 
+    /// Creates a symbolic link at `link_path` that points to this VirtualRoot's underlying directory.
+    pub fn virtual_symlink(
+        &self,
+        link_path: &crate::path::virtual_path::VirtualPath<Marker>,
+    ) -> std::io::Result<()> {
+        let root = self
+            .virtual_join("")
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
+        root.as_unvirtual().strict_symlink(link_path.as_unvirtual())
+    }
+
+    /// Creates a hard link at `link_path` that points to this VirtualRoot's underlying directory.
+    pub fn virtual_hard_link(
+        &self,
+        link_path: &crate::path::virtual_path::VirtualPath<Marker>,
+    ) -> std::io::Result<()> {
+        let root = self
+            .virtual_join("")
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
+        root.as_unvirtual()
+            .strict_hard_link(link_path.as_unvirtual())
+    }
+
     /// Reads the directory entries at the virtual root (like `std::fs::read_dir`).
     ///
     /// This is intended for discovery. Prefer collecting each entry's file name via

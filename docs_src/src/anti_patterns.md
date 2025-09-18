@@ -70,7 +70,7 @@ if Path::new(safe_path.interop_path()).exists() {
 }
 ```
 
-**Why it's wrong:** `StrictPath` already has `.exists()`, `.read_bytes()`, `.write_bytes()`, and other methods. You're defeating the entire point by converting back to `Path`, which ignores all security restrictions.
+**Why it's wrong:** `StrictPath` already has `.exists()`, `.read()`, `.write()`, and other methods. You're defeating the entire point by converting back to `Path`, which ignores all security restrictions.
 
 **✅ Do this instead:**
 ```rust
@@ -152,7 +152,7 @@ fn save_file(filename: &str, data: &[u8]) -> std::io::Result<()> {
     // Every function has to validate - error prone!
     let uploads = PathBoundary::try_new("uploads")?;
     let safe_path = uploads.strict_join(filename)?;
-    safe_path.write_bytes(data)
+    safe_path.write(data)
 }
 ```
 
@@ -161,7 +161,7 @@ fn save_file(filename: &str, data: &[u8]) -> std::io::Result<()> {
 **✅ Do this instead:**
 ```rust
 fn save_file(safe_path: &StrictPath, data: &[u8]) -> std::io::Result<()> {
-    safe_path.write_bytes(data)  // Already guaranteed safe!
+    safe_path.write(data)  // Already guaranteed safe!
 }
 ```
 
@@ -177,7 +177,7 @@ static UPLOADS: PathBoundary = /* ... */;
 fn save_user_file(user_id: u64, filename: &str, data: &[u8]) {
     // All users share the same directory - data mixing risk!
     let path = UPLOADS.strict_join(&format!("{}/{}", user_id, filename))?;
-    path.write_bytes(data)?;
+    path.write(data)?;
 }
 ```
 
@@ -192,7 +192,7 @@ fn get_user_root(user_id: u64) -> Result<VirtualRoot<UserData>, Error> {
 
 fn save_user_file(user_root: &VirtualRoot<UserData>, filename: &str, data: &[u8]) -> Result<(), Error> {
     let safe_path = user_root.virtual_join(filename)?.as_unvirtual();
-    safe_path.write_bytes(data)?;
+    safe_path.write(data)?;
     Ok(())
 }
 ```

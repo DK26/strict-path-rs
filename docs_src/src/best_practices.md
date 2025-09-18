@@ -164,7 +164,7 @@ fn create_config(boundary: &PathBoundary, name: &str) -> std::io::Result<()> {
 fn upload(user_root: &VirtualRoot, filename: &str, bytes: &[u8]) -> std::io::Result<()> {
   let vpath = user_root.virtual_join(filename)?;
   vpath.create_parent_dir_all()?;
-  vpath.write_bytes(bytes)
+  vpath.write(bytes)
 }
 
 // Sugar-first call site (one-off):
@@ -246,7 +246,7 @@ fn rotate_log(boundary: &PathBoundary) -> std::io::Result<()> {
 fn write(boundary: &PathBoundary, name: &str, data: &[u8]) -> std::io::Result<()> {
     let sp = boundary.strict_join(name)?;
     sp.create_parent_dir_all()?;
-    sp.write_bytes(data)
+    sp.write(data)
 }
 ```
 
@@ -255,7 +255,7 @@ fn write(boundary: &PathBoundary, name: &str, data: &[u8]) -> std::io::Result<()
 fn extract(vroot: &VirtualRoot, entry: &str, data: &[u8]) -> std::io::Result<()> {
     let vp = vroot.virtual_join(entry)?;
     vp.create_parent_dir_all()?;
-    vp.write_bytes(data)
+    vp.write(data)
 }
 ```
 

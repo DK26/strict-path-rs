@@ -258,3 +258,14 @@ Guidelines:
 ---
 
 If in doubt, prefer examples in `strict-path/src/lib.rs` and mdBook pages as the source of truth.
+
+## IO Return Value Policy
+
+- All built-in IO helpers return the same value as their `std::fs` counterparts (`rename`/`symlink`/`hard_link` -> `io::Result<()>`, `copy` -> `io::Result<u64>`, etc.).
+- This preserves the exact signal from the OS (including byte counts) and avoids extra filesystem probes when callers need those results.
+- Ergonomic chaining wrappers can exist on top, but the primary APIs stay faithful to the standard library to avoid surprise.
+
+## Hard Link Helpers
+
+- `PathBoundary::strict_hard_link` and `VirtualRoot::virtual_hard_link` simply forward to the underlying `StrictPath` helpers.
+- Many platforms forbid directory hard links (e.g., Linux, macOS); expect `io::ErrorKind::PermissionDenied` in those cases and treat it as an acceptable outcome.

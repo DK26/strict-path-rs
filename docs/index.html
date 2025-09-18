@@ -323,7 +323,7 @@ fn handle_file_upload(filename: &amp;str, content: &amp;[u8]) -&gt; Result&lt;()
 // Internal helper encodes guarantee in its signature
 fn save_uploaded(path: &amp;StrictPath, content: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
     path.create_parent_dir_all()?;
-    path.write_bytes(content)
+    path.write(content)
 }
 <span class="boring">}</span></code></pre></pre>
 <h3 id="configuration-files"><a class="header" href="#configuration-files">Configuration Files</a></h3>

@@ -56,8 +56,10 @@ This design makes the API read naturally:
 - strictpath_parent(&self) -> Result<Option<Self>>
 - strictpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self>
 - strictpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
-- strict_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<Self>
-- strict_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<Self>
+- strict_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<()>
+- strict_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<u64>
+- strict_symlink(&self, link_path: &Self) -> io::Result<()>
+- strict_hard_link(&self, link_path: &Self) -> io::Result<()>
 
 All operations prevent traversal and symlink/junction escapes. Do not use `std::path::Path::join` on untrusted input; use the explicit `strict_*/virtual_*` operations documented below.
 
@@ -221,6 +223,8 @@ PathBoundary<Marker>
 - exists(&self) -> bool
 - strictpath_display(&self) -> std::path::Display<'_>
 - virtualize(self) -> VirtualRoot<Marker>
+- strict_symlink(&self, link_path: &StrictPath<Marker>) -> io::Result<()>
+- strict_hard_link(&self, link_path: &StrictPath<Marker>) -> io::Result<()>
  - read_dir(&self) -> io::Result<std::fs::ReadDir>
  - remove_dir(&self) -> io::Result<()>
  - remove_dir_all(&self) -> io::Result<()>
@@ -241,7 +245,10 @@ Note: `.unstrict()` is an explicit escape hatch. Interop doesnâ€™t require it â€
 - strictpath_parent(&self) -> Result<Option<Self>>
 - strictpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self>
 - strictpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
-- strict_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<Self>
+- strict_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<()>
+- strict_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<u64>
+- strict_symlink(&self, link_path: &Self) -> io::Result<()>
+- strict_hard_link(&self, link_path: &Self) -> io::Result<()>
 - strictpath_file_name(&self) -> Option<&OsStr>
 - strictpath_file_stem(&self) -> Option<&OsStr>
 - strictpath_extension(&self) -> Option<&OsStr>
@@ -285,8 +292,10 @@ VirtualPath<Marker>
 - virtualpath_parent(&self) -> Result<Option<Self>>
 - virtualpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self>
 - virtualpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
-- virtual_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<Self>
-- virtual_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<Self>
+- virtual_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<()>
+- virtual_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<u64>
+- virtual_symlink(&self, link_path: &Self) -> io::Result<()>
+- virtual_hard_link(&self, link_path: &Self) -> io::Result<()>
 - virtualpath_file_name(&self) -> Option<&OsStr>
 - virtualpath_file_stem(&self) -> Option<&OsStr>
 - virtualpath_extension(&self) -> Option<&OsStr>
@@ -294,9 +303,11 @@ VirtualPath<Marker>
 - virtualpath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool
 - virtualpath_display(&self) -> VirtualPathDisplay<'_, Marker>  // explicit display method
  - try_into_root(self) -> VirtualRoot<Marker>
- - try_into_root_create(self) -> VirtualRoot<Marker>
- - read_dir(&self) -> io::Result<std::fs::ReadDir>
- - exists / is_file / is_dir / metadata / read_to_string / read / write / create_dir / create_dir_all / create_parent_dir / create_parent_dir_all / remove_file / remove_dir / remove_dir_all (delegates to `StrictPath`; parents derived via virtual semantics)
+- try_into_root_create(self) -> VirtualRoot<Marker>
+- read_dir(&self) -> io::Result<std::fs::ReadDir>
+- exists / is_file / is_dir / metadata / read_to_string / read / write / create_dir / create_dir_all / create_parent_dir / create_parent_dir_all / remove_file / remove_dir / remove_dir_all (delegates to `StrictPath`; parents derived via virtual semantics)
+- virtual_symlink(&self, link_path: &VirtualPath<Marker>) -> io::Result<()>
+- virtual_hard_link(&self, link_path: &VirtualPath<Marker>) -> io::Result<()>
 
 ### Feature-gated APIs (complete list)
 These are available only when the corresponding Cargo features are enabled:

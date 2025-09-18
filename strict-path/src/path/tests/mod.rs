@@ -1,3 +1,4 @@
+mod advanced_security;
 mod create_parent;
 mod creation;
 mod filesystem;
@@ -8,5 +9,6 @@ mod read_dir_and_conversions;
 mod rename;
 mod security;
 mod serde;
+mod symlink_methods;
 mod virtual_display;
 mod virtual_path_accessors;

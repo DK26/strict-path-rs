@@ -31,7 +31,7 @@ impl FileUploadService {
     // Internal helper: signature encodes guarantee (accepts only &StrictPath)
     fn save_uploaded(&self, path: &StrictPath, content: &[u8]) -> io::Result<()> {
         path.create_parent_dir_all()?;
-        path.write_bytes(content)
+        path.write(content)
     }
 
     fn list_files(
@@ -51,7 +51,7 @@ impl FileUploadService {
 
     fn download_file(&self, path: &VirtualPath) -> io::Result<Vec<u8>> {
         // Read and return the file content — type ensures safety
-        path.read_bytes()
+        path.read()
     }
 }
 
@@ -340,7 +340,7 @@ impl SafeArchiveExtractor {
 
         // Create parent directories and write the file
         safe_path.create_parent_dir_all()?;
-        safe_path.write_bytes(content)?;
+        safe_path.write(content)?;
 
         println!("📦 Extracted: {entry_path} -> {}", safe_path.strictpath_display());
         Ok(safe_path)
@@ -516,7 +516,7 @@ struct ConfigData;   // Application configuration
 
 // Functions enforce context via type system
 fn serve_asset(path: &StrictPath<WebAssets>) -> Result<Vec<u8>, std::io::Error> {
-    path.read_bytes()
+    path.read()
 }
 
 fn process_upload(path: &StrictPath<UserFiles>) -> Result<(), std::io::Error> {
@@ -569,12 +569,12 @@ Design your functions to make security bypass impossible:
 ```rust
 // ✅ SECURE: Function signature guarantees safety
 fn process_file<M>(path: &StrictPath<M>) -> std::io::Result<Vec<u8>> {
-    path.read_bytes() // No validation needed - type system enforces it
+    path.read() // No validation needed - type system enforces it
 }
 
 // ✅ SECURE: Caller must validate before calling  
 fn save_upload(file: &VirtualPath) -> std::io::Result<()> {
-    file.write_bytes(&data) // Guaranteed within boundaries
+    file.write(&data) // Guaranteed within boundaries
 }
 
 // ❌ INSECURE: Function accepts dangerous inputs

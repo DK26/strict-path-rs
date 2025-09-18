@@ -1,4 +1,5 @@
-use crate::{PathBoundary, VirtualRoot};
+use crate::{PathBoundary, StrictPathError, VirtualRoot};
+use std::path::{Component, Path};
 use std::sync::Arc;
 use std::thread;
 
@@ -6,6 +7,7 @@ use std::thread;
 fn test_known_cve_patterns() {
     let temp = tempfile::tempdir().unwrap();
     let restriction: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new(restriction.interop_path()).unwrap();
 
     let attack_patterns = vec![
         "../../../../etc/passwd",
@@ -23,30 +25,67 @@ fn test_known_cve_patterns() {
     ];
 
     for pattern in attack_patterns {
-        if let Ok(restricted_path) = restriction.strict_join(pattern) {
-            // Test system path containment directly
-            assert!(
-                restricted_path.strictpath_starts_with(restriction.interop_path()),
-                "Attack pattern '{pattern}' escaped restriction: {restricted_path:?}"
-            );
+        let candidate = Path::new(pattern);
+        let has_parent = candidate
+            .components()
+            .any(|component| matches!(component, Component::ParentDir));
+        let looks_like_scheme = pattern.starts_with("file://");
+        let is_absolute = candidate.is_absolute();
+        let looks_absolute = is_absolute || looks_like_scheme;
+        let should_succeed_strict = !has_parent && !looks_absolute;
 
-            // If we need virtual semantics for this test, create VirtualPath properly
-            let vroot: VirtualRoot = VirtualRoot::try_new(restriction.interop_path()).unwrap();
-            if let Ok(virtual_path) = vroot.virtual_join(pattern) {
-                let virtual_str = virtual_path.virtualpath_display().to_string();
-
-                if !pattern.contains("....") && !pattern.contains("%2F") {
-                    let is_traversal_pattern =
-                        pattern.contains("../") || (cfg!(windows) && pattern.contains("..\\\\"));
-
-                    if is_traversal_pattern {
-                        assert!(
-                            !virtual_str.contains(".."),
-                            "Attack pattern '{pattern}' not properly sanitized: {virtual_str}"
-                        );
-                    }
+        match restriction.strict_join(pattern) {
+            Ok(restricted_path) => {
+                assert!(
+                    restricted_path.strictpath_starts_with(restriction.interop_path()),
+                    "Attack pattern '{pattern}' escaped restriction: {restricted_path:?}"
+                );
+            }
+            Err(err) => {
+                if should_succeed_strict {
+                    panic!("strict_join rejected '{pattern}': {err:?}");
+                }
+                match err {
+                    StrictPathError::PathEscapesBoundary { .. }
+                    | StrictPathError::PathResolutionError { .. } => {}
+                    #[cfg(windows)]
+                    StrictPathError::WindowsShortName { .. } => {}
+                    other => panic!("Unexpected error variant for pattern '{pattern}': {other:?}"),
                 }
             }
+        }
+
+        match vroot.virtual_join(pattern) {
+            Ok(virtual_path) => {
+                assert!(
+                    virtual_path
+                        .as_unvirtual()
+                        .strictpath_starts_with(vroot.interop_path()),
+                    "Virtual join for '{pattern}' escaped restriction"
+                );
+
+                let display = virtual_path.virtualpath_display().to_string();
+                assert!(
+                    display.starts_with('/'),
+                    "Virtual display must be rooted for '{pattern}': {display}"
+                );
+
+                if has_parent || looks_absolute {
+                    let has_parent_segment = display.split('/').any(|segment| segment == "..");
+                    assert!(
+                        !has_parent_segment,
+                        "Virtual display leaked parent segments for '{pattern}': {display}"
+                    );
+                }
+            }
+            Err(StrictPathError::PathEscapesBoundary { .. })
+            | Err(StrictPathError::PathResolutionError { .. }) => {
+                assert!(
+                    looks_absolute,
+                    "Unexpected virtual_join failure for pattern '{pattern}'"
+                );
+            }
+            Err(other) => panic!("Unexpected virtual_join error for '{pattern}': {other:?}"),
         }
     }
 }
@@ -139,24 +178,29 @@ fn test_long_path_handling() {
     let long_component = "a".repeat(64);
     let long_path = format!("{long_component}/{long_component}/{long_component}/{long_component}",);
 
-    if let Ok(restricted_path) = restriction.strict_join(long_path) {
-        assert!(restricted_path.strictpath_starts_with(restriction.interop_path()));
-    }
+    let restricted_path = restriction
+        .strict_join(&long_path)
+        .unwrap_or_else(|err| panic!("long path should be accepted: {err:?}"));
+    assert!(restricted_path.strictpath_starts_with(restriction.interop_path()));
 
     let traversal_attack = "../".repeat(10) + "etc/passwd";
-    if let Ok(restricted_path) = restriction.strict_join(&traversal_attack) {
-        assert!(restricted_path.strictpath_starts_with(restriction.interop_path()));
-
-        // If testing virtual semantics, use VirtualRoot properly
-        let vroot: VirtualRoot = VirtualRoot::try_new(restriction.interop_path()).unwrap();
-        if let Ok(virtual_path) = vroot.virtual_join(&traversal_attack) {
-            let expected_path = "/etc/passwd".to_string();
-            assert_eq!(
-                virtual_path.virtualpath_display().to_string(),
-                expected_path
-            );
-        }
+    let err = restriction
+        .strict_join(&traversal_attack)
+        .expect_err("traversal should be rejected by strict_join");
+    match err {
+        StrictPathError::PathEscapesBoundary { .. } => {}
+        other => panic!("Unexpected error for traversal attack '{traversal_attack}': {other:?}"),
     }
+
+    let vroot: VirtualRoot = VirtualRoot::try_new(restriction.interop_path()).unwrap();
+    let virtual_path = vroot
+        .virtual_join(&traversal_attack)
+        .unwrap_or_else(|err| panic!("virtual join should clamp traversal: {err:?}"));
+    let expected_path = "/etc/passwd".to_string();
+    assert_eq!(
+        virtual_path.virtualpath_display().to_string(),
+        expected_path
+    );
 }
 
 #[test]
@@ -179,8 +223,32 @@ fn test_windows_specific_attacks() {
     ];
 
     for pattern in windows_patterns {
-        if let Ok(restricted_path) = restriction.strict_join(pattern) {
-            assert!(restricted_path.strictpath_starts_with(restriction.interop_path()));
+        let candidate = Path::new(pattern);
+        let is_absolute = candidate.is_absolute();
+
+        let result = restriction.strict_join(pattern);
+        if is_absolute {
+            let err = result.expect_err("strict_join must reject absolute Windows escape patterns");
+            match err {
+                StrictPathError::PathEscapesBoundary { .. } => {}
+                other => {
+                    panic!("Unexpected error variant for absolute pattern '{pattern}': {other:?}")
+                }
+            }
+            continue;
+        }
+
+        match result {
+            Ok(restricted_path) => {
+                assert!(
+                    restricted_path.strictpath_starts_with(restriction.interop_path()),
+                    "Pattern '{pattern}' escaped restriction"
+                );
+            }
+            Err(StrictPathError::PathResolutionError { .. }) => {
+                // Reserved device names and ADS forms may fail resolution on some systems.
+            }
+            Err(other) => panic!("Unexpected error for Windows pattern '{pattern}': {other:?}"),
         }
     }
 }

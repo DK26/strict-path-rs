@@ -171,7 +171,7 @@ fn handle_file_upload(filename: &str, content: &[u8]) -> Result<(), Box<dyn std:
 // Internal helper encodes guarantee in its signature
 fn save_uploaded(path: &StrictPath, content: &[u8]) -> std::io::Result<()> {
     path.create_parent_dir_all()?;
-    path.write_bytes(content)
+    path.write(content)
 }
 ```
 

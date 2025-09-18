@@ -315,6 +315,30 @@ impl<Marker> PathBoundary<Marker> {
         std::fs::metadata(self.path())
     }
 
+    /// Creates a symbolic link at `link_path` that points to this PathBoundary's root.
+    pub fn strict_symlink(
+        &self,
+        link_path: &crate::path::strict_path::StrictPath<Marker>,
+    ) -> std::io::Result<()> {
+        let root = self
+            .strict_join("")
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
+        root.strict_symlink(link_path)
+    }
+
+    /// Creates a hard link at `link_path` that points to this PathBoundary's root.
+    pub fn strict_hard_link(
+        &self,
+        link_path: &crate::path::strict_path::StrictPath<Marker>,
+    ) -> std::io::Result<()> {
+        let root = self
+            .strict_join("")
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
+        root.strict_hard_link(link_path)
+    }
+
     /// Reads the directory entries under this PathBoundary root (like `std::fs::read_dir`).
     ///
     /// This is intended for discovery. Prefer collecting entry names and joining via
@@ -825,3 +849,4 @@ impl<Marker: Default> std::str::FromStr for PathBoundary<Marker> {
         Self::try_new_create(path)
     }
 }
+// hi
