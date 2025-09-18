@@ -206,6 +206,84 @@ mdBook documentation system:
 - Follow existing module layout: `src/error`, `src/path`, `src/validator`, public re‑exports in `src/lib.rs`.
 - Respect MSRV in the library; demos may use newer crates behind features.
 
+## GitHub Issue Management (for agents)
+
+Before implementing features or fixes, agents must verify against existing GitHub issues to ensure work aligns with project priorities and avoid duplication.
+
+### Issue Verification Workflow
+
+#### Before Starting Work
+- [ ] **Search existing issues**: Check if the problem/feature is already tracked
+- [ ] **Review issue status**: Open, assigned, in-progress, or completed
+- [ ] **Check issue priority**: Labels, milestones, and project boards
+- [ ] **Verify scope alignment**: Ensure proposed work matches issue requirements
+
+#### During Implementation
+- [ ] **Reference issue numbers**: Include `Fixes #N` or `Addresses #N` in commit messages
+- [ ] **Update issue progress**: Comment on implementation approach and progress
+- [ ] **Request clarification**: Ask questions if requirements are unclear
+- [ ] **Document decisions**: Explain technical choices that affect the issue
+
+#### After Completion
+- [ ] **Verify issue resolution**: Ensure all acceptance criteria are met
+- [ ] **Update issue status**: Comment with resolution details and close if appropriate
+- [ ] **Link to implementation**: Reference PRs, commits, or documentation changes
+- [ ] **Validate in context**: Test that the fix/feature works as intended
+
+### When to Create New Issues
+
+If you identify work that should be tracked as an issue, **make an offer and explain in detail** why it should be created:
+
+#### Offer Template
+```
+I've identified [problem/opportunity]: [brief description]
+
+**Why this should be an issue:**
+- [Impact on users/developers]
+- [Alignment with project goals]  
+- [Complexity/effort required]
+- [Dependencies or related work]
+
+**Proposed scope:**
+- [Specific deliverables]
+- [Acceptance criteria]
+- [Timeline considerations]
+
+**Alternative approaches:**
+- [Other solutions considered]
+- [Trade-offs and implications]
+
+Would you like me to create this issue? I can provide:
+- Detailed problem statement
+- Technical requirements
+- Implementation suggestions
+- Testing criteria
+```
+
+#### Issue Creation Criteria
+Create issues for work that is:
+- **Substantial**: Requires multiple commits or touches multiple files
+- **User-impacting**: Affects API, documentation, or functionality
+- **Discussion-worthy**: Needs input on approach or requirements
+- **Trackable**: Benefits from progress tracking and milestone planning
+- **Referenceable**: Other issues, PRs, or discussions might reference it
+
+#### Do NOT create issues for:
+- Trivial fixes (typos, formatting, small refactors)
+- Work that's already in progress or completed
+- Vague ideas without clear scope or acceptance criteria
+- Duplicate concerns already covered by existing issues
+
+### Issue Quality Standards
+
+When creating issues, ensure they include:
+- **Clear title**: Describes the problem/feature concisely
+- **Problem statement**: What issue are we solving and why
+- **Acceptance criteria**: How do we know when it's complete
+- **Context**: Background information and related work
+- **Scope boundaries**: What's included/excluded
+- **Labels**: Appropriate categorization (bug, enhancement, documentation, etc.)
+
 ### Examples & Tests Principles
 
 - Examples:
