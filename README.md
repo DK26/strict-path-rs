@@ -69,7 +69,7 @@ StrictPath::with_boundary("uploads")?
 
 ```toml
 [dependencies]
-strict-path = "0.1.0-alpha.5"
+strict-path = "0.1.0-alpha.6"
 ```
 
 ```rust
