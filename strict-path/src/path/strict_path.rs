@@ -133,7 +133,10 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Join a path segment and re‑validate against the boundary (never use std `join` on leaked paths).
+    /// Join a path segment and re-validate against the boundary.
+    ///
+    /// NOTE:
+    /// Never call `Path::join` on a leaked system path (e.g., from `interop_path()` or `unstrict()`); always re-validate through this method.
     ///
     /// PARAMETERS:
     /// - `path` (`AsRef<Path>`): Segment or absolute path to validate.
@@ -529,4 +532,6 @@ impl<Marker> PartialEq<crate::path::virtual_path::VirtualPath<Marker>> for Stric
         self.path.as_ref() == other.interop_path()
     }
 }
+
+
 
