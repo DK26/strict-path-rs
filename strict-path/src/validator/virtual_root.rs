@@ -12,7 +12,8 @@ use std::sync::Arc;
 #[cfg(feature = "tempfile")]
 use tempfile::TempDir;
 
-/// A user-facing virtual root that produces `VirtualPath` values.
+/// SUMMARY:
+/// Provide a user‑facing virtual root that produces `VirtualPath` values clamped to a boundary.
 #[derive(Clone)]
 pub struct VirtualRoot<Marker = ()> {
     pub(crate) root: PathBoundary<Marker>,
@@ -24,8 +25,19 @@ pub struct VirtualRoot<Marker = ()> {
 
 impl<Marker> VirtualRoot<Marker> {
     // no extra constructors; use PathBoundary::virtualize() or VirtualRoot::try_new
-    /// Creates a `VirtualRoot` from an existing directory.
+    /// SUMMARY:
+    /// Create a `VirtualRoot` from an existing directory.
     ///
+    /// PARAMETERS:
+    /// - `root_path` (`AsRef<Path>`): Existing directory to anchor the virtual root.
+    ///
+    /// RETURNS:
+    /// - `Result<VirtualRoot<Marker>>`: New virtual root with clamped operations.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::InvalidRestriction`: Root invalid or cannot be canonicalized.
+    ///
+    /// EXAMPLE:
     /// Uses `AsRef<Path>` for maximum ergonomics, including direct `TempDir` support for clean shadowing patterns:
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,9 +58,8 @@ impl<Marker> VirtualRoot<Marker> {
         })
     }
 
-    /// Creates a VirtualRoot backed by a unique temporary directory with RAII cleanup.
-    ///
-    /// Returns a virtual root whose backing directory is automatically removed when dropped.
+    /// SUMMARY:
+    /// Create a `VirtualRoot` backed by a unique temporary directory with RAII cleanup.
     ///
     /// # Example
     /// ```
@@ -75,9 +86,8 @@ impl<Marker> VirtualRoot<Marker> {
         })
     }
 
-    /// Creates a VirtualRoot in a temporary directory with a custom prefix and RAII cleanup.
-    ///
-    /// Returns a virtual root whose backing directory is automatically removed when dropped.
+    /// SUMMARY:
+    /// Create a `VirtualRoot` in a temporary directory with a custom prefix and RAII cleanup.
     ///
     /// # Example
     /// ```
@@ -104,13 +114,15 @@ impl<Marker> VirtualRoot<Marker> {
         })
     }
 
-    /// Returns filesystem metadata for the underlying root directory.
+    /// SUMMARY:
+    /// Return filesystem metadata for the underlying root directory.
     #[inline]
     pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
         self.root.metadata()
     }
 
-    /// Creates a symbolic link at `link_path` that points to this VirtualRoot's underlying directory.
+    /// SUMMARY:
+    /// Create a symbolic link at `link_path` pointing to this root's underlying directory.
     pub fn virtual_symlink(
         &self,
         link_path: &crate::path::virtual_path::VirtualPath<Marker>,
@@ -122,7 +134,8 @@ impl<Marker> VirtualRoot<Marker> {
         root.as_unvirtual().strict_symlink(link_path.as_unvirtual())
     }
 
-    /// Creates a hard link at `link_path` that points to this VirtualRoot's underlying directory.
+    /// SUMMARY:
+    /// Create a hard link at `link_path` pointing to this root's underlying directory.
     pub fn virtual_hard_link(
         &self,
         link_path: &crate::path::virtual_path::VirtualPath<Marker>,
@@ -135,34 +148,31 @@ impl<Marker> VirtualRoot<Marker> {
             .strict_hard_link(link_path.as_unvirtual())
     }
 
-    /// Reads the directory entries at the virtual root (like `std::fs::read_dir`).
-    ///
-    /// This is intended for discovery. Prefer collecting each entry's file name via
-    /// `entry.file_name()` and re-joining using `virtual_join(...)` (or `strict_join(...)`
-    /// after converting) before performing I/O on child paths.
+    /// SUMMARY:
+    /// Read directory entries at the virtual root (discovery). Re‑join names through virtual/strict APIs before I/O.
     #[inline]
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
         self.root.read_dir()
     }
 
-    /// Removes the underlying root directory (non-recursive).
-    ///
-    /// Equivalent to `std::fs::remove_dir(root)`. Fails if the directory is not empty.
+    /// SUMMARY:
+    /// Remove the underlying root directory (non‑recursive); fails if not empty.
     #[inline]
     pub fn remove_dir(&self) -> std::io::Result<()> {
         self.root.remove_dir()
     }
 
-    /// Recursively removes the underlying root directory and all its contents.
-    ///
-    /// Equivalent to `std::fs::remove_dir_all(root)`.
+    /// SUMMARY:
+    /// Recursively remove the underlying root directory and all its contents.
     #[inline]
     pub fn remove_dir_all(&self) -> std::io::Result<()> {
         self.root.remove_dir_all()
     }
 
-    /// Creates the directory if missing, then returns a `VirtualRoot`.
+    /// SUMMARY:
+    /// Ensure the directory exists (create if missing), then return a `VirtualRoot`.
     ///
+    /// EXAMPLE:
     /// Uses `AsRef<Path>` for maximum ergonomics, including direct `TempDir` support for clean shadowing patterns:
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -183,10 +193,17 @@ impl<Marker> VirtualRoot<Marker> {
         })
     }
 
-    /// Joins a path to this virtual root, producing a clamped `VirtualPath`.
+    /// SUMMARY:
+    /// Join a candidate path to this virtual root, producing a clamped `VirtualPath`.
     ///
-    /// Preserves the virtual root through clamping and validates against the restriction.
-    /// May return an error if resolution (e.g., via symlinks) would escape the restriction.
+    /// PARAMETERS:
+    /// - `candidate_path` (`AsRef<Path>`): Virtual path to resolve and clamp.
+    ///
+    /// RETURNS:
+    /// - `Result<VirtualPath<Marker>>`: Clamped, validated path within the virtual root.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::PathResolutionError`, `StrictPathError::PathEscapesBoundary`.
     #[inline]
     pub fn virtual_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<VirtualPath<Marker>> {
         // 1) Anchor in virtual space (clamps virtual root and resolves relative parts)
@@ -210,10 +227,8 @@ impl<Marker> VirtualRoot<Marker> {
         self.root.path()
     }
 
-    /// Returns the virtual root path for interop with `AsRef<Path>` APIs.
-    ///
-    /// This provides allocation-free, OS-native string access to the virtual root
-    /// for use with standard library APIs that accept `AsRef<Path>`.
+    /// SUMMARY:
+    /// Return the virtual root path as `&OsStr` for allocation‑free `AsRef<Path>` interop.
     #[inline]
     pub fn interop_path(&self) -> &std::ffi::OsStr {
         self.root.interop_path()
@@ -225,19 +240,15 @@ impl<Marker> VirtualRoot<Marker> {
         self.root.exists()
     }
 
-    /// Returns a reference to the underlying `PathBoundary`.
-    ///
-    /// This allows access to path boundary-specific operations like `strictpath_display()`
-    /// while maintaining the borrowed relationship.
+    /// SUMMARY:
+    /// Borrow the underlying `PathBoundary`.
     #[inline]
     pub fn as_unvirtual(&self) -> &PathBoundary<Marker> {
         &self.root
     }
 
-    /// Consumes this `VirtualRoot` and returns the underlying `PathBoundary`.
-    ///
-    /// This provides symmetry with `PathBoundary::virtualize()` and allows conversion
-    /// back to the path boundary representation when virtual semantics are no longer needed.
+    /// SUMMARY:
+    /// Consume this `VirtualRoot` and return the underlying `PathBoundary` (symmetry with `virtualize`).
     #[inline]
     pub fn unvirtual(self) -> PathBoundary<Marker> {
         self.root
@@ -434,12 +445,40 @@ impl<Marker> VirtualRoot<Marker> {
         })
     }
 
-    /// Creates a virtual root using app-path for portable applications.
+    /// SUMMARY:
+    /// Create a virtual root using the `app-path` strategy (portable app‑relative directory),
+    /// optionally honoring an environment variable override.
     ///
-    /// Creates a directory relative to the executable location, with optional
-    /// environment variable override support for deployment flexibility.
+    /// PARAMETERS:
+    /// - `subdir` (`AsRef<Path>`): Subdirectory path relative to the executable location (or to the
+    ///   directory specified by the environment override). Accepts any path‑like value via `AsRef<Path>`.
+    /// - `env_override` (Option<&str>): Optional environment variable name to check first; when set
+    ///   and the variable is present, its value is used as the root base instead of the executable directory.
+    ///
+    /// RETURNS:
+    /// - `Result<VirtualRoot<Marker>>`: Virtual root whose underlying `PathBoundary` is created if missing
+    ///   and proven safe; all subsequent `virtual_join` operations are clamped to this root.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::InvalidRestriction`: If `app-path` resolution fails or the directory cannot be created/validated.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # #[cfg(feature = "app-path")] {
+    /// use strict_path::VirtualRoot;
+    ///
+    /// // Create ./data relative to the executable (portable layout)
+    /// let vroot = VirtualRoot::<()>::try_new_app_path("data", None)?;
+    /// let vp = vroot.virtual_join("docs/report.txt")?;
+    /// assert_eq!(vp.virtualpath_display().to_string(), "/docs/report.txt");
+    ///
+    /// // With environment override: respects MYAPP_DATA_DIR when set
+    /// let _vroot = VirtualRoot::<()>::try_new_app_path("data", Some("MYAPP_DATA_DIR"))?;
+    /// # }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[cfg(feature = "app-path")]
-    pub fn try_new_app_path(subdir: &str, env_override: Option<&str>) -> Result<Self> {
+    pub fn try_new_app_path<P: AsRef<Path>>(subdir: P, env_override: Option<&str>) -> Result<Self> {
         let root = crate::PathBoundary::try_new_app_path(subdir, env_override)?;
         Ok(Self {
             root,
@@ -447,6 +486,36 @@ impl<Marker> VirtualRoot<Marker> {
             _temp_dir: None,
             _marker: PhantomData,
         })
+    }
+
+    /// SUMMARY:
+    /// Create a virtual root via `app-path`, always consulting a specific environment variable
+    /// before falling back to the executable‑relative directory.
+    ///
+    /// PARAMETERS:
+    /// - `subdir` (`AsRef<Path>`): Subdirectory path used with `app-path` resolution.
+    /// - `env_override` (&str): Environment variable name to check first for the root base.
+    ///
+    /// RETURNS:
+    /// - `Result<VirtualRoot<Marker>>`: New virtual root anchored using `app-path` semantics.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::InvalidRestriction`: If resolution fails or the directory can't be created/validated.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # #[cfg(feature = "app-path")] {
+    /// use strict_path::VirtualRoot;
+    /// let _vroot = VirtualRoot::<()>::try_new_app_path_with_env("cache", "MYAPP_CACHE_DIR")?;
+    /// # }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[cfg(feature = "app-path")]
+    pub fn try_new_app_path_with_env<P: AsRef<Path>>(
+        subdir: P,
+        env_override: &str,
+    ) -> Result<Self> {
+        Self::try_new_app_path(subdir, Some(env_override))
     }
 }
 

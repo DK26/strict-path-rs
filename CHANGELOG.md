@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `PathBoundary::try_new_app_path_with_env(subdir, env_name)` and `VirtualRoot::try_new_app_path_with_env(subdir, env_name)` convenience constructors
+  - Always honor a specific environment variable override before falling back to the executable-relative directory
+  - Accept any `AsRef<Path>` for `subdir`
+
+### Changed
+- `try_new_app_path(subdir, env_override)` on both `PathBoundary` and `VirtualRoot` now accept any `AsRef<Path>` for `subdir` (previously `&str`)
+- Clarified and aligned environment override semantics with the upstream `app-path` crate:
+  - When an override is present, the environment variable’s value is used as the final root path (no subdirectory append)
+  - This corrects inconsistent behavior in earlier prereleases
+
+### Documentation
+- Standardized doc comments to the "SUMMARY / PARAMETERS / RETURNS / ERRORS / EXAMPLE" format across key modules
+- Expanded docs for `app-path` constructors and linking helpers; improved method summaries for `VirtualPath` I/O and directory utilities
+
+### Tests
+- Added `app-path` feature tests covering env override precedence for both `PathBoundary` and `VirtualRoot`
+
+
 ## [0.1.0-alpha.6] - 2025-09-18
 
 ### Added

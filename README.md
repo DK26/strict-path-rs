@@ -473,7 +473,7 @@ vpath.read_to_string()?;
 
 - **📖 [Complete API Reference](https://docs.rs/strict-path)** - Comprehensive API documentation
 - **📚 [User Guide & Examples](https://dk26.github.io/strict-path-rs/)** - In-depth tutorials and patterns  
-- **🔧 [API_REFERENCE.md](API_REFERENCE.md)** - Quick reference for all methods
+- **🔧 [LLM_API_REFERENCE.md](LLM_API_REFERENCE.md)** - Quick reference for all methods (LLM-focused)
 - **🛠️ [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)** - The underlying path resolution engine
 
 ## 🔌 **Integrations**

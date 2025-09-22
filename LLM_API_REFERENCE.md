@@ -1,6 +1,13 @@
-# strict-path — API Reference (concise)
+# strict-path — LLM API Reference 
 
-Prevent directory traversal with type-safe path restriction and safe symlinks.
+**Security-first path handling**: Prevent directory traversal with type-safe boundaries.
+
+## Essential Flow (Start Here)
+1. **Create boundary**: `PathBoundary::try_new_create(dir)` → secure foundation
+2. **Validate input**: `boundary.strict_join(user_input)` → `StrictPath<T>` 
+3. **Use safely**: All I/O methods available - `read()`, `write()`, `create_dir_all()`
+
+**Core Security Promise**: If you have `StrictPath<T>` or `VirtualPath<T>`, path traversal is impossible.
 
 ## Core Security Foundation: `StrictPath`
 
@@ -11,6 +18,48 @@ Prevent directory traversal with type-safe path restriction and safe symlinks.
 - Boundary validation that cannot be bypassed
 
 **The security model:** If your code has a `StrictPath<Marker>`, it is guaranteed safe - no runtime validation needed within functions that accept it.
+
+## Type Selection Guide
+
+**Choose based on use case:**
+- **User sandboxes**: `VirtualRoot`/`VirtualPath` - Clean UI paths like "/file.txt"
+- **Shared boundaries**: `PathBoundary`/`StrictPath` - System paths within validated boundaries  
+- **Multiple contexts**: Use marker types `StrictPath<UserFiles>` vs `StrictPath<ConfigFiles>`
+
+## Quick Specs (LLM-friendly)
+
+- PathBoundary<T>
+	- Purpose: Policy root for safe strict paths (create → validate → use)
+	- `PathBoundary::try_new_create<P: AsRef<Path>>(path: P) -> Result<PathBoundary<T>>`
+		- Errors: `InvalidRestriction`
+		- Example: `let boundary = PathBoundary::try_new_create("./config")?;`
+	- `PathBoundary::strict_join<P: AsRef<Path>>(&self, candidate: P) -> Result<StrictPath<T>>`
+		- Errors: `PathEscapesBoundary`, `PathResolutionError`, `WindowsShortName`
+		- Security: Validates against boundary; prevents traversal/symlink escapes
+		- Example: `let file = boundary.strict_join(user_input)?; file.read()?;`
+
+- StrictPath<T>
+	- Purpose: Proven-safe system path (within its boundary)
+	- `StrictPath::strict_join<P: AsRef<Path>>(&self, path: P) -> Result<StrictPath<T>>`
+		- Errors: `PathEscapesBoundary`, `PathResolutionError`, `WindowsShortName`
+	- `StrictPath::interop_path(&self) -> &OsStr` (for `AsRef<Path>` APIs)
+	- `StrictPath::strictpath_display(&self) -> Display`
+
+- VirtualRoot<T>
+	- Purpose: Policy root for user-facing sandbox with rooted virtual "/" semantics
+	- `VirtualRoot::try_new_create<P: AsRef<Path>>(dir: P) -> Result<VirtualRoot<T>>`
+		- Errors: `InvalidRestriction`
+	- `VirtualRoot::virtual_join<P: AsRef<Path>>(&self, candidate: P) -> Result<VirtualPath<T>>`
+		- Errors: `PathEscapesBoundary`, `PathResolutionError`, `WindowsShortName`
+
+- VirtualPath<T>
+	- Purpose: Virtual path with rooted "/" view; safe virtual operations mapped to a strict path
+	- `VirtualPath::with_root<P: AsRef<Path>>(root: P) -> Result<VirtualPath<T>>`
+	- `VirtualPath::with_root_create<P: AsRef<Path>>(root: P) -> Result<VirtualPath<T>>`
+	- `VirtualPath::virtual_join<P: AsRef<Path>>(&self, path: P) -> Result<VirtualPath<T>>`
+	- `VirtualPath::interop_path(&self) -> &OsStr` (for `AsRef<Path>` APIs)
+	- `VirtualPath::virtualpath_display(&self) -> Display` (e.g., "/file.txt")
+	- `VirtualPath::as_unvirtual(&self) -> &StrictPath<T>` (borrow strict/system view)
 
 ## Architecture Overview
 
@@ -31,18 +80,105 @@ This design makes the API read naturally:
 - `user_dir.strict_join("documents/report.pdf")` - "From the user directory boundary, strictly join documents/report.pdf"  
 - `cache_boundary.strict_join("build/output.json")` - "From the cache boundary, strictly join build/output.json"
 
+## Quick Method Reference
+
+**PathBoundary<T>**: Secure boundary creation and validation
+- `::try_new_create(path)` → Create boundary (mkdir if needed)  
+- `.strict_join(input)` → Validate untrusted input → `StrictPath<T>`
+
+**StrictPath<T>**: Proven-safe system paths
+- `.strict_join(path)` → Chain additional safe joins
+- `.interop_path()` → `&OsStr` for `AsRef<Path>` APIs
+- `.read()/.write(data)` → I/O operations  
+- `.strictpath_display()` → Display for logging
+
+**VirtualRoot<T>**: User-friendly sandbox policy root
+- `VirtualRoot::try_new_create(dir)` → Create user sandbox root
+- `.virtual_join(input)` → Validate/clamp user input → `VirtualPath<T>`
+- `.interop_path()` → `&OsStr` for `AsRef<Path>` APIs at the root
+- `.read_dir()` / `.remove_dir()` / `.remove_dir_all()` → Root-level discovery and cleanup
+
+**VirtualPath<T>**: User-facing clamped path
+- `.virtual_join(input)` → Chain additional safe virtual joins
+- `.virtualpath_display()` → Virtual display (e.g., "/file.txt")
+- `.as_unvirtual()` → Borrow underlying `StrictPath<T>` for shared helpers
+- `.interop_path()` → Pass into APIs expecting `AsRef<Path>`
+- I/O helpers available: `.read()`, `.write(..)`, `.create_parent_dir_all()`
+
 ### Core Security Rules
 
+- ❌ **Never**: `std::path::Path::join(user_input)` - vulnerable to traversal  
+- ✅ **Always**: `boundary.strict_join(user_input)` or `vroot.virtual_join(user_input)`
+- ✅ **For `AsRef<Path>` APIs**: use `.interop_path()` not `.unstrict()`
 - Do not bypass: never call std fs ops on raw `Path`/`PathBuf` built from untrusted input.
 - Marker types prevent mixing distinct restrictions at compile time: use when you have multiple storage areas.
 - We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an API expects `AsRef<Path>`, pass `.interop_path()`.
-  (`PathBoundary` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
+	(`PathBoundary` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
 - Interop doesn't require `.unstrict()`: prefer `.interop_path()`; call `.unstrict()` only when an owned `PathBuf` is strictly required.
 - Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
-  clamping or restriction checks. Use `strict_join` / `virtualpath_parent` instead.
+	clamping or restriction checks. Use `strict_join` / `virtualpath_parent` instead.
 - Do not convert `StrictPath` -> `VirtualPath` just to print; for UI flows start with `VirtualPath::with_root(..).virtual_join(..)` and keep a `VirtualPath`.
 
-## StrictPath API
+## Common Usage Patterns
+
+### Pattern 1: User File Uploads (VirtualPath)
+```rust
+struct UserFiles;
+let user_root: VirtualRoot<UserFiles> = VirtualRoot::try_new_create("./users/alice")?;
+let user_file = user_root.virtual_join(untrusted_filename)?; // Always safe
+user_file.write(uploaded_data)?;
+println!("Saved: {}", user_file.virtualpath_display()); // Shows: "/document.pdf"
+```
+
+### Pattern 2: Config File Access (StrictPath) 
+```rust
+let config_boundary = PathBoundary::try_new_create("./config")?;
+let config_file = config_boundary.strict_join("app.toml")?;
+let content = config_file.read_to_string()?;
+println!("Config: {}", config_file.strictpath_display()); // Shows: "./config/app.toml"
+```
+
+### Pattern 3: Type Safety with Markers
+```rust
+struct UserFiles;
+struct ConfigFiles;
+fn process_user_file(f: &StrictPath<UserFiles>) -> Result<Vec<u8>> { f.read() }
+fn process_config_file(f: &StrictPath<ConfigFiles>) -> Result<String> { f.read_to_string() }
+
+let user_file = user_boundary.strict_join("data.json")?;
+let config_file = config_boundary.strict_join("settings.toml")?;
+// process_user_file(&config_file); // ❌ Compile error - wrong marker type
+```
+
+### Pattern 4: External API Interop
+```rust
+let safe_path = boundary.strict_join("file.txt")?;
+// For APIs expecting AsRef<Path>
+std::fs::copy(safe_path.interop_path(), "backup.txt")?;
+tokio::fs::read(safe_path.interop_path()).await?;
+// ❌ Don't do: safe_path.unstrict() - use interop_path() instead
+```
+
+## Error Handling
+
+**Common Error Types**:
+- `PathEscapesBoundary` - User attempted directory traversal (e.g., "../../../etc/passwd")
+- `InvalidRestriction` - Cannot create/access the boundary directory  
+- `PathResolutionError` - Invalid path format or I/O error during canonicalization
+- `WindowsShortName` - Path contains DOS 8.3 short names (Windows only)
+
+**Error Pattern**:
+```rust
+match boundary.strict_join(user_input) {
+		Ok(safe_path) => { /* use safely */ },
+		Err(StrictPathError::PathEscapesBoundary { .. }) => { /* log security attempt */ },
+		Err(e) => { /* handle other errors */ }
+}
+```
+
+## Detailed API Reference
+
+### StrictPath API
 
 - with_boundary<P: AsRef<Path>>(root: P) -> Result<Self>  // sugar; root must exist
 - with_boundary_create<P: AsRef<Path>>(root: P) -> Result<Self>  // sugar; creates root if missing
@@ -53,7 +189,7 @@ This design makes the API read naturally:
 - interop_path(&self) -> &OsStr
 - strictpath_display(&self) -> std::path::Display<'_>  // explicit display method
 - strict_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<Self>
-- strictpath_parent(&self) -> Result<Option<Self>>
+- strictpath_parent(&self) -> Result<Option<Self>
 - strictpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self>
 - strictpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
 - strict_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<()>
@@ -121,7 +257,7 @@ let bad = PathBuf::from(user_input).join("file.txt"); // 🚨 Vulnerable to trav
 ```rust
 // Generic across storage contexts — use only when required to have a function that works for multiple restrictions and contexts
 fn process_file<M>(path: &StrictPath<M>) -> std::io::Result<Vec<u8>> {
-  path.read()
+	path.read()
 }
 
 // Callers pass either a borrowed StrictPath directly, or a borrowed StrictPath from VirtualPath::as_unvirtual()
@@ -151,12 +287,12 @@ println!("{}", vpath);  // Compile error
 
 // ✅ Explicit display methods
 impl StrictPath {
-    pub fn strictpath_display(&self) -> impl Display { ... }
+		pub fn strictpath_display(&self) -> impl Display { ... }
 }
 impl VirtualPath {
-  pub fn virtualpath_display(&self) -> impl Display { ... }   // Virtual view (rooted)
-  // System-facing strings are explicit:
-  // - Borrow the strict view and use Display: `self.as_unvirtual().strictpath_display()`
+	pub fn virtualpath_display(&self) -> impl Display { ... }   // Virtual view (rooted)
+	// System-facing strings are explicit:
+	// - Borrow the strict view and use Display: `self.as_unvirtual().strictpath_display()`
 }
 
 println!("User: {}", vpath.virtualpath_display());        // "/docs/file.txt"  
@@ -167,7 +303,7 @@ println!("Log: {}", vpath.as_unvirtual().strictpath_display());   // "/srv/users
 
 - Prefer virtual semantics in UI: `vpath.virtualpath_display()` or `vpath.virtualpath_display().to_string()`
 - When you need the real, system path string, either:
-  - Borrow the strict view and format it: `format!("{}", vpath.as_unvirtual().strictpath_display())`
+	- Borrow the strict view and format it: `format!("{}", vpath.as_unvirtual().strictpath_display())`
 
 This keeps potentially sensitive operations visible in code review while offering ergonomic access when required.
 
@@ -204,8 +340,8 @@ Markers and type inference
 - All core types are generic over a `Marker` with a default of `()`.
 - In many cases, binding the value is enough for inference: `let vroot: VirtualRoot = VirtualRoot::try_new("root")?; let vp = vroot.virtual_join("f.txt")?;`.
 - When inference needs help, add an explicit type or an empty turbofish:
-  - `let vroot: VirtualRoot<()> = VirtualRoot::try_new("root")?;`
-  - `let vroot = VirtualRoot::<()>::try_new("root")?;`
+	- `let vroot: VirtualRoot<()> = VirtualRoot::try_new("root")?;`
+	- `let vroot = VirtualRoot::<()>::try_new("root")?;`
 - With a custom marker: `struct Docs; let vroot: VirtualRoot<Docs> = VirtualRoot::try_new("docs")?;`
 - Prefer annotating the `let` binding or function signature for readability; use turbofish only when it clarifies intent or is required.
 
@@ -313,55 +449,59 @@ VirtualPath<Marker>
 These are available only when the corresponding Cargo features are enabled:
 
 - Feature `dirs` (OS standard directories)
-  - PathBoundary
-    - `try_new_os_config(app_name: &str) -> Result<PathBoundary>`
-    - `try_new_os_data(app_name: &str) -> Result<PathBoundary>`
-    - `try_new_os_cache(app_name: &str) -> Result<PathBoundary>`
-    - `try_new_os_config_local(app_name: &str) -> Result<PathBoundary>`
-    - `try_new_os_data_local(app_name: &str) -> Result<PathBoundary>`
-    - `try_new_os_home() -> Result<PathBoundary>`
-    - `try_new_os_desktop() -> Result<PathBoundary>`
-    - `try_new_os_documents() -> Result<PathBoundary>`
-    - `try_new_os_downloads() -> Result<PathBoundary>`
-    - `try_new_os_pictures() -> Result<PathBoundary>`
-    - `try_new_os_audio() -> Result<PathBoundary>`
-    - `try_new_os_videos() -> Result<PathBoundary>`
-    - `try_new_os_executables() -> Result<PathBoundary>`
-    - `try_new_os_runtime() -> Result<PathBoundary>`
-    - `try_new_os_state(app_name: &str) -> Result<PathBoundary>`
-  - VirtualRoot (one‑to‑one with `PathBoundary`)
-    - `try_new_os_config(app_name: &str) -> Result<VirtualRoot>`
-    - `try_new_os_data(app_name: &str) -> Result<VirtualRoot>`
-    - `try_new_os_cache(app_name: &str) -> Result<VirtualRoot>`
-    - `try_new_os_config_local(app_name: &str) -> Result<VirtualRoot>`
-    - `try_new_os_data_local(app_name: &str) -> Result<VirtualRoot>`
-    - `try_new_os_home() -> Result<VirtualRoot>`
-    - `try_new_os_desktop() -> Result<VirtualRoot>`
-    - `try_new_os_documents() -> Result<VirtualRoot>`
-    - `try_new_os_downloads() -> Result<VirtualRoot>`
-    - `try_new_os_pictures() -> Result<VirtualRoot>`
-    - `try_new_os_audio() -> Result<VirtualRoot>`
-    - `try_new_os_videos() -> Result<VirtualRoot>`
-    - `try_new_os_executables() -> Result<VirtualRoot>`
-    - `try_new_os_runtime() -> Result<VirtualRoot>`
-    - `try_new_os_state(app_name: &str) -> Result<VirtualRoot>`
+	- PathBoundary
+		- `try_new_os_config(app_name: &str) -> Result<PathBoundary>`
+		- `try_new_os_data(app_name: &str) -> Result<PathBoundary>`
+		- `try_new_os_cache(app_name: &str) -> Result<PathBoundary>`
+		- `try_new_os_config_local(app_name: &str) -> Result<PathBoundary>`
+		- `try_new_os_data_local(app_name: &str) -> Result<PathBoundary>`
+		- `try_new_os_home() -> Result<PathBoundary>`
+		- `try_new_os_desktop() -> Result<PathBoundary>`
+		- `try_new_os_documents() -> Result<PathBoundary>`
+		- `try_new_os_downloads() -> Result<PathBoundary>`
+		- `try_new_os_pictures() -> Result<PathBoundary>`
+		- `try_new_os_audio() -> Result<PathBoundary>`
+		- `try_new_os_videos() -> Result<PathBoundary>`
+		- `try_new_os_executables() -> Result<PathBoundary>`
+		- `try_new_os_runtime() -> Result<PathBoundary>`
+		- `try_new_os_state(app_name: &str) -> Result<PathBoundary>`
+	- VirtualRoot (one‑to‑one with `PathBoundary`)
+		- `try_new_os_config(app_name: &str) -> Result<VirtualRoot>`
+		- `try_new_os_data(app_name: &str) -> Result<VirtualRoot>`
+		- `try_new_os_cache(app_name: &str) -> Result<VirtualRoot>`
+		- `try_new_os_config_local(app_name: &str) -> Result<VirtualRoot>`
+		- `try_new_os_data_local(app_name: &str) -> Result<VirtualRoot>`
+		- `try_new_os_home() -> Result<VirtualRoot>`
+		- `try_new_os_desktop() -> Result<VirtualRoot>`
+		- `try_new_os_documents() -> Result<VirtualRoot>`
+		- `try_new_os_downloads() -> Result<VirtualRoot>`
+		- `try_new_os_pictures() -> Result<VirtualRoot>`
+		- `try_new_os_audio() -> Result<VirtualRoot>`
+		- `try_new_os_videos() -> Result<VirtualRoot>`
+		- `try_new_os_executables() -> Result<VirtualRoot>`
+		- `try_new_os_runtime() -> Result<VirtualRoot>`
+		- `try_new_os_state(app_name: &str) -> Result<VirtualRoot>`
 
 - Feature `tempfile` (RAII temporary directories)
-  - `PathBoundary::try_new_temp() -> Result<PathBoundary>`
-  - `PathBoundary::try_new_temp_with_prefix(prefix: &str) -> Result<PathBoundary>`
-  - `VirtualRoot::try_new_temp() -> Result<VirtualRoot>`
-  - `VirtualRoot::try_new_temp_with_prefix(prefix: &str) -> Result<VirtualRoot>`
-  - VirtualRoot holds RAII of temp dirs when constructed from a temp PathBoundary
+	- `PathBoundary::try_new_temp() -> Result<PathBoundary>`
+	- `PathBoundary::try_new_temp_with_prefix(prefix: &str) -> Result<PathBoundary>`
+	- `VirtualRoot::try_new_temp() -> Result<VirtualRoot>`
+	- `VirtualRoot::try_new_temp_with_prefix(prefix: &str) -> Result<VirtualRoot>`
+	- VirtualRoot holds RAII of temp dirs when constructed from a temp PathBoundary
 
 - Feature `app-path` (portable app‑relative dirs with optional env overrides)
-  - `PathBoundary::try_new_app_path(subdir: &str, env_override: Option<&str>) -> Result<PathBoundary>`
-  - `VirtualRoot::try_new_app_path(subdir: &str, env_override: Option<&str>) -> Result<VirtualRoot>`
+	- `PathBoundary::try_new_app_path<P: AsRef<Path>>(subdir: P, env_override: Option<&str>) -> Result<PathBoundary>`
+	- `PathBoundary::try_new_app_path_with_env<P: AsRef<Path>>(subdir: P, env_var_name: &str) -> Result<PathBoundary>`
+	- `VirtualRoot::try_new_app_path<P: AsRef<Path>>(subdir: P, env_override: Option<&str>) -> Result<VirtualRoot>`
+	- `VirtualRoot::try_new_app_path_with_env<P: AsRef<Path>>(subdir: P, env_var_name: &str) -> Result<VirtualRoot>`
+
+	Note: `env_override` is the NAME of an environment variable. When set, its VALUE is used as the final root directory; the provided `subdir` is not appended in that case.
 
 - Feature `serde`
-  - `impl Serialize for StrictPath` → system path string
-  - `impl Serialize for VirtualPath` → rooted virtual string (e.g., "/a/b.txt")
-  - `serde_ext::WithBoundary<'_, Marker>`: `DeserializeSeed` to deserialize a `StrictPath<Marker>` with a provided `&PathBoundary<Marker>`
-  - `serde_ext::WithVirtualRoot<'_, Marker>`: `DeserializeSeed` to deserialize a `VirtualPath<Marker>` with a provided `&VirtualRoot<Marker>`
+	- `impl Serialize for StrictPath` → system path string
+	- `impl Serialize for VirtualPath` → rooted virtual string (e.g., "/a/b.txt")
+	- `serde_ext::WithBoundary<'_, Marker>`: `DeserializeSeed` to deserialize a `StrictPath<Marker>` with a provided `&PathBoundary<Marker>`
+	- `serde_ext::WithVirtualRoot<'_, Marker>`: `DeserializeSeed` to deserialize a `VirtualPath<Marker>` with a provided `&VirtualRoot<Marker>`
 
 Short usage rules (1-line each)
 - For user input: use `VirtualPath::virtual_join(...)` (construct a root via `VirtualPath::with_root(..)`) -> `VirtualPath`.
@@ -369,17 +509,17 @@ Short usage rules (1-line each)
 - Do not bypass: never call std fs ops on raw `Path`/`PathBuf` built from untrusted input.
 - Marker types prevent mixing distinct path boundaries at compile time: use when you have multiple storage areas.
 - We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an API expects `AsRef<Path>`, pass `.interop_path()`.
-  (`PathBoundary` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
+	(`PathBoundary` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
 - Interop doesn’t require `.unstrict()`: prefer `.interop_path()`; call `.unstrict()` only when an owned `PathBuf` is strictly required.
 - Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
-  clamping or path boundary checks. Use `strict_join` / `virtualpath_parent` instead.
+	clamping or path boundary checks. Use `strict_join` / `virtualpath_parent` instead.
  - Do not convert `StrictPath` -> `VirtualPath` just to print; for UI flows start with `VirtualPath::with_root(..).virtual_join(..)` and keep a `VirtualPath`.
  - `*_to_string_lossy()` returns `Cow<'_, str>`; call `.into_owned()` only when an owned `String` is required.
  - **ANTI-PATTERN**: Never use `.interop_path().to_string_lossy()` for display purposes. Use proper display methods instead:
-   - `PathBoundary`/`StrictPath`: use `strictpath_display()`
-   - `VirtualPath`: use `virtualpath_display()`
-   - `VirtualRoot`: use `vroot.as_unvirtual().strictpath_display()`
-   - Reserve `interop_path()` only for external API interop that requires `AsRef<Path>`.
+	 - `PathBoundary`/`StrictPath`: use `strictpath_display()`
+	 - `VirtualPath`: use `virtualpath_display()`
+	 - `VirtualRoot`: use `vroot.as_unvirtual().strictpath_display()`
+	 - Reserve `interop_path()` only for external API interop that requires `AsRef<Path>`.
 
 Parent directory helpers (semantics)
 - create_parent_dir: non-recursive; creates only the immediate parent; errors if grandparents are missing; Ok(()) at restriction/virtual root.
@@ -418,28 +558,28 @@ Equality/Ordering/Hashing
 
 ## Traits at a glance
 - PathBoundary<Marker>
-  - Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash
-  - AsRef<Path>
-  - FromStr (when `Marker: Default`) → creates directory if missing
-  - Cross-type equality: PartialEq<VirtualRoot<Marker>>, PartialEq<Path>, PartialEq<PathBuf>, PartialEq<&Path>
+	- Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash
+	- AsRef<Path>
+	- FromStr (when `Marker: Default`) → creates directory if missing
+	- Cross-type equality: PartialEq<VirtualRoot<Marker>>, PartialEq<Path>, PartialEq<PathBuf>, PartialEq<&Path>
 
 - VirtualRoot<Marker>
-  - Clone, Debug, Display, Eq, PartialEq, Ord, PartialOrd, Hash
-  - AsRef<Path>
-  - FromStr (when `Marker: Default`) → creates directory if missing
-  - Cross-type equality: PartialEq<PathBoundary<Marker>>, PartialEq<Path>, PartialEq<PathBuf>, PartialEq<&Path>
+	- Clone, Debug, Display, Eq, PartialEq, Ord, PartialOrd, Hash
+	- AsRef<Path>
+	- FromStr (when `Marker: Default`) → creates directory if missing
+	- Cross-type equality: PartialEq<PathBoundary<Marker>>, PartialEq<Path>, PartialEq<PathBuf>, PartialEq<&Path>
 
 - StrictPath<Marker>
-  - Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash
-  - Cross-type equality: PartialEq<VirtualPath<Marker>>, PartialEq<T: AsRef<Path>>
-  - No AsRef<Path>; use `interop_path()` when needed
-  - [feature serde] Serialize → system path string
+	- Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash
+	- Cross-type equality: PartialEq<VirtualPath<Marker>>, PartialEq<T: AsRef<Path>>
+	- No AsRef<Path>; use `interop_path()` when needed
+	- [feature serde] Serialize → system path string
 
 - VirtualPath<Marker>
-  - Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash
-  - Cross-type equality: PartialEq<StrictPath<Marker>>, PartialEq<T: AsRef<Path>> (compares virtual representation)
-  - No Display (use `virtualpath_display()` wrapper); No AsRef<Path>
-  - [feature serde] Serialize → rooted virtual string (e.g., "/a/b.txt")
+	- Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash
+	- Cross-type equality: PartialEq<StrictPath<Marker>>, PartialEq<T: AsRef<Path>> (compares virtual representation)
+	- No Display (use `virtualpath_display()` wrapper); No AsRef<Path>
+	- [feature serde] Serialize → rooted virtual string (e.g., "/a/b.txt")
 
 ## Pitfalls (And How To Avoid)
 - Do not expose raw `Path`/`PathBuf` from `StrictPath`/`VirtualPath`. We do not implement `AsRef<Path>`. Prefer crate I/O or `.interop_path()` where `AsRef<Path>` is accepted, or explicit escape hatches when unavoidable.
@@ -454,10 +594,3 @@ Common anti-patterns (LLM quick check)
 - Using `Path::join`/`Path::parent` on leaked paths: use `strictpath_*` / `virtualpath_*` ops.
 - Forcing ownership: avoid `.into_owned()` on `Cow` unless an owned `String` is required.
 - Bare `{}` in format strings: prefer captured identifiers like `"{path}"` (bind a short local if needed).
-
- 
-
-## Integrations (At a Glance)
-- Serde (feature `serde`): `StrictPath`/`VirtualPath` implement `Serialize`. For deserialization, read `String` and validate via `PathBoundary::strict_join(..)` or `VirtualPath::with_root(..).virtual_join(..)`. For single values with context, use `serde_ext::WithBoundary(&boundary)` / `serde_ext::WithVirtualRoot(&vroot)` on a serde Deserializer. See `serde_ext` docs.
-- Axum: Put `VirtualRoot<Marker>` in state; validate `Path<String>` to `VirtualPath` per request (custom extractor optional). Handlers take `&VirtualPath<_>`/`&StrictPath<_>` for I/O. See `examples/web/axum_static_server.rs`.
-- app-path: Use `app_path::app_path!("config", env = "APP_CONFIG_DIR")` to discover a config directory; path boundary it and operate through `StrictPath`. See `examples/config/app_path_config.rs`.

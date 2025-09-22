@@ -30,18 +30,33 @@ fn is_potential_83_short_name(os: &OsStr) -> bool {
     }
 }
 
-/// Canonicalize a candidate path and enforce the PathBoundary boundary, returning a `StrictPath`.
+/// SUMMARY:
+/// Canonicalize a candidate path and enforce the `PathBoundary` boundary, returning a `StrictPath`.
 ///
-/// What this does:
-/// - Windows prefilter: rejects DOS 8.3 short-name segments (e.g., `PROGRA~1`) in relative inputs
-///   to avoid aliasing-based escapes before any filesystem calls.
-/// - Input interpretation: absolute inputs are validated as-is; relative inputs are joined under
-///   the PathBoundary root.
-/// - Resolution: canonicalizes the composed path, fully resolving `.`/`..`, symlinks/junctions,
-///   and platform prefixes.
-/// - Boundary enforcement: verifies the canonicalized result is strictly within the PathBoundary's
-///   canonicalized root; rejects any resolution that would escape the boundary.
-/// - Returns: a `StrictPath<Marker>` that borrows the PathBoundary and holds the validated system path.
+/// PARAMETERS:
+/// - `path` (`AsRef<Path>`): Candidate path to validate (absolute or relative).
+/// - `restriction` (&`PathBoundary<Marker>`): Boundary to enforce during resolution.
+///
+/// RETURNS:
+/// - `Result<StrictPath<Marker>>`: Canonicalized path proven to be within `restriction`.
+///
+/// ERRORS:
+/// - `StrictPathError::WindowsShortName` (windows): Relative input contains a DOS 8.3 short name segment.
+/// - `StrictPathError::PathResolutionError`: Canonicalization fails (I/O or resolution error).
+/// - `StrictPathError::PathEscapesBoundary`: Resolved path would escape the boundary.
+///
+/// EXAMPLE:
+/// ```rust
+/// # use strict_path::{PathBoundary, Result};
+/// # fn main() -> Result<()> {
+/// let boundary = PathBoundary::<()>::try_new_create("./sandbox")?;
+/// // Use the public API that exercises the same validation pipeline
+/// // as this internal helper.
+/// let file = boundary.strict_join("sub/file.txt")?;
+/// assert!(file.interop_path().to_string_lossy().contains("sandbox"));
+/// # Ok(())
+/// # }
+/// ```
 pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
     path: impl AsRef<Path>,
     restriction: &PathBoundary<Marker>,
@@ -88,9 +103,21 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
 
 /// A path boundary that serves as the secure foundation for validated path operations.
 ///
-/// `PathBoundary` represents the trusted starting point (like `/home/users/alice`) from which
-/// all path operations begin. When you call `path_boundary.strict_join("documents/file.txt")`,
-/// you're building outward from this secure boundary with validated path construction.
+/// SUMMARY:
+/// Represent the trusted filesystem root for all strict and virtual path operations. All
+/// `StrictPath`/`VirtualPath` values derived from a `PathBoundary` are guaranteed to remain
+/// within this boundary.
+///
+/// EXAMPLE:
+/// ```rust
+/// # use strict_path::PathBoundary;
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let boundary = PathBoundary::<()>::try_new_create("./data")?;
+/// let file = boundary.strict_join("logs/app.log")?;
+/// println!("{}", file.strictpath_display());
+/// # Ok(())
+/// # }
+/// ```
 pub struct PathBoundary<Marker = ()> {
     path: Arc<PathHistory<((Raw, Canonicalized), Exists)>>,
     #[cfg(feature = "tempfile")]
@@ -185,6 +212,19 @@ impl<Marker> PathBoundary<Marker> {
 
     /// Creates a new `PathBoundary` rooted at `restriction_path` (which must already exist and be a directory).
     ///
+    /// SUMMARY:
+    /// Create a boundary anchored at an existing directory (must exist and be a directory).
+    ///
+    /// PARAMETERS:
+    /// - `restriction_path` (`AsRef<Path>`): Existing directory to anchor the boundary.
+    ///
+    /// RETURNS:
+    /// - `Result<PathBoundary<Marker>>`: New boundary whose root is canonicalized and verified to exist.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::InvalidRestriction`: Root is missing, not a directory, or cannot be canonicalized.
+    ///
+    /// EXAMPLE:
     /// Uses `AsRef<Path>` for maximum ergonomics, including direct `TempDir` support for clean shadowing patterns:
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -241,6 +281,19 @@ impl<Marker> PathBoundary<Marker> {
 
     /// Creates the directory if missing, then constructs a new `PathBoundary`.
     ///
+    /// SUMMARY:
+    /// Ensure the root exists (create if missing) and construct a new boundary.
+    ///
+    /// PARAMETERS:
+    /// - `root` (`AsRef<Path>`): Directory to create if needed and use as boundary root.
+    ///
+    /// RETURNS:
+    /// - `Result<PathBoundary<Marker>>`: New boundary anchored at `root`.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::InvalidRestriction`: Directory creation/canonicalization fails.
+    ///
+    /// EXAMPLE:
     /// Uses `AsRef<Path>` for maximum ergonomics, including direct `TempDir` support for clean shadowing patterns:
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -259,9 +312,18 @@ impl<Marker> PathBoundary<Marker> {
         Self::try_new(root_path)
     }
 
-    /// Joins a path to this restrictor root and validates it remains within the restriction boundary.
+    /// SUMMARY:
+    /// Join a candidate path to the boundary and return a validated `StrictPath`.
     ///
-    /// Accepts absolute or relative inputs; ensures the resulting path remains within the restriction.
+    /// PARAMETERS:
+    /// - `candidate_path` (`AsRef<Path>`): Absolute or relative path to validate within this boundary.
+    ///
+    /// RETURNS:
+    /// - `Result<StrictPath<Marker>>`: Canonicalized, boundary-checked path.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::WindowsShortName` (windows), `StrictPathError::PathResolutionError`,
+    ///   `StrictPathError::PathEscapesBoundary`.
     #[inline]
     pub fn strict_join(&self, candidate_path: impl AsRef<Path>) -> Result<StrictPath<Marker>> {
         canonicalize_and_enforce_restriction_boundary(candidate_path, self)
@@ -287,10 +349,8 @@ impl<Marker> PathBoundary<Marker> {
         self.path.exists()
     }
 
-    /// Returns the PathBoundary root path for interop with `AsRef<Path>` APIs.
-    ///
-    /// This provides allocation-free, OS-native string access to the PathBoundary root
-    /// for use with standard library APIs that accept `AsRef<Path>`.
+    /// SUMMARY:
+    /// Return the root path as `&OsStr` for `AsRef<Path>` interop (no allocation).
     #[inline]
     pub fn interop_path(&self) -> &std::ffi::OsStr {
         self.path.as_os_str()
@@ -309,13 +369,21 @@ impl<Marker> PathBoundary<Marker> {
         self._temp_dir.clone()
     }
 
-    /// Returns filesystem metadata for the PathBoundary root path.
+    /// SUMMARY:
+    /// Return filesystem metadata for the boundary root.
     #[inline]
     pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
         std::fs::metadata(self.path())
     }
 
-    /// Creates a symbolic link at `link_path` that points to this PathBoundary's root.
+    /// SUMMARY:
+    /// Create a symbolic link at `link_path` pointing to this boundary's root.
+    ///
+    /// PARAMETERS:
+    /// - `link_path` (&`StrictPath<Marker>`): Destination for the symlink, within the same boundary.
+    ///
+    /// RETURNS:
+    /// - `io::Result<()>`: Mirrors std semantics.
     pub fn strict_symlink(
         &self,
         link_path: &crate::path::strict_path::StrictPath<Marker>,
@@ -327,7 +395,10 @@ impl<Marker> PathBoundary<Marker> {
         root.strict_symlink(link_path)
     }
 
-    /// Creates a hard link at `link_path` that points to this PathBoundary's root.
+    /// SUMMARY:
+    /// Create a hard link at `link_path` pointing to this boundary's root.
+    ///
+    /// PARAMETERS and RETURNS mirror `strict_symlink`.
     pub fn strict_hard_link(
         &self,
         link_path: &crate::path::strict_path::StrictPath<Marker>,
@@ -339,35 +410,29 @@ impl<Marker> PathBoundary<Marker> {
         root.strict_hard_link(link_path)
     }
 
-    /// Reads the directory entries under this PathBoundary root (like `std::fs::read_dir`).
-    ///
-    /// This is intended for discovery. Prefer collecting entry names and joining via
-    /// `strict_join`/`virtual_join` before performing I/O.
+    /// SUMMARY:
+    /// Read directory entries under the boundary root (discovery only).
     #[inline]
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
         std::fs::read_dir(self.path())
     }
 
-    /// Removes this PathBoundary root directory (non-recursive).
-    ///
-    /// Equivalent to `std::fs::remove_dir(root)`. Fails if the directory is not empty.
+    /// SUMMARY:
+    /// Remove the boundary root directory (non-recursive); fails if not empty.
     #[inline]
     pub fn remove_dir(&self) -> std::io::Result<()> {
         std::fs::remove_dir(self.path())
     }
 
-    /// Recursively removes this PathBoundary root directory and all its contents.
-    ///
-    /// Equivalent to `std::fs::remove_dir_all(root)`.
+    /// SUMMARY:
+    /// Recursively remove the boundary root directory and contents.
     #[inline]
     pub fn remove_dir_all(&self) -> std::io::Result<()> {
         std::fs::remove_dir_all(self.path())
     }
 
-    /// Converts this `PathBoundary` into a `VirtualRoot`.
-    ///
-    /// This creates a virtual root view of the PathBoundary, allowing virtual path operations
-    /// that treat the PathBoundary root as the virtual filesystem root "/".
+    /// SUMMARY:
+    /// Convert this boundary into a `VirtualRoot` for virtual path operations.
     #[inline]
     pub fn virtualize(self) -> crate::VirtualRoot<Marker> {
         crate::VirtualRoot {
@@ -779,12 +844,21 @@ impl<Marker> PathBoundary<Marker> {
         ))
     }
 
-    /// Creates a PathBoundary using app-path for portable applications.
+    /// SUMMARY:
+    /// Create a boundary using `app-path` semantics (portable app-relative directory) with optional env override.
     ///
-    /// Creates a directory relative to the executable location, with optional
-    /// environment variable override support for deployment flexibility.
+    /// PARAMETERS:
+    /// - `subdir` (`AsRef<Path>`): Subdirectory path relative to the executable (or override directory).
+    /// - `env_override` (Option<&str>): Optional environment variable name; when present and set,
+    ///   its value is used as the base directory instead of the executable directory.
     ///
-    /// # Example
+    /// RETURNS:
+    /// - `Result<PathBoundary<Marker>>`: Created/validated boundary at the resolved app-path location.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::InvalidRestriction`: If resolution fails or directory cannot be created/validated.
+    ///
+    /// EXAMPLE:
     /// ```
     /// # #[cfg(feature = "app-path")] {
     /// use strict_path::PathBoundary;
@@ -798,15 +872,42 @@ impl<Marker> PathBoundary<Marker> {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[cfg(feature = "app-path")]
-    pub fn try_new_app_path(subdir: &str, env_override: Option<&str>) -> Result<Self> {
-        let app_path = app_path::AppPath::try_with_override(subdir, env_override).map_err(|e| {
-            crate::StrictPathError::InvalidRestriction {
-                restriction: format!("app-path: {subdir}").into(),
+    pub fn try_new_app_path<P: AsRef<std::path::Path>>(
+        subdir: P,
+        env_override: Option<&str>,
+    ) -> Result<Self> {
+        let subdir_path = subdir.as_ref();
+        // Resolve the override environment variable name (if provided) to its value.
+        // app-path expects the override PATH value, not the variable name.
+        let override_value: Option<String> = env_override.and_then(|key| std::env::var(key).ok());
+        let app_path = app_path::AppPath::try_with_override(subdir_path, override_value.as_deref())
+            .map_err(|e| crate::StrictPathError::InvalidRestriction {
+                restriction: format!("app-path: {}", subdir_path.display()).into(),
                 source: std::io::Error::new(std::io::ErrorKind::InvalidInput, e),
-            }
-        })?;
+            })?;
 
         Self::try_new_create(app_path)
+    }
+
+    /// SUMMARY:
+    /// Create a boundary using `app-path`, always consulting a specific environment variable first.
+    ///
+    /// PARAMETERS:
+    /// - `subdir` (`AsRef<Path>`): Subdirectory used with `app-path` resolution.
+    /// - `env_override` (&str): Environment variable name to check for a base directory.
+    ///
+    /// RETURNS:
+    /// - `Result<PathBoundary<Marker>>`: New boundary anchored using `app-path` semantics.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::InvalidRestriction`: If resolution fails or the directory can't be created/validated.
+    #[cfg(feature = "app-path")]
+    pub fn try_new_app_path_with_env<P: AsRef<std::path::Path>>(
+        subdir: P,
+        env_override: &str,
+    ) -> Result<Self> {
+        let subdir_path = subdir.as_ref();
+        Self::try_new_app_path(subdir_path, Some(env_override))
     }
 }
 
@@ -849,4 +950,4 @@ impl<Marker: Default> std::str::FromStr for PathBoundary<Marker> {
         Self::try_new_create(path)
     }
 }
-// hi
+//

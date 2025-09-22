@@ -5,7 +5,7 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 ## Project Overview
 
 - Purpose: Prevent directory traversal with type‑safe path boundaries and safe symlinks.
-- Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError` (see API_REFERENCE.md).
+- Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError` (see LLM_API_REFERENCE.md).
 - Security model: “Restrict every external path.” Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
 - Foundation: Built on `soft-canonicalize` for resolution; Windows 8.3 short‑name handling is considered a security surface.
 
@@ -20,7 +20,7 @@ Do not implement leaky trait impls for secure types:
 - `demos/`: real‑world demo binaries; decoupled from MSRV; `publish = false`.
 - `.github/workflows/`: CI configs; stable + MSRV split.
 - Local CI parity: `ci-local.ps1` (Windows), `ci-local.sh` (Unix/WSL).
-- Docs: `README.md`, `API_REFERENCE.md`, mdBook source at `docs_src/` (built to `docs/`).
+- Docs: `README.md`, `LLM_API_REFERENCE.md`, mdBook source at `docs_src/` (built to `docs/`).
 
 ## CI Workflows (GitHub Actions)
 
@@ -185,6 +185,36 @@ See also mdBook pages:
 - Lead with sugar for ergonomics in simple flows; demonstrate policy types for reuse, serde context, OS dirs, and temp RAII.
 - For multi‑user flows, prefer `VirtualRoot`/`VirtualPath`; for shared strict logic, borrow `as_unvirtual()`.
 
+### Rustdoc formatting rules (prevent invalid HTML and broken links)
+
+To keep `cargo doc` green with `-D warnings`:
+
+- Wrap type/generic expressions in backticks to avoid invalid HTML parsing:
+  - Prefer `AsRef<Path>`, `PathBoundary<Marker>`, `StrictPath<Marker>`, `&PathBoundary<Marker>` in backticks.
+  - In PARAMETERS lists use: `- root (`AsRef<Path>`): ...` instead of `- root (AsRef<Path>): ...`.
+- Use intra-doc links only for public items and with correct paths:
+  - Items: [`PathBoundary`](crate::PathBoundary), [`StrictPath`](crate::path::strict_path::StrictPath), [`VirtualRoot`](crate::validator::virtual_root::VirtualRoot).
+  - Methods: [`PathBoundary::strict_join`](crate::PathBoundary::strict_join).
+  - When unsure, prefer backticks without a link over risking a broken link.
+- Do not reference or link to private symbols in docs or examples; doctests can’t access them.
+- Avoid raw HTML in comments; use Markdown lists, code ticks, and fenced code blocks.
+- Validate locally after edits: `cargo doc --no-deps --document-private-items --all-features`.
+
+### LLM_API_REFERENCE.md — Purpose and Audience
+
+LLM_API_REFERENCE.md is written purely for external LLM consumption. It is usage‑first and should prioritize:
+- Which types to use and when (`PathBoundary`, `StrictPath`, `VirtualRoot`, `VirtualPath`).
+- How to validate untrusted input via `strict_join`/`virtual_join` before any I/O.
+- Interop vs display rules (`interop_path()` vs `*_display()`), and dimension‑specific operations.
+- Feature‑gated entry points (e.g., `dirs`, `tempfile`, `app-path`) and their semantics, including environment override behavior for app‑path (env var NAME is resolved to the final root path; no subdir append when override is set).
+- Short, copy‑pasteable recipes and explicit anti‑patterns to avoid.
+
+Non‑goals for LLM_API_REFERENCE.md:
+- Internal design details (type‑state, `PathHistory`, platform specifics) — those live in the mdBook (`docs_src/`) and source docs.
+- Contributor guidance (coding standards, doc comment style, defensive programming) — keep that in AGENTS.md.
+
+Keep LLM_API_REFERENCE.md concise and stable. When APIs evolve, update it alongside public docs and demos; prefer linking to realistic `demos/` over embedding long examples that are hard to maintain.
+
 ### Doctest setup vs. visible guidance (exception rule)
 
 - Prefer using the crate's safe I/O helpers and the `*_create` constructors (`with_root_create`, `with_boundary_create`) in visible example code.
@@ -347,3 +377,52 @@ If in doubt, prefer examples in `strict-path/src/lib.rs` and mdBook pages as the
 
 - `PathBoundary::strict_hard_link` and `VirtualRoot::virtual_hard_link` simply forward to the underlying `StrictPath` helpers.
 - Many platforms forbid directory hard links (e.g., Linux, macOS); expect `io::ErrorKind::PermissionDenied` in those cases and treat it as an acceptable outcome.
+
+
+## Defensive Programming (addendum)
+
+This crate is security‑critical. Agents must practice defensive programming to prevent subtle regressions:
+
+- Prefer non‑panicking APIs; return `Result<_, StrictPathError>` or `io::Result<_>` and map errors explicitly. Never `unwrap()`/`expect()` in library code or examples (tests may use them sparingly when the intent is to fail fast).
+- Fail closed: default to rejecting input on ambiguity (unknown prefixes, invalid components, resolution anomalies). Document the error variant you return.
+- Validate invariants at module boundaries. Keep normalization + checks centralized (PathHistory) and avoid “local fixes” that split the pipeline.
+- Guard platform specifics. For Windows short‑name handling and UNC quirks, add targeted tests and prefer explicit error variants over silent acceptance.
+- Keep examples and docs exploit‑aware: demonstrate discovery vs. validation, and prefer `*_create` constructors for visibility. Never show std path ops on untrusted input.
+- Add regression tests for every bugfix in the validator or join logic. Cover both strict and virtual flows, including env‑override paths behind `app-path`.
+- Treat `Display`/string conversions as sensitive. Use explicit `*_display()` helpers; avoid accidental path leaks in logs or UI.
+
+When in doubt, choose clarity and correctness over cleverness. Small helpers are acceptable if they preserve the security model and reduce misuse.
+
+
+## Commenting Standard for Functions (LLM-Friendly)
+
+To ensure LLMs can use this crate’s API correctly, every function must follow this doc-comment style:
+
+```rust
+/// SUMMARY:
+/// One–two sentences describing what the function does. Use **imperative form**
+/// and mention its dimension (strict or virtual) if relevant.
+///
+/// PARAMETERS:
+/// - `param_name` (Type): What it is, constraints, and if it’s user input.
+///
+/// RETURNS:
+/// - Type: What the function returns and its guarantees (e.g., “always inside boundary”).
+///
+/// ERRORS:
+/// - VariantName: Condition when it occurs.
+/// - VariantName: Condition when it occurs.
+///
+/// EXAMPLE:
+/// ```rust
+/// let out = boundary.strict_join("etc/config.toml")?;
+/// println!("{}", out.strictpath_display());
+/// ```
+```
+
+**Rules:**
+- Always use imperative style in the summary (“Join child onto strict path”), not descriptive (“This function joins...”).
+- Cover *all parameters*, *returns*, and *error variants* explicitly.
+- Show at least one success example; add a failure case if common.
+- Do not hide invariants: state guarantees such as “never escapes boundary”.
+- Avoid vague terms like “etc.” or “magic”.

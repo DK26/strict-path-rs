@@ -599,7 +599,7 @@
 //!
 //! For a minimal, copy-pastable guide to the API (optimized for both humans and LLMs),
 //! see the repository reference:
-//! <https://github.com/DK26/strict-path-rs/blob/main/API_REFERENCE.md>
+//! <https://github.com/DK26/strict-path-rs/blob/main/LLM_API_REFERENCE.md>
 //!
 //! This link is provided here so readers coming from docs.rs can easily discover it.
 #![forbid(unsafe_code)]

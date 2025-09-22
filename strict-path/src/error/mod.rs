@@ -1,3 +1,15 @@
+//! SUMMARY:
+//! Define error types and helpers for boundary creation and strict/virtual path validation.
+//!
+//! OVERVIEW:
+//! This module exposes the crate-wide error enum `StrictPathError`, which captures
+//! boundary creation failures, path resolution errors, boundary escape attempts,
+//! and (on Windows) 8.3 short-name rejections. These errors are surfaced by
+//! public constructors and join operations throughout the crate.
+//!
+//! STYLE:
+//! All items follow the standardized doc format with explicit sections to keep
+//! behavior unambiguous for both humans and LLMs.
 // Content copied from original src/error/mod.rs
 use std::error::Error;
 use std::fmt;
@@ -5,6 +17,7 @@ use std::path::{Path, PathBuf};
 
 const MAX_ERROR_PATH_LEN: usize = 256;
 
+// Internal helper: render error-friendly path display (truncate long values).
 pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
     let path_str = path.to_string_lossy();
     let char_count = path_str.chars().count();
@@ -19,26 +32,61 @@ pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
     format!("{start}...{end}")
 }
 
-/// Errors produced by PathBoundary creation and path validation.
+/// SUMMARY:
+/// Represent errors produced by boundary creation and strict/virtual path validation.
+///
+/// DETAILS:
+/// This error type is returned by operations that construct `PathBoundary`
+///`VirtualRoot` or that compose `StrictPath`/`VirtualPath` via joins. Each
+/// variant carries enough context for actionable diagnostics while avoiding
+/// leaking unbounded path data into messages (we truncate long displays).
+///
+/// VARIANTS:
+/// - `InvalidRestriction`: The root directory is missing, not a directory, or failed I/O checks.
+/// - `PathEscapesBoundary`: A candidate path would resolve outside the boundary.
+/// - `PathResolutionError`: Canonicalization or resolution failed (I/O error).
+/// - `WindowsShortName` (windows): A segment resembles a DOS 8.3 short name.
 #[derive(Debug)]
 pub enum StrictPathError {
-    /// The PathBoundary root is invalid (missing, not a directory, or IO error).
+    /// SUMMARY:
+    /// The PathBoundary root is invalid (missing, not a directory, or I/O error).
+    ///
+    /// FIELDS:
+    /// - `restriction` (`PathBuf`): The attempted root path.
+    /// - `source` (`std::io::Error`): Underlying OS error that explains why the
+    ///   restriction is invalid.
     InvalidRestriction {
         restriction: PathBuf,
         source: std::io::Error,
     },
+    /// SUMMARY:
     /// The attempted path would resolve outside the PathBoundary boundary.
+    ///
+    /// FIELDS:
+    /// - `attempted_path` (`PathBuf`): The user-supplied or composed candidate.
+    /// - `restriction_boundary` (`PathBuf`): The effective boundary root.
     PathEscapesBoundary {
         attempted_path: PathBuf,
         restriction_boundary: PathBuf,
     },
+    /// SUMMARY:
     /// Canonicalization/resolution failed for the given path.
+    ///
+    /// FIELDS:
+    /// - `path` (`PathBuf`): The path whose resolution failed.
+    /// - `source` (`std::io::Error`): Underlying I/O cause.
     PathResolutionError {
         path: PathBuf,
         source: std::io::Error,
     },
     #[cfg(windows)]
+    /// SUMMARY:
     /// A component resembles a Windows 8.3 short name (potential ambiguity).
+    ///
+    /// FIELDS:
+    /// - `component` (`std::ffi::OsString`): The suspicious segment (e.g., `"PROGRA~1"`).
+    /// - `original` (`PathBuf`): The original input path.
+    /// - `checked_at` (`PathBuf`): Boundary or anchor context used during the check.
     WindowsShortName {
         component: std::ffi::OsString,
         original: PathBuf,
@@ -47,6 +95,7 @@ pub enum StrictPathError {
 }
 
 impl StrictPathError {
+    // Internal helper: construct `InvalidRestriction`.
     #[inline]
     pub(crate) fn invalid_restriction(restriction: PathBuf, source: std::io::Error) -> Self {
         Self::InvalidRestriction {
@@ -54,6 +103,7 @@ impl StrictPathError {
             source,
         }
     }
+    // Internal helper: construct `PathEscapesBoundary`.
     #[inline]
     pub(crate) fn path_escapes_boundary(
         attempted_path: PathBuf,
@@ -64,11 +114,13 @@ impl StrictPathError {
             restriction_boundary,
         }
     }
+    // Internal helper: construct `PathResolutionError`.
     #[inline]
     pub(crate) fn path_resolution_error(path: PathBuf, source: std::io::Error) -> Self {
         Self::PathResolutionError { path, source }
     }
     #[cfg(windows)]
+    // Internal helper: construct `WindowsShortName`.
     #[inline]
     pub(crate) fn windows_short_name(
         component: std::ffi::OsString,
