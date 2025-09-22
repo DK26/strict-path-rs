@@ -26,27 +26,27 @@ pub struct StrictPath<Marker = ()> {
 
 impl<Marker> StrictPath<Marker> {
     /// SUMMARY:
-    /// Create a root `StrictPath` anchored at the provided boundary directory.
+    /// Create the base `StrictPath` anchored at the provided boundary directory.
     ///
     /// PARAMETERS:
-    /// - `root` (`AsRef<Path>`): Boundary root directory (must exist).
+    /// - `dir_path` (`AsRef<Path>`): Boundary directory (must exist).
     ///
     /// RETURNS:
-    /// - `Result<StrictPath<Marker>>`: Root path ("" join) within the boundary.
+    /// - `Result<StrictPath<Marker>>`: Base path ("" join) within the boundary.
     ///
     /// ERRORS:
     /// - `StrictPathError::InvalidRestriction`: If the boundary cannot be created/validated.
     ///
     /// NOTE: Prefer passing `PathBoundary` in reusable flows.
-    pub fn with_boundary<P: AsRef<Path>>(root: P) -> Result<Self> {
-        let boundary = crate::PathBoundary::try_new(root)?;
+    pub fn with_boundary<P: AsRef<Path>>(dir_path: P) -> Result<Self> {
+        let boundary = crate::PathBoundary::try_new(dir_path)?;
         boundary.strict_join("")
     }
 
     /// SUMMARY:
-    /// Create a root `StrictPath`, creating the boundary directory if missing.
-    pub fn with_boundary_create<P: AsRef<Path>>(root: P) -> Result<Self> {
-        let boundary = crate::PathBoundary::try_new_create(root)?;
+    /// Create the base `StrictPath`, creating the boundary directory if missing.
+    pub fn with_boundary_create<P: AsRef<Path>>(dir_path: P) -> Result<Self> {
+        let boundary = crate::PathBoundary::try_new_create(dir_path)?;
         boundary.strict_join("")
     }
     pub(crate) fn new(
@@ -529,3 +529,4 @@ impl<Marker> PartialEq<crate::path::virtual_path::VirtualPath<Marker>> for Stric
         self.path.as_ref() == other.interop_path()
     }
 }
+

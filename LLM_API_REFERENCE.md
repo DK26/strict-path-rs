@@ -180,8 +180,8 @@ match boundary.strict_join(user_input) {
 
 ### StrictPath API
 
-- with_boundary<P: AsRef<Path>>(root: P) -> Result<Self>  // sugar; root must exist
-- with_boundary_create<P: AsRef<Path>>(root: P) -> Result<Self>  // sugar; creates root if missing
+- with_boundary<P: AsRef<Path>>(dir_path: P) -> Result<Self>  // sugar; directory must exist
+- with_boundary_create<P: AsRef<Path>>(dir_path: P) -> Result<Self>  // sugar; creates directory if missing
 - unstrict(self) -> PathBuf  // consumes — escape hatch (avoid)
 - virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
 - strictpath_to_string_lossy(&self) -> Cow<'_, str>
@@ -367,8 +367,8 @@ PathBoundary<Marker>
 
 StrictPath<Marker>
 Note: `.unstrict()` is an explicit escape hatch. Interop doesn’t require it — prefer `.interop_path()`; use `.unstrict()` only when an owned `PathBuf` is strictly required.
-- with_boundary<P: AsRef<Path>>(root: P) -> Result<Self>  // sugar; root must exist
-- with_boundary_create<P: AsRef<Path>>(root: P) -> Result<Self>  // sugar; creates root if missing
+- with_boundary<P: AsRef<Path>>(dir_path: P) -> Result<Self>  // sugar; directory must exist
+- with_boundary_create<P: AsRef<Path>>(dir_path: P) -> Result<Self>  // sugar; creates directory if missing
 - unstrict(self) -> PathBuf  // consumes — escape hatch (avoid)
 - virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
 - try_into_boundary(self) -> PathBoundary<Marker>
@@ -594,3 +594,4 @@ Common anti-patterns (LLM quick check)
 - Using `Path::join`/`Path::parent` on leaked paths: use `strictpath_*` / `virtualpath_*` ops.
 - Forcing ownership: avoid `.into_owned()` on `Cow` unless an owned `String` is required.
 - Bare `{}` in format strings: prefer captured identifiers like `"{path}"` (bind a short local if needed).
+
