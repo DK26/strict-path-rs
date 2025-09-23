@@ -4,6 +4,16 @@
 
 The development of `strict-path` is a story of discovering security gaps in path handling and iteratively building a comprehensive solution. Here's the complete development journey that led to the creation of this crate.
 
+### Why Use This Crate (TL;DR)
+
+Path security is not about comparing strings. It requires:
+- Full normalization/canonicalization that works even when targets don’t exist
+- Safe symlink/junction handling (with cycle detection and boundary enforcement)
+- Windows-specific defenses (8.3 short names, UNC/verbatim prefixes, ADS)
+- Unicode/encoding awareness (mixed separators, normalization differences)
+
+`strict-path` solves this class of problems comprehensively, then encodes the guarantees in the type system. If a `StrictPath<Marker>` exists, it’s proven to be inside its boundary by construction.
+
 ## The Development Process Story
 
 ### The Simple Beginning
@@ -33,6 +43,8 @@ That's when I realized I'd need to create another crate! One that mimics that sa
 I asked an LLM agent to fetch Python's implementation unit tests, translate them to Rust, and run them over our `soft-canonicalize` implementation. This revealed gaps in my own implementation and led me to ask for the same algorithm that Python uses (later modified for optimizations and CVE resolutions).
 
 Voilà! I had a working `soft-canonicalize` crate, so I could publish it and continue work on my jailed-path crate.
+
+From here, the path guarantee became practical: validate first (without requiring existence), then operate safely.
 
 ### The Marker Type Innovation
 
@@ -82,6 +94,8 @@ This is where I decided that methods must be explicit. Seeing them in generated 
 
 Seeing `join()` in our code would mean unsafe behavior that we could notice immediately.
 
+This explicitness is critical for LLM- and review-friendly code: `.strict_join(..)`/`.virtual_join(..)` are visibly safe; raw `Path::join` stands out as a red flag.
+
 #### Finding the Right Balance
 
 Fixing my demo projects, these methods seemed verbose. Since they were very common, I decided on shorter, easier names:
@@ -107,6 +121,11 @@ This is perfect! `OsStr`:
 - Is cross-platform and fits the underlying operating system
 - Doesn't lose any data
 - Is what `Path` wraps anyway—we're just stripping off all the dangerous methods
+ - Is what `Path` wraps anyway—we're just stripping off all the dangerous methods
+
+Escape hatches exist, but are explicit:
+- Borrow strict from virtual: `vpath.as_unvirtual()`
+- Ownership conversions: `virtualize()` / `unvirtual()` / `unstrict()` (use sparingly)
 
 ### Feature Integration
 
@@ -123,6 +142,11 @@ I kept improving demo examples and API clarity. Eventually, I realized: `StrictP
 I explored whether we could work with just 2 types: `VirtualPath` and `StrictPath`. While possible, it wouldn't be ideal—sometimes we want to be explicit about roots and boundaries as promises.
 
 I decided to keep `VirtualRoot` and `PathBoundary` but make common usage more concise with `StrictPath::with_boundary()` and `VirtualPath::with_root()`. This made code much more concise while remaining highly readable.
+
+### Zero‑Trust vs Lexical Approaches
+
+- If you want a zero‑trust approach that covers (almost) everything that can go wrong, prefer canonicalized validation and joins. They resolve symlinks and normalize platform-specific forms before enforcement.
+- If you need maximum performance and you are absolutely certain symlinks cannot occur and paths are already canonical/normalized, a lexical solution from another crate may fit — but you accept the risk and narrower threat model.
 
 ### The Road to Publication
 

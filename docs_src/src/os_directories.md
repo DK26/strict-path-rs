@@ -46,7 +46,7 @@ use strict_path::PathBoundary;
 
 let config_dir = PathBoundary::<()>::try_new_os_config("MyApp")?;
 let config_file = config_dir.strict_join("settings.json")?;
-config_file.write_string(r#"{"theme": "dark"}"#)?;
+config_file.write(r#"{"theme": "dark"}"#)?;
 ```
 
 **Platform paths:**

@@ -2,6 +2,8 @@
 
 **Security-first path handling**: Prevent directory traversal with type-safe boundaries.
 
+Audience and usage: This page is a minimal-context, copy/paste guide for tool-calling LLMs. Prefer the bullets and short recipes here; link to README and mdBook for longer explanations.
+
 ## Essential Flow (Start Here)
 1. **Create boundary**: `PathBoundary::try_new_create(dir)` → secure foundation
 2. **Validate input**: `boundary.strict_join(user_input)` → `StrictPath<T>` 
@@ -11,13 +13,9 @@
 
 ## Core Security Foundation: `StrictPath`
 
-**`StrictPath` is the fundamental security primitive** - every `StrictPath` instance is mathematical proof that a path is within its designated boundary. This guarantee is enforced through:
-
-- Cryptographic-grade path canonicalization via [`soft-canonicalize`](https://crates.io/crates/soft-canonicalize)
-- Type-level security contracts that make path traversal impossible
-- Boundary validation that cannot be bypassed
-
-**The security model:** If your code has a `StrictPath<Marker>`, it is guaranteed safe - no runtime validation needed within functions that accept it.
+- `StrictPath<Marker>` is the core safe path type used for system-facing I/O.
+- If a function receives `&StrictPath<_>`, the path is already validated — no extra checks needed.
+- Create `StrictPath` via `PathBoundary::strict_join(..)` or borrow from `VirtualPath` via `.as_unvirtual()`.
 
 ## Type Selection Guide
 
@@ -70,35 +68,36 @@ All security flows through `StrictPath`:
 
 Uses canonicalization + boundary checks to prevent directory traversal attacks.
 
-### PathBoundary Design Philosophy
+### PathBoundary — usage in one glance
 
-`PathBoundary` represents the secure foundation or starting point from which all path operations begin. Think of it as establishing a safe boundary (like `/home/users/alice`) and then performing validated operations from that foundation.
-
-When you call `path_boundary.strict_join("documents/file.txt")`, you're building outward from the secure boundary with validated path construction. The boundary is the **trusted starting point**, and operations like `strict_join()` are the **validated tools** that work from that boundary to ensure you stay within the allowed area.
-
-This design makes the API read naturally:
-- `user_dir.strict_join("documents/report.pdf")` - "From the user directory boundary, strictly join documents/report.pdf"  
-- `cache_boundary.strict_join("build/output.json")` - "From the cache boundary, strictly join build/output.json"
+- Policy root for strict/system paths; construct once, pass around.
+- Validate untrusted input with `boundary.strict_join(input)` to get `StrictPath<T>`.
+- Do not build raw `Path` from user input; always validate via `strict_join()`.
+- For details, see the mdBook Best Practices; keep helpers accepting `&StrictPath<_>` or `&PathBoundary<_>`.
 
 ## Quick Method Reference
 
 **PathBoundary<T>**: Secure boundary creation and validation
+Use when: validating untrusted segments into a system-facing path within a known root (policy).
 - `::try_new_create(path)` → Create boundary (mkdir if needed)  
 - `.strict_join(input)` → Validate untrusted input → `StrictPath<T>`
 
 **StrictPath<T>**: Proven-safe system paths
+Use when: passing proven-safe paths to I/O and helpers; no extra validation inside the function.
 - `.strict_join(path)` → Chain additional safe joins
 - `.interop_path()` → `&OsStr` for `AsRef<Path>` APIs
 - `.read()/.write(data)` → I/O operations  
 - `.strictpath_display()` → Display for logging
 
 **VirtualRoot<T>**: User-friendly sandbox policy root
+Use when: creating a per-user sandbox root that produces `VirtualPath` with rooted "/" UX.
 - `VirtualRoot::try_new_create(dir)` → Create user sandbox root
 - `.virtual_join(input)` → Validate/clamp user input → `VirtualPath<T>`
 - `.interop_path()` → `&OsStr` for `AsRef<Path>` APIs at the root
 - `.read_dir()` / `.remove_dir()` / `.remove_dir_all()` → Root-level discovery and cleanup
 
 **VirtualPath<T>**: User-facing clamped path
+Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict view with `.as_unvirtual()` for shared helpers.
 - `.virtual_join(input)` → Chain additional safe virtual joins
 - `.virtualpath_display()` → Virtual display (e.g., "/file.txt")
 - `.as_unvirtual()` → Borrow underlying `StrictPath<T>` for shared helpers
@@ -118,6 +117,16 @@ This design makes the API read naturally:
 - Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
 	clamping or restriction checks. Use `strict_join` / `virtualpath_parent` instead.
 - Do not convert `StrictPath` -> `VirtualPath` just to print; for UI flows start with `VirtualPath::with_root(..).virtual_join(..)` and keep a `VirtualPath`.
+
+### Feature semantics (when enabled)
+- `app-path`: Environment override resolves to the final root path. When the env var is set, no subdirectory append occurs — the env value becomes the root.
+
+### Anti‑Patterns (do NOT)
+- Wrap secure types in `Path::new(..)` / `PathBuf::from(..)`.
+- Use std `Path::join`/`parent` on leaked `StrictPath`/`VirtualPath` — use `strict_join`/`virtualpath_parent`.
+- Construct `PathBoundary`/`VirtualRoot` inside helpers — treat them as policy and pass them in.
+- Convert `StrictPath` → `VirtualPath` just to print; use `strictpath_display()` or start with `VirtualPath` for UI.
+- Rely on implicit conversions: there is no `AsRef<Path>` on secure types; use `.interop_path()` explicitly.
 
 ## Common Usage Patterns
 
@@ -201,34 +210,18 @@ All operations prevent traversal and symlink/junction escapes. Do not use `std::
 
 ## Which Type Should I Use?
 
-Ask yourself these questions to determine the right path type:
-
-**🤔 Do we want to allow work with any form of path, but make sure it is always contained within a specified directory?**  
-→ **Use `VirtualPath`** - Users can specify any path they want, and it gets automatically clamped to stay safe within your sandbox.
-
-**🤔 Do we want to allow only paths that are within a specific other path (restriction), and reject all other paths?**  
-→ **Use `StrictPath`** - Validates that the exact path is safe and within boundaries, rejecting anything that would escape.
-
-**🤔 Do we want to allow complete freedom of paths but still make sure that freedom is safe and isolated within a sandbox?**  
-→ **Use `VirtualPath`** - Creates a complete sandbox where users have apparent freedom but are mathematically constrained to safety.
-
-**🤔 Do we want a raw path that could point anywhere in our system, as defined by system-admin, and should be overrideable if sysadmin so desires?**  
-→ **Use `std::path::Path` or `PathBuf`** - This crate is for constraining paths, not for system-level administrative control.
-
-**🤔 Do we want to give users their own isolated sandbox/workspace where they feel they have complete control?**  
-→ **Use `VirtualPath`** - Each user gets their own apparent "/" root, perfect for per-user storage, isolated workspaces.
-
-**🤔 Do we want to use a common shared space for all users, pointing somewhere in our system files, but ensure it cannot escape boundaries?**  
-→ **Use `StrictPath`** - Validates that paths stay within a shared boundary, good for shared resources, config files, templates.
-
-**🤔 Do we need compile-time guarantees that different storage contexts can't be accidentally mixed?**  
-→ **Use `StrictPath<Marker>` or `VirtualPath<Marker>`** - Both support type markers to prevent mixing different contexts at compile time.
-
-**Quick Decision Matrix:**
+Quick Decision Matrix:
 - **User Sandboxes** → `VirtualPath` (per-user isolated spaces)
 - **Shared Boundaries** → `StrictPath` (common protected areas)  
 - **Type Safety** → Both `StrictPath<T>` and `VirtualPath<T>` vs `Path/PathBuf`
 - **Unrestricted** → `std::path::Path` (no safety guarantees)
+
+Minimal decision checklist (LLM prompts)
+- Input: untrusted user path segment; expected UX: rooted "/" display → Use `VirtualRoot` + `.virtual_join(...)` → `VirtualPath<T>`.
+- Input: untrusted file/dir name for a known system directory → Use `PathBoundary` + `.strict_join(...)` → `StrictPath<T>`.
+- Need one helper usable from both → Write `fn f<M>(p: &StrictPath<M>) { ... }`; call with `StrictPath` or `VirtualPath::as_unvirtual()`.
+- Display: user-facing → `vpath.virtualpath_display()`; system logs → `spath.strictpath_display()`.
+- Interop: when API expects `AsRef<Path>` → call `.interop_path()` on the secure type; do not use `.unstrict()` unless an owned `PathBuf` is required.
 
 **Common Use Cases:**
 ```rust
@@ -330,6 +323,22 @@ Top-level exports
 - Virtual user path: `let vroot = VirtualRoot::try_new("./safe")?; let vp = vroot.virtual_join("a/b.txt")?;`
 - Convert between types: `vpath.unvirtual()` → `StrictPath`, `spath.virtualize()` → `VirtualPath`
 - Unified functions: take `&StrictPath<_>` and call with `vpath.as_unvirtual()`
+
+Example — unified helper (copy/paste):
+```rust
+use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+
+fn process_common<M>(p: &StrictPath<M>) -> std::io::Result<Vec<u8>> { p.read() }
+
+let spath: StrictPath = PathBoundary::try_new("./assets")?
+	.strict_join("style.css")?;
+
+let vroot: VirtualRoot = VirtualRoot::try_new("./uploads/alice")?;
+let vpath: VirtualPath = vroot.virtual_join("avatar.jpg")?;
+
+let _ = process_common(&spath)?;                 // StrictPath
+let _ = process_common(vpath.as_unvirtual())?;   // Borrow strict view from VirtualPath
+```
 - Display paths: `spath.strictpath_display()`, `vpath.virtualpath_display()` (no automatic Display trait)
 - Type-safe function signatures: `fn serve_file<M>(p: &StrictPath<M>) -> io::Result<Vec<u8>> { p.read() }`
 - Type-safe virtual signatures: `fn serve_user_file(p: &VirtualPath) -> io::Result<Vec<u8>> { p.read() }`

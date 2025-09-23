@@ -203,7 +203,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     // This is SAFE - creates "user_files/documents/report.txt"
     let report = user_files_dir.strict_join("documents/report.txt")?;
     report.create_parent_dir_all()?;
-    report.write_string("Quarterly report contents")?;
+    report.write("Quarterly report contents")?;
 
     // This would FAIL - can't escape the path boundary!
     // let _bad = user_files_dir.strict_join("../../../etc/passwd")?; // Error!
@@ -234,7 +234,7 @@ fn save_user_file() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let safe_path = uploads_dir.strict_join(user_input)?;
 
     // Write some content safely using built-in helpers
-    safe_path.write_string("Hello, world!")?;
+    safe_path.write("Hello, world!")?;
 
     // Read it back
     let content = safe_path.read_to_string()?;
@@ -348,6 +348,7 @@ fn setup_user_storage(user_id: u32) -&gt; Result&lt;(), Box&lt;dyn std::error::E
 <ul>
 <li><strong>Real-World Examples</strong>: See complete applications using strict-path</li>
 <li><strong>Understanding Type-History</strong>: Learn how the internal security works (for contributors)</li>
+<li><strong>Choosing Canonicalized vs Lexical</strong>: See Ergonomics → Choosing Canonicalized vs Lexical for performance vs safety trade-offs</li>
 </ul>
 <p>The key rule: <strong>always validate external paths through a path boundary before using them</strong>. Whether it's user input, configuration files, or data from external sources - if you didn't create the path yourself, join it to a path boundary first!</p>
 

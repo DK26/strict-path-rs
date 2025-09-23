@@ -147,11 +147,11 @@ When not to use them: if your flow is small and local, the sugar constructors ar
 ```rust
 use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
 
-fn save_to_storage(p: &StrictPath) -> std::io::Result<()> { p.write_string("ok") }
+fn save_to_storage(p: &StrictPath) -> std::io::Result<()> { p.write("ok") }
 fn load_from_storage(p: &VirtualPath) -> std::io::Result<String> { p.read_to_string() }
 
 fn create_config(boundary: &PathBoundary, name: &str) -> std::io::Result<()> {
-    boundary.strict_join(name)?.write_string("cfg")
+  boundary.strict_join(name)?.write("cfg")
 }
 ```
 
@@ -203,7 +203,7 @@ use strict_path::{PathBoundary, StrictPath, VirtualPath};
 fn rotate_log(boundary: &PathBoundary) -> std::io::Result<()> {
     let current = boundary.strict_join("logs/app.log")?;
     current.create_parent_dir_all()?;
-    current.write_string("ok")?;
+  current.write("ok")?;
 
     // Strict rename within same directory
     let rotated = current.strict_rename("logs/app.old")?;
@@ -259,8 +259,25 @@ fn extract(vroot: &VirtualRoot, entry: &str, data: &[u8]) -> std::io::Result<()>
 }
 ```
 
+## Ergonomics Cheatsheet
+
+- Built-in I/O: prefer `StrictPath`/`VirtualPath` methods over exposing raw `Path`
+- Interop: use `interop_path()` when passing into `AsRef<Path>` APIs (no allocations)
+- Avoid anti-patterns: never wrap secure types in `Path::new()` / `PathBuf::from()`
+- Function signatures: encode policy via marker types in `StrictPath<MyMarker>` / `VirtualPath<MyMarker>`
+- Equality/ordering: rely on the types’ derived semantics; don’t convert to strings for comparison
+- Escape hatch (borrow): `as_unvirtual()`; ownership conversions: `virtualize()` / `unvirtual()` / `unstrict()` (use sparingly)
+
 - Share logic across strict/virtual:
 ```rust
 fn consume_strict(p: &StrictPath) -> std::io::Result<String> { p.read_to_string() }
 fn consume_virtual(p: &VirtualPath) -> std::io::Result<String> { consume_strict(p.as_unvirtual()) }
 ```
+
+See the dedicated Ergonomics section for deeper guidance:
+- Overview: ./ergonomics/overview.md
+- Interop vs Display: ./ergonomics/interop_display.md
+- Function Signatures: ./ergonomics/signatures.md
+- Escape Hatches: ./ergonomics/escape_hatches.md
+- Equality & Ordering: ./ergonomics/equality_ordering.md
+- Naming: ./ergonomics/naming.md

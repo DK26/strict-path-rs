@@ -56,6 +56,42 @@
 //! anything outside its boundary - this is enforced by the type system and cryptographic-grade
 //! path canonicalization.
 //!
+//! ## Why naive approaches fail (and CVEs they miss)
+//!
+//! String checks and one-off normalizers don’t compose into a secure system. Common pitfalls:
+//!
+//! - Checking for "../" misses double-encodings, mixed separators, and absolute replacements.
+//! - Blind `canonicalize()` checks fail on non-existent files and enable TOCTOU races (e.g., symlink swaps) between resolution and use.
+//! - Lexical normalization ignores platform aliasing (Windows 8.3 short names), ADS streams, and UNC/verbatim quirks.
+//!
+//! Illustrative (simplified) examples — these are intentionally non-runnable here:
+//!
+//! ```rust,ignore
+//! // ❌ Rejecting only "../" is bypassable via encoding
+//! if candidate.contains("../") { return Err("nope"); }
+//! // "..%2F..%2Fetc%2Fpasswd" or mixed separators can slip through
+//! ```
+//!
+//! ```rust,ignore
+//! // ❌ Canonicalize‑then‑check is subject to TOCTOU (CVE‑2022‑21658 class)
+//! let real = std::fs::canonicalize(&candidate)?;
+//! if !real.starts_with(root) { return Err("escape"); }
+//! // Attacker swaps a symlink between these calls
+//! std::fs::read(real)?;
+//! ```
+//!
+//! ```rust,ignore
+//! // ❌ Lexical only: misses Windows 8.3 short name aliasing (e.g., PROGRA~1)
+//! // CVEs: 2019‑9855, 2020‑12279 class of issues around aliasing/normalization
+//! let norm = candidate.replace("\\", "/");
+//! if norm.starts_with("/safe/") { /* ... */ }
+//! ```
+//!
+//! strict‑path centralizes normalization, canonicalization, and boundary checks in a single auditable
+//! pipeline, with anchored canonicalization for virtual roots and explicit APIs that make the intended
+//! dimension (strict vs virtual) visible. The result is a type‑level guarantee: if a `StrictPath<Marker>`
+//! exists, it is proven to be within its boundary.
+//!
 //! ## Path Types and Their Relationships
 //!
 //! - **`StrictPath`**: The core security primitive - a validated, system-facing path that proves

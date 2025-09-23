@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Design &amp; Internals - The Complete StrictPath Guide</title>
+        <title>Choosing Canonicalized vs Lexical Solution - The Complete StrictPath Guide</title>
 
 
         <!-- Custom HTML head -->
@@ -12,34 +12,34 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon.svg">
-        <link rel="shortcut icon" href="favicon.png">
-        <link rel="stylesheet" href="css/variables.css">
-        <link rel="stylesheet" href="css/general.css">
-        <link rel="stylesheet" href="css/chrome.css">
-        <link rel="stylesheet" href="css/print.css" media="print">
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
-        <link rel="stylesheet" href="fonts/fonts.css">
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="highlight-css" href="highlight.css">
-        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
-        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "";
+            const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex.js";
+            window.path_to_searchindex_js = "../searchindex.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc.js"></script>
+        <script src="../toc.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -106,7 +106,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
             </noscript>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -141,7 +141,7 @@
                     <h1 class="menu-title">The Complete StrictPath Guide</h1>
 
                     <div class="right-buttons">
-                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
 
@@ -175,40 +175,89 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="design--internals"><a class="header" href="#design--internals">Design &amp; Internals</a></h1>
+                        <h1 id="choosing-canonicalized-vs-lexical-solution"><a class="header" href="#choosing-canonicalized-vs-lexical-solution">Choosing Canonicalized vs Lexical Solution</a></h1>
+<p>Scope: strict-path always uses canonicalized path security. There is no “lexical mode” in this crate. When we say “lexical,” we mean using a different crate that only does string/segment checks. This page helps you decide when to use strict-path (canonicalized) versus when a lexical-only crate might be acceptable.</p>
+<p>New here? This page helps you pick the right approach without security footguns.</p>
+<p>In one sentence: Prefer the “canonicalized” approach unless you 100% control the environment and have tests proving your assumptions. Lexical (in other crates) is for rare, performance‑critical hot paths with strong guarantees.</p>
+<h2 id="first-what-do-these-words-mean"><a class="header" href="#first-what-do-these-words-mean">First: What do these words mean?</a></h2>
+<ul>
+<li>Canonicalized (what strict-path does): We ask the OS to resolve the real, absolute path before deciding if it’s safe. This resolves symlinks/junctions and normalizes platform‑specific quirks (like Windows 8.3 short names, UNC, ADS). That way, sneaky inputs can’t trick simple string checks.</li>
+<li>Lexical (other crates): We treat the path like plain text and only do string/segment checks (no OS resolution). It can be fast, but it doesn’t see what’s really on disk.</li>
+</ul>
+<h2 id="why-you-probably-want-canonicalized-ie-strict-path"><a class="header" href="#why-you-probably-want-canonicalized-ie-strict-path">Why you probably want canonicalized (i.e., strict-path)</a></h2>
+<ul>
+<li>Defends against real‑world attacks: directory traversal (../../../), symlink swaps, aliasing (8.3 short names like <code>PROGRA~1</code>), UNC/verbatim forms, ADS, Unicode normalization tricks.</li>
+<li>Works across platforms the same way.</li>
+<li>Matches “zero‑trust” handling for inputs from HTTP, config files, databases, archives, and LLMs.</li>
+</ul>
+<p>Trade‑off: a bit more I/O work to ask the filesystem what’s actually there.</p>
+<h2 id="when-lexical-other-crates-can-be-ok"><a class="header" href="#when-lexical-other-crates-can-be-ok">When lexical (other crates) can be OK</a></h2>
+<p>Only consider lexical if ALL of these are true:</p>
+<ul>
+<li>No symlinks/junctions/mounts in the relevant tree</li>
+<li>Inputs are already normalized (no weird separators or encodings)</li>
+<li>You own the environment (e.g., an internal tool in a sealed container)</li>
+<li>You have tests that enforce the above (so a future change doesn’t silently break safety)</li>
+</ul>
+<p>If you’re unsure, use strict-path (canonicalized).</p>
+<h2 id="fast-decision-guide"><a class="header" href="#fast-decision-guide">Fast decision guide</a></h2>
+<ul>
+<li>Is the input from users, files, network, LLMs, or archives? → Use strict-path (canonicalized: <code>StrictPath</code>/<code>VirtualPath</code>).</li>
+<li>Is this a perf‑critical inner loop on paths you generate yourself and you’ve proven there are no symlinks? → A lexical-only crate might be acceptable.</li>
+<li>Mixed or uncertain? → Use strict-path (canonicalized).</li>
+</ul>
+<h2 id="concrete-examples"><a class="header" href="#concrete-examples">Concrete examples</a></h2>
+<ul>
+<li>
+<p>“User uploads a file named <code>../../etc/passwd</code>”</p>
+<ul>
+<li>strict-path (canonicalized): Rejected or clamped safely; cannot escape the root.</li>
+<li>lexical-only crate: Traversal may be blocked, but symlinks or platform quirks can still break containment.</li>
+</ul>
+</li>
+<li>
+<p>“Windows machine with <code>C:\Program Files</code> also visible as <code>C:\PROGRA~1</code>”</p>
+<ul>
+<li>strict-path (canonicalized): Treats both as the same real place; escape attempts fail.</li>
+<li>lexical-only crate: A clever alias or hidden symlink may trick a simple prefix check—even if traversal is blocked.</li>
+</ul>
+</li>
+</ul>
+<h2 id="short-recipes"><a class="header" href="#short-recipes">Short recipes</a></h2>
+<ul>
+<li>
+<p>strict-path (canonicalized, default):</p>
+<ul>
+<li>Validate via a boundary/root, then operate through <code>StrictPath</code>/<code>VirtualPath</code> methods.</li>
+<li>Accept <code>&amp;StrictPath&lt;_&gt;</code>/<code>&amp;VirtualPath&lt;_&gt;</code> in helpers, or accept a <code>&amp;PathBoundary/_VirtualRoot</code> plus the untrusted segment.</li>
+</ul>
+</li>
+<li>
+<p>If you intentionally use a lexical-only crate (advanced):</p>
+<ul>
+<li>Keep lexical checks isolated and documented; add tests that assert “no symlinks / normalized inputs”.</li>
+<li>If the situation changes later, migrate back to strict-path with minimal refactors because your signatures stayed explicit.</li>
+</ul>
+</li>
+</ul>
+<p>See also:</p>
+<ul>
+<li>Ergonomics → Interop vs Display</li>
+<li>README → “Where This Makes Sense”</li>
+</ul>
 <blockquote>
-<p><strong>⚠️ CONTRIBUTOR DOCUMENTATION</strong><br />
-This section is for contributors, library developers, and curious developers who want to understand how strict-path works internally.</p>
+<p>"Lexical checks aren't just about traversal—symlinks and platform quirks are the real troublemakers."</p>
 </blockquote>
-<p>If you're just using strict-path in your project, you probably want:</p>
-<ul>
-<li><a href="./chapter_1.html">Getting Started</a> - Learn the basic API</li>
-<li><a href="./examples.html">Real-World Examples</a> - See practical usage patterns</li>
-</ul>
-<h2 id="whats-in-this-section"><a class="header" href="#whats-in-this-section">What's in This Section</a></h2>
-<p>This section covers the internal design decisions and patterns that make strict-path secure and maintainable:</p>
-<h3 id="type-history-design-pattern"><a class="header" href="#type-history-design-pattern">Type-History Design Pattern</a></h3>
-<p>The core security mechanism that uses Rust's type system to enforce that paths go through required validation steps in the correct order. This prevents accidentally using unvalidated paths and makes security guarantees compile-time checked rather than runtime hopes.</p>
-<p><a href="./type_history_design.html">Read about Type-History →</a></p>
-<h2 id="for-contributors"><a class="header" href="#for-contributors">For Contributors</a></h2>
-<p>If you're contributing to strict-path, understanding these internals will help you:</p>
-<ul>
-<li>Maintain the security guarantees</li>
-<li>Add new features safely</li>
-<li>Understand why certain design decisions were made</li>
-<li>Write tests that verify the type-level constraints</li>
-</ul>
-<p>The design patterns used here can also be applied to other security-critical Rust libraries where you need compile-time guarantees about data processing pipelines.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="ergonomics/choosing_canonicalized_vs_lexical_solution.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../ergonomics/naming.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="type_history_design.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../internals.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -218,11 +267,11 @@ This section is for contributors, library developers, and curious developers who
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="ergonomics/choosing_canonicalized_vs_lexical_solution.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../ergonomics/naming.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="type_history_design.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../internals.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
@@ -237,13 +286,13 @@ This section is for contributors, library developers, and curious developers who
         </script>
 
 
-        <script src="elasticlunr.min.js"></script>
-        <script src="mark.min.js"></script>
-        <script src="searcher.js"></script>
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
 
-        <script src="clipboard.min.js"></script>
-        <script src="highlight.js"></script>
-        <script src="book.js"></script>
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
 
         <!-- Custom JS scripts -->
 

@@ -218,7 +218,7 @@ strict-path = { version = "0.1.0-alpha.6", features = ["dirs"] }
 
 let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config("MyApp")?;
 let config_file = config_dir.strict_join("settings.json")?;
-config_file.write_string(r#"{"theme": "dark"}"#)?;
+config_file.write(r#"{"theme": "dark"}"#)?;
 <span class="boring">}</span></code></pre></pre>
 <p><strong>Platform paths:</strong></p>
 <ul>

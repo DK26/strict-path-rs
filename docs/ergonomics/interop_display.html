@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Design &amp; Internals - The Complete StrictPath Guide</title>
+        <title>Interop vs Display - The Complete StrictPath Guide</title>
 
 
         <!-- Custom HTML head -->
@@ -12,34 +12,34 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon.svg">
-        <link rel="shortcut icon" href="favicon.png">
-        <link rel="stylesheet" href="css/variables.css">
-        <link rel="stylesheet" href="css/general.css">
-        <link rel="stylesheet" href="css/chrome.css">
-        <link rel="stylesheet" href="css/print.css" media="print">
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
-        <link rel="stylesheet" href="fonts/fonts.css">
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="highlight-css" href="highlight.css">
-        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
-        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "";
+            const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex.js";
+            window.path_to_searchindex_js = "../searchindex.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc.js"></script>
+        <script src="../toc.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -106,7 +106,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
             </noscript>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -141,7 +141,7 @@
                     <h1 class="menu-title">The Complete StrictPath Guide</h1>
 
                     <div class="right-buttons">
-                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
 
@@ -175,40 +175,34 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="design--internals"><a class="header" href="#design--internals">Design &amp; Internals</a></h1>
-<blockquote>
-<p><strong>⚠️ CONTRIBUTOR DOCUMENTATION</strong><br />
-This section is for contributors, library developers, and curious developers who want to understand how strict-path works internally.</p>
-</blockquote>
-<p>If you're just using strict-path in your project, you probably want:</p>
+                        <h1 id="interop-vs-display"><a class="header" href="#interop-vs-display">Interop vs Display</a></h1>
 <ul>
-<li><a href="./chapter_1.html">Getting Started</a> - Learn the basic API</li>
-<li><a href="./examples.html">Real-World Examples</a> - See practical usage patterns</li>
-</ul>
-<h2 id="whats-in-this-section"><a class="header" href="#whats-in-this-section">What's in This Section</a></h2>
-<p>This section covers the internal design decisions and patterns that make strict-path secure and maintainable:</p>
-<h3 id="type-history-design-pattern"><a class="header" href="#type-history-design-pattern">Type-History Design Pattern</a></h3>
-<p>The core security mechanism that uses Rust's type system to enforce that paths go through required validation steps in the correct order. This prevents accidentally using unvalidated paths and makes security guarantees compile-time checked rather than runtime hopes.</p>
-<p><a href="./type_history_design.html">Read about Type-History →</a></p>
-<h2 id="for-contributors"><a class="header" href="#for-contributors">For Contributors</a></h2>
-<p>If you're contributing to strict-path, understanding these internals will help you:</p>
+<li>Interop (AsRef<Path>): use <code>interop_path()</code> on <code>StrictPath</code>, <code>VirtualPath</code>, <code>PathBoundary</code>, and <code>VirtualRoot</code>. It borrows the underlying OS path without allocations.</li>
+<li>Display to users:
 <ul>
-<li>Maintain the security guarantees</li>
-<li>Add new features safely</li>
-<li>Understand why certain design decisions were made</li>
-<li>Write tests that verify the type-level constraints</li>
+<li>System paths: use <code>strictpath_display()</code> (on <code>StrictPath</code>/<code>PathBoundary</code>).</li>
+<li>Virtual UI paths: use <code>virtualpath_display()</code> (on <code>VirtualPath</code>).</li>
 </ul>
-<p>The design patterns used here can also be applied to other security-critical Rust libraries where you need compile-time guarantees about data processing pipelines.</p>
+</li>
+<li>Never use <code>interop_path().to_string_lossy()</code> for display—mixes concerns and may leak internals.</li>
+<li>Do not wrap secure types with <code>Path::new</code> or <code>PathBuf::from</code>.</li>
+<li>Directory discovery vs validation:
+<ul>
+<li>Discover children via <code>read_dir(root.interop_path())</code> or root helpers.</li>
+<li>Re-validate names with <code>strict_join()</code>/<code>virtual_join()</code> before any I/O.</li>
+</ul>
+</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="ergonomics/choosing_canonicalized_vs_lexical_solution.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../ergonomics/overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="type_history_design.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../ergonomics/signatures.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -218,11 +212,11 @@ This section is for contributors, library developers, and curious developers who
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="ergonomics/choosing_canonicalized_vs_lexical_solution.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../ergonomics/overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="type_history_design.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../ergonomics/signatures.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
@@ -237,13 +231,13 @@ This section is for contributors, library developers, and curious developers who
         </script>
 
 
-        <script src="elasticlunr.min.js"></script>
-        <script src="mark.min.js"></script>
-        <script src="searcher.js"></script>
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
 
-        <script src="clipboard.min.js"></script>
-        <script src="highlight.js"></script>
-        <script src="book.js"></script>
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
 
         <!-- Custom JS scripts -->
 

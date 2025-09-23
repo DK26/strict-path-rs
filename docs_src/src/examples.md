@@ -86,6 +86,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Common helper for strict and virtual
+
+Use one shared helper by taking a borrowed `&StrictPath<_>`; call it with either a `StrictPath` directly or a `VirtualPath` via `as_unvirtual()`.
+
+```rust
+use strict_path::{PathBoundary, StrictPath, VirtualPath, VirtualRoot};
+use std::io;
+
+// One helper that works with any marker
+fn process_common<M>(path: &StrictPath<M>) -> io::Result<Vec<u8>> {
+    path.read()
+}
+
+// Prepare one strict path and one virtual path
+let assets = PathBoundary::try_new("./assets")?;
+let css: StrictPath = assets.strict_join("style.css")?;
+
+let vroot: VirtualRoot = VirtualRoot::try_new("./uploads/alice")?;
+let avatar_v: VirtualPath = vroot.virtual_join("avatar.jpg")?;
+
+// Call with either type
+let _ = process_common(&css)?;                   // StrictPath
+let _ = process_common(avatar_v.as_unvirtual())?; // Borrow strict view from VirtualPath
+```
+
 ## Configuration File Manager
 
 Here's how to safely handle user configuration files:
@@ -146,7 +171,7 @@ impl ConfigManager {
         
         // Serialize and save
         let content = serde_json::to_string_pretty(config)?;
-        config_path.write_string(&content)?;
+    config_path.write(&content)?;
 
         println!("💾 Saved config to: {}", config_path.strictpath_display());
         Ok(config_path)
@@ -241,7 +266,7 @@ impl DocumentStore {
         
         // Create parent directories and save
         doc_path.create_parent_dir_all()?;
-        doc_path.write_string(content)?;
+    doc_path.write(content)?;
         
         println!("📝 User {username} saved document to: {}", doc_path.virtualpath_display());
         println!("    (Actually stored at: {})", doc_path.as_unvirtual().strictpath_display());
@@ -450,7 +475,7 @@ impl SafeFileProcessor {
         for (path, content) in samples {
             let safe_path = self.working_dir.strict_join(path)?;
             safe_path.create_parent_dir_all()?;
-            safe_path.write_string(content)?;
+            safe_path.write(content)?;
             println!("📝 Created: {path}");
         }
         
