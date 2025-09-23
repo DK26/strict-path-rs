@@ -45,7 +45,7 @@ impl<Marker> VirtualPath<Marker> {
         vroot.virtual_join("")
     }
     #[inline]
-    pub(crate) fn new(restricted_path: StrictPath<Marker>) -> Self {
+    pub(crate) fn new(strict_path: StrictPath<Marker>) -> Self {
         fn compute_virtual<Marker>(
             system_path: &std::path::Path,
             restriction: &crate::PathBoundary<Marker>,
@@ -137,10 +137,10 @@ impl<Marker> VirtualPath<Marker> {
             vb
         }
 
-        let virtual_path = compute_virtual(restricted_path.path(), restricted_path.boundary());
+        let virtual_path = compute_virtual(strict_path.path(), strict_path.boundary());
 
         Self {
-            inner: restricted_path,
+            inner: strict_path,
             virtual_path,
         }
     }
@@ -209,8 +209,8 @@ impl<Marker> VirtualPath<Marker> {
                     parent_virtual_path.to_path_buf(),
                 )
                 .canonicalize_anchored(self.inner.boundary())?;
-                let restricted_path = clamp(self.inner.boundary(), anchored)?;
-                Ok(Some(VirtualPath::new(restricted_path)))
+                let strict_path = clamp(self.inner.boundary(), anchored)?;
+                Ok(Some(VirtualPath::new(strict_path)))
             }
             None => Ok(None),
         }
@@ -223,8 +223,8 @@ impl<Marker> VirtualPath<Marker> {
         let candidate = self.virtual_path.with_file_name(file_name);
         let anchored = crate::validator::path_history::PathHistory::new(candidate)
             .canonicalize_anchored(self.inner.boundary())?;
-        let restricted_path = clamp(self.inner.boundary(), anchored)?;
-        Ok(VirtualPath::new(restricted_path))
+        let strict_path = clamp(self.inner.boundary(), anchored)?;
+        Ok(VirtualPath::new(strict_path))
     }
 
     /// SUMMARY:
@@ -240,8 +240,8 @@ impl<Marker> VirtualPath<Marker> {
         let candidate = self.virtual_path.with_extension(extension);
         let anchored = crate::validator::path_history::PathHistory::new(candidate)
             .canonicalize_anchored(self.inner.boundary())?;
-        let restricted_path = clamp(self.inner.boundary(), anchored)?;
-        Ok(VirtualPath::new(restricted_path))
+        let strict_path = clamp(self.inner.boundary(), anchored)?;
+        Ok(VirtualPath::new(strict_path))
     }
 
     /// SUMMARY:

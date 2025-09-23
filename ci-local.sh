@@ -1,8 +1,30 @@
 #!/bin/bash
 # ci-local.sh - Cross-platform CI Test Runner
 # Run all CI checks locally before pushing
+# Supports selective testing of only changed demo files for faster development
 
 set -e
+
+# Parse command line arguments
+FULL_DEMOS=false
+DEMOS=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --full-demos)
+            FULL_DEMOS=true
+            shift
+            ;;
+        --demos)
+            DEMOS="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--full-demos] [--demos binary1,binary2,...]"
+            exit 1
+            ;;
+    esac
+done
 
 # Try to find cargo in common locations  
 if ! command -v cargo &> /dev/null; then
@@ -39,6 +61,14 @@ echo "✓ Using cargo: $(command -v cargo)"
 # Check Rust version and warn about nightly vs stable differences
 RUST_VERSION=$(rustc --version)
 echo "🦀 Rust version: $RUST_VERSION"
+
+if $FULL_DEMOS; then
+    echo "📋 Full demo testing mode enabled"
+elif [[ -n "$DEMOS" ]]; then
+    echo "📋 Selective demo testing: $DEMOS"
+else
+    echo "📋 Smart demo testing mode (changed demos only)"
+fi
 
 if echo "$RUST_VERSION" | grep -q "nightly"; then
     echo "⚠️  WARNING: You're using nightly Rust, but GitHub Actions uses stable!"
@@ -259,7 +289,14 @@ echo
 echo "🔧 Auto-fixing common issues..."
 run_fix "Format" "cargo fmt --all"
 run_fix "Format demos" "(cd demos && cargo fmt --all)"
-run_fix "Clippy Fixable Issues" "cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
+
+# Split clippy auto-fix to avoid heavy workspace-wide builds by default
+# 1) Library-only clippy fix (strict-path)
+run_fix "Clippy Fixable Issues (strict-path)" "cargo clippy -p strict-path --fix --allow-dirty --allow-staged --all-targets --all-features"
+
+# 2) Demos clippy fix with safe features only (skip heavy deps like AWS unless opted elsewhere)
+run_fix "Clippy Fixable Issues (demos)" "(cd demos && cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp')"
+
 run_fix "Format (after clippy fix)" "cargo fmt --all"
 run_fix "Format demos (after clippy fix)" "(cd demos && cargo fmt --all)"
 echo "🦀 Now running CI checks (same as GitHub Actions)..."
@@ -293,8 +330,94 @@ run_check "Format Check demos" '
 run_check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warnings"
 # Build library examples
 run_check "Build examples (library)" "cargo build -p strict-path --examples --all-features"
+# Function to detect changed demo files (same as ci-check-demos.sh)
+get_changed_demo_files_ci() {
+    local force_full_test_var="$1"
+    
+    # Check if we're in a git repository
+    if [[ ! -d ".git" ]]; then
+        eval "$force_full_test_var=true"
+        return
+    fi
+    
+    # Get changed files from working directory and recent commits
+    local working_changes=($(git status --porcelain 2>/dev/null | cut -c4- || true))
+    local committed_changes=($(git diff --name-only HEAD~1 HEAD 2>/dev/null || true))
+    
+    # Combine and deduplicate changes
+    local all_changes=($(printf '%s\n' "${working_changes[@]}" "${committed_changes[@]}" | sort -u))
+    
+    # Check if core library or demo dependencies changed (force full test)
+    local core_changes=()
+    for change in "${all_changes[@]}"; do
+        if [[ "$change" == strict-path/* ]] || [[ "$change" == "demos/Cargo.toml" ]] || [[ "$change" == "Cargo.toml" ]] || [[ "$change" == "Cargo.lock" ]]; then
+            core_changes+=("$change")
+        fi
+    done
+    
+    if [[ ${#core_changes[@]} -gt 0 ]]; then
+        eval "$force_full_test_var=true"
+        return
+    fi
+    
+    # Extract demo files and return them
+    local demo_changes=()
+    for change in "${all_changes[@]}"; do
+        if [[ "$change" == demos/src/bin/*.rs ]]; then
+            demo_changes+=("$change")
+        fi
+    done
+    
+    printf '%s\n' "${demo_changes[@]}"
+}
+
+# Function to extract binary names from demo file paths
+get_binary_names_from_paths_ci() {
+    local paths=("$@")
+    local binary_names=()
+    
+    for path in "${paths[@]}"; do
+        # Extract binary name from demos/src/bin/<category>/<binary_name>.rs
+        if [[ "$path" =~ demos/src/bin/[^/]+/([^/]+)\.rs$ ]]; then
+            binary_names+=("${BASH_REMATCH[1]}")
+        fi
+    done
+    
+    # Remove duplicates and sort
+    printf '%s\n' "${binary_names[@]}" | sort -u
+}
+
+# Determine what demos to test
+FORCE_FULL_DEMO_TEST=false
+if $FULL_DEMOS; then
+    FORCE_FULL_DEMO_TEST=true
+elif [[ -n "$DEMOS" ]]; then
+    IFS=',' read -ra BINARIES_TO_TEST <<< "$DEMOS"
+    # Trim whitespace
+    for i in "${!BINARIES_TO_TEST[@]}"; do
+        BINARIES_TO_TEST[i]=$(echo "${BINARIES_TO_TEST[i]}" | xargs)
+    done
+else
+    mapfile -t CHANGED_DEMO_FILES < <(get_changed_demo_files_ci FORCE_FULL_DEMO_TEST)
+    if [[ "$FORCE_FULL_DEMO_TEST" != "true" ]] && [[ ${#CHANGED_DEMO_FILES[@]} -gt 0 ]]; then
+        mapfile -t BINARIES_TO_TEST < <(get_binary_names_from_paths_ci "${CHANGED_DEMO_FILES[@]}")
+        echo "📋 Changed demo files detected: $(IFS=','; echo "${CHANGED_DEMO_FILES[*]}")"
+        echo "🎯 Will test binaries: $(IFS=','; echo "${BINARIES_TO_TEST[*]}")"
+    elif [[ "$FORCE_FULL_DEMO_TEST" != "true" ]]; then
+        echo "✅ No demo changes detected, skipping demo tests"
+        BINARIES_TO_TEST=()
+    fi
+fi
+
 # Lint demos across feature matrix (we do not build/run demos in CI)
-run_check "Clippy Demos (matrix)" '
+if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]] || [[ ${#BINARIES_TO_TEST[@]} -gt 0 ]]; then
+    if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]]; then
+        TEST_DESCRIPTION="Clippy Demos (matrix - ALL)"
+    else
+        TEST_DESCRIPTION="Clippy Demos (matrix - SELECTIVE: $(IFS=','; echo "${BINARIES_TO_TEST[*]}"))"
+    fi
+
+    run_check "$TEST_DESCRIPTION" '
     # Run in a subshell to avoid leaking directory changes
     (
         set -e
@@ -308,16 +431,34 @@ run_check "Clippy Demos (matrix)" '
                                  "with-aws" \
                                  "with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp" \
                                  "with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp"; do
-            if [ -z "$FEATS" ]; then
-                echo "==> Clippy demos with features: <none>"
-                cargo clippy --all-targets -- -D warnings
+            
+            if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]]; then
+                # Test all demos
+                if [ -z "$FEATS" ]; then
+                    echo "==> Clippy demos with features: <none>"
+                    cargo clippy --all-targets -- -D warnings
+                else
+                    echo "==> Clippy demos with features: $FEATS"
+                    cargo clippy --all-targets --features "$FEATS" -- -D warnings
+                fi
             else
-                echo "==> Clippy demos with features: $FEATS"
-                cargo clippy --all-targets --features "$FEATS" -- -D warnings
+                # Test only specific binaries
+                for binary in "${BINARIES_TO_TEST[@]}"; do
+                    if [ -z "$FEATS" ]; then
+                        echo "==> Clippy demo '$binary' with features: <none>"
+                        cargo clippy --bin "$binary" -- -D warnings
+                    else
+                        echo "==> Clippy demo '$binary' with features: $FEATS"
+                        cargo clippy --bin "$binary" --features "$FEATS" -- -D warnings
+                    fi
+                done
             fi
         done
     )
 '
+else
+    echo "⏭️  Skipping demo tests - no changes detected"
+fi
 
 # Run demos tests across feature sets
 # Run workspace tests for the library only

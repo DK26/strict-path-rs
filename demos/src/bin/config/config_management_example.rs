@@ -135,7 +135,7 @@ struct RawSecurityConfig {
     // Sandboxing paths
     sandbox_root: String,
     #[serde(default)]
-    restricted_paths: Vec<String>,
+    strict_paths: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -229,7 +229,7 @@ struct ValidatedSecurityConfig {
 
     // Validated sandboxing paths
     sandbox_root: PathBoundary<DataDir>,
-    restricted_paths: Vec<StrictPath<DataDir>>,
+    strict_paths: Vec<StrictPath<DataDir>>,
 }
 
 #[derive(Debug)]
@@ -711,21 +711,18 @@ impl ConfigManager {
             .with_context(|| format!("Failed to create sandbox root: {}", security.sandbox_root))?;
 
         // Validate restricted paths
-        let mut restricted_paths = Vec::new();
-        for (i, restricted_path) in security.restricted_paths.iter().enumerate() {
+        let mut strict_paths = Vec::new();
+        for (i, strict_path) in security.strict_paths.iter().enumerate() {
             let restricted_boundary =
-                PathBoundary::try_new_create(restricted_path).with_context(|| {
-                    format!(
-                        "Failed to access restricted path {}: {}",
-                        i, restricted_path
-                    )
+                PathBoundary::try_new_create(strict_path).with_context(|| {
+                    format!("Failed to access restricted path {}: {}", i, strict_path)
                 })?;
             let validated_path = self.deserialize_strict_path(
-                restricted_path,
+                strict_path,
                 &restricted_boundary,
-                &format!("restricted_paths[{}]", i),
+                &format!("strict_paths[{}]", i),
             )?;
-            restricted_paths.push(validated_path);
+            strict_paths.push(validated_path);
         }
 
         println!(
@@ -734,7 +731,7 @@ impl ConfigManager {
         );
         println!("  ✓ Key file: {}", key_file.strictpath_display());
         println!("  ✓ Sandbox root: {}", sandbox_root.strictpath_display());
-        println!("  ✓ Restricted paths: {}", restricted_paths.len());
+        println!("  ✓ Restricted paths: {}", strict_paths.len());
 
         Ok(ValidatedSecurityConfig {
             cert_dir,
@@ -742,7 +739,7 @@ impl ConfigManager {
             allowed_origins: security.allowed_origins.clone(),
             session_timeout: security.session_timeout,
             sandbox_root,
-            restricted_paths,
+            strict_paths,
         })
     }
 
@@ -1048,7 +1045,7 @@ fn demonstrate_secure_operations(config: &ValidatedAppConfig) -> Result<()> {
     println!("  ✓ Session timeout: {}s", config.security.session_timeout);
     println!(
         "  ✓ Restricted paths: {} configured",
-        config.security.restricted_paths.len()
+        config.security.strict_paths.len()
     );
 
     // Use logging configuration

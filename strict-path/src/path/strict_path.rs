@@ -1,4 +1,3 @@
-// Content copied from original src/path/restricted_path.rs
 use crate::validator::path_history::{BoundaryChecked, Canonicalized, PathHistory, Raw};
 use crate::{Result, StrictPathError};
 use std::cmp::Ordering;
@@ -532,6 +531,3 @@ impl<Marker> PartialEq<crate::path::virtual_path::VirtualPath<Marker>> for Stric
         self.path.as_ref() == other.interop_path()
     }
 }
-
-
-

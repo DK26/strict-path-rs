@@ -14,7 +14,7 @@
   },
   "paths": {
     "data_dir": "/var/lib/myapp/data",
-    "cache_dir": "/var/cache/myapp", 
+    "cache_dir": "/var/cache/myapp",
     "temp_dir": "/tmp/myapp",
     "log_dir": "/var/log/myapp",
     "allowed_upload_dirs": [
@@ -29,10 +29,13 @@
   "security": {
     "cert_dir": "/etc/ssl/myapp",
     "key_file": "/etc/ssl/private/myapp.key",
-    "allowed_origins": ["https://myapp.com", "https://api.myapp.com"],
+    "allowed_origins": [
+      "https://myapp.com",
+      "https://api.myapp.com"
+    ],
     "session_timeout": 3600,
     "sandbox_root": "/var/lib/myapp/sandbox",
-    "restricted_paths": [
+    "strict_paths": [
       "/etc/shadow",
       "/root",
       "/var/lib/mysql"
@@ -40,7 +43,7 @@
   },
   "logging": {
     "level": "warn",
-    "format": "json", 
+    "format": "json",
     "file_path": "production.log",
     "error_log": "error.log",
     "access_log": "access.log",

@@ -27,14 +27,11 @@ log_dir = "./logs"
 config_dir = "./config"
 plugin_dir = "./plugins"
 allowed_upload_dirs = [
-    "./data/uploads/user", 
+    "./data/uploads/user",
     "./data/uploads/public",
-    "./data/uploads/temp"
+    "./data/uploads/temp",
 ]
-trusted_data_sources = [
-    "./data/trusted/source1",
-    "./data/trusted/source2" 
-]
+trusted_data_sources = ["./data/trusted/source1", "./data/trusted/source2"]
 
 [security]
 cert_dir = "./certs"
@@ -42,17 +39,13 @@ key_file = "./certs/server.key"
 allowed_origins = ["https://myapp.com", "https://api.myapp.com"]
 session_timeout = 7200
 sandbox_root = "./sandbox"
-restricted_paths = [
-    "./system",
-    "./etc/passwd",
-    "./root"
-]
+strict_paths = ["./system", "./etc/passwd", "./root"]
 
 [logging]
 level = "info"
 format = "json"
 file_path = "app.log"
-error_log = "error.log" 
+error_log = "error.log"
 access_log = "access.log"
 max_size_mb = 100
 max_files = 5

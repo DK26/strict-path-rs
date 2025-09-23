@@ -35,10 +35,10 @@ fn test_known_cve_patterns() {
         let should_succeed_strict = !has_parent && !looks_absolute;
 
         match restriction.strict_join(pattern) {
-            Ok(restricted_path) => {
+            Ok(strict_path) => {
                 assert!(
-                    restricted_path.strictpath_starts_with(restriction.interop_path()),
-                    "Attack pattern '{pattern}' escaped restriction: {restricted_path:?}"
+                    strict_path.strictpath_starts_with(restriction.interop_path()),
+                    "Attack pattern '{pattern}' escaped restriction: {strict_path:?}"
                 );
             }
             Err(err) => {
@@ -108,8 +108,8 @@ fn test_unicode_edge_cases() {
 
     for pattern in unicode_patterns {
         match restriction.strict_join(pattern) {
-            Ok(restricted_path) => {
-                assert!(restricted_path.strictpath_starts_with(restriction.interop_path()));
+            Ok(strict_path) => {
+                assert!(strict_path.strictpath_starts_with(restriction.interop_path()));
             }
             Err(_e) => {
                 // Rejections are acceptable; test ensures no panics and no escapes
@@ -157,9 +157,9 @@ fn test_concurrent_validator_usage() {
                 let result = restriction_clone.strict_join(&path);
                 assert!(result.is_ok(), "Thread {i} iteration {j} failed");
 
-                let restricted_path = result.unwrap();
+                let strict_path = result.unwrap();
                 // Test the actual path containment (what we really care about)
-                assert!(restricted_path.strictpath_starts_with(restriction_clone.interop_path()));
+                assert!(strict_path.strictpath_starts_with(restriction_clone.interop_path()));
             }
         });
         handles.push(handle);
@@ -178,10 +178,10 @@ fn test_long_path_handling() {
     let long_component = "a".repeat(64);
     let long_path = format!("{long_component}/{long_component}/{long_component}/{long_component}",);
 
-    let restricted_path = restriction
+    let strict_path = restriction
         .strict_join(&long_path)
         .unwrap_or_else(|err| panic!("long path should be accepted: {err:?}"));
-    assert!(restricted_path.strictpath_starts_with(restriction.interop_path()));
+    assert!(strict_path.strictpath_starts_with(restriction.interop_path()));
 
     let traversal_attack = "../".repeat(10) + "etc/passwd";
     let err = restriction
@@ -239,9 +239,9 @@ fn test_windows_specific_attacks() {
         }
 
         match result {
-            Ok(restricted_path) => {
+            Ok(strict_path) => {
                 assert!(
-                    restricted_path.strictpath_starts_with(restriction.interop_path()),
+                    strict_path.strictpath_starts_with(restriction.interop_path()),
                     "Pattern '{pattern}' escaped restriction"
                 );
             }

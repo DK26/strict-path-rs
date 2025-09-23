@@ -1,9 +1,22 @@
 # ci-local.ps1 - Cross-platform CI Test Runner for PowerShell
 # Run all CI checks locally before pushing
+# Supports selective testing of only changed demo files for faster development
+
+param(
+    [switch]$FullDemos,
+    [string]$Demos = ""
+)
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "=== CI Local Test Runner ===" -ForegroundColor Cyan
+if ($FullDemos) {
+    Write-Host "Full demo testing mode enabled" -ForegroundColor Gray
+} elseif ($Demos) {
+    Write-Host "Selective demo testing: $Demos" -ForegroundColor Gray
+} else {
+    Write-Host "Smart demo testing mode (changed demos only)" -ForegroundColor Gray
+}
 
 # Try to find cargo in common locations  
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
@@ -275,7 +288,14 @@ Write-Host ""
 Write-Host "Auto-fixing common issues..." -ForegroundColor Cyan
 Run-Fix "Format" "cargo fmt --all"
 Run-Fix "Format demos" "Push-Location demos; cargo fmt --all; Pop-Location"
-Run-Fix "Clippy Fixable Issues" "cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
+
+# Split clippy auto-fix to avoid heavy workspace-wide builds by default
+# 1) Library-only clippy fix (strict-path)
+Run-Fix "Clippy Fixable Issues (strict-path)" "cargo clippy -p strict-path --fix --allow-dirty --allow-staged --all-targets --all-features"
+
+# 2) Demos clippy fix with safe features only (skip heavy deps like AWS unless opted elsewhere)
+Run-Fix "Clippy Fixable Issues (demos)" "Push-Location demos; cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp'; Pop-Location"
+
 Run-Fix "Format (after clippy fix)" "cargo fmt --all"
 Run-Fix "Format demos (after clippy fix)" "Push-Location demos; cargo fmt --all; Pop-Location"
 Write-Host "Now running CI checks (same as GitHub Actions)..." -ForegroundColor Cyan
@@ -311,8 +331,90 @@ Run-Check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warning
 # Build library examples to ensure examples compile
 Run-Check "Build library examples" "cargo build -p strict-path --examples --all-features"
 
+# Function to detect changed demo files (same as ci-check-demos.ps1)
+function Get-ChangedDemoFiles {
+    param([ref]$ForceFullTest)
+    
+    # Check if we're in a git repository
+    if (-not (Test-Path ".git")) {
+        $ForceFullTest.Value = $true
+        return @()
+    }
+    
+    try {
+        # Get changed files from working directory and recent commits
+        $workingChanges = & git status --porcelain 2>$null | ForEach-Object { $_.Substring(3) }
+        $committedChanges = & git diff --name-only HEAD~1 HEAD 2>$null
+        
+        $allChanges = @($workingChanges; $committedChanges) | Where-Object { $_ } | Sort-Object -Unique
+        
+        # Check if core library or demo dependencies changed (force full test)
+        $coreChanges = $allChanges | Where-Object { 
+            $_ -like "strict-path/*" -or 
+            $_ -eq "demos/Cargo.toml" -or 
+            $_ -eq "Cargo.toml" -or
+            $_ -eq "Cargo.lock"
+        }
+        
+        if ($coreChanges.Count -gt 0) {
+            $ForceFullTest.Value = $true
+            return @()
+        }
+        
+        # Extract demo files
+        $demoChanges = $allChanges | Where-Object { $_ -like "demos/src/bin/*.rs" }
+        return $demoChanges
+        
+    } catch {
+        $ForceFullTest.Value = $true
+        return @()
+    }
+}
+
+# Function to extract binary names from demo file paths
+function Get-BinaryNamesFromPaths {
+    param([string[]]$FilePaths)
+    
+    $binaryNames = @()
+    foreach ($path in $FilePaths) {
+        if ($path -match "demos[/\\]src[/\\]bin[/\\][^/\\]+[/\\]([^/\\]+)\.rs$") {
+            $binaryNames += $matches[1]
+        }
+    }
+    
+    return $binaryNames | Sort-Object -Unique
+}
+
+# Determine what demos to test
+$forceFullDemoTest = $false
+$binariesToTest = @()
+
+if ($FullDemos) {
+    $forceFullDemoTest = $true
+} elseif ($Demos) {
+    $binariesToTest = $Demos -split "," | ForEach-Object { $_.Trim() }
+} else {
+    $changedDemoFiles = Get-ChangedDemoFiles -ForceFullTest ([ref]$forceFullDemoTest)
+    if (-not $forceFullDemoTest -and $changedDemoFiles.Count -gt 0) {
+        $binariesToTest = Get-BinaryNamesFromPaths -FilePaths $changedDemoFiles
+        Write-Host "Changed demo files detected: $($changedDemoFiles -join ', ')" -ForegroundColor Blue
+        Write-Host "Will test binaries: $($binariesToTest -join ', ')" -ForegroundColor Blue
+    } elseif (-not $forceFullDemoTest) {
+        Write-Host "No demo changes detected, skipping demo tests" -ForegroundColor Green
+        # Skip demo testing entirely
+        $binariesToTest = @()
+    }
+}
+
 # Lint demos across feature matrix (demos are not workspace members). We do not build/run demos in CI.
-Run-Check-Block "Clippy Demos (feature matrix)" {
+if ($forceFullDemoTest -or $binariesToTest.Count -gt 0) {
+    if ($forceFullDemoTest) {
+        $testDescription = "Clippy Demos (feature matrix - ALL)"
+    } else {
+        $testDescription = "Clippy Demos (feature matrix - SELECTIVE: $($binariesToTest -join ', '))"
+    }
+
+    Run-Check-Block $testDescription {
     Push-Location demos
     try {
         $hasCmake = [bool](Get-Command cmake -ErrorAction SilentlyContinue)
@@ -333,19 +435,38 @@ Run-Check-Block "Clippy Demos (feature matrix)" {
         if ($includeAws) { $featureSets.Add('with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp') | Out-Null } else { $featureSets.Add('with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp') | Out-Null }
 
         foreach ($feats in $featureSets) {
-            if ([string]::IsNullOrEmpty($feats)) {
-                Write-Host "==> Clippy demos with features: <none>"
-                cargo clippy --all-targets -- -D warnings
-                if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
+            if ($forceFullDemoTest) {
+                # Test all demos
+                if ([string]::IsNullOrEmpty($feats)) {
+                    Write-Host "==> Clippy demos with features: <none>"
+                    cargo clippy --all-targets -- -D warnings
+                    if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
+                } else {
+                    Write-Host "==> Clippy demos with features: $feats"
+                    cargo clippy --all-targets --features $feats -- -D warnings
+                    if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
+                }
             } else {
-                Write-Host "==> Clippy demos with features: $feats"
-                cargo clippy --all-targets --features $feats -- -D warnings
-                if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
+                # Test only specific binaries
+                foreach ($binary in $binariesToTest) {
+                    if ([string]::IsNullOrEmpty($feats)) {
+                        Write-Host "==> Clippy demo '$binary' with features: <none>"
+                        cargo clippy --bin $binary -- -D warnings
+                        if ($LASTEXITCODE -ne 0) { throw "clippy failed for binary $binary" }
+                    } else {
+                        Write-Host "==> Clippy demo '$binary' with features: $feats"
+                        cargo clippy --bin $binary --features $feats -- -D warnings
+                        if ($LASTEXITCODE -ne 0) { throw "clippy failed for binary $binary with features $feats" }
+                    }
+                }
             }
         }
     } finally {
         Pop-Location
     }
+    }
+} else {
+    Write-Host "Skipping demo tests - no changes detected" -ForegroundColor Gray
 }
 # Run workspace tests for the library only
 Run-Check "Tests (library all features)" "cargo test -p strict-path --all-features --verbose"
