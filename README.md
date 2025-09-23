@@ -9,7 +9,15 @@
 
 📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)**
 
-**Prevent directory traversal with type-safe path restriction and safe symlinks.**
+**More than path comparisons: full, cross‑platform path security with type‑level guarantees.**
+
+This crate is not a thin wrapper around `Path` or a naive string comparison.
+It performs full normalization, canonicalization, and boundary enforcement with
+symlink/junction handling, Windows‑specific edge cases (8.3 short names, UNC,
+verbatim prefixes, ADS), and robust encoding/normalization behavior across
+platforms. The type system encodes these guarantees: if a `StrictPath<Marker>`
+exists, it’s already proven to be inside its allowed boundary — not by hope,
+but by construction.
 
 Quick start
 
@@ -42,7 +50,13 @@ StrictPath::with_boundary("uploads")?
 
 **The Reality**: Every web server, LLM agent, and file processor faces the same vulnerability. One unvalidated path from user input, config files, or AI responses can grant attackers full filesystem access.
 
-**The Solution**: Comprehensive path security with mathematical guarantees. No more hoping you "got it right."
+**The Solution**: Comprehensive path security with mathematical guarantees — including symlink safety, Windows path quirks, and encoding pitfalls — not just string checks.
+
+> Analogy: `StrictPath` is to paths what a prepared statement is to SQL.
+>
+> - The boundary/root you create is like preparing a statement: it encodes the policy (what’s allowed).
+> - The untrusted filename or path segment is like a bound parameter: it’s validated/clamped safely via `strict_join`/`virtual_join`.
+> - The API makes injection attempts inert: hostile inputs can’t escape the boundary, just like SQL parameters can’t change the query.
 
 ## 🛡️ **How We Solve The Entire Problem Class**
 
@@ -90,13 +104,46 @@ safe_path.remove_file()?; // Remove when cleanup is required
 
 **That's it.** No complex validation logic. No CVE research. No security expertise required.
 
+## 🧠 Type-System Guarantees in Signatures
+
+Use marker types in your function signatures to encode policy and prevent mix-ups across storage domains. The compiler enforces that only the correct paths reach each function.
+
+```rust
+use strict_path::{PathBoundary, StrictPath};
+
+// Semantic markers for different roots
+struct PublicAssets;
+struct UserUploads;
+
+// Create type-safe boundaries (policy)
+let assets = PathBoundary::<PublicAssets>::try_new("./assets")?;
+let uploads = PathBoundary::<UserUploads>::try_new("./uploads")?;
+
+// Produce mathematically safe paths (cannot exist outside their boundary)
+let css: StrictPath<PublicAssets> = assets.strict_join("style.css")?;
+let avatar: StrictPath<UserUploads> = uploads.strict_join("avatar.jpg")?;
+
+// Encode guarantees in signatures — prevents cross-domain mix-ups at compile time
+fn serve_public_asset(file: &StrictPath<PublicAssets>) {
+    // Safe by construction; `file` cannot escape `assets` boundary
+}
+
+serve_public_asset(&css);       // ✅ OK
+// serve_public_asset(&avatar); // ❌ Compile error: wrong marker
+```
+
+Why this matters:
+- `StrictPath<Marker>` values cannot exist outside their boundary — construction proves containment.
+- Function signatures become policy — the type system rejects misuse.
+- Marker types make intent obvious in code review and eliminate entire bug classes.
+
 ## 🛡️ **Security Features**
 
-- **CVE-Aware Protection**: Built on 19+ real-world vulnerabilities - we've done the security research so you don't have to
+- **CVE-Aware Protection**: Built on 19+ real-world path vulnerabilities — we've done the security research so you don't have to
 - **Mathematical Guarantees**: Paths are canonicalized and boundary-checked - impossible to escape the restriction  
 - **Type Safety**: Marker types prevent mixing different storage contexts at compile time
 - **LLM-Ready**: Designed specifically for untrusted AI-generated paths and modern threat models
-- **Platform Security**: Handles Windows 8.3 short names, symlinks, and other OS-specific attack vectors
+- **Platform Security**: Safe symlink/junction handling; Windows 8.3 short names, UNC, verbatim prefixes, ADS; Unicode normalization edge cases
 - **Zero-Allocation Interop**: `.interop_path()` for seamless integration with existing `std::path` code
 - **Misuse Resistant**: API design makes security violations visible in code review
 

@@ -1,6 +1,16 @@
 //! # strict-path
 //!
-//! Prevent directory traversal with type-safe path restriction and safe symlinks.
+//! Prevent directory traversal with cross-platform, CVE-hardened path restriction and safe symlinks.
+//!
+//! This crate is not a thin wrapper over `std::path` or a naive path comparison.
+//! It performs full normalization/canonicalization and boundary enforcement with:
+//! - Safe symlink/junction handling (including cycle detection)
+//! - Windows-specific quirks (8.3 short names, UNC and verbatim prefixes, ADS)
+//! - Robust Unicode normalization and mixed-separator handling across platforms
+//! - Canonicalized path proofs encoded in the type system
+//!
+//! If a `StrictPath<Marker>` value exists, it is already proven to be inside its
+//! designated boundary by construction — not by best-effort string checks.
 //!
 //! 📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Reference](https://docs.rs/strict-path)**
 //!
@@ -34,7 +44,8 @@
 //!
 //! **`StrictPath` is the fundamental security primitive** that provides our core guarantee: every
 //! `StrictPath` is mathematically proven to be within its designated boundary. This is not just
-//! validation - it's a type-level security contract that makes path traversal attacks impossible.
+//! validation — it's a type-level security contract that makes path traversal attacks impossible,
+//! including attacks relying on symlink aliasing, Windows path forms, or encoding tricks.
 //!
 //! Everything else in this crate builds upon `StrictPath`:
 //! - `PathBoundary` creates and validates `StrictPath` instances from external input
@@ -121,6 +132,13 @@
 //!
 //! This principle ensures security where it matters while avoiding unnecessary overhead for paths you generate and control.
 //!
+//! ### Analogy: Prepared statements for paths
+//!
+//! Think of `StrictPath`/`VirtualPath` like prepared statements for SQL:
+//! - The `PathBoundary`/`VirtualRoot` you construct is the prepared statement — it encodes the policy and allowable scope.
+//! - The untrusted filename/path segment is the bound parameter — passed into `strict_join`/`virtual_join` where it’s validated or clamped.
+//! - Injection attempts become inert — attackers can’t “change the query” or escape the boundary; inputs are treated as data, not structure.
+//!
 //! ### Example: Isolation vs Shared System Space
 //!
 //! ```rust
@@ -194,6 +212,41 @@
 //!
 //! The core security guarantee is that all paths are mathematically proven to stay within their
 //! designated boundaries, neutralizing traversal attacks like `../../../etc/passwd`.
+//!
+//! ## Type-System Guarantees in Function Signatures
+//!
+//! Use marker types to encode policy directly in your APIs. Callers must supply the right
+//! `StrictPath<Marker>` or the code simply won’t compile.
+//!
+//! ```rust
+//! # use strict_path::{PathBoundary, StrictPath};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Define semantic markers
+//! struct PublicAssets;
+//! struct UserUploads;
+//!
+//! // Policy roots
+//! # std::fs::create_dir_all("./assets")?;
+//! # std::fs::create_dir_all("./uploads")?;
+//! let assets = PathBoundary::<PublicAssets>::try_new("./assets")?;
+//! let uploads = PathBoundary::<UserUploads>::try_new("./uploads")?;
+//!
+//! // Safe paths — existence itself proves they’re inside their boundary
+//! let css: StrictPath<PublicAssets> = assets.strict_join("style.css")?;
+//! let avatar: StrictPath<UserUploads> = uploads.strict_join("avatar.jpg")?;
+//!
+//! // Encode guarantees in the signature
+//! fn serve_public_asset(file: &StrictPath<PublicAssets>) { /* ... */ }
+//!
+//! serve_public_asset(&css);       // ✅ OK
+//! // serve_public_asset(&avatar); // ❌ Compile error (wrong marker)
+//! # std::fs::remove_dir_all("./assets").ok();
+//! # std::fs::remove_dir_all("./uploads").ok();
+//! # Ok(()) }
+//! ```
+//!
+//! Contracts like these push policy to the type system: if a `StrictPath<Marker>` exists,
+//! it cannot reference anything outside the associated boundary.
 //!
 //! ## About This Crate: StrictPath and VirtualPath
 //!
