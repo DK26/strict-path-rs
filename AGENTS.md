@@ -330,6 +330,31 @@ When creating issues, ensure they include:
 - Unix/WSL: `bash ./ci-local.sh`.
 - Scripts auto‑fix format/clippy where safe and mirror CI behavior (including mdBook build).
 
+### Local CI scripts: roles and when to use each
+
+We provide three complementary local CI entry points to keep feedback fast and focused. Use these from the repository root unless noted.
+
+- `ci-check.ps1` / `ci-check.sh` — fast core library validation (no demos)
+  - Scope: `strict-path/` crate only; MSRV-aligned behavior.
+  - What it does: `cargo fmt -p strict-path -- --check`, `cargo clippy -p strict-path --all-targets --all-features -D warnings`, and doc checks without compiling dependencies (`cargo doc -p strict-path --no-deps`).
+  - When to use: Editing core library code or docs and you want a quick signal without building demos or pulling extra crates.
+
+- `ci-check-demos.ps1` / `ci-check-demos.sh` — selective demos validation
+  - Scope: `demos/` crate only; does not build or run demo binaries by default.
+  - Default behavior: Auto-format changed demo files and validate style without compiling. It detects changes from both `git diff` and `git diff --staged`, and only checks the demo files that changed.
+  - Safe features: Clippy runs are gated to lightweight features by default (`with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp`) to avoid heavy toolchain deps (e.g., `cmake`, `nasm`).
+  - When to use: You modified one or a few demo binaries and want quick feedback without compiling the entire demos crate.
+
+- `ci-local.ps1` / `ci-local.sh` — orchestrated local pipeline (full pass)
+  - Scope: Orchestrates format and clippy auto-fixes for both the core library and demos. Mirrors CI intent while remaining fast locally.
+  - Split clippy steps: Runs `cargo clippy --fix` separately for the library (`-p strict-path --all-features`) and for demos (from `demos/` with the safe feature set). This avoids unnecessary heavy deps unless explicitly opted in.
+  - When to use: Before committing/pushing to get a near-CI signal and apply safe auto-fixes across the workspace.
+
+Notes
+- All scripts default to “auto-fix where safe,” especially formatting. Prefer running them before committing to keep diffs clean.
+- The demos checker focuses solely on demo changes; core edits won’t force demos checks unless you explicitly choose to run the orchestrator.
+- Heavy demo feature sets (e.g., cloud SDKs) should be opted into explicitly when you need to compile/run those demos locally.
+
 ### When a CI Step Fails: Targeted Isolation Workflow
 
 Always reproduce and fix the failure on the same platform where it occurred (Windows vs. Linux/macOS) before re‑running the full pipeline.

@@ -209,8 +209,8 @@ impl<Marker> VirtualPath<Marker> {
                     parent_virtual_path.to_path_buf(),
                 )
                 .canonicalize_anchored(self.inner.boundary())?;
-                let strict_path = clamp(self.inner.boundary(), anchored)?;
-                Ok(Some(VirtualPath::new(strict_path)))
+                let validated_path = clamp(self.inner.boundary(), anchored)?;
+                Ok(Some(VirtualPath::new(validated_path)))
             }
             None => Ok(None),
         }
@@ -223,8 +223,8 @@ impl<Marker> VirtualPath<Marker> {
         let candidate = self.virtual_path.with_file_name(file_name);
         let anchored = crate::validator::path_history::PathHistory::new(candidate)
             .canonicalize_anchored(self.inner.boundary())?;
-        let strict_path = clamp(self.inner.boundary(), anchored)?;
-        Ok(VirtualPath::new(strict_path))
+        let validated_path = clamp(self.inner.boundary(), anchored)?;
+        Ok(VirtualPath::new(validated_path))
     }
 
     /// SUMMARY:
@@ -240,8 +240,8 @@ impl<Marker> VirtualPath<Marker> {
         let candidate = self.virtual_path.with_extension(extension);
         let anchored = crate::validator::path_history::PathHistory::new(candidate)
             .canonicalize_anchored(self.inner.boundary())?;
-        let strict_path = clamp(self.inner.boundary(), anchored)?;
-        Ok(VirtualPath::new(strict_path))
+        let validated_path = clamp(self.inner.boundary(), anchored)?;
+        Ok(VirtualPath::new(validated_path))
     }
 
     /// SUMMARY:

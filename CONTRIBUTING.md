@@ -60,6 +60,27 @@ bash ci-local.sh
 
 If it passes, your code is ready.
 
+### Local CI scripts (fast lanes)
+
+Use these from the repo root to get fast, targeted feedback:
+
+- Default pre-commit run: runs formatting + clippy auto-fixes for both core and demos, mirroring CI intent while staying fast.
+   - Windows: `./ci-local.ps1`
+   - Linux/macOS/WSL: `bash ./ci-local.sh`
+
+- Core-only quick check: validate the `strict-path/` crate without demos. Runs `cargo fmt --check`, `cargo clippy -D warnings`, and `cargo doc --no-deps` for the core.
+   - Windows: `./ci-check.ps1`
+   - Linux/macOS/WSL: `bash ./ci-check.sh`
+
+- Demos-only selective check: focuses solely on changed demo files. Auto-formats changed demos by default, validates style without compiling, and gates clippy to safe features to avoid heavy native deps.
+   - Windows: `./ci-check-demos.ps1`
+   - Linux/macOS/WSL: `bash ./ci-check-demos.sh`
+
+Notes
+- The demos checker looks at both `git diff` and `git diff --staged` and only checks files that actually changed.
+- Heavy demo feature sets (e.g., cloud SDKs) are opt-in; the default “safe features” keep runs lightweight.
+- See `AGENTS.md` for full details and rationale.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under MIT OR Apache-2.0.

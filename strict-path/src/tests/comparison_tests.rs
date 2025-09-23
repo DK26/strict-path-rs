@@ -172,12 +172,12 @@ fn test_cross_type_path_comparisons() {
     let vroot: VirtualRoot = VirtualRoot::try_new_create(tempdir.path()).unwrap();
 
     // Create test paths
-    let strict_path = temp_dir.strict_join("test.txt").unwrap();
+    let file_path = temp_dir.strict_join("test.txt").unwrap();
     let virtual_path = vroot.virtual_join("test.txt").unwrap();
 
     // Cross-type comparisons should work both ways
-    assert_eq!(strict_path, virtual_path);
-    assert_eq!(virtual_path, strict_path);
+    assert_eq!(file_path, virtual_path);
+    assert_eq!(virtual_path, file_path);
 
     // PathBoundary vs VirtualRoot
     assert_eq!(temp_dir, vroot);
@@ -186,7 +186,7 @@ fn test_cross_type_path_comparisons() {
     // Different files should not be equal
     let strict_different = temp_dir.strict_join("different.txt").unwrap();
     let virtual_different = vroot.virtual_join("different.txt").unwrap();
-    assert_ne!(strict_path, virtual_different);
+    assert_ne!(file_path, virtual_different);
     assert_ne!(virtual_path, strict_different);
 }
 

@@ -9,17 +9,17 @@ fn test_strict_path_collections() {
     let temp_dir: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
     let test_path = PathBuf::from("path/file.txt");
     let stated_path = crate::validator::path_history::PathHistory::new(test_path);
-    let strict_path: StrictPath = temp_dir
+    let entry_path: StrictPath = temp_dir
         .strict_join(stated_path.virtualize_to_restriction(&temp_dir))
         .unwrap();
 
     let mut map: HashMap<StrictPath, &str> = HashMap::new();
-    map.insert(strict_path.clone(), "value");
-    assert_eq!(map.get(&strict_path), Some(&"value"));
+    map.insert(entry_path.clone(), "value");
+    assert_eq!(map.get(&entry_path), Some(&"value"));
 
     let mut btree: BTreeMap<StrictPath, &str> = BTreeMap::new();
-    btree.insert(strict_path.clone(), "btree");
-    assert_eq!(btree.get(&strict_path), Some(&"btree"));
+    btree.insert(entry_path.clone(), "btree");
+    assert_eq!(btree.get(&entry_path), Some(&"btree"));
 }
 
 #[test]

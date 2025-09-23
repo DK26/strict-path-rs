@@ -7,14 +7,14 @@ fn test_strict_path_creation() {
     let temp = tempfile::tempdir().unwrap();
     let temp_dir: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
     let path = crate::validator::path_history::PathHistory::new(&test_path);
-    let strict_path: StrictPath = temp_dir
+    let validated_path: StrictPath = temp_dir
         .strict_join(path.virtualize_to_restriction(&temp_dir))
         .unwrap();
 
     // Should store the path correctly
     let abs_path = temp_dir.path().join(&test_path);
     assert_eq!(
-        strict_path.strictpath_to_string_lossy(),
+        validated_path.strictpath_to_string_lossy(),
         abs_path.to_string_lossy()
     );
 }
@@ -25,12 +25,12 @@ fn test_strict_path_debug() {
     let temp = tempfile::tempdir().unwrap();
     let temp_dir: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
     let stated_path = crate::validator::path_history::PathHistory::new(test_path);
-    let strict_path: StrictPath = temp_dir
+    let file_path: StrictPath = temp_dir
         .strict_join(stated_path.virtualize_to_restriction(&temp_dir))
         .unwrap();
 
     // Should be debuggable
-    let debug_str = format!("{strict_path:?}");
+    let debug_str = format!("{file_path:?}");
     assert!(debug_str.contains("StrictPath"));
 }
 
