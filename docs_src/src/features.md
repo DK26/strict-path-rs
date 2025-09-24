@@ -1,16 +1,14 @@
 # Features
 
-The `strict-path` crate provides several optional fea[de```toml
+The `strict-path` crate provides several optional features that extend functionality while maintaining the core security guarantees. All features are disabled by default to keep the core library lightweight.
+
+```toml
 [dependencies]
 strict-path = { 
     version = "0.1.0-alpha.6", 
     features = ["dirs", "serde", "tempfile", "app-path"] 
 }
-```ies]
-strict-path = { 
-    version = "0.1.0-alpha.6", 
-    features = ["dirs", "serde", "tempfile", "app-path"]
-} that extend functionality while maintaining the core security guarantees. All features are disabled by default to keep the core library lightweight.
+```
 
 ## Available Features
 

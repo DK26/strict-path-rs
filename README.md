@@ -30,11 +30,11 @@ but by construction.
 use strict_path::{StrictPath, VirtualPath};
 
 // Strict system path rooted at ./data
-let sp = StrictPath::with_boundary("./data")?
+let alice_file = StrictPath::with_boundary("./data")?
     .strict_join("users/alice.txt")?;
 
 // Virtual view rooted at ./public (displays as "/...")
-let vp = VirtualPath::with_root("./public")?
+let logo_file = VirtualPath::with_root("./public")?
     .virtual_join("assets/logo.png")?;
 ```
 
@@ -119,7 +119,8 @@ safe_path.remove_file()?; // Remove when cleanup is required
 
 Use marker types in your function signatures to encode policy and prevent mix-ups across storage domains. The compiler enforces that only the correct paths reach each function.
 
-// Example A — StrictPath with markers
+### Example A: StrictPath with markers
+
 ```rust
 use strict_path::{PathBoundary, StrictPath};
 
@@ -127,40 +128,42 @@ struct PublicAssets; // CSS, JS, images
 struct UserUploads;  // Uploaded documents
 
 // Create type-safe boundaries (policy)
-let assets = PathBoundary::<PublicAssets>::try_new("./assets")?;
-let uploads = PathBoundary::<UserUploads>::try_new("./uploads")?;
+let public_assets_root = PathBoundary::<PublicAssets>::try_new("./assets")?;
+let user_uploads_root = PathBoundary::<UserUploads>::try_new("./uploads")?;
 
 // Produce mathematically safe paths (cannot exist outside their boundary)
-let css: StrictPath<PublicAssets> = assets.strict_join("style.css")?;
-let avatar: StrictPath<UserUploads> = uploads.strict_join("avatar.jpg")?;
+let css_file: StrictPath<PublicAssets> = public_assets_root.strict_join("style.css")?;
+let avatar_file: StrictPath<UserUploads> = user_uploads_root.strict_join("avatar.jpg")?;
 
 // Encode guarantees in signatures — prevents cross-domain mix-ups at compile time
-fn serve_public_asset(file: &StrictPath<PublicAssets>) {
-    // Safe by construction; `file` cannot escape `assets` boundary
+fn serve_public_asset(css_file: &StrictPath<PublicAssets>) {
+    // Safe by construction; `css_file` cannot escape `public_assets_root`
 }
 
-serve_public_asset(&css);        // ✅ OK
-// serve_public_asset(&avatar);  // ❌ Compile error: wrong marker
+serve_public_asset(&css_file);        // ✅ OK
+// serve_public_asset(&avatar_file);  // ❌ Compile error: wrong marker
 ```
 
-// Example B — VirtualPath for user-facing flows (per-user root)
+### Example B: VirtualPath for user-facing flows (per-user root)
+
 ```rust
 use strict_path::{VirtualRoot, VirtualPath};
 
 struct UserUploads; // Uploaded documents
 
 let user_id = 42; // Example unique user identifier
-let vroot: VirtualRoot<UserUploads> = VirtualRoot::try_new(format!("./uploads/{user_id}"))?; // per-user root
-let avatar_v: VirtualPath<UserUploads> = vroot.virtual_join("avatar.jpg")?;
+let user_uploads_root = VirtualRoot::try_new(format!("./uploads/{user_id}"))?; // per-user root
+let avatar_file: VirtualPath<UserUploads> = user_uploads_root.virtual_join("avatar.jpg")?;
 
-fn process_upload(p: &VirtualPath<UserUploads>) {
+fn process_upload(avatar_file: &VirtualPath<UserUploads>) {
     // Use virtualpath_display() for UI; clamp is guaranteed
 }
 
-process_upload(&avatar_v);       // ✅ OK
+process_upload(&avatar_file);       // ✅ OK
 ```
 
-// Example C — One common helper shared by both
+### Example C: One common helper shared by both
+
 ```rust
 use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
 
@@ -168,21 +171,21 @@ struct PublicAssets;
 struct UserUploads;
 
 // A common helper that works with any StrictPath marker
-fn process_common<M>(path: &StrictPath<M>) -> std::io::Result<Vec<u8>> {
-    path.read()
+fn process_common<M>(file: &StrictPath<M>) -> std::io::Result<Vec<u8>> {
+    file.read()
 }
 
 // Prepare one strict and one virtual path
-let assets = PathBoundary::<PublicAssets>::try_new("./assets")?;
-let css: StrictPath<PublicAssets> = assets.strict_join("style.css")?;
+let public_assets_root = PathBoundary::<PublicAssets>::try_new("./assets")?;
+let css_file: StrictPath<PublicAssets> = public_assets_root.strict_join("style.css")?;
 
 let user_id = 42;
-let vroot: VirtualRoot<UserUploads> = VirtualRoot::try_new(format!("./uploads/{user_id}"))?;
-let avatar_v: VirtualPath<UserUploads> = vroot.virtual_join("avatar.jpg")?;
+let user_uploads_root = VirtualRoot::try_new(format!("./uploads/{user_id}"))?;
+let avatar_file: VirtualPath<UserUploads> = user_uploads_root.virtual_join("avatar.jpg")?;
 
 // Call with either type
-let _ = process_common(&css)?;                   // StrictPath
-let _ = process_common(avatar_v.as_unvirtual())?; // Borrow strict view from VirtualPath
+let _ = process_common(&css_file)?;                   // StrictPath
+let _ = process_common(avatar_file.as_unvirtual())?; // Borrow strict view from VirtualPath
 ```
 
 Why this matters:
@@ -190,19 +193,7 @@ Why this matters:
 - Function signatures become policy — the type system rejects misuse and cross-domain mix-ups.
 - Prefer simple, dimension-specific helpers; when needed, borrow a strict view from a virtual path with `as_unvirtual()`.
 
-## 🛡️ **Security Features**
-
-> "If you see a CVE, don't panic—just use strict-path."
-
-- **CVE-Aware Protection**: Built on 19+ real-world path vulnerabilities — we've done the security research so you don't have to
-- **Mathematical Guarantees**: Paths are canonicalized and boundary-checked - impossible to escape the restriction  
-- **Type Safety**: Marker types prevent mixing different storage contexts at compile time
-- **LLM-Ready**: Designed specifically for untrusted AI-generated paths and modern threat models
-- **Platform Security**: Safe symlink/junction handling; Windows 8.3 short names, UNC, verbatim prefixes, ADS; Unicode normalization edge cases
-- **Zero-Allocation Interop**: `.interop_path()` for seamless integration with existing `std::path` code
-- **Misuse Resistant**: API design makes security violations visible in code review
-
-## 📌 Where This Makes Sense
+##  Where This Makes Sense
 
 > "LLMs: great at generating paths, terrible at keeping secrets."
 
@@ -215,19 +206,36 @@ Trade‑offs you can choose explicitly:
 - Zero‑trust, CVE‑aware approach: Prefer canonicalized solutions (this crate) to resolve to absolute, normalized system paths with symlink handling and platform quirks addressed. This defends against entire classes of traversal and aliasing attacks.
 - Lexical approach (performance‑first, limited scope): If you’re absolutely certain there are no symlinks, junctions, mounts, or platform‑specific aliases and your inputs are already normalized, a lexical solution from another crate may be faster. Use this only when the invariants are guaranteed by your environment and tests.
 
-## 🎯 **When to Use Each Type**
+## 🎯 **Decision Guide: When to Use What**
 
-> "StrictPath: the bouncer at your filesystem nightclub."
+> Golden Rule: If you didn't create the path yourself, secure it first.
 
-| Your Input Source                           | Use This       | Why                                                 |
-| ------------------------------------------- | -------------- | --------------------------------------------------- |
-| **HTTP requests, LLM output, config files** | `StrictPath`   | Reject attacks explicitly - perfect for validation  |
-| **User uploads, archive extraction**        | `VirtualPath`  | Clamp hostile paths safely - perfect for sandboxing |
-| **Your own hardcoded paths**                | `Path/PathBuf` | You control it, no validation needed                |
+| Source/Input                                                                                              | Choose         | Why                                            | Notes                                            |
+| --------------------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------------- | ------------------------------------------------ |
+| HTTP/CLI args/config/LLM/DB (untrusted segments)                                                          | `StrictPath`   | Reject attacks explicitly before I/O           | Validate with `PathBoundary.strict_join(...)`    |
+| Archive contents, user uploads (user-facing UX)                                                           | `VirtualPath`  | Clamp hostile paths safely; rooted "/" display | Per-user `VirtualRoot`; use `.virtual_join(...)` |
+| UI-only path display                                                                                      | `VirtualPath`  | Show clean rooted paths                        | `virtualpath_display()`; no system leakage       |
+| Your own code/hardcoded paths                                                                             | `Path/PathBuf` | You control the value                          | Never for untrusted input                        |
+| External APIs/webhooks/inter-service messages                                                             | `StrictPath`   | System-facing interop/I/O requires validation  | Validate on consume before touching FS           |
+| *(See the [full decision matrix](https://dk26.github.io/strict-path-rs/best_practices.html) in the book)* |                |                                                |                                                  |
 
-**Think of it this way:**
-- `StrictPath` = **Security Filter** — validates and rejects unsafe paths
-- `VirtualPath` = **Complete Sandbox** — clamps any input to stay safe
+Notes that matter:
+- This isn’t StrictPath vs VirtualPath. `VirtualPath` conceptually extends `StrictPath` with a virtual "/" view; both support I/O and interop. Choose based on whether you need virtual, user-facing semantics (VirtualPath) or raw system-facing validation (StrictPath).
+- Unified helpers: Prefer dimension-specific signatures. When sharing a helper across both, accept `&StrictPath<_>` and call with `vpath.as_unvirtual()` as needed.
+
+### At‑a‑glance: API Modes
+
+| Feature            | `Path`/`PathBuf`                            | `StrictPath`                        | `VirtualPath`                                      |
+| ------------------ | ------------------------------------------- | ----------------------------------- | -------------------------------------------------- |
+| **Security**       | None 💥                                      | Validates & rejects ✅               | Clamps any input ✅                                 |
+| **Join safety**    | Unsafe (can escape)                         | Boundary-checked                    | Boundary-clamped                                   |
+| **Example attack** | `"../../../etc/passwd"` → **System breach** | `"../../../etc/passwd"` → **Error** | `"../../../etc/passwd"` → **`/etc/passwd`** (safe) |
+| **Best for**       | Known-safe paths                            | System boundaries                   | User interfaces                                    |
+
+Further reading in the book:
+- Best Practices (full decision matrix and rationale): https://dk26.github.io/strict-path-rs/best_practices.html
+- Anti-Patterns (what not to do, with fixes): https://dk26.github.io/strict-path-rs/anti_patterns.html
+- Examples (end-to-end realistic scenarios): https://dk26.github.io/strict-path-rs/examples.html
 
 ## 🛡️ **Core Security Foundation**
 
@@ -247,7 +255,7 @@ Everything in this crate builds upon `StrictPath`:
 
 Any path from untrusted sources (HTTP, CLI, config, DB, LLMs, archives) must be validated into a boundary‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
 
-## 🎯 **Choose Your Weapon: When to Use What**
+## 🧪 Examples by Mode
 
 > "Choose wisely: not all paths lead to safety."
 
@@ -302,16 +310,6 @@ let app_config = Path::new("config/app.toml"); // Hardcoded = safe
 let user_file = Path::new(user_input); // 🚨 SECURITY DISASTER
 ```
 
-## 🎖️ **The Golden Rule**
-
-> "If you didn't create the path yourself, it's probably plotting against you."
-
-| Input Source                              | Use This       | Why                        |
-| ----------------------------------------- | -------------- | -------------------------- |
-| **HTTP requests, CLI args, config files** | `StrictPath`   | Reject attacks explicitly  |
-| **LLM/AI output, database records**       | `StrictPath`   | Validate before execution  |
-| **Archive contents, user uploads**        | `VirtualPath`  | Clamp hostile paths safely |
-| **Your own code, hardcoded paths**        | `Path/PathBuf` | You control it             |
 
 ## 🚀 **Real-World Examples**
 
@@ -381,9 +379,6 @@ fn load_user_config(config_dir: &PathBoundary<UserConfigs>, config_name: &str) -
 }
 ```
 
-
-
-
 ## ⚠️ **Security Scope**
 
 > "If your attacker has root, strict-path can't save you—but it can make them work for it."
@@ -402,31 +397,6 @@ fn load_user_config(config_dir: &PathBoundary<UserConfigs>, config_name: &str) -
 
 **Bottom line**: If attackers have root/admin access, they've already won. This library stops the 99% of practical attacks that don't require special privileges.
 
-## 📋 **Input Source Decision Matrix**
-
-> "If you need a matrix to decide, you probably need strict-path."
-
-| Source                      | Typical Input                  | Use VirtualPath For                       | Use StrictPath For        | Notes                                                   |
-| --------------------------- | ------------------------------ | ----------------------------------------- | ------------------------- | ------------------------------------------------------- |
-| 🌐 **HTTP requests**         | URL path segments, file names  | Display/logging, safe virtual joins       | System-facing interop/I/O | Always clamp user paths via `VirtualPath::virtual_join` |
-| 🌍 **Web forms**             | Form file fields, route params | User-facing display, UI navigation        | System-facing interop/I/O | Treat all form inputs as untrusted                      |
-| ⚙️ **Configuration files**   | Paths in config                | UI display and I/O within boundary        | System-facing interop/I/O | Validate each path before I/O                           |
-| 💾 **Database content**      | Stored file paths              | Rendering paths in UI dashboards          | System-facing interop/I/O | Storage does not imply safety; validate on use          |
-| 📂 **CLI arguments**         | Command-line path args         | Pretty printing, I/O within boundary      | System-facing interop/I/O | Validate args before touching filesystem                |
-| 🔌 **External APIs**         | Webhooks, 3rd-party payloads   | Present sanitized paths to logs           | System-facing interop/I/O | Never trust external systems                            |
-| 🤖 **LLM/AI output**         | Generated file names/paths     | Display suggestions, I/O within boundary  | System-facing interop/I/O | LLM output is untrusted by default                      |
-| 📨 **Inter-service msgs**    | Queue/event payloads           | Observability output, I/O within boundary | System-facing interop/I/O | Validate on the consumer side                           |
-| 📱 **Apps (desktop/mobile)** | Drag-and-drop, file pickers    | Show picked paths in UI                   | System-facing interop/I/O | Validate selected paths before I/O                      |
-| 📦 **Archive contents**      | Entry names from ZIP/TAR       | Progress UI, virtual joins                | System-facing interop/I/O | Validate each entry to block zip-slip                   |
-| 🔧 **File format internals** | Embedded path strings          | Diagnostics, I/O within boundary          | System-facing interop/I/O | Never dereference without validation                    |
-
-Note: This is not “StrictPath vs VirtualPath.” `VirtualPath` conceptually extends `StrictPath` with a virtual-root view and restricted, path boundary-aware operations. Both support I/O and interop; choose based on whether you need virtual, user-facing path semantics or raw system-facing semantics.
-
-**Think of it this way:**
-- `StrictPath` = **Security Filter** — validates and rejects unsafe paths
-- `VirtualPath` = **Complete Sandbox** — clamps any input to stay safe
-
-**Unified signatures note**: Prefer marker-specific `&StrictPath<Marker>` or `&VirtualPath<Marker>` for intent clarity. Use a generic `&StrictPath<_>` only when helpers are intentionally shared; borrow from virtual with `as_unvirtual()` as shown above.
 
 ## 🔐 **Advanced: Type-Safe Context Separation**
 
@@ -441,19 +411,19 @@ struct WebAssets;    // CSS, JS, images
 struct UserFiles;    // Uploaded documents
 
 // Functions enforce context via type system
-fn serve_asset(path: &StrictPath<WebAssets>) -> Response { /* ... */ }
-fn process_upload(path: &StrictPath<UserFiles>) -> Result<()> { /* ... */ }
+fn serve_asset(web_asset_file: &StrictPath<WebAssets>) -> Response { /* ... */ }
+fn process_upload(user_file: &StrictPath<UserFiles>) -> Result<()> { /* ... */ }
 
-// Create context-specific boundaries
-let assets_root: VirtualRoot<WebAssets> = VirtualRoot::try_new("public")?;
-let uploads_root: VirtualRoot<UserFiles> = VirtualRoot::try_new("uploads")?;
+// Create context-specific roots
+let public_assets_root: VirtualRoot<WebAssets> = VirtualRoot::try_new("public")?;
+let user_uploads_root: VirtualRoot<UserFiles> = VirtualRoot::try_new("uploads")?;
 
-let css: VirtualPath<WebAssets> = assets_root.virtual_join("app.css")?;
-let doc: VirtualPath<UserFiles> = uploads_root.virtual_join("report.pdf")?;
+let css_file: VirtualPath<WebAssets> = public_assets_root.virtual_join("app.css")?;
+let report_file: VirtualPath<UserFiles> = user_uploads_root.virtual_join("report.pdf")?;
 
 // Type system prevents context mixing
-serve_asset(css.as_unvirtual());         // Correct context
-// serve_asset(doc.as_unvirtual());      // Compile error!
+serve_asset(css_file.as_unvirtual());         // Correct context
+// serve_asset(report_file.as_unvirtual());   // Compile error!
 ```
 
 **Your IDE and compiler become security guards.**
@@ -481,19 +451,20 @@ safe_config.write(&settings)?;
 
 ```rust
 use strict_path::PathBoundary;
-let boundary = PathBoundary::try_new("uploads")?;
+let user_uploads_root = PathBoundary::try_new("./uploads")?; // user uploads root
 
 // ❌ ANTI-PATTERN: Wrong method for display
-println!("Path: {}", boundary.interop_path().to_string_lossy());
+println!("Path: {}", user_uploads_root.interop_path().to_string_lossy());
 
 // ✅ CORRECT: Use proper display methods
-println!("Path: {}", boundary.strictpath_display());
+println!("Path: {}", user_uploads_root.strictpath_display());
 
 // For virtual flows, prefer `VirtualPath` and borrow strict view when needed:
 use strict_path::VirtualPath;
-let vpath = VirtualPath::with_root("uploads")?.virtual_join("file.txt")?;
-println!("Virtual: {}", vpath.virtualpath_display());
-println!("System: {}", vpath.as_unvirtual().strictpath_display());
+let user_uploads_vroot = VirtualPath::with_root("./uploads")?; // user uploads root
+let profile_avatar_file = user_uploads_vroot.virtual_join("profile/avatar.png")?; // file by domain role
+println!("Virtual: {}", profile_avatar_file.virtualpath_display());
+println!("System: {}", profile_avatar_file.as_unvirtual().strictpath_display());
 ```
 
 **Why this matters:**
@@ -517,22 +488,16 @@ serve_static_file(&safe_path).await?;
 ```
 
 ### Archive Extraction (Zip Slip Prevention)
-```rust
-let extract_root = VirtualPath::with_root("./extracted")?;
-for (name, data) in zip_entries {
-    let vpath = extract_root.virtual_join(&name)?;  // Neutralizes zip slip (clamps hostile)
-    vpath.create_parent_dir_all()?;
-    vpath.write(&data)?;
-}
-```
+See the mdBook archive extractors guide for the full example and rationale:
+https://dk26.github.io/strict-path-rs/archive_extractors.html
 
 ### Cloud Storage API  
 
 ```rust
 // User chooses any path - always safe
-let file_path = VirtualPath::with_root(format!("/cloud/user_{id}"))?
-    .virtual_join(&user_requested_path)?;
-file_path.write(upload_data)?;
+let user_cloud_root = VirtualPath::with_root(format!("/cloud/user_{id}"))?;
+let user_cloud_file = user_cloud_root.virtual_join(&user_requested_path)?;
+user_cloud_file.write(upload_data)?;
 ```
 
 ### Configuration Files
@@ -545,9 +510,6 @@ fn load_config(config_dir: &PathBoundary, name: &str) -> Result<String> {
 }
 ```
 
-
-
-
 ### LLM/AI File Operations
 ```rust
 // AI suggests file operations - always validated
@@ -557,37 +519,15 @@ let safe_ai_path = ai_workspace.strict_join(ai_suggested_path)?; // Guaranteed s
 safe_ai_path.write(&ai_generated_content)?;
 ```
 
-
-
-## 📚 **API Quick Reference**
-
-> "StrictPath: the only path that doesn't ghost you at runtime."
-
-| Feature            | `Path`/`PathBuf`                            | `StrictPath`                        | `VirtualPath`                                      |
-| ------------------ | ------------------------------------------- | ----------------------------------- | -------------------------------------------------- |
-| **Security**       | None 💥                                      | Validates & rejects ✅               | Clamps any input ✅                                 |
-| **Join safety**    | Unsafe (can escape)                         | Boundary-checked                    | Boundary-clamped                                   |
-| **Example attack** | `"../../../etc/passwd"` → **System breach** | `"../../../etc/passwd"` → **Error** | `"../../../etc/passwd"` → **`/etc/passwd`** (safe) |
-| **Best for**       | Known-safe paths                            | System boundaries                   | User interfaces                                    |
-
-```rust
-// StrictPath - validate and reject
-let path = StrictPath::with_boundary("uploads")?.strict_join("file.txt")?; // Error if unsafe
-
-// VirtualPath - clamp any input safely  
-let vpath = VirtualPath::with_root("userspace")?.virtual_join("any/path/here")?; // Always works
-
-// Both support the same I/O operations
-path.write(data)?;
-vpath.read_to_string()?;
-```
-
 ## 📚 **Documentation & Resources**
 
 > "If you read the docs, you get +10 security points."
 
 - **📖 [Complete API Reference](https://docs.rs/strict-path)** - Comprehensive API documentation
-- **📚 [User Guide & Examples](https://dk26.github.io/strict-path-rs/)** - In-depth tutorials and patterns  
+- **📚 [User Guide & Examples](https://dk26.github.io/strict-path-rs/)** - In-depth tutorials and patterns
+    - Best Practices (detailed decision matrix): https://dk26.github.io/strict-path-rs/best_practices.html
+    - Anti-Patterns (don’t-do list with fixes): https://dk26.github.io/strict-path-rs/anti_patterns.html
+    - Examples (copy/pasteable scenarios): https://dk26.github.io/strict-path-rs/examples.html
 - **🔧 [LLM_API_REFERENCE.md](LLM_API_REFERENCE.md)** - Quick reference for all methods (LLM-focused)
 - **🛠️ [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)** - The underlying path resolution engine
 

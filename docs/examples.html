@@ -188,42 +188,42 @@ impl FileUploadService {
     // Multi-user: each user operates under their own VirtualRoot
     fn upload_file(
         &amp;self,
-        user_root: &amp;VirtualRoot,
-        filename: &amp;str,
-        content: &amp;[u8],
+        user_uploads_root: &amp;VirtualRoot,
+        upload_file_name: &amp;str,
+        upload_file_content: &amp;[u8],
     ) -&gt; Result&lt;VirtualPath, Box&lt;dyn std::error::Error&gt;&gt; {
         // Validate the untrusted filename at the user’s virtual root
-        let dest = user_root.virtual_join(filename)?;
+        let uploaded_file: VirtualPath = user_uploads_root.virtual_join(upload_file_name)?;
         // Reuse strict-typed helper when needed
-        self.save_uploaded(dest.as_unvirtual(), content)?;
-        println!("✅ File uploaded safely to: {}", dest.virtualpath_display());
-        Ok(dest)
+        self.save_uploaded(uploaded_file.as_unvirtual(), upload_file_content)?;
+        println!("✅ File uploaded safely to: {}", uploaded_file.virtualpath_display());
+        Ok(uploaded_file)
     }
 
     // Internal helper: signature encodes guarantee (accepts only &amp;StrictPath)
-    fn save_uploaded(&amp;self, path: &amp;StrictPath, content: &amp;[u8]) -&gt; io::Result&lt;()&gt; {
-        path.create_parent_dir_all()?;
-        path.write(content)
+    fn save_uploaded(&amp;self, file: &amp;StrictPath, content: &amp;[u8]) -&gt; io::Result&lt;()&gt; {
+        file.create_parent_dir_all()?;
+        file.write(content)
     }
 
     fn list_files(
         &amp;self,
-        user_root: &amp;VirtualRoot,
+        user_uploads_root: &amp;VirtualRoot,
     ) -&gt; Result&lt;Vec&lt;VirtualPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
         let mut files = Vec::new();
-        for entry in user_root.read_dir()? {
+        for entry in user_uploads_root.read_dir()? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
-                let vpath = user_root.virtual_join(entry.file_name())?;
-                files.push(vpath);
+                let file: VirtualPath = user_uploads_root.virtual_join(entry.file_name())?;
+                files.push(file);
             }
         }
         Ok(files)
     }
 
-    fn download_file(&amp;self, path: &amp;VirtualPath) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
+    fn download_file(&amp;self, file: &amp;VirtualPath) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
         // Read and return the file content — type ensures safety
-        path.read()
+        file.read()
     }
 }
 
@@ -231,27 +231,27 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let service = FileUploadService;
 
     // Per-user virtual roots
-    let alice_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/alice")?;
-    let bob_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/bob")?;
+    let alice_uploads_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/alice")?;
+    let bob_uploads_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/bob")?;
 
     // Simulate user uploads - these are all SAFE and isolated
-    service.upload_file(&amp;alice_root, "document.txt", b"Hello, world!")?;
-    service.upload_file(&amp;alice_root, "reports/january.pdf", b"PDF content here")?;
-    service.upload_file(&amp;bob_root, "images/photo.jpg", b"JPEG data")?;
+    service.upload_file(&amp;alice_uploads_root, "document.txt", b"Hello, world!")?;
+    service.upload_file(&amp;alice_uploads_root, "reports/january.pdf", b"PDF content here")?;
+    service.upload_file(&amp;bob_uploads_root, "images/photo.jpg", b"JPEG data")?;
 
     // These would be clamped/blocked by validation:
-    // service.upload_file(&amp;alice_root, "../../../etc/passwd", b"attack")?;  // ❌ Blocked!
-    // service.upload_file(&amp;alice_root, "..\\windows\\system32\\evil.exe", b"malware")?;  // ❌ Blocked!
+    // service.upload_file(&amp;alice_uploads_root, "../../../etc/passwd", b"attack")?;  // ❌ Blocked!
+    // service.upload_file(&amp;alice_uploads_root, "..\\windows\\system32\\evil.exe", b"malware")?;  // ❌ Blocked!
 
     // List Alice’s uploaded files (virtual paths)
     println!("📁 Alice's files:");
-    for vpath in service.list_files(&amp;alice_root)? {
-        println!("  - {}", vpath.virtualpath_display());
+    for file in service.list_files(&amp;alice_uploads_root)? {
+        println!("  - {}", file.virtualpath_display());
     }
 
     // Download a file using VirtualPath
-    let target = alice_root.virtual_join("document.txt")?;
-    let content = service.download_file(&amp;target)?;
+    let document_file = alice_uploads_root.virtual_join("document.txt")?;
+    let content = service.download_file(&amp;document_file)?;
     println!("📄 Downloaded: {}", String::from_utf8_lossy(&amp;content));
 
     Ok(())
@@ -264,20 +264,20 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 use std::io;
 
 // One helper that works with any marker
-fn process_common&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
-    path.read()
+fn process_common&lt;M&gt;(file: &amp;StrictPath&lt;M&gt;) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
+    file.read()
 }
 
-// Prepare one strict path and one virtual path
-let assets = PathBoundary::try_new("./assets")?;
-let css: StrictPath = assets.strict_join("style.css")?;
+// Prepare one strict file and one virtual file
+let public_assets_root = PathBoundary::try_new("./assets")?;
+let css_file: StrictPath = public_assets_root.strict_join("style.css")?;
 
-let vroot: VirtualRoot = VirtualRoot::try_new("./uploads/alice")?;
-let avatar_v: VirtualPath = vroot.virtual_join("avatar.jpg")?;
+let alice_uploads_root = VirtualRoot::try_new("./uploads/alice")?;
+let avatar_file: VirtualPath = alice_uploads_root.virtual_join("avatar.jpg")?;
 
 // Call with either type
-let _ = process_common(&amp;css)?;                   // StrictPath
-let _ = process_common(avatar_v.as_unvirtual())?; // Borrow strict view from VirtualPath
+let _ = process_common(&amp;css_file)?;                   // StrictPath
+let _ = process_common(avatar_file.as_unvirtual())?; // Borrow strict view from VirtualPath
 <span class="boring">}</span></code></pre></pre>
 <h2 id="configuration-file-manager"><a class="header" href="#configuration-file-manager">Configuration File Manager</a></h2>
 <p>Here's how to safely handle user configuration files:</p>

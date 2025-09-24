@@ -66,6 +66,14 @@ Directory convention for demos:
 - CLI/tools: `demos/src/bin/cli/...` or `.../tools/...`
 - Config/OS dirs: `demos/src/bin/config/...`
 
+
+## Variable Naming Rules (VirtualRoot & PathBoundary)
+
+When naming variables, treat `VirtualRoot` and `PathBoundary` as representations of paths, not as types to be suffixed. Name variables by their domain and role in the flow:
+- If a variable represents a file, name it by its domain and purpose (e.g., `profile_file`, `config_file`, `avatar_file`).
+- If a variable represents a directory/root, name it by its domain and role (e.g., `user_uploads_root`, `public_assets_root`, `config_dir`, `archive_src`).
+Avoid generic names like `boundary`, `jail`, or type-based suffixes. This applies to all boundaries, roots, and path values—use descriptive, context-rich names that reflect their role in the application, not their type.
+
 ## Code & API Usage Guidelines
 
 - Encode guarantees in function signatures:

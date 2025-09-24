@@ -16,42 +16,42 @@ impl FileUploadService {
     // Multi-user: each user operates under their own VirtualRoot
     fn upload_file(
         &self,
-        user_root: &VirtualRoot,
-        filename: &str,
-        content: &[u8],
+        user_uploads_root: &VirtualRoot,
+        upload_file_name: &str,
+        upload_file_content: &[u8],
     ) -> Result<VirtualPath, Box<dyn std::error::Error>> {
         // Validate the untrusted filename at the user’s virtual root
-        let dest = user_root.virtual_join(filename)?;
+        let uploaded_file: VirtualPath = user_uploads_root.virtual_join(upload_file_name)?;
         // Reuse strict-typed helper when needed
-        self.save_uploaded(dest.as_unvirtual(), content)?;
-        println!("✅ File uploaded safely to: {}", dest.virtualpath_display());
-        Ok(dest)
+        self.save_uploaded(uploaded_file.as_unvirtual(), upload_file_content)?;
+        println!("✅ File uploaded safely to: {}", uploaded_file.virtualpath_display());
+        Ok(uploaded_file)
     }
 
     // Internal helper: signature encodes guarantee (accepts only &StrictPath)
-    fn save_uploaded(&self, path: &StrictPath, content: &[u8]) -> io::Result<()> {
-        path.create_parent_dir_all()?;
-        path.write(content)
+    fn save_uploaded(&self, file: &StrictPath, content: &[u8]) -> io::Result<()> {
+        file.create_parent_dir_all()?;
+        file.write(content)
     }
 
     fn list_files(
         &self,
-        user_root: &VirtualRoot,
+        user_uploads_root: &VirtualRoot,
     ) -> Result<Vec<VirtualPath>, Box<dyn std::error::Error>> {
         let mut files = Vec::new();
-        for entry in user_root.read_dir()? {
+        for entry in user_uploads_root.read_dir()? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
-                let vpath = user_root.virtual_join(entry.file_name())?;
-                files.push(vpath);
+                let file: VirtualPath = user_uploads_root.virtual_join(entry.file_name())?;
+                files.push(file);
             }
         }
         Ok(files)
     }
 
-    fn download_file(&self, path: &VirtualPath) -> io::Result<Vec<u8>> {
+    fn download_file(&self, file: &VirtualPath) -> io::Result<Vec<u8>> {
         // Read and return the file content — type ensures safety
-        path.read()
+        file.read()
     }
 }
 
@@ -59,27 +59,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let service = FileUploadService;
 
     // Per-user virtual roots
-    let alice_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/alice")?;
-    let bob_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/bob")?;
+    let alice_uploads_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/alice")?;
+    let bob_uploads_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/bob")?;
 
     // Simulate user uploads - these are all SAFE and isolated
-    service.upload_file(&alice_root, "document.txt", b"Hello, world!")?;
-    service.upload_file(&alice_root, "reports/january.pdf", b"PDF content here")?;
-    service.upload_file(&bob_root, "images/photo.jpg", b"JPEG data")?;
+    service.upload_file(&alice_uploads_root, "document.txt", b"Hello, world!")?;
+    service.upload_file(&alice_uploads_root, "reports/january.pdf", b"PDF content here")?;
+    service.upload_file(&bob_uploads_root, "images/photo.jpg", b"JPEG data")?;
 
     // These would be clamped/blocked by validation:
-    // service.upload_file(&alice_root, "../../../etc/passwd", b"attack")?;  // ❌ Blocked!
-    // service.upload_file(&alice_root, "..\\windows\\system32\\evil.exe", b"malware")?;  // ❌ Blocked!
+    // service.upload_file(&alice_uploads_root, "../../../etc/passwd", b"attack")?;  // ❌ Blocked!
+    // service.upload_file(&alice_uploads_root, "..\\windows\\system32\\evil.exe", b"malware")?;  // ❌ Blocked!
 
     // List Alice’s uploaded files (virtual paths)
     println!("📁 Alice's files:");
-    for vpath in service.list_files(&alice_root)? {
-        println!("  - {}", vpath.virtualpath_display());
+    for file in service.list_files(&alice_uploads_root)? {
+        println!("  - {}", file.virtualpath_display());
     }
 
     // Download a file using VirtualPath
-    let target = alice_root.virtual_join("document.txt")?;
-    let content = service.download_file(&target)?;
+    let document_file = alice_uploads_root.virtual_join("document.txt")?;
+    let content = service.download_file(&document_file)?;
     println!("📄 Downloaded: {}", String::from_utf8_lossy(&content));
 
     Ok(())
@@ -95,20 +95,20 @@ use strict_path::{PathBoundary, StrictPath, VirtualPath, VirtualRoot};
 use std::io;
 
 // One helper that works with any marker
-fn process_common<M>(path: &StrictPath<M>) -> io::Result<Vec<u8>> {
-    path.read()
+fn process_common<M>(file: &StrictPath<M>) -> io::Result<Vec<u8>> {
+    file.read()
 }
 
-// Prepare one strict path and one virtual path
-let assets = PathBoundary::try_new("./assets")?;
-let css: StrictPath = assets.strict_join("style.css")?;
+// Prepare one strict file and one virtual file
+let public_assets_root = PathBoundary::try_new("./assets")?;
+let css_file: StrictPath = public_assets_root.strict_join("style.css")?;
 
-let vroot: VirtualRoot = VirtualRoot::try_new("./uploads/alice")?;
-let avatar_v: VirtualPath = vroot.virtual_join("avatar.jpg")?;
+let alice_uploads_root = VirtualRoot::try_new("./uploads/alice")?;
+let avatar_file: VirtualPath = alice_uploads_root.virtual_join("avatar.jpg")?;
 
 // Call with either type
-let _ = process_common(&css)?;                   // StrictPath
-let _ = process_common(avatar_v.as_unvirtual())?; // Borrow strict view from VirtualPath
+let _ = process_common(&css_file)?;                   // StrictPath
+let _ = process_common(avatar_file.as_unvirtual())?; // Borrow strict view from VirtualPath
 ```
 
 ## Configuration File Manager

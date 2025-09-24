@@ -468,11 +468,11 @@
 //! # let uploads_root: VirtualPath<UserUploads> = VirtualPath::with_root_create("uploads")?;
 //! let css_file: VirtualPath<StaticAssets> =
 //!     VirtualPath::with_root("assets")?.virtual_join("style.css")?;
-//! let user_file: VirtualPath<UserUploads> =
+//! let avatar_file: VirtualPath<UserUploads> =
 //!     VirtualPath::with_root("uploads")?.virtual_join("avatar.jpg")?;
 //!
 //! serve_asset(css_file.as_unvirtual())?; // ✅ Correct type
-//! // serve_asset(user_file.as_unvirtual())?; // ❌ Compile error: wrong marker type!
+//! // serve_asset(avatar_file.as_unvirtual())?; // ❌ Compile error: wrong marker type!
 //! # css_root.remove_dir_all().ok(); uploads_root.remove_dir_all().ok();
 //! # Ok(())
 //! # }
@@ -534,7 +534,7 @@
 //! - Passing to external APIs: Prefer `strict_path.interop_path()` which borrows the
 //!   inner system-facing path as `&OsStr` (implements `AsRef<Path>`). This is the cheapest and most
 //!   correct way to interoperate without exposing risky methods.
-//! - Ownership escape hatches: Use `.unvirtual()` (to get a `StrictPath`) and `.unstrict()`
+//! - Ownership escape hatches: Use `.unvirtual()` (to get a `StrictPath`) or `.unstrict()`
 //!   (to get an owned `PathBuf`) explicitly and sparingly. These are deliberate, opt-in
 //!   operations to make potential risk obvious in code review.
 //!
@@ -644,8 +644,8 @@
 //!   - `interop_path().as_ref()` or `as_unvirtual().interop_path()` → `interop_path()` is enough; both `VirtualRoot`/`VirtualPath` expose it.
 //!   - Using std path ops on leaked values → use `strict_join`/`virtual_join`, `strictpath_parent`/`virtualpath_parent`.
 //!   - Raw `&str` parameters for safe helpers → take `&StrictPath<_>`/`&VirtualPath<_>` or (boundary/root + segment).
-//! - Do not leak raw `Path`/`PathBuf` from `StrictPath` or `VirtualPath`.
-//!   Use `interop_path()` when an external API needs `AsRef<Path>`.
+//!   - Do not leak raw `Path`/`PathBuf` from `StrictPath` or `VirtualPath`.
+//!     Use `interop_path()` when an external API needs `AsRef<Path>`.
 //! - Do not call `Path::join`/`Path::parent` on leaked paths — they ignore PathBoundary/virtual semantics.
 //!   Use `strict_join`/`strictpath_parent` and `virtual_join`/`virtualpath_parent`.
 //! - Avoid `.unvirtual()`/`.unstrict()` unless you explicitly need ownership for the specific type.
