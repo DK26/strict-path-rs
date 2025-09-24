@@ -1,0 +1,14 @@
+# Docs branch: ignore everything by default
+/*
+
+# Allow these paths
+!/.gitignore
+!/README.md
+!/docs/
+!/docs_src/
+
+# Keep mdBook artifacts under docs/
+!/docs/**
+
+# Optional: allow mdbook config and assets
+!/docs_src/**

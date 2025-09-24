@@ -1,0 +1,400 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Getting Started - The Complete StrictPath Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="getting-started-with-strict-path"><a class="header" href="#getting-started-with-strict-path">Getting Started with strict-path</a></h1>
+<h2 id="what-is-strict-path"><a class="header" href="#what-is-strict-path">What is strict-path?</a></h2>
+<p>Have you ever worried about users trying to access files they shouldn't? Like when someone enters <code>../../../etc/passwd</code> to try to escape from a safe directory? That's called a "directory traversal" attack, and it's surprisingly common.</p>
+<p><strong>strict-path</strong> solves this problem by creating path boundaries - safe boundaries that paths cannot escape from. It comes in two modes: StrictPath (via PathBoundary) which is a path proven to have passed a validation filter, and VirtualPath (via VirtualRoot) which you could think of it like a sandboxed file path.</p>
+<h2 id="why-should-you-care"><a class="header" href="#why-should-you-care">Why Should You Care?</a></h2>
+<p>Directory traversal vulnerabilities are everywhere:</p>
+<ul>
+<li>Web applications where users upload files</li>
+<li>CLI tools that accept file paths as arguments</li>
+<li>Any application that processes user-provided paths</li>
+<li>Systems that extract archives (ZIP files, etc.)</li>
+</ul>
+<p>Getting path security wrong can expose your entire filesystem to attackers. With strict-path, the Rust compiler helps ensure you can't make these mistakes.</p>
+<h2 id="your-first-pathboundary"><a class="header" href="#your-first-pathboundary">Your First PathBoundary</a></h2>
+<p>Let's start with a simple example. Say you're building a web app where users can upload and download their files, but you want to keep them contained in a specific directory:</p>
+<pre><pre class="playground"><code class="language-rust">use strict_path::PathBoundary;
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create a path boundary in the "user_files" directory
+    // This creates the directory if it doesn't exist
+    let user_files_dir = PathBoundary::try_new_create("user_files")?;
+
+    // Now any path we validate through this path boundary will be contained
+    // within the "user_files" directory
+
+    // ✅ This is SAFE - creates "user_files/documents/report.txt"
+    let report = user_files_dir.strict_join("documents/report.txt")?;
+    report.create_parent_dir_all()?;
+    report.write("Quarterly report contents")?;
+
+    // ❌ This would FAIL - can't escape the path boundary!
+    // let _bad = user_files_dir.strict_join("../../../etc/passwd")?; // Error!
+
+    let display = report.strictpath_display();
+    println!("Safe path: {display}");
+
+    Ok(())
+}</code></pre></pre>
+<h2 id="what-just-happened"><a class="header" href="#what-just-happened">What Just Happened?</a></h2>
+<ol>
+<li><strong>Created a path boundary</strong>: <code>PathBoundary::try_new_create("user_files")</code> sets up a safe boundary</li>
+<li><strong>Validated a path</strong>: <code>path_boundary.strict_join("documents/report.txt")</code> checks the path is safe</li>
+<li><strong>Got protection</strong>: Any attempt to escape the path boundary (like <code>../../../etc/passwd</code>) fails immediately</li>
+</ol>
+<p>The magic is that once you have a <code>StrictPath</code>, you <em>know</em> it's safe. The type system guarantees it.</p>
+<h2 id="working-with-strict-paths"><a class="header" href="#working-with-strict-paths">Working with Strict Paths</a></h2>
+<p>Once you have a <code>StrictPath</code>, you can use it for file operations:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn save_user_file() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let uploads_dir = PathBoundary::try_new_create("uploads")?;
+
+    // User wants to save to "my-document.txt"
+    let user_input = "my-document.txt"; // untrusted
+    let safe_path = uploads_dir.strict_join(user_input)?;
+
+    // Write some content safely using built-in helpers
+    safe_path.write("Hello, world!")?;
+
+    // Read it back
+    let content = safe_path.read_to_string()?;
+    println!("File contains: {content}");
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="type-safety-the-secret-sauce"><a class="header" href="#type-safety-the-secret-sauce">Type Safety: The Secret Sauce</a></h2>
+<p>Here's where strict-path gets really clever. You can write functions that <em>only</em> accept safe paths:</p>
+<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
+
+// This function can ONLY be called with safe paths
+fn process_user_file(path: &amp;StrictPath) -&gt; std::io::Result&lt;String&gt; {
+    // We know this path is safe - no need to validate again
+    path.read_to_string()
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let data_dir = PathBoundary::try_new_create("safe_area")?;
+    let user_data = data_dir.strict_join("user-data.txt")?;
+
+    // ✅ This works - user_data is a StrictPath
+    let _content = process_user_file(&amp;user_data)?;
+
+    // ❌ This won't compile - can't pass an unsafe path!
+    // let unsafe_path = std::path::Path::new("/etc/passwd");
+    // let _content = process_user_file(unsafe_path); // Compilation error!
+
+    Ok(())
+}</code></pre></pre>
+<p>This means once you set up your path boundaries correctly, the compiler prevents you from accidentally using unsafe paths.</p>
+<h2 id="virtual-paths-user-friendly-sandboxes"><a class="header" href="#virtual-paths-user-friendly-sandboxes">Virtual Paths: User-Friendly Sandboxes</a></h2>
+<p>Sometimes you want to give users the illusion that they have their own private filesystem, starting from <code>/</code>. That's what <code>VirtualPath</code> is for:</p>
+<pre><pre class="playground"><code class="language-rust">use strict_path::VirtualRoot;
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create a virtual root that maps to "user_123_files" on disk
+    let vroot = VirtualRoot::try_new_create("user_123_files")?;
+
+    // User thinks they're working from "/"
+    let vpath = vroot.virtual_join("/documents/my-file.txt")?;
+
+    // But it actually maps to "user_123_files/documents/my-file.txt"
+    let user_sees = vpath.virtualpath_display();
+    let system_path = vpath.as_unvirtual().strictpath_display();
+    println!("User sees: {user_sees}");
+    println!("Actually stored at: {system_path}");
+
+    Ok(())
+}</code></pre></pre>
+<p>This is perfect for multi-user applications where each user should feel like they have their own filesystem.</p>
+<h2 id="api-summary"><a class="header" href="#api-summary">API Summary</a></h2>
+<p>That's really all you need to know! The core API is simple:</p>
+<h3 id="creating-safe-boundaries"><a class="header" href="#creating-safe-boundaries">Creating Safe Boundaries</a></h3>
+<ul>
+<li><code>PathBoundary::try_new(path)</code> - Use existing directory as path boundary (fails if not found)</li>
+<li><code>PathBoundary::try_new_create(path)</code> - Create directory if needed (for setup/initialization)</li>
+<li><code>VirtualRoot::try_new(path)</code> - Virtual filesystem root (expects existing directory)</li>
+<li><code>VirtualRoot::try_new_create(path)</code> - Create virtual root if needed (for user storage)</li>
+</ul>
+<h3 id="validating-paths"><a class="header" href="#validating-paths">Validating Paths</a></h3>
+<ul>
+<li><code>path_boundary.strict_join(user_path)</code> - Returns <code>StrictPath</code> or error</li>
+<li><code>vroot.virtual_join(user_path)</code> - Returns <code>VirtualPath</code> or error</li>
+</ul>
+<h3 id="using-safe-paths"><a class="header" href="#using-safe-paths">Using Safe Paths</a></h3>
+<ul>
+<li>Both <code>StrictPath</code> and <code>VirtualPath</code> work with standard file operations</li>
+<li>They implement <code>.interop_os()</code> so you can pass them to <code>fs::read</code>, <code>fs::write</code>, etc.</li>
+<li>The type system prevents using unvalidated paths</li>
+</ul>
+<h2 id="common-patterns"><a class="header" href="#common-patterns">Common Patterns</a></h2>
+<h3 id="web-file-upload"><a class="header" href="#web-file-upload">Web File Upload</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+// Public API: callers pass untrusted filename; we validate, then call an internal helper
+fn handle_file_upload(filename: &amp;str, content: &amp;[u8]) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let uploads_dir = PathBoundary::try_new_create("uploads")?;
+    let dest = uploads_dir.strict_join(filename)?; // ✅ Validate external input
+    save_uploaded(&amp;dest, content) // Internal API enforces &amp;StrictPath in signature
+}
+
+// Internal helper encodes guarantee in its signature
+fn save_uploaded(path: &amp;StrictPath, content: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
+    path.create_parent_dir_all()?;
+    path.write(content)
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="configuration-files"><a class="header" href="#configuration-files">Configuration Files</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, VirtualRoot};
+
+// Prefer signatures that encode guarantees explicitly: pass the boundary and the untrusted name
+fn load_config(config_dir: &amp;PathBoundary, config_name: &amp;str) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
+    config_dir.strict_join(config_name)?.read_to_string() // ✅ Validated
+}
+
+fn setup_user_storage(user_id: u32) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create a user-facing virtual root for UI flows
+    let vroot = VirtualRoot::try_new_create(format!("users/{user_id}"))?;
+    let docs = vroot.virtual_join("documents")?;
+    docs.create_dir_all()?;
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="whats-next"><a class="header" href="#whats-next">What's Next?</a></h2>
+<ul>
+<li><strong>Real-World Examples</strong>: See complete applications using strict-path</li>
+<li><strong>Understanding Type-History</strong>: Learn how the internal security works (for contributors)</li>
+<li><strong>Choosing Canonicalized vs Lexical</strong>: See Ergonomics → Choosing Canonicalized vs Lexical for performance vs safety trade-offs</li>
+</ul>
+<p>The key rule: <strong>always validate external paths through a path boundary before using them</strong>. Whether it's user input, configuration files, or data from external sources - if you didn't create the path yourself, join it to a path boundary first!</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+                            <a rel="next prefetch" href="development_story.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+                    <a rel="next prefetch" href="development_story.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>
