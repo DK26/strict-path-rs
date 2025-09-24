@@ -7,10 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-beta.1] - 2025-09-25
+
 ### Added
 - `PathBoundary::try_new_app_path_with_env(subdir, env_name)` and `VirtualRoot::try_new_app_path_with_env(subdir, env_name)` convenience constructors
   - Always honor a specific environment variable override before falling back to the executable-relative directory
   - Accept any `AsRef<Path>` for `subdir`
+- **Comprehensive mdBook documentation** with new ergonomics section covering:
+  - Function signature best practices and type-driven design patterns
+  - Interop vs Display guidelines for external API integration  
+  - Escape hatches and ownership conversions
+  - Equality, ordering, and naming conventions
+  - Canonicalized vs lexical solution decision guide
+  
 
 ### Changed
 - `try_new_app_path(subdir, env_override)` on both `PathBoundary` and `VirtualRoot` now accept any `AsRef<Path>` for `subdir` (previously `&str`)
@@ -19,8 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - This corrects inconsistent behavior in earlier prereleases
 
 ### Documentation
+- **Major README restructure**: Optimized newcomer experience with integrated decision guide and streamlined examples
+- **LLM-ready API documentation**: Renamed `API_REFERENCE.md` → `LLM_API_REFERENCE.md` with enhanced function-calling compatibility for AI tools
 - Standardized doc comments to the "SUMMARY / PARAMETERS / RETURNS / ERRORS / EXAMPLE" format across key modules
 - Expanded docs for `app-path` constructors and linking helpers; improved method summaries for `VirtualPath` I/O and directory utilities
+- **Expanded security explanations**: Enhanced coverage of type-system guarantees and CVE protections in both README and lib.rs
+- **Real-world examples**: Updated demos with production-authentic integration patterns
+
+### Migration
+- Env override behavior for `app-path` constructors: when an environment override is set, its value is now treated as the final root path (no subdirectory append). If your previous code relied on subdir being appended even when the env var was set, update your configuration accordingly.
 
 ### Tests
 - Added `app-path` feature tests covering env override precedence for both `PathBoundary` and `VirtualRoot`

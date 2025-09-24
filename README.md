@@ -92,7 +92,7 @@ StrictPath::with_boundary("uploads")?
 
 ```toml
 [dependencies]
-strict-path = "0.1.0-alpha.6"
+strict-path = "0.1.0-beta.1"
 ```
 
 ```rust
@@ -287,13 +287,13 @@ use strict_path::PathBoundary;
 // LLM Agent file operations
 let ai_workspace = PathBoundary::try_new("ai_sandbox")?;
 let ai_request = llm.generate_path(); // Could be anything malicious
-let safe_path = ai_workspace.strict_join(ai_request)?; // Attack = Explicit Error
+let safe_path = ai_workspace.strict_join(ai_request)?; // ✅ Attack = Explicit Error
 safe_path.write(&ai_generated_content)?;
 
 // Limited system access with clear boundaries
 struct ConfigFiles; 
 let config_dir = PathBoundary::<ConfigFiles>::try_new("./config")?;
-let user_config = config_dir.strict_join(user_selected_config)?; // Validated
+let user_config = config_dir.strict_join(user_selected_config)?; // ✅ Validated
 ```
 
 ### 🔓 **Path/PathBuf** - Controlled Access
@@ -322,7 +322,7 @@ use strict_path::PathBoundary;
 // Encode guarantees in signature: pass workspace boundary and untrusted request
 async fn llm_file_operation(workspace: &PathBoundary, request: &LlmRequest) -> Result<String> {
     // LLM could suggest anything: "../../../etc/passwd", "C:/Windows/System32", etc.
-    let safe_path = workspace.strict_join(&request.filename)?; // Attack = Error
+    let safe_path = workspace.strict_join(&request.filename)?; // ✅ Attack = Error
 
     match request.operation.as_str() {
         "write" => safe_path.write(&request.content)?,
@@ -342,7 +342,7 @@ fn extract_zip(zip_entries: impl IntoIterator<Item=(String, Vec<u8>)>) -> std::i
     let extract_root = VirtualPath::with_root("./extracted")?;
     for (name, data) in zip_entries {
         // Hostile names like "../../../etc/passwd" get clamped to "/etc/passwd"
-        let vpath = extract_root.virtual_join(&name)?;
+        let vpath = extract_root.virtual_join(&name)?; // ✅ Zip slip impossible
         vpath.create_parent_dir_all()?;
         vpath.write(&data)?;
     }
@@ -357,7 +357,7 @@ use strict_path::PathBoundary;
 struct StaticFiles;
 
 async fn serve_static(static_dir: &PathBoundary<StaticFiles>, path: &str) -> Result<Response> {
-    let safe_path = static_dir.strict_join(path)?; // "../../../" → Error
+    let safe_path = static_dir.strict_join(path)?; // ✅ "../../../" → Error
     Ok(Response::new(safe_path.read()?))
 }
 
@@ -422,8 +422,8 @@ let css_file: VirtualPath<WebAssets> = public_assets_root.virtual_join("app.css"
 let report_file: VirtualPath<UserFiles> = user_uploads_root.virtual_join("report.pdf")?;
 
 // Type system prevents context mixing
-serve_asset(css_file.as_unvirtual());         // Correct context
-// serve_asset(report_file.as_unvirtual());   // Compile error!
+serve_asset(css_file.as_unvirtual());         // ✅ Correct context
+// serve_asset(report_file.as_unvirtual());   // ❌ Compile error!
 ```
 
 **Your IDE and compiler become security guards.**
@@ -483,7 +483,7 @@ async fn serve_static_file(safe_path: &StrictPath<StaticFiles>) -> Result<Respon
 
 // Caller handles validation once:
 let static_files_dir = PathBoundary::<StaticFiles>::try_new("./static")?;
-let safe_path = static_files_dir.strict_join(&user_requested_path)?;
+let safe_path = static_files_dir.strict_join(&user_requested_path)?; // ✅ Validated
 serve_static_file(&safe_path).await?;
 ```
 
@@ -496,7 +496,7 @@ https://dk26.github.io/strict-path-rs/archive_extractors.html
 ```rust
 // User chooses any path - always safe
 let user_cloud_root = VirtualPath::with_root(format!("/cloud/user_{id}"))?;
-let user_cloud_file = user_cloud_root.virtual_join(&user_requested_path)?;
+let user_cloud_file = user_cloud_root.virtual_join(&user_requested_path)?; // ✅ Always safe
 user_cloud_file.write(upload_data)?;
 ```
 
@@ -506,7 +506,7 @@ use strict_path::PathBoundary;
 
 // Encode guarantees via the signature: pass the boundary and an untrusted name
 fn load_config(config_dir: &PathBoundary, name: &str) -> Result<String> {
-    config_dir.strict_join(name)?.read_to_string()
+    config_dir.strict_join(name)?.read_to_string() // ✅ Validated
 }
 ```
 
@@ -515,7 +515,7 @@ fn load_config(config_dir: &PathBoundary, name: &str) -> Result<String> {
 // AI suggests file operations - always validated
 let ai_workspace = PathBoundary::try_new("ai_workspace")?;
 let ai_suggested_path = llm_generate_filename(); // Could be anything!
-let safe_ai_path = ai_workspace.strict_join(ai_suggested_path)?; // Guaranteed safe
+let safe_ai_path = ai_workspace.strict_join(ai_suggested_path)?; // ✅ Guaranteed safe
 safe_ai_path.write(&ai_generated_content)?;
 ```
 

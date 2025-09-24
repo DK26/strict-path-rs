@@ -1,8 +1,0 @@
-[book]
-authors = ["David Krasnitsky"]
-language = "en"
-src = "src"
-title = "The Complete StrictPath Guide"
-
-[build]
-build-dir = "../docs"

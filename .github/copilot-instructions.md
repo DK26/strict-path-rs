@@ -1,70 +1,22 @@
-# strict-path-rs Copilot Instructions
+## strict-path-rs — Copilot instructions (single source: AGENTS.md)
 
-This codebase provides **type-safe path restriction** to prevent directory traversal attacks through comprehensive security architecture.
+This repository uses `AGENTS.md` as the single source of truth for AI agents. To avoid duplication, this file is a thin pointer with only quickstart links.
 
-## Core Architecture (Security-Critical)
+Read next (authoritative guidance)
+- `AGENTS.md` — operational guidance, security model, CI workflows, demos policy
+- `LLM_API_REFERENCE.md` — usage-first API cheatsheet for `PathBoundary`/`StrictPath`/`VirtualRoot`/`VirtualPath`
+- `strict-path/src/lib.rs` docs and `strict-path/examples/` — compilable examples and doctests
 
-**Four Core Types** (understand their relationships):
-- `PathBoundary<Marker>`: Creates and validates system paths within boundaries
-- `StrictPath<Marker>`: The fundamental security primitive - mathematically proven safe paths  
-- `VirtualRoot<Marker>`: Policy type for creating virtual user-facing paths
-- `VirtualPath<Marker>`: Extends `StrictPath` with virtual "/" root semantics for sandboxing
-
-**Security Model**: If you have a `StrictPath<Marker>`, it CANNOT reference anything outside its boundary - this is enforced by type system + cryptographic canonicalization.
-
-**Internal Engine**: `PathHistory` performs normalization/canonicalization/validation in a single auditable pipeline with type-state markers (`Raw` → `Canonicalized` → `BoundaryChecked`).
-
-## Code Patterns & Conventions
-
-**When to use which type:**
-```rust
-// ✅ User isolation/sandboxing → VirtualRoot/VirtualPath
-let vroot: VirtualRoot<UserUploads> = VirtualRoot::try_new_create(user_dir)?;
-let safe_file: VirtualPath<UserUploads> = vroot.virtual_join(untrusted_filename)?;
-
-// ✅ Shared system spaces → PathBoundary/StrictPath  
-let boundary: PathBoundary<Config> = PathBoundary::try_new_create("./app-config")?;
-let config_path: StrictPath<Config> = boundary.strict_join(config_name)?;
+Quickstart (Windows PowerShell)
+```powershell
+./ci-local.ps1           # Auto-fix fmt/clippy; mirrors CI intent
+./ci-check.ps1           # Fast library-only checks
+./ci-check-demos.ps1     # Lint changed demo files only
+cargo test -p strict-path --all-features
+cargo doc -p strict-path --no-deps --document-private-items
 ```
 
-**Function Signatures (Encode Guarantees):**
-```rust
-// ✅ Accept policy types + untrusted segment
-fn handle_upload(uploads: &VirtualRoot<UserUploads>, filename: &str) -> Result<()>
-
-// ✅ Accept validated paths directly
-fn process_file(file: &StrictPath<UserData>) -> Result<()>
-```
-
-**Path Operations by Dimension:**
-- Use explicit dimension methods: `strict_join()`/`virtual_join()`, `strictpath_parent()`/`virtualpath_parent()`
-- Interop: `interop_path()` for `AsRef<Path>` (no allocations)
-- Display: `strictpath_display()`/`virtualpath_display()` for user output
-- **Never** use std `Path::join`/`parent` on leaked paths
-
-## Project Structure & Workflows
-
-**Workspace Split Strategy** (CRITICAL):
-- `strict-path/`: Library crate, MSRV Rust 1.71, enforced with `--locked`
-- `demos/`: **Separate crate** (not in workspace), latest stable, real-world examples
-- This avoids lockfile coupling while keeping library MSRV-stable and demos current
-
-**Local CI**: `./ci-local.ps1` (Windows) or `bash ./ci-local.sh` (Unix/WSL) - auto-fixes format/clippy and mirrors exact CI behavior
-
-**Demo Categories**: `demos/src/bin/{web,security,cli,config}/` - must model **real scenarios** with official ecosystem crates, not toy examples
-
-## Security & Anti-Patterns
-
-**Anti-Patterns** (Tell-offs):
-- Wrapping secure types in `Path::new()`/`PathBuf::from()`
-- Using `interop_path().as_ref()` instead of direct `interop_path()`
-- Constructing boundaries/roots inside helpers (policy should be passed in)
-- Validating only constants (no untrusted input flows through validation)
-- Raw path parameters in safe helpers - use typed signatures
-
-**Path Handling Rules**:
-- All external paths (user input, config, DB, LLMs, archives) MUST be validated into `StrictPath`/`VirtualPath` before I/O
-- No leaky trait impls: forbidden `AsRef<Path>`, `Deref<Target = Path>` on secure types
-- Stay in one dimension per flow; upgrade/downgrade explicitly if needed
-
-**Comprehensive Reference**: See `AGENTS.md` for complete operational guidance, including PathHistory internals, serde patterns, Windows 8.3 handling, and contribution rules.  
+Minimal usage reminder (see AGENTS.md for details)
+- Validate untrusted segments via `strict_join`/`virtual_join` before any I/O
+- Use `interop_path()` for OS calls; `strictpath_display()`/`virtualpath_display()` for user output
+- Encode guarantees in signatures by accepting `&StrictPath<_>`/`&VirtualPath<_>` or a policy root plus the untrusted segment
