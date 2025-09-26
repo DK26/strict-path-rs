@@ -1,6 +1,7 @@
 # Summary
 
  - [Getting Started](./getting_started.md)
+- [Type-System Guarantees](./type_system_guarantees.md)
 - [The Journey to strict-path](./development_story.md)
 - [Real-World Examples](./examples.md)
 - [Features](./features.md)

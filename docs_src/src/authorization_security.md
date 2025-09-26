@@ -1,6 +1,6 @@
 # Advanced Marker Types: Authorization Security
 
-> **Building on Marker Fundamentals**: This section shows advanced marker patterns for authorization security. If you're new to markers, read the [Type-System Guarantees section](../README.md#-type-system-guarantees-in-signatures) first to understand basic marker concepts.
+> **Building on Marker Fundamentals**: This section shows advanced marker patterns for authorization security. If you're new to markers, read the [Type-System Guarantees section](./type_system_guarantees.md) first to understand basic marker concepts.
 
 ## From Basic Markers to Authorization-Aware Markers
 
@@ -10,8 +10,11 @@ You've already learned that markers describe **what** paths contain and prevent 
 struct PublicAssets;  // CSS, JS, images
 struct UserUploads;   // User documents
 
-let css_file: StrictPath<PublicAssets> = public_boundary.strict_join("style.css")?;
-let doc_file: StrictPath<UserUploads> = uploads_boundary.strict_join("report.pdf")?;
+let public_assets_dir: PathBoundary<PublicAssets> = PathBoundary::try_new("public")?;
+let user_uploads_dir: PathBoundary<UserUploads> = PathBoundary::try_new("uploads")?;
+
+let css_file: StrictPath<PublicAssets> = public_assets_dir.strict_join("style.css")?;
+let doc_file: StrictPath<UserUploads> = user_uploads_dir.strict_join("report.pdf")?;
 ```
 
 But what if creating these markers required **authorization**? What if you could only construct `UserUploads` after proving you're allowed to access user uploads?
@@ -61,8 +64,8 @@ fn update_profile_data(path: &StrictPath<UserProfile>, content: &str) -> io::Res
 
 // Usage - authentication is required to get the marker
 let profile_access = UserProfile::authenticate_for_profile_access(&user_credentials)?;
-let profile_boundary: PathBoundary<UserProfile> = PathBoundary::try_new("profiles")?;
-let profile_file: StrictPath<UserProfile> = profile_boundary.strict_join("user_123.json")?;
+let user_profiles_dir: PathBoundary<UserProfile> = PathBoundary::try_new("profiles")?;
+let profile_file: StrictPath<UserProfile> = user_profiles_dir.strict_join("user_123.json")?;
 
 // These work because we proved authorization to access UserProfile content
 read_profile_data(&profile_file)?;
@@ -72,7 +75,100 @@ update_profile_data(&profile_file, "updated profile data")?;
 // The marker is meaningful (describes profiles) AND requires authorization to construct!
 ```
 
-## Advanced: Different Permission Levels
+## Advanced: Tuple Markers for Resource + Permission
+
+The most expressive approach combines resource types with permission levels using tuple markers:
+
+```rust
+// Resource types (what the path contains) - no proof needed
+struct SystemFiles;
+struct UserDocuments;
+struct ConfigFiles;
+
+// Permission levels (how you can access it) - require proof
+struct UserPermission { _proof: () }
+struct AdminPermission { _proof: () }
+struct ReadOnly { _proof: () }
+struct ReadWrite { _proof: () }
+struct ExecuteOnly { _proof: () }
+
+impl ReadOnly {
+    pub fn authenticate_readonly(credentials: &Credentials) -> Result<Self, AuthError> {
+        verify_readonly_access(credentials)?;
+        Ok(ReadOnly { _proof: () })
+    }
+}
+
+impl AdminPermission {
+    pub fn authenticate_admin(credentials: &Credentials) -> Result<Self, AuthError> {
+        verify_admin_credentials(credentials)?;
+        Ok(AdminPermission { _proof: () })
+    }
+}
+
+// Smart authentication that returns the complete tuple marker
+fn authenticate_system_access(user_id: u64, password: &str) -> Result<(SystemFiles, ReadOnly), AuthError> {
+    if verify_user_credentials(user_id, password)? {
+        Ok((SystemFiles, ReadOnly { _proof: () }))
+    } else {
+        Err(AuthError::InvalidCredentials)
+    }
+}
+
+fn authenticate_admin_access(user_id: u64, password: &str) -> Result<(SystemFiles, AdminPermission), AuthError> {
+    if verify_admin_credentials(user_id, password)? {
+        Ok((SystemFiles, AdminPermission { _proof: () }))
+    } else {
+        Err(AuthError::AccessDenied)
+    }
+}
+
+// Functions enforce specific resource + permission combinations
+fn read_system_file(path: &StrictPath<(SystemFiles, ReadOnly)>) -> io::Result<String> {
+    path.read_to_string()
+}
+
+fn manage_system_file(path: &StrictPath<(SystemFiles, AdminPermission)>) -> io::Result<()> {
+    path.write("admin changes")
+}
+
+fn read_user_document(path: &StrictPath<(UserDocuments, ReadWrite)>) -> io::Result<String> {
+    path.read_to_string()
+}
+
+fn execute_system_binary(path: &StrictPath<(SystemFiles, ExecuteOnly)>) -> io::Result<std::process::Output> {
+    std::process::Command::new(path.interop_path()).output()
+}
+
+// Usage - authentication returns the complete tuple marker
+let system_marker = authenticate_system_access(user_id, password)?; // Returns (SystemFiles, ReadOnly)
+let system_files_dir: PathBoundary<(SystemFiles, ReadOnly)> = PathBoundary::try_new("system")?;
+let system_file: StrictPath<(SystemFiles, ReadOnly)> = system_files_dir.strict_join("config.txt")?;
+
+// Function calls are type-safe - wrong permission level = compile error
+read_system_file(&system_file)?; // ✅ OK - has ReadOnly permission
+// manage_system_file(&system_file)?; // ❌ Compile error - needs AdminPermission!
+
+// Admin access
+let admin_marker = authenticate_admin_access(admin_id, admin_password)?; // Returns (SystemFiles, AdminPermission)  
+let admin_system_dir: PathBoundary<(SystemFiles, AdminPermission)> = PathBoundary::try_new("system")?;
+let admin_file: StrictPath<(SystemFiles, AdminPermission)> = admin_system_dir.strict_join("sensitive.conf")?;
+
+manage_system_file(&admin_file)?; // ✅ OK - has AdminPermission
+read_system_file(&admin_file.as_unvirtual())?; // ❌ Would be compile error - type mismatch!
+```
+
+**The power**: You can create very specific authorization matrices:
+- `StrictPath<(SystemFiles, ReadOnly)>` - Can read system files, can't modify
+- `StrictPath<(UserDocuments, ReadWrite)>` - Can read/write user docs, can't access system files
+- `StrictPath<(ConfigFiles, AdminPermission)>` - Only admins can access config files
+- `StrictPath<(SystemFiles, ExecuteOnly)>` - Can execute system binaries, can't read their content
+
+**Key insight**: Authentication functions can return the complete tuple marker, making the API even more ergonomic - you get both the resource type and proven permission in one call!
+
+## Different Permission Levels (Alternative Pattern)
+
+For simpler cases where resources don't need separate authentication:
 
 ```rust
 // Markers describe content domains, but require different levels of auth to construct
@@ -123,13 +219,13 @@ let doc_access = UserDocuments::authenticate_for_documents(&user_token)?;
 let admin_access = AdminConfig::authenticate_for_config(&admin_token)?;
 let system_access = SystemLogs::authenticate_for_logs(&system_token)?;
 
-let doc_boundary: PathBoundary<UserDocuments> = PathBoundary::try_new("documents")?;
-let config_boundary: PathBoundary<AdminConfig> = PathBoundary::try_new("config")?;
-let logs_boundary: PathBoundary<SystemLogs> = PathBoundary::try_new("logs")?;
+let user_documents_dir: PathBoundary<UserDocuments> = PathBoundary::try_new("documents")?;
+let admin_config_dir: PathBoundary<AdminConfig> = PathBoundary::try_new("config")?;
+let system_logs_dir: PathBoundary<SystemLogs> = PathBoundary::try_new("logs")?;
 
-let user_doc: StrictPath<UserDocuments> = doc_boundary.strict_join("report.pdf")?;
-let app_config: StrictPath<AdminConfig> = config_boundary.strict_join("settings.json")?;
-let system_log: StrictPath<SystemLogs> = logs_boundary.strict_join("app.log")?;
+let user_doc: StrictPath<UserDocuments> = user_documents_dir.strict_join("report.pdf")?;
+let app_config: StrictPath<AdminConfig> = admin_config_dir.strict_join("settings.json")?;
+let system_log: StrictPath<SystemLogs> = system_logs_dir.strict_join("app.log")?;
 
 // Clear, meaningful operations
 read_document(&user_doc)?; // ✅ OK - reading user documents
@@ -234,13 +330,13 @@ fn create_authorized_boundary<U, C>(
 let alice_readonly_token: AuthToken<UserId(123), (CanRead,)> = 
     parse_jwt_token(request.headers.authorization)?;
 
-let alice_boundary = create_authorized_boundary(
+let alice_workspace_dir = create_authorized_boundary(
     "workspace/alice", 
     alice_readonly_token
 )?;
 
 let document: StrictPath<UserDocument<UserId(123), (CanRead,)>> = 
-    alice_boundary.strict_join("document.txt")?;
+    alice_workspace_dir.strict_join("document.txt")?;
 
 // Alice can read (capability proven at compile time)
 let content = read_file(&document)?; // ✅ Compiles
@@ -329,22 +425,22 @@ where
         let auth_token: AuthToken<UserId, Caps> = parse_token(token)?;
         
         // Create authorized boundary
-        let boundary = create_authorized_boundary(
+    let user_uploads_dir = create_authorized_boundary(
             format!("uploads/{}", auth_token.user_id), 
             auth_token
         )?;
         
-        Ok(AuthorizedPath { boundary })
+    Ok(AuthorizedPath { boundary: user_uploads_dir })
     }
 }
 
 // Handler function with compile-time authorization
 async fn upload_file(
-    AuthorizedPath(boundary): AuthorizedPath<UserDocument<UserId, (CanWrite,)>>,
+    AuthorizedPath(user_uploads_dir): AuthorizedPath<UserDocument<UserId, (CanWrite,)>>,
     filename: String,
     body: Bytes
 ) -> Result<StatusCode, AppError> {
-    let file_path = boundary.strict_join(&filename)?;
+    let file_path = user_uploads_dir.strict_join(&filename)?;
     write_file(&file_path, &body).await?; // ✅ Compile-time proven authorized
     Ok(StatusCode::CREATED)
 }

@@ -352,6 +352,266 @@ fn setup_user_storage(user_id: u32) -&gt; Result&lt;(), Box&lt;dyn std::error::E
 <li><strong>Choosing Canonicalized vs Lexical</strong>: See Ergonomics → Choosing Canonicalized vs Lexical for performance vs safety trade-offs</li>
 </ul>
 <p>The key rule: <strong>always validate external paths through a path boundary before using them</strong>. Whether it's user input, configuration files, or data from external sources - if you didn't create the path yourself, join it to a path boundary first!</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="type-system-guarantees-in-signatures"><a class="header" href="#type-system-guarantees-in-signatures">Type-System Guarantees in Signatures</a></h1>
+<p>One of strict-path's most powerful features is its <strong>marker type system</strong> that lets you encode domain-specific path guarantees in function signatures. This makes incorrect path usage a compile-time error rather than a runtime vulnerability.</p>
+<h2 id="what-are-markers"><a class="header" href="#what-are-markers">What Are Markers?</a></h2>
+<p>A marker is a zero-cost type parameter that describes what a path contains or how it should be used. Markers have no runtime representation - they exist purely to help the type system prevent mistakes.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+// Define markers for different content domains
+struct PublicAssets;   // CSS, JS, images for website
+struct UserUploads;    // Documents uploaded by users  
+struct TempFiles;      // Temporary processing files
+struct ConfigFiles;    // Application configuration
+
+// Use markers to create domain-specific boundaries
+let public_assets_dir: PathBoundary&lt;PublicAssets&gt; = PathBoundary::try_new("static")?;
+let user_uploads_dir: PathBoundary&lt;UserUploads&gt; = PathBoundary::try_new("uploads")?;
+let temp_files_dir: PathBoundary&lt;TempFiles&gt; = PathBoundary::try_new("temp")?;
+let app_config_dir: PathBoundary&lt;ConfigFiles&gt; = PathBoundary::try_new("config")?;
+
+// Join paths with their appropriate markers
+let css_file: StrictPath&lt;PublicAssets&gt; = public_assets_dir.strict_join("style.css")?;
+let user_doc: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("report.pdf")?;
+let temp_file: StrictPath&lt;TempFiles&gt; = temp_files_dir.strict_join("processing.tmp")?;
+let app_config: StrictPath&lt;ConfigFiles&gt; = app_config_dir.strict_join("settings.json")?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="why-markers-matter"><a class="header" href="#why-markers-matter">Why Markers Matter</a></h2>
+<p>Without markers, it's easy to accidentally mix up different types of paths:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Without markers - dangerous mix-ups are possible
+fn process_user_upload(file_path: &amp;StrictPath) -&gt; io::Result&lt;()&gt; {
+    // Is this a user file? Config file? Temp file? 
+    // No way to know from the type!
+    file_path.read_to_string()
+}
+
+// With markers - impossible to mix up domains  
+fn process_user_upload(user_file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; io::Result&lt;String&gt; {
+    // Clear: this function ONLY processes user uploads
+    user_file.read_to_string() 
+}
+
+fn load_app_config(config_file: &amp;StrictPath&lt;ConfigFiles&gt;) -&gt; io::Result&lt;AppConfig&gt; {
+    // Clear: this function ONLY loads config files
+    let content = config_file.read_to_string()?;
+    serde_json::from_str(&amp;content)
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="compile-time-safety"><a class="header" href="#compile-time-safety">Compile-Time Safety</a></h2>
+<p>With markers, the compiler prevents domain mix-ups:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let user_doc: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("report.pdf")?;
+let app_config: StrictPath&lt;ConfigFiles&gt; = app_config_dir.strict_join("settings.json")?;
+
+// ✅ These work - correct marker types
+process_user_upload(&amp;user_doc)?;
+load_app_config(&amp;app_config)?;
+
+// ❌ These are compile errors - marker type mismatch!
+// process_user_upload(&amp;app_config)?;  // Can't pass ConfigFiles to UserUploads function
+// load_app_config(&amp;user_doc)?;        // Can't pass UserUploads to ConfigFiles function
+<span class="boring">}</span></code></pre></pre>
+<p><strong>The power</strong>: If your code compiles, you know you're not accidentally processing config files as user uploads, or serving user uploads as public assets!</p>
+<h2 id="function-signature-patterns"><a class="header" href="#function-signature-patterns">Function Signature Patterns</a></h2>
+<h3 id="pattern-1-accept-validated-paths"><a class="header" href="#pattern-1-accept-validated-paths">Pattern 1: Accept Validated Paths</a></h3>
+<p>When the caller has already validated the path, accept the typed path directly:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn serve_public_asset(asset: &amp;StrictPath&lt;PublicAssets&gt;) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
+    // Caller proved this is a public asset - we can serve it safely
+    asset.read()
+}
+
+fn delete_user_file(user_file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; io::Result&lt;()&gt; {
+    // Caller proved this is a user upload - safe to delete
+    user_file.remove_file()
+}
+
+fn backup_config(config_file: &amp;StrictPath&lt;ConfigFiles&gt;, backup_dir: &amp;StrictPath&lt;BackupStorage&gt;) -&gt; io::Result&lt;()&gt; {
+    let content = config_file.read()?;
+    let backup_name = format!("config-{}.json", chrono::Utc::now().format("%Y%m%d"));
+    let backup_path = backup_dir.strict_join(&amp;backup_name)?;
+    backup_path.write(content)
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="pattern-2-validate-inside-helper"><a class="header" href="#pattern-2-validate-inside-helper">Pattern 2: Validate Inside Helper</a></h3>
+<p>When the helper needs to validate user input, accept the boundary plus untrusted segment:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn save_user_upload(
+    uploads_dir: &amp;PathBoundary&lt;UserUploads&gt;, 
+    filename: &amp;str,  // untrusted input
+    content: &amp;[u8]
+) -&gt; io::Result&lt;()&gt; {
+    // Validate the untrusted filename
+    let user_file = uploads_dir.strict_join(filename)?;
+    user_file.create_parent_dir_all()?;
+    user_file.write(content)
+}
+
+fn load_config_by_name(
+    config_dir: &amp;PathBoundary&lt;ConfigFiles&gt;, 
+    config_name: &amp;str  // untrusted input
+) -&gt; io::Result&lt;serde_json::Value&gt; {
+    // Validate the untrusted config name
+    let config_file = config_dir.strict_join(config_name)?; 
+    let content = config_file.read_to_string()?;
+    serde_json::from_str(&amp;content).map_err(Into::into)
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="pattern-3-multiple-domain-access"><a class="header" href="#pattern-3-multiple-domain-access">Pattern 3: Multiple Domain Access</a></h3>
+<p>Some functions need to work with multiple domains - use multiple parameters:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn generate_report(
+    user_data: &amp;StrictPath&lt;UserUploads&gt;,
+    template: &amp;StrictPath&lt;PublicAssets&gt;, 
+    temp_reports_dir: &amp;PathBoundary&lt;TempFiles&gt;
+) -&gt; io::Result&lt;StrictPath&lt;TempFiles&gt;&gt; {
+    let data = user_data.read_to_string()?;
+    let template_content = template.read_to_string()?;
+    
+    // Process data with template...
+    let report = process_template(&amp;template_content, &amp;data);
+    
+    let report_file = temp_reports_dir.strict_join("report.html")?;
+    report_file.write(report)?;
+    Ok(report_file)
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="marker-best-practices"><a class="header" href="#marker-best-practices">Marker Best Practices</a></h2>
+<h3 id="use-descriptive-domain-names"><a class="header" href="#use-descriptive-domain-names">Use Descriptive Domain Names</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ Good - describes what the paths contain
+struct UserProfiles;
+struct ProductImages; 
+struct DatabaseBackups;
+struct AuditLogs;
+
+// ❌ Avoid - generic or implementation-focused names
+struct Files;
+struct Directory;
+struct Database;
+struct Secure;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="create-markers-for-business-domains"><a class="header" href="#create-markers-for-business-domains">Create Markers for Business Domains</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ Good - matches your application's business logic
+struct CustomerDocuments;
+struct FinancialReports;
+struct ProductCatalog; 
+struct EmployeeRecords;
+struct MarketingAssets;
+
+// ❌ Avoid - technical implementation details as primary markers
+struct JsonFiles;
+struct ReadOnlyData;
+struct EncryptedStorage;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="use-meaningful-function-names"><a class="header" href="#use-meaningful-function-names">Use Meaningful Function Names</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ Good - function names explain business intent
+fn archive_customer_document(doc: &amp;StrictPath&lt;CustomerDocuments&gt;) -&gt; io::Result&lt;()&gt; { ... }
+fn publish_marketing_asset(asset: &amp;StrictPath&lt;MarketingAssets&gt;) -&gt; io::Result&lt;()&gt; { ... }
+fn audit_financial_report(report: &amp;StrictPath&lt;FinancialReports&gt;) -&gt; io::Result&lt;()&gt; { ... }
+
+// ❌ Avoid - generic names that don't explain purpose  
+fn process_file(path: &amp;StrictPath&lt;SomeMarker&gt;) -&gt; io::Result&lt;()&gt; { ... }
+fn handle_data(path: &amp;StrictPath&lt;SomeMarker&gt;) -&gt; io::Result&lt;()&gt; { ... }
+<span class="boring">}</span></code></pre></pre>
+<h2 id="advanced-marker-patterns"><a class="header" href="#advanced-marker-patterns">Advanced Marker Patterns</a></h2>
+<h3 id="hierarchical-markers"><a class="header" href="#hierarchical-markers">Hierarchical Markers</a></h3>
+<p>You can create marker hierarchies for more sophisticated type safety:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct MediaFiles;
+struct Images;
+struct Videos;
+struct Documents;
+
+// Use PhantomData for hierarchical relationships
+struct MediaFile&lt;T&gt;(std::marker::PhantomData&lt;T&gt;);
+
+type ImageFile = MediaFile&lt;Images&gt;;
+type VideoFile = MediaFile&lt;Videos&gt;;
+type DocumentFile = MediaFile&lt;Documents&gt;;
+
+fn process_image(img: &amp;StrictPath&lt;ImageFile&gt;) -&gt; io::Result&lt;()&gt; { ... }
+fn process_video(vid: &amp;StrictPath&lt;VideoFile&gt;) -&gt; io::Result&lt;()&gt; { ... }
+fn process_document(doc: &amp;StrictPath&lt;DocumentFile&gt;) -&gt; io::Result&lt;()&gt; { ... }
+<span class="boring">}</span></code></pre></pre>
+<h3 id="environment-specific-markers"><a class="header" href="#environment-specific-markers">Environment-Specific Markers</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Production;
+struct Staging;  
+struct Development;
+
+struct ConfigFile&lt;Env&gt;(std::marker::PhantomData&lt;Env&gt;);
+
+type ProdConfig = ConfigFile&lt;Production&gt;;
+type StagingConfig = ConfigFile&lt;Staging&gt;;
+type DevConfig = ConfigFile&lt;Development&gt;;
+
+fn deploy_to_production(config: &amp;StrictPath&lt;ProdConfig&gt;) -&gt; io::Result&lt;()&gt; {
+    // Only production configs can be deployed to production
+    apply_production_config(config)
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="integration-with-serde"><a class="header" href="#integration-with-serde">Integration with Serde</a></h2>
+<p>When deserializing paths from configuration, you still need runtime validation:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct AppConfig {
+    upload_directory: String,  // Raw path from config
+    static_directory: String,  // Raw path from config
+}
+
+fn load_app_config() -&gt; Result&lt;(PathBoundary&lt;UserUploads&gt;, PathBoundary&lt;PublicAssets&gt;), ConfigError&gt; {
+    let config: AppConfig = serde_json::from_str(&amp;config_json)?;
+    
+    // Validate raw config paths into typed boundaries
+    let user_uploads_dir = PathBoundary::&lt;UserUploads&gt;::try_new_create(&amp;config.upload_directory)?;
+    let public_assets_dir = PathBoundary::&lt;PublicAssets&gt;::try_new_create(&amp;config.static_directory)?;
+    
+    Ok((user_uploads_dir, public_assets_dir))
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="zero-runtime-cost"><a class="header" href="#zero-runtime-cost">Zero Runtime Cost</a></h2>
+<p>It's important to understand that markers are zero-cost abstractions:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// These have identical runtime performance
+let generic_path: StrictPath = some_root.strict_join("file.txt")?;
+let typed_path: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("file.txt")?;
+
+// The marker information is erased at compile time
+assert_eq!(
+    std::mem::size_of::&lt;StrictPath&gt;(), 
+    std::mem::size_of::&lt;StrictPath&lt;UserUploads&gt;&gt;()
+);
+<span class="boring">}</span></code></pre></pre>
+<p>All the type safety benefits come at compile time with no runtime overhead!</p>
+<h2 id="common-patterns-summary"><a class="header" href="#common-patterns-summary">Common Patterns Summary</a></h2>
+<ol>
+<li><strong>Validate once, use everywhere</strong>: Create typed paths at boundaries, pass typed paths to functions</li>
+<li><strong>Encode intent in signatures</strong>: Function parameters should clearly show what domains they work with</li>
+<li><strong>Separate validation from business logic</strong>: Keep path validation separate from file processing</li>
+<li><strong>Use meaningful marker names</strong>: Markers should describe business domains, not technical implementation</li>
+<li><strong>Fail at compile time</strong>: Structure your code so domain mix-ups become type errors</li>
+</ol>
+<p>The type system becomes your ally in preventing path-related security bugs and logic errors!</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="the-journey-to-strict-path"><a class="header" href="#the-journey-to-strict-path">The Journey to strict-path</a></h1>
 <h2 id="why-do-i-need-this-library"><a class="header" href="#why-do-i-need-this-library">Why Do I Need This Library?</a></h2>
 <p>The development of <code>strict-path</code> is a story of discovering security gaps in path handling and iteratively building a comprehensive solution. Here's the complete development journey that led to the creation of this crate.</p>
@@ -1962,7 +2222,7 @@ fn consume_virtual(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { co
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="advanced-marker-types-authorization-security"><a class="header" href="#advanced-marker-types-authorization-security">Advanced Marker Types: Authorization Security</a></h1>
 <blockquote>
-<p><strong>Building on Marker Fundamentals</strong>: This section shows advanced marker patterns for authorization security. If you're new to markers, read the <a href="../README.html#-type-system-guarantees-in-signatures">Type-System Guarantees section</a> first to understand basic marker concepts.</p>
+<p><strong>Building on Marker Fundamentals</strong>: This section shows advanced marker patterns for authorization security. If you're new to markers, read the <a href="./type_system_guarantees.html">Type-System Guarantees section</a> first to understand basic marker concepts.</p>
 </blockquote>
 <h2 id="from-basic-markers-to-authorization-aware-markers"><a class="header" href="#from-basic-markers-to-authorization-aware-markers">From Basic Markers to Authorization-Aware Markers</a></h2>
 <p>You've already learned that markers describe <strong>what</strong> paths contain and prevent cross-domain mix-ups:</p>
@@ -1971,8 +2231,11 @@ fn consume_virtual(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { co
 </span>struct PublicAssets;  // CSS, JS, images
 struct UserUploads;   // User documents
 
-let css_file: StrictPath&lt;PublicAssets&gt; = public_boundary.strict_join("style.css")?;
-let doc_file: StrictPath&lt;UserUploads&gt; = uploads_boundary.strict_join("report.pdf")?;
+let public_assets_dir: PathBoundary&lt;PublicAssets&gt; = PathBoundary::try_new("public")?;
+let user_uploads_dir: PathBoundary&lt;UserUploads&gt; = PathBoundary::try_new("uploads")?;
+
+let css_file: StrictPath&lt;PublicAssets&gt; = public_assets_dir.strict_join("style.css")?;
+let doc_file: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("report.pdf")?;
 <span class="boring">}</span></code></pre></pre>
 <p>But what if creating these markers required <strong>authorization</strong>? What if you could only construct <code>UserUploads</code> after proving you're allowed to access user uploads?</p>
 <h2 id="the-vision-authorization-aware-markers"><a class="header" href="#the-vision-authorization-aware-markers">The Vision: Authorization-Aware Markers</a></h2>
@@ -2018,8 +2281,8 @@ fn update_profile_data(path: &amp;StrictPath&lt;UserProfile&gt;, content: &amp;s
 
 // Usage - authentication is required to get the marker
 let profile_access = UserProfile::authenticate_for_profile_access(&amp;user_credentials)?;
-let profile_boundary: PathBoundary&lt;UserProfile&gt; = PathBoundary::try_new("profiles")?;
-let profile_file: StrictPath&lt;UserProfile&gt; = profile_boundary.strict_join("user_123.json")?;
+let user_profiles_dir: PathBoundary&lt;UserProfile&gt; = PathBoundary::try_new("profiles")?;
+let profile_file: StrictPath&lt;UserProfile&gt; = user_profiles_dir.strict_join("user_123.json")?;
 
 // These work because we proved authorization to access UserProfile content
 read_profile_data(&amp;profile_file)?;
@@ -2028,7 +2291,97 @@ update_profile_data(&amp;profile_file, "updated profile data")?;
 // Without authentication, you can't even create the StrictPath&lt;UserProfile&gt;
 // The marker is meaningful (describes profiles) AND requires authorization to construct!
 <span class="boring">}</span></code></pre></pre>
-<h2 id="advanced-different-permission-levels"><a class="header" href="#advanced-different-permission-levels">Advanced: Different Permission Levels</a></h2>
+<h2 id="advanced-tuple-markers-for-resource--permission"><a class="header" href="#advanced-tuple-markers-for-resource--permission">Advanced: Tuple Markers for Resource + Permission</a></h2>
+<p>The most expressive approach combines resource types with permission levels using tuple markers:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Resource types (what the path contains) - no proof needed
+struct SystemFiles;
+struct UserDocuments;
+struct ConfigFiles;
+
+// Permission levels (how you can access it) - require proof
+struct UserPermission { _proof: () }
+struct AdminPermission { _proof: () }
+struct ReadOnly { _proof: () }
+struct ReadWrite { _proof: () }
+struct ExecuteOnly { _proof: () }
+
+impl ReadOnly {
+    pub fn authenticate_readonly(credentials: &amp;Credentials) -&gt; Result&lt;Self, AuthError&gt; {
+        verify_readonly_access(credentials)?;
+        Ok(ReadOnly { _proof: () })
+    }
+}
+
+impl AdminPermission {
+    pub fn authenticate_admin(credentials: &amp;Credentials) -&gt; Result&lt;Self, AuthError&gt; {
+        verify_admin_credentials(credentials)?;
+        Ok(AdminPermission { _proof: () })
+    }
+}
+
+// Smart authentication that returns the complete tuple marker
+fn authenticate_system_access(user_id: u64, password: &amp;str) -&gt; Result&lt;(SystemFiles, ReadOnly), AuthError&gt; {
+    if verify_user_credentials(user_id, password)? {
+        Ok((SystemFiles, ReadOnly { _proof: () }))
+    } else {
+        Err(AuthError::InvalidCredentials)
+    }
+}
+
+fn authenticate_admin_access(user_id: u64, password: &amp;str) -&gt; Result&lt;(SystemFiles, AdminPermission), AuthError&gt; {
+    if verify_admin_credentials(user_id, password)? {
+        Ok((SystemFiles, AdminPermission { _proof: () }))
+    } else {
+        Err(AuthError::AccessDenied)
+    }
+}
+
+// Functions enforce specific resource + permission combinations
+fn read_system_file(path: &amp;StrictPath&lt;(SystemFiles, ReadOnly)&gt;) -&gt; io::Result&lt;String&gt; {
+    path.read_to_string()
+}
+
+fn manage_system_file(path: &amp;StrictPath&lt;(SystemFiles, AdminPermission)&gt;) -&gt; io::Result&lt;()&gt; {
+    path.write("admin changes")
+}
+
+fn read_user_document(path: &amp;StrictPath&lt;(UserDocuments, ReadWrite)&gt;) -&gt; io::Result&lt;String&gt; {
+    path.read_to_string()
+}
+
+fn execute_system_binary(path: &amp;StrictPath&lt;(SystemFiles, ExecuteOnly)&gt;) -&gt; io::Result&lt;std::process::Output&gt; {
+    std::process::Command::new(path.interop_path()).output()
+}
+
+// Usage - authentication returns the complete tuple marker
+let system_marker = authenticate_system_access(user_id, password)?; // Returns (SystemFiles, ReadOnly)
+let system_files_dir: PathBoundary&lt;(SystemFiles, ReadOnly)&gt; = PathBoundary::try_new("system")?;
+let system_file: StrictPath&lt;(SystemFiles, ReadOnly)&gt; = system_files_dir.strict_join("config.txt")?;
+
+// Function calls are type-safe - wrong permission level = compile error
+read_system_file(&amp;system_file)?; // ✅ OK - has ReadOnly permission
+// manage_system_file(&amp;system_file)?; // ❌ Compile error - needs AdminPermission!
+
+// Admin access
+let admin_marker = authenticate_admin_access(admin_id, admin_password)?; // Returns (SystemFiles, AdminPermission)  
+let admin_system_dir: PathBoundary&lt;(SystemFiles, AdminPermission)&gt; = PathBoundary::try_new("system")?;
+let admin_file: StrictPath&lt;(SystemFiles, AdminPermission)&gt; = admin_system_dir.strict_join("sensitive.conf")?;
+
+manage_system_file(&amp;admin_file)?; // ✅ OK - has AdminPermission
+read_system_file(&amp;admin_file.as_unvirtual())?; // ❌ Would be compile error - type mismatch!
+<span class="boring">}</span></code></pre></pre>
+<p><strong>The power</strong>: You can create very specific authorization matrices:</p>
+<ul>
+<li><code>StrictPath&lt;(SystemFiles, ReadOnly)&gt;</code> - Can read system files, can't modify</li>
+<li><code>StrictPath&lt;(UserDocuments, ReadWrite)&gt;</code> - Can read/write user docs, can't access system files</li>
+<li><code>StrictPath&lt;(ConfigFiles, AdminPermission)&gt;</code> - Only admins can access config files</li>
+<li><code>StrictPath&lt;(SystemFiles, ExecuteOnly)&gt;</code> - Can execute system binaries, can't read their content</li>
+</ul>
+<p><strong>Key insight</strong>: Authentication functions can return the complete tuple marker, making the API even more ergonomic - you get both the resource type and proven permission in one call!</p>
+<h2 id="different-permission-levels-alternative-pattern"><a class="header" href="#different-permission-levels-alternative-pattern">Different Permission Levels (Alternative Pattern)</a></h2>
+<p>For simpler cases where resources don't need separate authentication:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Markers describe content domains, but require different levels of auth to construct
@@ -2079,13 +2432,13 @@ let doc_access = UserDocuments::authenticate_for_documents(&amp;user_token)?;
 let admin_access = AdminConfig::authenticate_for_config(&amp;admin_token)?;
 let system_access = SystemLogs::authenticate_for_logs(&amp;system_token)?;
 
-let doc_boundary: PathBoundary&lt;UserDocuments&gt; = PathBoundary::try_new("documents")?;
-let config_boundary: PathBoundary&lt;AdminConfig&gt; = PathBoundary::try_new("config")?;
-let logs_boundary: PathBoundary&lt;SystemLogs&gt; = PathBoundary::try_new("logs")?;
+let user_documents_dir: PathBoundary&lt;UserDocuments&gt; = PathBoundary::try_new("documents")?;
+let admin_config_dir: PathBoundary&lt;AdminConfig&gt; = PathBoundary::try_new("config")?;
+let system_logs_dir: PathBoundary&lt;SystemLogs&gt; = PathBoundary::try_new("logs")?;
 
-let user_doc: StrictPath&lt;UserDocuments&gt; = doc_boundary.strict_join("report.pdf")?;
-let app_config: StrictPath&lt;AdminConfig&gt; = config_boundary.strict_join("settings.json")?;
-let system_log: StrictPath&lt;SystemLogs&gt; = logs_boundary.strict_join("app.log")?;
+let user_doc: StrictPath&lt;UserDocuments&gt; = user_documents_dir.strict_join("report.pdf")?;
+let app_config: StrictPath&lt;AdminConfig&gt; = admin_config_dir.strict_join("settings.json")?;
+let system_log: StrictPath&lt;SystemLogs&gt; = system_logs_dir.strict_join("app.log")?;
 
 // Clear, meaningful operations
 read_document(&amp;user_doc)?; // ✅ OK - reading user documents
@@ -2186,13 +2539,13 @@ fn create_authorized_boundary&lt;U, C&gt;(
 let alice_readonly_token: AuthToken&lt;UserId(123), (CanRead,)&gt; = 
     parse_jwt_token(request.headers.authorization)?;
 
-let alice_boundary = create_authorized_boundary(
+let alice_workspace_dir = create_authorized_boundary(
     "workspace/alice", 
     alice_readonly_token
 )?;
 
 let document: StrictPath&lt;UserDocument&lt;UserId(123), (CanRead,)&gt;&gt; = 
-    alice_boundary.strict_join("document.txt")?;
+    alice_workspace_dir.strict_join("document.txt")?;
 
 // Alice can read (capability proven at compile time)
 let content = read_file(&amp;document)?; // ✅ Compiles
@@ -2277,22 +2630,22 @@ where
         let auth_token: AuthToken&lt;UserId, Caps&gt; = parse_token(token)?;
         
         // Create authorized boundary
-        let boundary = create_authorized_boundary(
+    let user_uploads_dir = create_authorized_boundary(
             format!("uploads/{}", auth_token.user_id), 
             auth_token
         )?;
         
-        Ok(AuthorizedPath { boundary })
+    Ok(AuthorizedPath { boundary: user_uploads_dir })
     }
 }
 
 // Handler function with compile-time authorization
 async fn upload_file(
-    AuthorizedPath(boundary): AuthorizedPath&lt;UserDocument&lt;UserId, (CanWrite,)&gt;&gt;,
+    AuthorizedPath(user_uploads_dir): AuthorizedPath&lt;UserDocument&lt;UserId, (CanWrite,)&gt;&gt;,
     filename: String,
     body: Bytes
 ) -&gt; Result&lt;StatusCode, AppError&gt; {
-    let file_path = boundary.strict_join(&amp;filename)?;
+    let file_path = user_uploads_dir.strict_join(&amp;filename)?;
     write_file(&amp;file_path, &amp;body).await?; // ✅ Compile-time proven authorized
     Ok(StatusCode::CREATED)
 }
