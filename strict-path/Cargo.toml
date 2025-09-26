@@ -5,7 +5,7 @@ edition = "2021"
 # Minimum supported Rust version (MSRV)
 rust-version = "1.71"
 authors = ["David Krasnitsky <dikaveman@gmail.com>"]
-description = "More than path comparisons: full, cross-platform path security with type-level guarantees"
+description = "Stop path attacks before they happen. This crate makes sure file paths can't escape where you want them to go"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/DK26/strict-path-rs"
 homepage = "https://github.com/DK26/strict-path-rs"

@@ -12,15 +12,26 @@
 
 > **Note:** Our doc comments and `LLM_API_REFERENCE.md` are designed for LLMs with function calling—so an AI can use this crate safely and correctly for file and path operations.
 
-**More than path comparisons: full, cross‑platform path security with type‑level guarantees.**
+Stop path attacks before they happen. This crate makes sure file paths can't escape where you want them to go.
 
-This crate is not a thin wrapper around `Path` or a naive string comparison.
-It performs full normalization, canonicalization, and boundary enforcement with
-symlink/junction handling, Windows‑specific edge cases (8.3 short names, UNC,
-verbatim prefixes, ADS), and robust encoding/normalization behavior across
-platforms. The type system encodes these guarantees: if a `StrictPath<Marker>`
-exists, it’s already proven to be inside its allowed boundary — not by hope,
-but by construction.
+## What this crate does
+
+- **Blocks path attacks**: Turn dangerous paths like `../../../etc/passwd` into either safe paths or clear errors
+- **Compiler-enforced guarantees**: `StrictPath<Marker>` types prove at compile-time that paths stay within boundaries
+- **Two modes to choose from**:
+  - **StrictPath**: Rejects bad paths with an error (good for APIs and system access guarantees)  
+  - **VirtualPath**: Clamps bad paths to safe ones (good for simulating virtual user spaces, extracting archives in isolation, etc.)
+- **Handles the tricky stuff**: Follows symlinks, resolves `..` and `.`, deals with Windows weirdness
+- **Easy to use**: Drop-in replacement for standard file operations, same return values
+- **Works everywhere**: Handles platform differences so you don't have to
+
+## What this crate is NOT
+
+- **Not just string checking**: We actually follow filesystem links and resolve paths properly
+- **Not a simple wrapper**: Built from the ground up for security, not a thin layer over existing types  
+- **Not just removing ".."**: Handles symlinks, Windows short names, and other escape tricks
+- **Not a permission system**: Works with your existing file permissions, doesn't replace them
+- **Not runtime monitoring**: Catches problems when you create paths, not when you use them
 
 ## Quick start
 
