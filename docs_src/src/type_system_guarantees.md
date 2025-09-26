@@ -152,7 +152,7 @@ fn generate_report(
 
 ```rust
 // ✅ Good - describes what the paths contain
-struct UserProfiles;
+struct UserHomes;
 struct ProductImages; 
 struct DatabaseBackups;
 struct AuditLogs;

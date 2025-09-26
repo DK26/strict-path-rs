@@ -23,7 +23,7 @@ But what if creating these markers required **authorization**? What if you could
 
 The key insight: **markers still describe content, but their construction requires proof of authorization**.
 
-- **Marker name**: Describes what the path contains (`UserProfile`, `AdminConfig`)
+- **Marker name**: Describes what the path contains (`UserHome`, `AdminConfig`)
 - **Private constructor**: Requires authentication to create the marker  
 - **Function signatures**: Work with meaningful domain types, ensuring both path safety AND authorization
 
@@ -35,16 +35,16 @@ The core concept is elegantly simple: **the marker describes what the path conta
 use strict_path::{PathBoundary, StrictPath};
 
 // Marker describes the domain/content - what the path contains
-struct UserProfile {
+struct UserHome {
     // Private field prevents external construction
     _proof: (),
 }
 
-impl UserProfile {
+impl UserHome {
     // Only way to create this marker - requires actual authentication
-    pub fn authenticate_for_profile_access(credentials: &Credentials) -> Result<Self, AuthError> {
+    pub fn authenticate_home_access(credentials: &Credentials) -> Result<Self, AuthError> {
         if verify_user_credentials(credentials)? {
-            Ok(UserProfile { _proof: () })
+            Ok(UserHome { _proof: () })
         } else {
             Err(AuthError::InvalidCredentials)
         }
@@ -52,27 +52,27 @@ impl UserProfile {
 }
 
 // Functions work with meaningful path types
-fn read_profile_data(path: &StrictPath<UserProfile>) -> io::Result<String> {
-    // If this function is called, user is guaranteed to be authorized for profile access
+fn read_home_file(path: &StrictPath<UserHome>) -> io::Result<String> {
+    // If this function is called, user is guaranteed to be authorized for user-home access
     path.read_to_string()
 }
 
-fn update_profile_data(path: &StrictPath<UserProfile>, content: &str) -> io::Result<()> {
+fn update_home_file(path: &StrictPath<UserHome>, content: &str) -> io::Result<()> {
     // Same guarantee here
     path.write(content)
 }
 
 // Usage - authentication is required to get the marker
-let profile_access = UserProfile::authenticate_for_profile_access(&user_credentials)?;
-let user_profiles_dir: PathBoundary<UserProfile> = PathBoundary::try_new("profiles")?;
-let profile_file: StrictPath<UserProfile> = user_profiles_dir.strict_join("user_123.json")?;
+let home_access = UserHome::authenticate_home_access(&user_credentials)?;
+let user_homes_dir: PathBoundary<UserHome> = PathBoundary::try_new("home_dirs")?;
+let home_file: StrictPath<UserHome> = user_homes_dir.strict_join("user_123/profile.json")?;
 
-// These work because we proved authorization to access UserProfile content
-read_profile_data(&profile_file)?;
-update_profile_data(&profile_file, "updated profile data")?;
+// These work because we proved authorization to access UserHome content
+read_home_file(&home_file)?;
+update_home_file(&home_file, "updated profile data")?;
 
-// Without authentication, you can't even create the StrictPath<UserProfile>
-// The marker is meaningful (describes profiles) AND requires authorization to construct!
+// Without authentication, you can't even create the StrictPath<UserHome>
+// The marker is meaningful (describes user homes) AND requires authorization to construct!
 ```
 
 ## Advanced: Tuple Markers for Resource + Permission

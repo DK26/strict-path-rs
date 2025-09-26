@@ -196,7 +196,7 @@ let doc_file: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("repo
 <h2 id="the-vision-authorization-aware-markers"><a class="header" href="#the-vision-authorization-aware-markers">The Vision: Authorization-Aware Markers</a></h2>
 <p>The key insight: <strong>markers still describe content, but their construction requires proof of authorization</strong>.</p>
 <ul>
-<li><strong>Marker name</strong>: Describes what the path contains (<code>UserProfile</code>, <code>AdminConfig</code>)</li>
+<li><strong>Marker name</strong>: Describes what the path contains (<code>UserHome</code>, <code>AdminConfig</code>)</li>
 <li><strong>Private constructor</strong>: Requires authentication to create the marker</li>
 <li><strong>Function signatures</strong>: Work with meaningful domain types, ensuring both path safety AND authorization</li>
 </ul>
@@ -207,16 +207,16 @@ let doc_file: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("repo
 </span>use strict_path::{PathBoundary, StrictPath};
 
 // Marker describes the domain/content - what the path contains
-struct UserProfile {
+struct UserHome {
     // Private field prevents external construction
     _proof: (),
 }
 
-impl UserProfile {
+impl UserHome {
     // Only way to create this marker - requires actual authentication
-    pub fn authenticate_for_profile_access(credentials: &amp;Credentials) -&gt; Result&lt;Self, AuthError&gt; {
+    pub fn authenticate_home_access(credentials: &amp;Credentials) -&gt; Result&lt;Self, AuthError&gt; {
         if verify_user_credentials(credentials)? {
-            Ok(UserProfile { _proof: () })
+            Ok(UserHome { _proof: () })
         } else {
             Err(AuthError::InvalidCredentials)
         }
@@ -224,27 +224,27 @@ impl UserProfile {
 }
 
 // Functions work with meaningful path types
-fn read_profile_data(path: &amp;StrictPath&lt;UserProfile&gt;) -&gt; io::Result&lt;String&gt; {
-    // If this function is called, user is guaranteed to be authorized for profile access
+fn read_home_file(path: &amp;StrictPath&lt;UserHome&gt;) -&gt; io::Result&lt;String&gt; {
+    // If this function is called, user is guaranteed to be authorized for user-home access
     path.read_to_string()
 }
 
-fn update_profile_data(path: &amp;StrictPath&lt;UserProfile&gt;, content: &amp;str) -&gt; io::Result&lt;()&gt; {
+fn update_home_file(path: &amp;StrictPath&lt;UserHome&gt;, content: &amp;str) -&gt; io::Result&lt;()&gt; {
     // Same guarantee here
     path.write(content)
 }
 
 // Usage - authentication is required to get the marker
-let profile_access = UserProfile::authenticate_for_profile_access(&amp;user_credentials)?;
-let user_profiles_dir: PathBoundary&lt;UserProfile&gt; = PathBoundary::try_new("profiles")?;
-let profile_file: StrictPath&lt;UserProfile&gt; = user_profiles_dir.strict_join("user_123.json")?;
+let home_access = UserHome::authenticate_home_access(&amp;user_credentials)?;
+let user_homes_dir: PathBoundary&lt;UserHome&gt; = PathBoundary::try_new("home_dirs")?;
+let home_file: StrictPath&lt;UserHome&gt; = user_homes_dir.strict_join("user_123/profile.json")?;
 
-// These work because we proved authorization to access UserProfile content
-read_profile_data(&amp;profile_file)?;
-update_profile_data(&amp;profile_file, "updated profile data")?;
+// These work because we proved authorization to access UserHome content
+read_home_file(&amp;home_file)?;
+update_home_file(&amp;home_file, "updated profile data")?;
 
-// Without authentication, you can't even create the StrictPath&lt;UserProfile&gt;
-// The marker is meaningful (describes profiles) AND requires authorization to construct!
+// Without authentication, you can't even create the StrictPath&lt;UserHome&gt;
+// The marker is meaningful (describes user homes) AND requires authorization to construct!
 <span class="boring">}</span></code></pre></pre>
 <h2 id="advanced-tuple-markers-for-resource--permission"><a class="header" href="#advanced-tuple-markers-for-resource--permission">Advanced: Tuple Markers for Resource + Permission</a></h2>
 <p>The most expressive approach combines resource types with permission levels using tuple markers:</p>
