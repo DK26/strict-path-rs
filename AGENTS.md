@@ -20,7 +20,9 @@ Do not implement leaky trait impls for secure types:
 - `demos/`: real‑world demo binaries; decoupled from MSRV; `publish = false`.
 - `.github/workflows/`: CI configs; stable + MSRV split.
 - Local CI parity: `ci-local.ps1` (Windows), `ci-local.sh` (Unix/WSL).
-- Docs: `README.md`, `LLM_API_REFERENCE.md`, mdBook source at `docs_src/` (built to `docs/`).
+- Docs: `README.md`, `LLM_API_REFERENCE.md`.
+  - mdBook sources live on branch `docs` (not on `main`).
+  - Use a local Git worktree at `.docs/` to edit/serve docs side‑by‑side.
 
 ## CI Workflows (GitHub Actions)
 
@@ -233,9 +235,30 @@ Keep LLM_API_REFERENCE.md concise and stable. When APIs evolve, update it alongs
 - Do not use `std::fs` in visible example code unless strictly demonstrating interop via `interop_path()`; keep raw filesystem calls confined to hidden setup/cleanup.
 
 mdBook documentation system:
-- Source: `docs_src/` (markdown), built to `docs/` (published via GitHub Pages).
-- Build locally: `cd docs_src && mdbook build`; serve: `mdbook serve`.
+- Sources live on the `docs` branch under `docs_src/` (built to `docs/`).
+- Preferred local layout: add a Git worktree at `.docs/` checked out to `docs`.
+- Build locally: `cd .docs/docs_src && mdbook build`; serve: `cd .docs/docs_src && mdbook serve -o`.
 - Pages of interest: Best Practices, Anti‑Patterns, Getting Started, Features/OS directories, Archive Extractors.
+
+### Docs Worktree (Live mdBook on `docs` branch)
+
+- Purpose: Edit and preview mdBook while coding on `main` without mixing branches.
+- One‑time setup (from repo root):
+  - If `docs` exists locally: `git worktree add .docs docs`
+  - If only remote exists: `git fetch origin && git worktree add -B docs .docs origin/docs`
+  - Ensure ignore: add `.docs/` to root `.gitignore` (keep worktree untracked on `main`).
+- Daily use:
+  - Edit docs in `.docs/` (branch `docs`), code in repo root (branch `main`).
+  - Live preview: `cd .docs/docs_src && mdbook serve -o` (builds to `.docs/docs`).
+  - One‑off build: `cd .docs/docs_src && mdbook build`.
+  - Commit/push from inside `.docs` when changing docs.
+- Worktree admin:
+  - List: `git worktree list`
+  - Remove (optional): `git worktree remove .docs` (after committing/cleaning)
+  - Prune stale entries: `git worktree prune`
+- Notes for agents:
+  - Do not create nested clones; prefer a worktree.
+  - mdBook `{{#include}}` is restricted to the book root; avoid coupling to files on `main`. If you must include generated snippets, copy them into `.docs/docs_src` via a pre‑build step.
 
 ## Contributing Rules (for agents)
 

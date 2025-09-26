@@ -25,3 +25,5 @@ Cargo.lock
 
 # Temp LLM instructions memory
 .github/instructions/memory.instruction.md
+# Local docs worktree (branch: docs)
+.docs/
