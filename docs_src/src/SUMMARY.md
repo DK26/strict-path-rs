@@ -7,6 +7,7 @@
   - [OS Standard Directories](./os_directories.md)
 - [Using with Archive Extractors](./archive_extractors.md)
 - [Best Practices & Guidelines](./best_practices.md)
+- [Path Permissions & Authorization Security](./authorization_security.md)
 - [Ergonomics](./ergonomics/overview.md)
   - [Interop vs Display](./ergonomics/interop_display.md)
   - [Function Signatures](./ergonomics/signatures.md)

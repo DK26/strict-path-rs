@@ -1960,6 +1960,412 @@ fn consume_virtual(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { co
 <li>Equality &amp; Ordering: ./ergonomics/equality_ordering.md</li>
 <li>Naming: ./ergonomics/naming.md</li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="advanced-marker-types-authorization-security"><a class="header" href="#advanced-marker-types-authorization-security">Advanced Marker Types: Authorization Security</a></h1>
+<blockquote>
+<p><strong>Building on Marker Fundamentals</strong>: This section shows advanced marker patterns for authorization security. If you're new to markers, read the <a href="../README.html#-type-system-guarantees-in-signatures">Type-System Guarantees section</a> first to understand basic marker concepts.</p>
+</blockquote>
+<h2 id="from-basic-markers-to-authorization-aware-markers"><a class="header" href="#from-basic-markers-to-authorization-aware-markers">From Basic Markers to Authorization-Aware Markers</a></h2>
+<p>You've already learned that markers describe <strong>what</strong> paths contain and prevent cross-domain mix-ups:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct PublicAssets;  // CSS, JS, images
+struct UserUploads;   // User documents
+
+let css_file: StrictPath&lt;PublicAssets&gt; = public_boundary.strict_join("style.css")?;
+let doc_file: StrictPath&lt;UserUploads&gt; = uploads_boundary.strict_join("report.pdf")?;
+<span class="boring">}</span></code></pre></pre>
+<p>But what if creating these markers required <strong>authorization</strong>? What if you could only construct <code>UserUploads</code> after proving you're allowed to access user uploads?</p>
+<h2 id="the-vision-authorization-aware-markers"><a class="header" href="#the-vision-authorization-aware-markers">The Vision: Authorization-Aware Markers</a></h2>
+<p>The key insight: <strong>markers still describe content, but their construction requires proof of authorization</strong>.</p>
+<ul>
+<li><strong>Marker name</strong>: Describes what the path contains (<code>UserProfile</code>, <code>AdminConfig</code>)</li>
+<li><strong>Private constructor</strong>: Requires authentication to create the marker</li>
+<li><strong>Function signatures</strong>: Work with meaningful domain types, ensuring both path safety AND authorization</li>
+</ul>
+<h2 id="basic-authorization-aware-markers"><a class="header" href="#basic-authorization-aware-markers">Basic Authorization-Aware Markers</a></h2>
+<p>The core concept is elegantly simple: <strong>the marker describes what the path contains</strong>, but the marker can only be constructed through proper authorization.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+// Marker describes the domain/content - what the path contains
+struct UserProfile {
+    // Private field prevents external construction
+    _proof: (),
+}
+
+impl UserProfile {
+    // Only way to create this marker - requires actual authentication
+    pub fn authenticate_for_profile_access(credentials: &amp;Credentials) -&gt; Result&lt;Self, AuthError&gt; {
+        if verify_user_credentials(credentials)? {
+            Ok(UserProfile { _proof: () })
+        } else {
+            Err(AuthError::InvalidCredentials)
+        }
+    }
+}
+
+// Functions work with meaningful path types
+fn read_profile_data(path: &amp;StrictPath&lt;UserProfile&gt;) -&gt; io::Result&lt;String&gt; {
+    // If this function is called, user is guaranteed to be authorized for profile access
+    path.read_to_string()
+}
+
+fn update_profile_data(path: &amp;StrictPath&lt;UserProfile&gt;, content: &amp;str) -&gt; io::Result&lt;()&gt; {
+    // Same guarantee here
+    path.write(content)
+}
+
+// Usage - authentication is required to get the marker
+let profile_access = UserProfile::authenticate_for_profile_access(&amp;user_credentials)?;
+let profile_boundary: PathBoundary&lt;UserProfile&gt; = PathBoundary::try_new("profiles")?;
+let profile_file: StrictPath&lt;UserProfile&gt; = profile_boundary.strict_join("user_123.json")?;
+
+// These work because we proved authorization to access UserProfile content
+read_profile_data(&amp;profile_file)?;
+update_profile_data(&amp;profile_file, "updated profile data")?;
+
+// Without authentication, you can't even create the StrictPath&lt;UserProfile&gt;
+// The marker is meaningful (describes profiles) AND requires authorization to construct!
+<span class="boring">}</span></code></pre></pre>
+<h2 id="advanced-different-permission-levels"><a class="header" href="#advanced-different-permission-levels">Advanced: Different Permission Levels</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Markers describe content domains, but require different levels of auth to construct
+struct UserDocuments { _proof: () }
+struct AdminConfig { _proof: () }
+struct SystemLogs { _proof: () }
+
+impl UserDocuments {
+    pub fn authenticate_for_documents(token: &amp;Token) -&gt; Result&lt;Self, AuthError&gt; {
+        verify_user_token(token)?; // Basic user auth
+        Ok(UserDocuments { _proof: () })
+    }
+}
+
+impl AdminConfig {
+    pub fn authenticate_for_config(token: &amp;Token) -&gt; Result&lt;Self, AuthError&gt; {
+        verify_admin_token(token)?; // Admin-level auth required
+        Ok(AdminConfig { _proof: () })
+    }
+}
+
+impl SystemLogs {
+    pub fn authenticate_for_logs(token: &amp;Token) -&gt; Result&lt;Self, AuthError&gt; {
+        verify_system_token(token)?; // System-level auth required
+        Ok(SystemLogs { _proof: () })
+    }
+}
+
+// Functions work with meaningful domain types
+fn read_document(path: &amp;StrictPath&lt;UserDocuments&gt;) -&gt; io::Result&lt;String&gt; {
+    path.read_to_string()
+}
+
+fn read_config(path: &amp;StrictPath&lt;AdminConfig&gt;) -&gt; io::Result&lt;String&gt; {
+    path.read_to_string()
+}
+
+fn read_logs(path: &amp;StrictPath&lt;SystemLogs&gt;) -&gt; io::Result&lt;String&gt; {
+    path.read_to_string()
+}
+
+fn update_config(path: &amp;StrictPath&lt;AdminConfig&gt;, content: &amp;str) -&gt; io::Result&lt;()&gt; {
+    path.write(content)
+}
+
+// Usage
+let doc_access = UserDocuments::authenticate_for_documents(&amp;user_token)?;
+let admin_access = AdminConfig::authenticate_for_config(&amp;admin_token)?;
+let system_access = SystemLogs::authenticate_for_logs(&amp;system_token)?;
+
+let doc_boundary: PathBoundary&lt;UserDocuments&gt; = PathBoundary::try_new("documents")?;
+let config_boundary: PathBoundary&lt;AdminConfig&gt; = PathBoundary::try_new("config")?;
+let logs_boundary: PathBoundary&lt;SystemLogs&gt; = PathBoundary::try_new("logs")?;
+
+let user_doc: StrictPath&lt;UserDocuments&gt; = doc_boundary.strict_join("report.pdf")?;
+let app_config: StrictPath&lt;AdminConfig&gt; = config_boundary.strict_join("settings.json")?;
+let system_log: StrictPath&lt;SystemLogs&gt; = logs_boundary.strict_join("app.log")?;
+
+// Clear, meaningful operations
+read_document(&amp;user_doc)?; // ✅ OK - reading user documents
+read_config(&amp;app_config)?; // ✅ OK - reading admin config  
+read_logs(&amp;system_log)?;   // ✅ OK - reading system logs
+update_config(&amp;app_config, "new settings")?; // ✅ OK - admin can update config
+
+// Impossible operations become compile errors:
+// update_config(&amp;user_doc, "hack")?; // ❌ Can't pass UserDocuments to AdminConfig function
+// read_logs(&amp;user_doc)?; // ❌ Can't pass UserDocuments to SystemLogs function
+<span class="boring">}</span></code></pre></pre>
+<h2 id="capability-based-authorization"><a class="header" href="#capability-based-authorization">Capability-Based Authorization</a></h2>
+<p>For more sophisticated authorization, we can encode specific capabilities:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::marker::PhantomData;
+
+// Capability types
+struct CanRead;
+struct CanWrite; 
+struct CanDelete;
+struct CanAdmin;
+
+// Marker combines domain + user + capabilities
+struct UserDocument&lt;User, Caps&gt;(PhantomData&lt;(User, Caps)&gt;);
+
+// Type-level capability checking
+trait HasCapability&lt;Cap&gt; {}
+
+// Grant read capability to various permission combinations
+impl&lt;U&gt; HasCapability&lt;CanRead&gt; for UserDocument&lt;U, (CanRead,)&gt; {}
+impl&lt;U&gt; HasCapability&lt;CanRead&gt; for UserDocument&lt;U, (CanRead, CanWrite)&gt; {}
+impl&lt;U&gt; HasCapability&lt;CanRead&gt; for UserDocument&lt;U, (CanRead, CanWrite, CanDelete)&gt; {}
+
+// Grant write capability only when explicitly present
+impl&lt;U&gt; HasCapability&lt;CanWrite&gt; for UserDocument&lt;U, (CanRead, CanWrite)&gt; {}
+impl&lt;U&gt; HasCapability&lt;CanWrite&gt; for UserDocument&lt;U, (CanRead, CanWrite, CanDelete)&gt; {}
+
+// Grant delete capability only when explicitly present  
+impl&lt;U&gt; HasCapability&lt;CanDelete&gt; for UserDocument&lt;U, (CanRead, CanWrite, CanDelete)&gt; {}
+
+// Functions enforce capabilities at compile time
+fn read_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; io::Result&lt;String&gt;
+where 
+    M: HasCapability&lt;CanRead&gt;
+{
+    path.read_to_string()
+}
+
+fn write_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;, content: &amp;str) -&gt; io::Result&lt;()&gt;
+where 
+    M: HasCapability&lt;CanWrite&gt;
+{
+    path.write(content)
+}
+
+fn delete_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; io::Result&lt;()&gt;
+where 
+    M: HasCapability&lt;CanDelete&gt;
+{
+    path.remove_file()
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="authorization-token-integration"><a class="header" href="#authorization-token-integration">Authorization Token Integration</a></h2>
+<p>The key challenge is connecting runtime authentication with compile-time types:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Proof of authorization required to create capability-aware paths
+struct AuthToken&lt;User, Caps&gt; {
+    user_id: User,
+    capabilities: Caps,
+    expires_at: SystemTime,
+    signature: [u8; 32], // HMAC or similar
+}
+
+impl&lt;User, Caps&gt; AuthToken&lt;User, Caps&gt; {
+    fn verify(&amp;self) -&gt; Result&lt;(), AuthError&gt; {
+        // Verify signature, expiration, etc.
+        if SystemTime::now() &gt; self.expires_at {
+            return Err(AuthError::TokenExpired);
+        }
+        // Verify HMAC signature...
+        Ok(())
+    }
+}
+
+// Create authorized paths only with valid tokens
+fn create_authorized_boundary&lt;U, C&gt;(
+    workspace_path: impl AsRef&lt;Path&gt;,
+    auth_token: AuthToken&lt;U, C&gt;
+) -&gt; Result&lt;PathBoundary&lt;UserDocument&lt;U, C&gt;&gt;, AuthError&gt; {
+    auth_token.verify()?;
+    PathBoundary::try_new_create(workspace_path)
+        .map_err(AuthError::PathBoundary)
+}
+
+// Usage with JWT-style tokens
+let alice_readonly_token: AuthToken&lt;UserId(123), (CanRead,)&gt; = 
+    parse_jwt_token(request.headers.authorization)?;
+
+let alice_boundary = create_authorized_boundary(
+    "workspace/alice", 
+    alice_readonly_token
+)?;
+
+let document: StrictPath&lt;UserDocument&lt;UserId(123), (CanRead,)&gt;&gt; = 
+    alice_boundary.strict_join("document.txt")?;
+
+// Alice can read (capability proven at compile time)
+let content = read_file(&amp;document)?; // ✅ Compiles
+
+// Alice cannot write (would be compile error)  
+// write_file(&amp;document, "new content")?; // ❌ Missing CanWrite capability
+<span class="boring">}</span></code></pre></pre>
+<h2 id="advanced-role-based-access-control-rbac"><a class="header" href="#advanced-role-based-access-control-rbac">Advanced: Role-Based Access Control (RBAC)</a></h2>
+<p>For enterprise applications, we can model complex role hierarchies:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Define roles
+struct Guest;
+struct User; 
+struct Moderator;
+struct Admin;
+
+// Role hierarchy via trait implementations
+trait RoleHierarchy&lt;Role&gt; {}
+
+impl RoleHierarchy&lt;Guest&gt; for User {} // User includes Guest permissions
+impl RoleHierarchy&lt;Guest&gt; for Moderator {}
+impl RoleHierarchy&lt;User&gt; for Moderator {} // Moderator includes User permissions  
+impl RoleHierarchy&lt;Guest&gt; for Admin {}
+impl RoleHierarchy&lt;User&gt; for Admin {}
+impl RoleHierarchy&lt;Moderator&gt; for Admin {} // Admin includes all permissions
+
+// Resource access patterns
+struct PublicContent&lt;Role&gt;(PhantomData&lt;Role&gt;);
+struct UserContent&lt;Role&gt;(PhantomData&lt;Role&gt;); 
+struct AdminContent&lt;Role&gt;(PhantomData&lt;Role&gt;);
+
+// Access control rules
+trait CanAccess&lt;Resource&gt; {}
+
+impl&lt;R&gt; CanAccess&lt;PublicContent&lt;Guest&gt;&gt; for R where R: RoleHierarchy&lt;Guest&gt; {}
+impl&lt;R&gt; CanAccess&lt;UserContent&lt;User&gt;&gt; for R where R: RoleHierarchy&lt;User&gt; {}
+impl&lt;R&gt; CanAccess&lt;AdminContent&lt;Admin&gt;&gt; for R where R: RoleHierarchy&lt;Admin&gt; {}
+
+// Type-safe resource access
+fn access_resource&lt;Role, Resource&gt;(
+    path: &amp;StrictPath&lt;Resource&gt;
+) -&gt; io::Result&lt;String&gt;
+where 
+    Role: CanAccess&lt;Resource&gt;
+{
+    path.read_to_string()
+}
+
+// Usage
+let admin_files: StrictPath&lt;AdminContent&lt;Admin&gt;&gt; = create_admin_path(admin_token)?;
+let user_files: StrictPath&lt;UserContent&lt;User&gt;&gt; = create_user_path(user_token)?;
+
+// Admin can access everything (role hierarchy)
+access_resource::&lt;Admin, _&gt;(&amp;admin_files)?; // ✅ Admin accessing admin content
+access_resource::&lt;Admin, _&gt;(&amp;user_files)?;  // ✅ Admin accessing user content
+
+// Regular user cannot access admin content
+access_resource::&lt;User, _&gt;(&amp;user_files)?;   // ✅ User accessing user content
+// access_resource::&lt;User, _&gt;(&amp;admin_files)?; // ❌ Compile error!
+<span class="boring">}</span></code></pre></pre>
+<h2 id="integration-patterns"><a class="header" href="#integration-patterns">Integration Patterns</a></h2>
+<h3 id="web-server-integration"><a class="header" href="#web-server-integration">Web Server Integration</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Axum extractor that creates type-safe paths
+#[async_trait]
+impl&lt;T&gt; FromRequestParts&lt;T&gt; for AuthorizedPath&lt;UserDocument&lt;UserId, Caps&gt;&gt;
+where
+    T: Send + Sync,
+{
+    type Rejection = AuthError;
+
+    async fn from_request_parts(
+        parts: &amp;mut Parts, 
+        state: &amp;T
+    ) -&gt; Result&lt;Self, Self::Rejection&gt; {
+        // Extract JWT from headers
+        let token = extract_jwt(&amp;parts.headers)?;
+        
+        // Parse capabilities from token
+        let auth_token: AuthToken&lt;UserId, Caps&gt; = parse_token(token)?;
+        
+        // Create authorized boundary
+        let boundary = create_authorized_boundary(
+            format!("uploads/{}", auth_token.user_id), 
+            auth_token
+        )?;
+        
+        Ok(AuthorizedPath { boundary })
+    }
+}
+
+// Handler function with compile-time authorization
+async fn upload_file(
+    AuthorizedPath(boundary): AuthorizedPath&lt;UserDocument&lt;UserId, (CanWrite,)&gt;&gt;,
+    filename: String,
+    body: Bytes
+) -&gt; Result&lt;StatusCode, AppError&gt; {
+    let file_path = boundary.strict_join(&amp;filename)?;
+    write_file(&amp;file_path, &amp;body).await?; // ✅ Compile-time proven authorized
+    Ok(StatusCode::CREATED)
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="database-integration"><a class="header" href="#database-integration">Database Integration</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Connect authorization with database queries
+async fn load_user_document&lt;const USER_ID: u64&gt;(
+    db: &amp;Database,
+    document_id: DocumentId,
+    _proof: &amp;StrictPath&lt;UserDocument&lt;ConstUserId&lt;USER_ID&gt;, (CanRead,)&gt;&gt;
+) -&gt; Result&lt;Document, DatabaseError&gt; {
+    // The StrictPath proves the caller is authorized for USER_ID
+    sqlx::query_as!(
+        Document,
+        "SELECT * FROM documents WHERE id = $1 AND user_id = $2",
+        document_id.as_uuid(),
+        USER_ID as i64
+    )
+    .fetch_one(db)
+    .await
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="benefits--trade-offs"><a class="header" href="#benefits--trade-offs">Benefits &amp; Trade-offs</a></h2>
+<h3 id="benefits"><a class="header" href="#benefits">Benefits</a></h3>
+<ol>
+<li><strong>Compile-Time Authorization</strong>: Many permission violations become type errors</li>
+<li><strong>Zero Runtime Cost</strong>: All authorization types erased at compile time</li>
+<li><strong>Impossible to Bypass</strong>: Function signatures enforce authorization requirements</li>
+<li><strong>Self-Documenting</strong>: Code clearly shows what permissions are required</li>
+<li><strong>Refactoring Safety</strong>: Permission changes cause compile errors in all affected code</li>
+</ol>
+<h3 id="trade-offs"><a class="header" href="#trade-offs">Trade-offs</a></h3>
+<ol>
+<li><strong>Complexity</strong>: Type signatures become more sophisticated</li>
+<li><strong>Learning Curve</strong>: Developers need to understand the authorization type system</li>
+<li><strong>Rigidity</strong>: Some dynamic authorization patterns may be harder to express</li>
+<li><strong>Token Management</strong>: Still need robust runtime token validation and lifecycle</li>
+</ol>
+<h3 id="when-to-use"><a class="header" href="#when-to-use">When to Use</a></h3>
+<p><strong>Good fit for:</strong></p>
+<ul>
+<li>Applications with well-defined, static permission models</li>
+<li>Systems where authorization errors are costly to debug</li>
+<li>Teams comfortable with advanced Rust type system features</li>
+<li>Long-lived applications where compile-time safety pays off</li>
+</ul>
+<p><strong>Consider alternatives for:</strong></p>
+<ul>
+<li>Rapid prototyping where authorization requirements are still changing</li>
+<li>Systems with highly dynamic permission models</li>
+<li>Teams new to Rust or advanced type system concepts</li>
+<li>Simple applications where runtime checks are sufficient</li>
+</ul>
+<h2 id="implementation-strategy"><a class="header" href="#implementation-strategy">Implementation Strategy</a></h2>
+<p><strong>The beauty of this approach: it requires NO new API!</strong></p>
+<p>This sophisticated authorization system works entirely with strict-path's existing marker system:</p>
+<ul>
+<li>Same <code>PathBoundary&lt;Marker&gt;</code> and <code>StrictPath&lt;Marker&gt;</code> types</li>
+<li>Same <code>strict_join()</code>, <code>interop_path()</code>, and file operations</li>
+<li>Zero changes to the core strict-path library</li>
+</ul>
+<p>You simply define more sophisticated marker types in your application code and let Rust's type system do the work. The authorization logic lives in:</p>
+<ol>
+<li><strong>Your marker type definitions</strong> (the capability traits and implementations)</li>
+<li><strong>Your constructor functions</strong> (where you verify auth tokens before creating boundaries)</li>
+<li><strong>Your function signatures</strong> (where you specify required capabilities)</li>
+</ol>
+<p>The key insight is leveraging Rust's zero-cost abstractions and existing strict-path APIs to move authorization logic from runtime to compile-time, without any library changes.</p>
+<h2 id="conclusion"><a class="header" href="#conclusion">Conclusion</a></h2>
+<p>By extending strict-path's marker system with sophisticated authorization types, we can create <strong>compile-time authorization guarantees</strong> that complement the existing path boundary security. This approach represents a new frontier in secure systems design, where the type system becomes an active participant in authorization enforcement.</p>
+<p>While this adds complexity, the benefits of catching authorization bugs at compile time - rather than in production - make it compelling for security-critical applications.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="ergonomics-overview"><a class="header" href="#ergonomics-overview">Ergonomics Overview</a></h1>
 <p>This section collects high-signal, copy-pasteable guidance for day-to-day use without re-explaining the security model. Each page is short and focused so you can jump directly to what you need.</p>
 <ul>
