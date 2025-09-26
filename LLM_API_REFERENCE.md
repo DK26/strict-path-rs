@@ -24,6 +24,14 @@ Audience and usage: This page is a minimal-context, copy/paste guide for tool-ca
 - **Shared boundaries**: `PathBoundary`/`StrictPath` - System paths within validated boundaries  
 - **Multiple contexts**: Use marker types `StrictPath<UserFiles>` vs `StrictPath<ConfigFiles>`
 
+### Marker playbook (LLM must follow)
+
+- **Domain markers**: Define markers that describe what lives under the boundary (e.g., `struct PublicAssets;`, `struct UserUploads;`). Create boundaries with those markers so helpers can accept `&StrictPath<PublicAssets>` vs `&StrictPath<UserUploads>` and the compiler blocks cross-domain mix-ups.
+- **Authorization markers**: Wrap a proof type in your marker when you need auth guarantees for shared system directories. Example: `struct UserHome { _proof: () }` with `fn authenticate_user_home(...) -> Result<UserHome, AuthError>`. After authentication, create a `PathBoundary<UserHome>` and call `.strict_join(...)` so every `StrictPath<UserHome>` proves both the boundary and the authorization.
+- **Permission tuples**: Combine resource + capability in a tuple marker: `StrictPath<(SystemFiles, ReadOnly)>` vs `StrictPath<(SystemFiles, AdminPermission)>`. Authentication helpers should return the tuple so the LLM propagates the compiler-checked permission.
+- **Function signatures**: Accept either the validated path (`&StrictPath<Marker>`) or accept the policy root plus raw segment (`&PathBoundary<Marker>`, `&VirtualRoot<Marker>`). Never take raw `Path`/`String` parameters for untrusted input.
+- **Naming rule**: Use domain-based names (`public_assets_dir`, `user_uploads_dir`, `system_logs_dir`) for `PathBoundary`/`VirtualRoot` variables so the intent survives into code review.
+
 ## Quick Specs (LLM-friendly)
 
 - PathBoundary<T>

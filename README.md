@@ -18,6 +18,7 @@ Stop path attacks before they happen. This crate makes sure file paths can't esc
 
 - **Blocks path attacks**: Turn dangerous paths like `../../../etc/passwd` into either safe paths or clear errors
 - **Compiler-enforced guarantees**: `StrictPath<Marker>` types prove at compile-time that paths stay within boundaries
+- **Enables authorization architectures**: When you design markers to require authorization for construction, the compiler mathematically proves that any use of those markers went through authorization first
 - **Two modes to choose from**:
   - **StrictPath**: Rejects bad paths with an error (good for APIs and system access guarantees)  
   - **VirtualPath**: Clamps bad paths to safe ones (good for simulating virtual user spaces, extracting archives in isolation, etc.)
@@ -31,7 +32,7 @@ Stop path attacks before they happen. This crate makes sure file paths can't esc
 - **Not a simple wrapper**: Built from the ground up for security, not a thin layer over existing types  
 - **Not just removing ".."**: Handles symlinks, Windows short names, and other escape tricks
 - **Not a permission system**: Works with your existing file permissions, doesn't replace them
-- **Not runtime monitoring**: Catches problems when you create paths, not when you use them
+- **Not a sandbox**: We secure paths at the path level, not at the OS level
 
 ## Quick start
 
@@ -85,12 +86,13 @@ StrictPath::with_boundary("uploads")?
 1. **🔧 [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs) foundation**: Heavily tested against 19+ globally known path-related CVEs
 2. **🚫 Hacky string rejection**: Advanced pattern detection blocks encoding tricks and malformed inputs  
 3. **📐 Mathematical correctness**: Rust's type system provides compile-time proof of path boundaries
-4. **👁️ Explicit operations**: Method names like `strict_join()` make security violations visible in code review
-5. **🤖 LLM-aware design**: Built specifically for untrusted AI-generated paths and modern threat models
-6. **🔗 Symlink resolution**: Safe handling of symbolic links with cycle detection and boundary enforcement
-7. **⚡ Dual protection modes**: Choose **Strict** (validate & reject) or **Virtual** (clamp & contain) based on your use case
-8. **🏗️ Battle-tested architecture**: Prototyped and refined across real-world production systems
-9. **🎯 Zero-allocation interop**: Seamless integration with existing `std::path` ecosystems
+4. **🔐 Authorization architecture**: Enable compile-time authorization guarantees through marker types
+5. **👁️ Explicit operations**: Method names like `strict_join()` make security violations visible in code review
+6. **🤖 LLM-aware design**: Built specifically for untrusted AI-generated paths and modern threat models
+7. **🔗 Symlink resolution**: Safe handling of symbolic links with cycle detection and boundary enforcement
+8. **⚡ Dual protection modes**: Choose **Strict** (validate & reject) or **Virtual** (clamp & contain) based on your use case
+9. **🏗️ Battle-tested architecture**: Prototyped and refined across real-world production systems
+10. **🎯 Zero-allocation interop**: Seamless integration with existing `std::path` ecosystems
 
 ### **Recently Addressed CVEs**
 - **CVE-2025-8088** (WinRAR ADS): NTFS Alternate Data Stream traversal prevention
@@ -124,85 +126,102 @@ safe_path.remove_file()?; // Remove when cleanup is required
 
 **That's it.** No complex validation logic. No CVE research. No security expertise required.
 
-## 🧠 Type-System Guarantees in Signatures
+## 🧠 **The Secret Weapon: `StrictPath<Marker>` Types**
 
 > "Marker types: because your code deserves a secret identity."
 
-Use marker types in your function signatures to encode policy and prevent mix-ups across storage domains. The compiler enforces that only the correct paths reach each function.
+**The most powerful feature** you haven't discovered yet: `StrictPath<Marker>` doesn't just prevent path attacks—the **`<Marker>` part unlocks secret superpowers** that make **wrong path usage a compile error**.
 
-### Example A: StrictPath with markers
+**StrictPath = Promise of path security**  
+**`<Marker>` = Unlocks extra secret powers!** 
+
+**Basic superpower**: Prevent cross-domain mix-ups forever.
+**Advanced superpower**: Encode authorization requirements into the type system.
+
+### **Level 1: Basic Domain Separation** 
 
 ```rust
 use strict_path::{PathBoundary, StrictPath};
 
 struct PublicAssets; // CSS, JS, images
-struct UserUploads;  // Uploaded documents
+struct UserUploads;  // User documents
 
-// Create type-safe boundaries (policy)
-let public_assets_root = PathBoundary::<PublicAssets>::try_new("./assets")?;
-let user_uploads_root = PathBoundary::<UserUploads>::try_new("./uploads")?;
+let public_assets_dir: PathBoundary<PublicAssets> = PathBoundary::try_new("public")?;
+let user_uploads_dir: PathBoundary<UserUploads> = PathBoundary::try_new("uploads")?;
 
-// Produce mathematically safe paths (cannot exist outside their boundary)
-let css_file: StrictPath<PublicAssets> = public_assets_root.strict_join("style.css")?;
-let avatar_file: StrictPath<UserUploads> = user_uploads_root.strict_join("avatar.jpg")?;
+let css_file: StrictPath<PublicAssets> = public_assets_dir.strict_join("style.css")?;
+let user_doc: StrictPath<UserUploads> = user_uploads_dir.strict_join("report.pdf")?;
 
-// Encode guarantees in signatures — prevents cross-domain mix-ups at compile time
-fn serve_public_asset(css_file: &StrictPath<PublicAssets>) {
-    // Safe by construction; `css_file` cannot escape `public_assets_root`
-}
+fn serve_public_asset(asset: &StrictPath<PublicAssets>) { /* ... */ }
 
-serve_public_asset(&css_file);        // ✅ OK
-// serve_public_asset(&avatar_file);  // ❌ Compile error: wrong marker
+serve_public_asset(&css_file);    // ✅ Works
+// serve_public_asset(&user_doc); // ❌ Compile error: wrong domain!
 ```
 
-### Example B: VirtualPath for user-facing flows (per-user root)
+**The power**: Mix up user uploads with public assets? **Impossible**. The compiler catches domain violations.
+
+### **Level 2: Authorization Architecture**
 
 ```rust
-use strict_path::{VirtualRoot, VirtualPath};
+// Marker describes the user's home directory inside a shared filesystem
+struct UserHome { _proof: () }
 
-struct UserUploads; // Uploaded documents
-
-let user_id = 42; // Example unique user identifier
-let user_uploads_root = VirtualRoot::try_new(format!("./uploads/{user_id}"))?; // per-user root
-let avatar_file: VirtualPath<UserUploads> = user_uploads_root.virtual_join("avatar.jpg")?;
-
-fn process_upload(avatar_file: &VirtualPath<UserUploads>) {
-    // Use virtualpath_display() for UI; clamp is guaranteed
+impl UserHome {
+    pub fn authenticate_home_access(token: &Token) -> Result<Self, AuthError> {
+        verify_token(token)?;  // Real authentication here
+        Ok(UserHome { _proof: () })
+    }
 }
 
-process_upload(&avatar_file);       // ✅ OK
+// Functions work with pre-authorized paths
+fn read_home_file(path: &StrictPath<UserHome>) -> io::Result<String> {
+    // Guaranteed: path is safe AND user passed authentication
+    path.read_to_string()
+}
 ```
 
-### Example C: One common helper shared by both
+**The power**: Access user home directories without authentication? **Impossible**. The compiler mathematically proves authorization happened first.
+
+### **Level 3: Permission Matrix** 
 
 ```rust
-use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+use strict_path::{PathBoundary, StrictPath};
 
-struct PublicAssets;
-struct UserUploads;
+// Resource types (what) + Permission levels (how)
+struct SystemFiles;
+struct ReadOnly { _proof: () }
+struct AdminPermission { _proof: () }
 
-// A common helper that works with any StrictPath marker
-fn process_common<M>(file: &StrictPath<M>) -> std::io::Result<Vec<u8>> {
-    file.read()
+fn view_system_file(path: &StrictPath<(SystemFiles, ReadOnly)>) -> io::Result<String> {
+    path.read_to_string() // Can read, but not modify
 }
 
-// Prepare one strict and one virtual path
-let public_assets_root = PathBoundary::<PublicAssets>::try_new("./assets")?;
-let css_file: StrictPath<PublicAssets> = public_assets_root.strict_join("style.css")?;
+fn manage_system_file(path: &StrictPath<(SystemFiles, AdminPermission)>) -> io::Result<()> {
+    path.write("admin changes") // Full control
+}
 
-let user_id = 42;
-let user_uploads_root = VirtualRoot::try_new(format!("./uploads/{user_id}"))?;
-let avatar_file: VirtualPath<UserUploads> = user_uploads_root.virtual_join("avatar.jpg")?;
+// Authentication returns the complete tuple
+let (system_access, readonly_perm) = authenticate_user(&credentials)?;
+let system_files_dir: PathBoundary<SystemFiles> = PathBoundary::try_new("system")?;
+let system_file: StrictPath<(SystemFiles, ReadOnly)> = 
+    system_files_dir.strict_join("config.txt")?;
 
-// Call with either type
-let _ = process_common(&css_file)?;                   // StrictPath
-let _ = process_common(avatar_file.as_unvirtual())?; // Borrow strict view from VirtualPath
+view_system_file(&system_file)?;    // ✅ Has ReadOnly permission  
+// manage_system_file(&system_file)?; // ❌ Needs AdminPermission!
 ```
 
-Why this matters:
-- `StrictPath<Marker>` and `VirtualPath<Marker>` are boundary-checked — construction proves containment.
-- Function signatures become policy — the type system rejects misuse and cross-domain mix-ups.
-- Prefer simple, dimension-specific helpers; when needed, borrow a strict view from a virtual path with `as_unvirtual()`.
+**The power**: Create authorization matrices at compile-time. Wrong permission level? **Impossible**. The type system enforces your security model.
+
+### **Why This Changes Everything**
+
+- **Zero runtime cost**: All marker logic erased at compile time
+- **Refactoring safety**: Change authorization requirements → get compile errors everywhere affected  
+- **Self-documenting**: Function signatures show exactly what permissions are needed
+- **Impossible to bypass**: No runtime checks to forget or skip
+
+**Bottom line**: Turn authorization bugs from "runtime disasters" into "won't compile" problems.
+
+> 📚 **[Learn More](https://dk26.github.io/strict-path-rs/authorization_security.html)**: See the complete guide for advanced patterns like role hierarchies, capability-based markers, and web framework integration.
 
 ##  Where This Makes Sense
 
@@ -261,6 +280,8 @@ Everything in this crate builds upon `StrictPath`:
 
 **The core promise:** If you have a `StrictPath<Marker>`, it is impossible for it to reference anything outside its designated boundary. This isn't just validation - it's a type-level guarantee backed by cryptographic-grade path canonicalization.
 
+**Unique capability:** By making markers authorization-aware, strict-path becomes the foundation for **compile-time authorization architectures** - where the compiler mathematically proves that any path with an authorization-requiring marker went through proper authorization during construction.
+
 
 **Core Security Principle: Secure Every External Path**
 
@@ -296,15 +317,15 @@ println!("Saved to: {}", doc.virtualpath_display()); // Shows "/My Documents/rep
 use strict_path::PathBoundary;
 
 // LLM Agent file operations
-let ai_workspace = PathBoundary::try_new("ai_sandbox")?;
+let ai_workspace_dir = PathBoundary::try_new("ai_sandbox")?;
 let ai_request = llm.generate_path(); // Could be anything malicious
-let safe_path = ai_workspace.strict_join(ai_request)?; // ✅ Attack = Explicit Error
+let safe_path = ai_workspace_dir.strict_join(ai_request)?; // ✅ Attack = Explicit Error
 safe_path.write(&ai_generated_content)?;
 
 // Limited system access with clear boundaries
 struct ConfigFiles; 
-let config_dir = PathBoundary::<ConfigFiles>::try_new("./config")?;
-let user_config = config_dir.strict_join(user_selected_config)?; // ✅ Validated
+let app_config_dir = PathBoundary::<ConfigFiles>::try_new("./config")?;
+let user_config = app_config_dir.strict_join(user_selected_config)?; // ✅ Validated
 ```
 
 ### 🔓 **Path/PathBuf** - Controlled Access
@@ -330,10 +351,10 @@ let user_file = Path::new(user_input); // 🚨 SECURITY DISASTER
 ```rust
 use strict_path::PathBoundary;
 
-// Encode guarantees in signature: pass workspace boundary and untrusted request
-async fn llm_file_operation(workspace: &PathBoundary, request: &LlmRequest) -> Result<String> {
+// Encode guarantees in signature: pass workspace directory boundary and untrusted request
+async fn llm_file_operation(workspace_dir: &PathBoundary, request: &LlmRequest) -> Result<String> {
     // LLM could suggest anything: "../../../etc/passwd", "C:/Windows/System32", etc.
-    let safe_path = workspace.strict_join(&request.filename)?; // ✅ Attack = Error
+    let safe_path = workspace_dir.strict_join(&request.filename)?; // ✅ Attack = Error
 
     match request.operation.as_str() {
         "write" => safe_path.write(&request.content)?,
@@ -449,8 +470,8 @@ fs::write(config_file, settings)?;
 
 // ✅ Protected - bounded app directories  
 use strict_path::PathBoundary;
-let boundary = PathBoundary::try_new_create(AppPath::new("MyApp").get_app_dir())?;
-let safe_config = boundary.strict_join(user_config_name)?; // ✅ Validated
+let app_config_dir = PathBoundary::try_new_create(AppPath::new("MyApp").get_app_dir())?;
+let safe_config = app_config_dir.strict_join(user_config_name)?; // ✅ Validated
 safe_config.write(&settings)?;
 ```
 
@@ -462,13 +483,13 @@ safe_config.write(&settings)?;
 
 ```rust
 use strict_path::PathBoundary;
-let user_uploads_root = PathBoundary::try_new("./uploads")?; // user uploads root
+let user_uploads_dir = PathBoundary::try_new("./uploads")?; // user uploads directory boundary
 
 // ❌ ANTI-PATTERN: Wrong method for display
-println!("Path: {}", user_uploads_root.interop_path().to_string_lossy());
+println!("Path: {}", user_uploads_dir.interop_path().to_string_lossy());
 
 // ✅ CORRECT: Use proper display methods
-println!("Path: {}", user_uploads_root.strictpath_display());
+println!("Path: {}", user_uploads_dir.strictpath_display());
 
 // For virtual flows, prefer `VirtualPath` and borrow strict view when needed:
 use strict_path::VirtualPath;
@@ -524,9 +545,9 @@ fn load_config(config_dir: &PathBoundary, name: &str) -> Result<String> {
 ### LLM/AI File Operations
 ```rust
 // AI suggests file operations - always validated
-let ai_workspace = PathBoundary::try_new("ai_workspace")?;
+let ai_workspace_dir = PathBoundary::try_new("ai_workspace")?;
 let ai_suggested_path = llm_generate_filename(); // Could be anything!
-let safe_ai_path = ai_workspace.strict_join(ai_suggested_path)?; // ✅ Guaranteed safe
+let safe_ai_path = ai_workspace_dir.strict_join(ai_suggested_path)?; // ✅ Guaranteed safe
 safe_ai_path.write(&ai_generated_content)?;
 ```
 
