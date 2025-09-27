@@ -59,6 +59,37 @@ impl<Marker> VirtualRoot<Marker> {
     }
 
     /// SUMMARY:
+    /// Consume this virtual root and substitute a new marker type.
+    ///
+    /// DETAILS:
+    /// Mirrors [`PathBoundary::rebrand`], ensuring the marker change happens at
+    /// the policy root rather than on derived paths. Use this when propagating
+    /// additional capability markers (e.g., `(UserHome, Backups)`) without
+    /// reopening the filesystem.
+    ///
+    /// PARAMETERS:
+    /// - `NewMarker` (type parameter): Marker to associate with the cloned virtual root.
+    ///
+    /// RETURNS:
+    /// - `VirtualRoot<NewMarker>`: Same underlying root, rebranded with `NewMarker`.
+    #[inline]
+    pub fn rebrand<NewMarker>(self) -> VirtualRoot<NewMarker> {
+        let VirtualRoot {
+            root,
+            #[cfg(feature = "tempfile")]
+            _temp_dir,
+            _marker: _,
+        } = self;
+
+        VirtualRoot {
+            root: root.rebrand::<NewMarker>(),
+            #[cfg(feature = "tempfile")]
+            _temp_dir,
+            _marker: PhantomData,
+        }
+    }
+
+    /// SUMMARY:
     /// Create a `VirtualRoot` backed by a unique temporary directory with RAII cleanup.
     ///
     /// # Example
@@ -228,7 +259,7 @@ impl<Marker> VirtualRoot<Marker> {
     }
 
     /// SUMMARY:
-    /// Return the virtual root path as `&OsStr` for allocation‑free `AsRef<Path>` interop.
+    /// Return the virtual root path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop.
     #[inline]
     pub fn interop_path(&self) -> &std::ffi::OsStr {
         self.root.interop_path()
@@ -540,14 +571,14 @@ impl<Marker> std::fmt::Debug for VirtualRoot<Marker> {
     }
 }
 
-impl<Marker> PartialEq for VirtualRoot<Marker> {
+impl<Marker> Eq for VirtualRoot<Marker> {}
+
+impl<M1, M2> PartialEq<VirtualRoot<M2>> for VirtualRoot<M1> {
     #[inline]
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(&self, other: &VirtualRoot<M2>) -> bool {
         self.path() == other.path()
     }
 }
-
-impl<Marker> Eq for VirtualRoot<Marker> {}
 
 impl<Marker> std::hash::Hash for VirtualRoot<Marker> {
     #[inline]
@@ -570,9 +601,9 @@ impl<Marker> Ord for VirtualRoot<Marker> {
     }
 }
 
-impl<Marker> PartialEq<crate::PathBoundary<Marker>> for VirtualRoot<Marker> {
+impl<M1, M2> PartialEq<crate::PathBoundary<M2>> for VirtualRoot<M1> {
     #[inline]
-    fn eq(&self, other: &crate::PathBoundary<Marker>) -> bool {
+    fn eq(&self, other: &crate::PathBoundary<M2>) -> bool {
         self.path() == other.path()
     }
 }

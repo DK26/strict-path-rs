@@ -48,8 +48,11 @@ Audience and usage: This page is a minimal-context, copy/paste guide for tool-ca
 	- Purpose: Proven-safe system path (within its boundary)
 	- `StrictPath::strict_join<P: AsRef<Path>>(&self, path: P) -> Result<StrictPath<T>>`
 		- Errors: `PathEscapesBoundary`, `PathResolutionError`, `WindowsShortName`
-	- `StrictPath::interop_path(&self) -> &OsStr` (for `AsRef<Path>` APIs)
+	- `StrictPath::interop_path(&self) -> &OsStr` (for unavoidable third-party `AsRef<Path>` APIs)
 	- `StrictPath::strictpath_display(&self) -> Display`
+		- `StrictPath::try_into_boundary(self) -> Result<PathBoundary<T>>` — promote the validated path to a boundary (directory must exist); call `.rebrand::<NewMarker>()` to propagate authorization markers
+		- `StrictPath::try_into_boundary_create(self) -> Result<PathBoundary<T>>` — same as above but ensures the directory exists first
+	- `StrictPath::create_file(&self) -> io::Result<File>` — open writable handle; call `.open_file()` for read-only access
 
 - VirtualRoot<T>
 	- Purpose: Policy root for user-facing sandbox with rooted virtual "/" semantics
@@ -63,9 +66,10 @@ Audience and usage: This page is a minimal-context, copy/paste guide for tool-ca
 	- `VirtualPath::with_root<P: AsRef<Path>>(root: P) -> Result<VirtualPath<T>>`
 	- `VirtualPath::with_root_create<P: AsRef<Path>>(root: P) -> Result<VirtualPath<T>>`
 	- `VirtualPath::virtual_join<P: AsRef<Path>>(&self, path: P) -> Result<VirtualPath<T>>`
-	- `VirtualPath::interop_path(&self) -> &OsStr` (for `AsRef<Path>` APIs)
+	- `VirtualPath::interop_path(&self) -> &OsStr` (for unavoidable third-party `AsRef<Path>` APIs)
 	- `VirtualPath::virtualpath_display(&self) -> Display` (e.g., "/file.txt")
 	- `VirtualPath::as_unvirtual(&self) -> &StrictPath<T>` (borrow strict/system view)
+	- `VirtualPath::create_file(&self) -> io::Result<File>` / `.open_file()` — safe I/O streaming within the virtual root
 
 ## Architecture Overview
 
@@ -93,15 +97,17 @@ Use when: validating untrusted segments into a system-facing path within a known
 **StrictPath<T>**: Proven-safe system paths
 Use when: passing proven-safe paths to I/O and helpers; no extra validation inside the function.
 - `.strict_join(path)` → Chain additional safe joins
-- `.interop_path()` → `&OsStr` for `AsRef<Path>` APIs
-- `.read()/.write(data)` → I/O operations  
+- `.interop_path()` → `&OsStr` for third-party `AsRef<Path>` APIs you cannot adapt
+- `.read()/.write(data)` → I/O operations
+- `.create_file()` → Writable handle (pass to tar builders, etc.)
+- `.open_file()` → Read-only handle when you only need to stream bytes out
 - `.strictpath_display()` → Display for logging
 
 **VirtualRoot<T>**: User-friendly sandbox policy root
 Use when: creating a per-user sandbox root that produces `VirtualPath` with rooted "/" UX.
 - `VirtualRoot::try_new_create(dir)` → Create user sandbox root
 - `.virtual_join(input)` → Validate/clamp user input → `VirtualPath<T>`
-- `.interop_path()` → `&OsStr` for `AsRef<Path>` APIs at the root
+- `.interop_path()` → `&OsStr` for third-party `AsRef<Path>` APIs at the root
 - `.read_dir()` / `.remove_dir()` / `.remove_dir_all()` → Root-level discovery and cleanup
 
 **VirtualPath<T>**: User-facing clamped path
@@ -109,19 +115,19 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.virtual_join(input)` → Chain additional safe virtual joins
 - `.virtualpath_display()` → Virtual display (e.g., "/file.txt")
 - `.as_unvirtual()` → Borrow underlying `StrictPath<T>` for shared helpers
-- `.interop_path()` → Pass into APIs expecting `AsRef<Path>`
-- I/O helpers available: `.read()`, `.write(..)`, `.create_parent_dir_all()`
+- `.interop_path()` → Pass into third-party APIs expecting `AsRef<Path>`
+- I/O helpers available: `.read()`, `.write(..)`, `.create_file()`, `.open_file()`, `.create_parent_dir_all()`
 
 ### Core Security Rules
 
 - ❌ **Never**: `std::path::Path::join(user_input)` - vulnerable to traversal  
 - ✅ **Always**: `boundary.strict_join(user_input)` or `vroot.virtual_join(user_input)`
-- ✅ **For `AsRef<Path>` APIs**: use `.interop_path()` not `.unstrict()`
+- ✅ **Only for third-party `AsRef<Path>` APIs**: use `.interop_path()` (never `.unstrict()`)
 - Do not bypass: never call std fs ops on raw `Path`/`PathBuf` built from untrusted input.
 - Marker types prevent mixing distinct restrictions at compile time: use when you have multiple storage areas.
-- We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an API expects `AsRef<Path>`, pass `.interop_path()`.
+- We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an unavoidable third-party API expects `AsRef<Path>`, pass `.interop_path()`.
 	(`PathBoundary` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
-- Interop doesn't require `.unstrict()`: prefer `.interop_path()`; call `.unstrict()` only when an owned `PathBuf` is strictly required.
+- Interop doesn't require `.unstrict()`: prefer `.interop_path()` for those third-party adapters; call `.unstrict()` only when an owned `PathBuf` is strictly required.
 - Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
 	clamping or restriction checks. Use `strict_join` / `virtualpath_parent` instead.
 - Do not convert `StrictPath` -> `VirtualPath` just to print; for UI flows start with `VirtualPath::with_root(..).virtual_join(..)` and keep a `VirtualPath`.
@@ -134,7 +140,7 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - Use std `Path::join`/`parent` on leaked `StrictPath`/`VirtualPath` — use `strict_join`/`virtualpath_parent`.
 - Construct `PathBoundary`/`VirtualRoot` inside helpers — treat them as policy and pass them in.
 - Convert `StrictPath` → `VirtualPath` just to print; use `strictpath_display()` or start with `VirtualPath` for UI.
-- Rely on implicit conversions: there is no `AsRef<Path>` on secure types; use `.interop_path()` explicitly.
+- Rely on implicit conversions: there is no `AsRef<Path>` on secure types; when a third-party API insists on `AsRef<Path>`, use `.interop_path()` explicitly and nothing else.
 
 ## Common Usage Patterns
 
@@ -169,11 +175,15 @@ let config_file = config_boundary.strict_join("settings.toml")?;
 
 ### Pattern 4: External API Interop
 ```rust
+use walkdir::WalkDir;
+
 let safe_path = boundary.strict_join("file.txt")?;
-// For APIs expecting AsRef<Path>
-std::fs::copy(safe_path.interop_path(), "backup.txt")?;
-tokio::fs::read(safe_path.interop_path()).await?;
-// ❌ Don't do: safe_path.unstrict() - use interop_path() instead
+// Only for third-party crates that insist on `AsRef<Path>`
+for entry in WalkDir::new(safe_path.interop_path()) {
+	let entry = entry?;
+	println!("{}", entry.path().display());
+}
+// ❌ Don't do: safe_path.unstrict() - prefer crate helpers; reach for `.interop_path()` only when adapting third-party APIs
 ```
 
 ## Error Handling
@@ -203,7 +213,7 @@ match boundary.strict_join(user_input) {
 - virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
 - strictpath_to_string_lossy(&self) -> Cow<'_, str>
 - strictpath_to_str(&self) -> Option<&str>
-- interop_path(&self) -> &OsStr
+- interop_path(&self) -> &OsStr  // for unavoidable third-party `AsRef<Path>` adapters only
 - strictpath_display(&self) -> std::path::Display<'_>  // explicit display method
 - strict_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<Self>
 - strictpath_parent(&self) -> Result<Option<Self>
@@ -229,7 +239,7 @@ Minimal decision checklist (LLM prompts)
 - Input: untrusted file/dir name for a known system directory → Use `PathBoundary` + `.strict_join(...)` → `StrictPath<T>`.
 - Need one helper usable from both → Write `fn f<M>(p: &StrictPath<M>) { ... }`; call with `StrictPath` or `VirtualPath::as_unvirtual()`.
 - Display: user-facing → `vpath.virtualpath_display()`; system logs → `spath.strictpath_display()`.
-- Interop: when API expects `AsRef<Path>` → call `.interop_path()` on the secure type; do not use `.unstrict()` unless an owned `PathBuf` is required.
+- Interop: when an unavoidable third-party API expects `AsRef<Path>` → call `.interop_path()` on the secure type; do not use `.unstrict()` unless an owned `PathBuf` is required.
 
 **Common Use Cases:**
 ```rust
@@ -350,7 +360,7 @@ let _ = process_common(vpath.as_unvirtual())?;   // Borrow strict view from Virt
 - Display paths: `spath.strictpath_display()`, `vpath.virtualpath_display()` (no automatic Display trait)
 - Type-safe function signatures: `fn serve_file<M>(p: &StrictPath<M>) -> io::Result<Vec<u8>> { p.read() }`
 - Type-safe virtual signatures: `fn serve_user_file(p: &VirtualPath) -> io::Result<Vec<u8>> { p.read() }`
-- Interop: when an API expects `AsRef<Path>`, pass `.interop_path()` (returns `&OsStr`, which implements `AsRef<Path>`). Example: `std::fs::copy(src.interop_path(), dst.interop_path())?;`
+- Interop: when an unavoidable third-party API expects `AsRef<Path>`, pass `.interop_path()` (returns `&OsStr`, which implements `AsRef<Path>`). Example: `walkdir::WalkDir::new(src.interop_path())`.
 - Create parent dirs: `vp.create_parent_dir_all()?; vp.write("content")?;`
 
 Markers and type inference
@@ -369,18 +379,20 @@ StrictPathError (variants)
 - `WindowsShortName { component, original, checked_at }` (windows)
 
 PathBoundary<Marker>
+- rebrand<NewMarker>(self) -> PathBoundary<NewMarker>
 - try_new<P: AsRef<Path>>(restriction_path: P) -> Result<Self>
 - try_new_create<P: AsRef<Path>>(root: P) -> Result<Self>
 - strict_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<StrictPath<Marker>>
-- interop_path(&self) -> &OsStr
 - exists(&self) -> bool
+- metadata(&self) -> io::Result<std::fs::Metadata>
+- interop_path(&self) -> &OsStr  // for unavoidable third-party `AsRef<Path>` adapters only
 - strictpath_display(&self) -> std::path::Display<'_>
 - virtualize(self) -> VirtualRoot<Marker>
 - strict_symlink(&self, link_path: &StrictPath<Marker>) -> io::Result<()>
 - strict_hard_link(&self, link_path: &StrictPath<Marker>) -> io::Result<()>
- - read_dir(&self) -> io::Result<std::fs::ReadDir>
- - remove_dir(&self) -> io::Result<()>
- - remove_dir_all(&self) -> io::Result<()>
+- read_dir(&self) -> io::Result<std::fs::ReadDir>
+- remove_dir(&self) -> io::Result<()>
+- remove_dir_all(&self) -> io::Result<()>
 
 StrictPath<Marker>
 Note: `.unstrict()` is an explicit escape hatch. Interop doesn’t require it — prefer `.interop_path()`; use `.unstrict()` only when an owned `PathBuf` is strictly required.
@@ -388,11 +400,11 @@ Note: `.unstrict()` is an explicit escape hatch. Interop doesn’t require it �
 - with_boundary_create<P: AsRef<Path>>(dir_path: P) -> Result<Self>  // sugar; creates directory if missing
 - unstrict(self) -> PathBuf  // consumes — escape hatch (avoid)
 - virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
-- try_into_boundary(self) -> PathBoundary<Marker>
-- try_into_boundary_create(self) -> PathBoundary<Marker>
+- try_into_boundary(self) -> Result<PathBoundary<Marker>>
+- try_into_boundary_create(self) -> Result<PathBoundary<Marker>>
 - strictpath_to_string_lossy(&self) -> Cow<'_, str>
 - strictpath_to_str(&self) -> Option<&str>
-- interop_path(&self) -> &OsStr
+- interop_path(&self) -> &OsStr  // third-party `AsRef<Path>` adapters only
 - strictpath_display(&self) -> std::path::Display<'_>
 - strict_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<Self>
 - strictpath_parent(&self) -> Result<Option<Self>>
@@ -415,6 +427,8 @@ Note: `.unstrict()` is an explicit escape hatch. Interop doesn’t require it �
 - read_to_string(&self) -> io::Result<String>
 - read(&self) -> io::Result<Vec<u8>>
 - write<C: AsRef<[u8]>>(&self, data: C) -> io::Result<()>
+- create_file(&self) -> io::Result<std::fs::File>
+- open_file(&self) -> io::Result<std::fs::File>
 - create_dir(&self) -> io::Result<()>
 - create_dir_all(&self) -> io::Result<()>
 - create_parent_dir(&self) -> io::Result<()>
@@ -424,16 +438,20 @@ Note: `.unstrict()` is an explicit escape hatch. Interop doesn’t require it �
 - remove_dir_all(&self) -> io::Result<()>
 
 VirtualRoot<Marker>
+- rebrand<NewMarker>(self) -> VirtualRoot<NewMarker>
 - try_new<P: AsRef<Path>>(root_path: P) -> Result<Self>
 - try_new_create<P: AsRef<Path>>(root_path: P) -> Result<Self>
 - virtual_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<VirtualPath<Marker>>
-- interop_path(&self) -> &OsStr
+- metadata(&self) -> io::Result<std::fs::Metadata>
+- virtual_symlink(&self, link_path: &VirtualPath<Marker>) -> io::Result<()>
+- virtual_hard_link(&self, link_path: &VirtualPath<Marker>) -> io::Result<()>
+- interop_path(&self) -> &OsStr  // third-party `AsRef<Path>` adapters only
 - exists(&self) -> bool
 - as_unvirtual(&self) -> &PathBoundary<Marker>
 - unvirtual(self) -> PathBoundary<Marker>
- - read_dir(&self) -> io::Result<std::fs::ReadDir>
- - remove_dir(&self) -> io::Result<()>
- - remove_dir_all(&self) -> io::Result<()>
+- read_dir(&self) -> io::Result<std::fs::ReadDir>
+- remove_dir(&self) -> io::Result<()>
+- remove_dir_all(&self) -> io::Result<()>
 
 VirtualPath<Marker>
 - with_root<P: AsRef<Path>>(root: P) -> Result<Self>  // sugar; root must exist
@@ -447,6 +465,8 @@ VirtualPath<Marker>
 - virtualpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
 - virtual_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<()>
 - virtual_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<u64>
+- create_file(&self) -> io::Result<std::fs::File>
+- open_file(&self) -> io::Result<std::fs::File>
 - virtual_symlink(&self, link_path: &Self) -> io::Result<()>
 - virtual_hard_link(&self, link_path: &Self) -> io::Result<()>
 - virtualpath_file_name(&self) -> Option<&OsStr>
@@ -455,12 +475,10 @@ VirtualPath<Marker>
 - virtualpath_starts_with<P: AsRef<Path>>(&self, p: P) -> bool
 - virtualpath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool
 - virtualpath_display(&self) -> VirtualPathDisplay<'_, Marker>  // explicit display method
- - try_into_root(self) -> VirtualRoot<Marker>
-- try_into_root_create(self) -> VirtualRoot<Marker>
+- try_into_root(self) -> Result<VirtualRoot<Marker>>
+- try_into_root_create(self) -> Result<VirtualRoot<Marker>>
 - read_dir(&self) -> io::Result<std::fs::ReadDir>
-- exists / is_file / is_dir / metadata / read_to_string / read / write / create_dir / create_dir_all / create_parent_dir / create_parent_dir_all / remove_file / remove_dir / remove_dir_all (delegates to `StrictPath`; parents derived via virtual semantics)
-- virtual_symlink(&self, link_path: &VirtualPath<Marker>) -> io::Result<()>
-- virtual_hard_link(&self, link_path: &VirtualPath<Marker>) -> io::Result<()>
+- exists / is_file / is_dir / metadata / read_to_string / read / write / create_file / open_file / create_dir / create_dir_all / create_parent_dir / create_parent_dir_all / remove_file / remove_dir / remove_dir_all (delegates to `StrictPath`; parents derived via virtual semantics)
 
 ### Feature-gated APIs (complete list)
 These are available only when the corresponding Cargo features are enabled:
@@ -525,9 +543,9 @@ Short usage rules (1-line each)
 - For I/O: use either `VirtualPath` or `StrictPath` (both support I/O). Call `.unvirtual()` only when you need a `StrictPath` explicitly.
 - Do not bypass: never call std fs ops on raw `Path`/`PathBuf` built from untrusted input.
 - Marker types prevent mixing distinct path boundaries at compile time: use when you have multiple storage areas.
-- We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an API expects `AsRef<Path>`, pass `.interop_path()`.
+- We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an unavoidable third-party API expects `AsRef<Path>`, pass `.interop_path()`.
 	(`PathBoundary` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
-- Interop doesn’t require `.unstrict()`: prefer `.interop_path()`; call `.unstrict()` only when an owned `PathBuf` is strictly required.
+- Interop doesn’t require `.unstrict()`: prefer `.interop_path()` for those third-party adapters; call `.unstrict()` only when an owned `PathBuf` is strictly required.
 - Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
 	clamping or path boundary checks. Use `strict_join` / `virtualpath_parent` instead.
  - Do not convert `StrictPath` -> `VirtualPath` just to print; for UI flows start with `VirtualPath::with_root(..).virtual_join(..)` and keep a `VirtualPath`.

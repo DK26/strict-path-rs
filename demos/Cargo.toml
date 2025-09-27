@@ -42,7 +42,10 @@ walkdir = "2.3"
 tokio = { version = "1.39", features = ["full"] }
 anyhow = "1.0.99"
 # MCP server runtime (official). We target the latest; update as needed in lockfile.
-rmcp = { version = "0.6.4", features = ["server", "transport-io"], optional = true }
+rmcp = { version = "0.7.0", features = [
+    "server",
+    "transport-io",
+], optional = true }
 schemars = { version = "1.0.4", features = ["derive"] }
 axum = "0.8.4"
 uuid = { version = "1.18.1", features = ["v4"] }
@@ -209,3 +212,10 @@ path = "src/bin/web/tenant_workspace_service.rs"
 name = "static_site_generator"
 path = "src/bin/web/static_site_generator.rs"
 
+[[bin]]
+name = "user_home_backup_service"
+path = "src/bin/web/user_home_backup_service.rs"
+
+[[bin]]
+name = "document_vault_service"
+path = "src/bin/web/document_vault_service.rs"

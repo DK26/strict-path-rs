@@ -70,7 +70,7 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Return a lossy `String` view of the system path. Prefer `interop_path()` for interop.
+    /// Return a lossy `String` view of the system path. Prefer `.interop_path()` only for unavoidable third-party interop.
     #[inline]
     pub fn strictpath_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
         self.path.to_string_lossy()
@@ -84,7 +84,7 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Return the underlying system path as `&OsStr` for allocation‑free `AsRef<Path>` interop.
+    /// Return the underlying system path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop.
     #[inline]
     pub fn interop_path(&self) -> &OsStr {
         self.path.as_os_str()
@@ -98,7 +98,7 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Consume and return the inner `PathBuf` (escape hatch). Prefer `interop_path()` to borrow.
+    /// Consume and return the inner `PathBuf` (escape hatch). Prefer `.interop_path()` (third-party adapters only) to borrow.
     #[inline]
     pub fn unstrict(self) -> PathBuf {
         self.path.into_inner()
@@ -112,23 +112,34 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Consume and return the associated `PathBoundary` (infallible).
+    /// Consume and return a new `PathBoundary` anchored at this strict path.
+    ///
+    /// RETURNS:
+    /// - `Result<PathBoundary<Marker>>`: Boundary rooted at the strict path's
+    ///   system location (must already exist and be a directory).
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::InvalidRestriction`: If the strict path does not exist
+    ///   or is not a directory.
     #[inline]
-    pub fn try_into_boundary(self) -> crate::PathBoundary<Marker> {
-        // Clone the underlying boundary reference (cheap, small struct)
-        self.boundary.as_ref().clone()
+    pub fn try_into_boundary(self) -> Result<crate::PathBoundary<Marker>> {
+        let StrictPath { path, .. } = self;
+        crate::PathBoundary::try_new(path.into_inner())
     }
 
     /// SUMMARY:
-    /// Consume and return the `PathBoundary`, creating the directory if missing (best‑effort).
+    /// Consume and return a `PathBoundary`, creating the directory if missing.
+    ///
+    /// RETURNS:
+    /// - `Result<PathBoundary<Marker>>`: Boundary rooted at the strict path's
+    ///   system location (created if necessary).
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::InvalidRestriction`: If creation or canonicalization fails.
     #[inline]
-    pub fn try_into_boundary_create(self) -> crate::PathBoundary<Marker> {
-        let boundary = self.boundary.as_ref().clone();
-        if !boundary.exists() {
-            // Best-effort create; ignore error and let later operations surface it
-            let _ = std::fs::create_dir_all(boundary.as_ref());
-        }
-        boundary
+    pub fn try_into_boundary_create(self) -> Result<crate::PathBoundary<Marker>> {
+        let StrictPath { path, .. } = self;
+        crate::PathBoundary::try_new_create(path.into_inner())
     }
 
     /// SUMMARY:
@@ -276,6 +287,71 @@ impl<Marker> StrictPath<Marker> {
     #[inline]
     pub fn write<C: AsRef<[u8]>>(&self, contents: C) -> std::io::Result<()> {
         std::fs::write(&self.path, contents)
+    }
+
+    /// SUMMARY:
+    /// Create or truncate the file at this strict path and return a writable handle.
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `std::fs::File`: Writable handle scoped to this boundary.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: Propagates OS errors when the parent directory is missing or file creation fails.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{PathBoundary, StrictPath};
+    /// # use std::io::Write;
+    /// # let root = std::env::temp_dir().join("strict-path-create-file-example");
+    /// # std::fs::create_dir_all(&root)?;
+    /// # let boundary: PathBoundary = PathBoundary::try_new(&root)?;
+    /// let log_path: StrictPath = boundary.strict_join("logs/app.log")?;
+    /// log_path.create_parent_dir_all()?;
+    /// let mut file = log_path.create_file()?;
+    /// file.write_all(b"session started")?;
+    /// # std::fs::remove_dir_all(&root)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn create_file(&self) -> std::io::Result<std::fs::File> {
+        std::fs::File::create(&self.path)
+    }
+
+    /// SUMMARY:
+    /// Open the file at this strict path in read-only mode.
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `std::fs::File`: Read-only handle scoped to this boundary.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: Propagates OS errors when the file is missing or inaccessible.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{PathBoundary, StrictPath};
+    /// # use std::io::{Read, Write};
+    /// # let root = std::env::temp_dir().join("strict-path-open-file-example");
+    /// # std::fs::create_dir_all(&root)?;
+    /// # let boundary: PathBoundary = PathBoundary::try_new(&root)?;
+    /// let transcript: StrictPath = boundary.strict_join("logs/session.log")?;
+    /// transcript.create_parent_dir_all()?;
+    /// transcript.write("session start")?;
+    /// let mut file = transcript.open_file()?;
+    /// let mut contents = String::new();
+    /// file.read_to_string(&mut contents)?;
+    /// assert_eq!(contents, "session start");
+    /// # std::fs::remove_dir_all(&root)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn open_file(&self) -> std::io::Result<std::fs::File> {
+        std::fs::File::open(&self.path)
     }
 
     /// Creates all directories in the system path if missing (like `std::fs::create_dir_all`).

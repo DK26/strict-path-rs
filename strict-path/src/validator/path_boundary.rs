@@ -136,14 +136,14 @@ impl<Marker> Clone for PathBoundary<Marker> {
     }
 }
 
-impl<Marker> PartialEq for PathBoundary<Marker> {
+impl<Marker> Eq for PathBoundary<Marker> {}
+
+impl<M1, M2> PartialEq<PathBoundary<M2>> for PathBoundary<M1> {
     #[inline]
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(&self, other: &PathBoundary<M2>) -> bool {
         self.path() == other.path()
     }
 }
-
-impl<Marker> Eq for PathBoundary<Marker> {}
 
 impl<Marker> std::hash::Hash for PathBoundary<Marker> {
     #[inline]
@@ -166,11 +166,9 @@ impl<Marker> Ord for PathBoundary<Marker> {
     }
 }
 
-impl<Marker> PartialEq<crate::validator::virtual_root::VirtualRoot<Marker>>
-    for PathBoundary<Marker>
-{
+impl<M1, M2> PartialEq<crate::validator::virtual_root::VirtualRoot<M2>> for PathBoundary<M1> {
     #[inline]
-    fn eq(&self, other: &crate::validator::virtual_root::VirtualRoot<Marker>) -> bool {
+    fn eq(&self, other: &crate::validator::virtual_root::VirtualRoot<M2>) -> bool {
         self.path() == other.path()
     }
 }
@@ -197,6 +195,37 @@ impl<Marker> PartialEq<&std::path::Path> for PathBoundary<Marker> {
 }
 
 impl<Marker> PathBoundary<Marker> {
+    /// SUMMARY:
+    /// Consume this boundary and return it with a new marker type.
+    ///
+    /// DETAILS:
+    /// Preferred ergonomic for marker rebranding when propagating authorization
+    /// or capability markers from a policy root (`try_into_boundary()?.rebrand()`).
+    /// Consumes `self` to make the intent explicit during code review; callers
+    /// can `clone()` beforehand when they truly need to keep the original.
+    ///
+    /// PARAMETERS:
+    /// - `NewMarker` (type parameter): Marker to brand the returned boundary with.
+    ///
+    /// RETURNS:
+    /// - `PathBoundary<NewMarker>`: Same root directory, rebranded with `NewMarker`.
+    #[inline]
+    pub fn rebrand<NewMarker>(self) -> PathBoundary<NewMarker> {
+        let PathBoundary {
+            path,
+            #[cfg(feature = "tempfile")]
+            _temp_dir,
+            _marker: _,
+        } = self;
+
+        PathBoundary {
+            path,
+            #[cfg(feature = "tempfile")]
+            _temp_dir,
+            _marker: PhantomData,
+        }
+    }
+
     /// Private constructor that allows setting the temp_dir during construction
     #[cfg(feature = "tempfile")]
     fn new_with_temp_dir(
@@ -350,7 +379,7 @@ impl<Marker> PathBoundary<Marker> {
     }
 
     /// SUMMARY:
-    /// Return the root path as `&OsStr` for `AsRef<Path>` interop (no allocation).
+    /// Return the root path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop (no allocation).
     #[inline]
     pub fn interop_path(&self) -> &std::ffi::OsStr {
         self.path.as_os_str()
@@ -765,7 +794,7 @@ impl<Marker> PathBoundary<Marker> {
     /// let validated_path = temp_root.strict_join(user_input)?; // Returns StrictPath
     /// // Ensure parent directories exist before writing
     /// validated_path.create_parent_dir_all()?;
-    /// std::fs::write(validated_path.interop_path(), b"content")?; // Direct filesystem access
+    /// validated_path.write(b"content")?; // Prefer strict-path helpers over std::fs
     /// // temp_root is dropped here, directory gets cleaned up automatically
     /// # }
     /// # Ok::<(), Box<dyn std::error::Error>>(())

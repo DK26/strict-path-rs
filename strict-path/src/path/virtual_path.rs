@@ -154,21 +154,35 @@ impl<Marker> VirtualPath<Marker> {
 
     /// SUMMARY:
     /// Consume and return the `VirtualRoot` for its boundary (no directory creation).
+    ///
+    /// RETURNS:
+    /// - `Result<VirtualRoot<Marker>>`: Virtual root anchored at the strict path's directory.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::InvalidRestriction`: Propagated from `try_into_boundary` when the
+    ///   strict path does not exist or is not a directory.
     #[inline]
-    pub fn try_into_root(self) -> crate::validator::virtual_root::VirtualRoot<Marker> {
-        self.inner.try_into_boundary().virtualize()
+    pub fn try_into_root(self) -> Result<crate::validator::virtual_root::VirtualRoot<Marker>> {
+        Ok(self.inner.try_into_boundary()?.virtualize())
     }
 
     /// SUMMARY:
     /// Consume and return a `VirtualRoot`, creating the underlying directory if missing.
+    ///
+    /// RETURNS:
+    /// - `Result<VirtualRoot<Marker>>`: Virtual root anchored at the strict path's directory
+    ///   (created if necessary).
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::InvalidRestriction`: Propagated from `try_into_boundary` or directory
+    ///   creation failures wrapped in `InvalidRestriction`.
     #[inline]
-    pub fn try_into_root_create(self) -> crate::validator::virtual_root::VirtualRoot<Marker> {
-        let boundary = self.inner.try_into_boundary();
-        if !boundary.exists() {
-            // Best-effort create; ignore error and let later operations surface it
-            let _ = std::fs::create_dir_all(boundary.as_ref());
-        }
-        boundary.virtualize()
+    pub fn try_into_root_create(
+        self,
+    ) -> Result<crate::validator::virtual_root::VirtualRoot<Marker>> {
+        let strict_path = self.inner;
+        let boundary = strict_path.try_into_boundary_create()?;
+        Ok(boundary.virtualize())
     }
 
     /// SUMMARY:
@@ -179,7 +193,7 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Return the underlying system path as `&OsStr` for `AsRef<Path>` interop.
+    /// Return the underlying system path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop.
     #[inline]
     pub fn interop_path(&self) -> &OsStr {
         self.inner.interop_path()
@@ -360,6 +374,71 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub fn write<C: AsRef<[u8]>>(&self, contents: C) -> std::io::Result<()> {
         self.inner.write(contents)
+    }
+
+    /// SUMMARY:
+    /// Create or truncate the file at this virtual path and return a writable handle.
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `std::fs::File`: Writable handle scoped to the same virtual root restriction.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: Propagates operating-system errors when the parent directory is missing or file creation fails.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # use std::io::Write;
+    /// # let root = std::env::temp_dir().join("strict-path-virtual-create-file");
+    /// # std::fs::create_dir_all(&root)?;
+    /// # let vroot: VirtualRoot = VirtualRoot::try_new(&root)?;
+    /// let report = vroot.virtual_join("reports/summary.txt")?;
+    /// report.create_parent_dir_all()?;
+    /// let mut file = report.create_file()?;
+    /// file.write_all(b"summary")?;
+    /// # std::fs::remove_dir_all(&root)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn create_file(&self) -> std::io::Result<std::fs::File> {
+        self.inner.create_file()
+    }
+
+    /// SUMMARY:
+    /// Open the file at this virtual path in read-only mode.
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `std::fs::File`: Read-only handle scoped to the same virtual root restriction.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: Propagates operating-system errors when the file is missing or inaccessible.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # use std::io::{Read, Write};
+    /// # let root = std::env::temp_dir().join("strict-path-virtual-open-file");
+    /// # std::fs::create_dir_all(&root)?;
+    /// # let vroot: VirtualRoot = VirtualRoot::try_new(&root)?;
+    /// let report = vroot.virtual_join("reports/summary.txt")?;
+    /// report.create_parent_dir_all()?;
+    /// report.write("summary")?;
+    /// let mut file = report.open_file()?;
+    /// let mut contents = String::new();
+    /// file.read_to_string(&mut contents)?;
+    /// assert_eq!(contents, "summary");
+    /// # std::fs::remove_dir_all(&root)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn open_file(&self) -> std::io::Result<std::fs::File> {
+        self.inner.open_file()
     }
 
     /// SUMMARY:

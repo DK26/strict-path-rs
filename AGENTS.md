@@ -13,6 +13,11 @@ Do not implement leaky trait impls for secure types:
 - Forbidden: `AsRef<Path>`, `Deref<Target = Path>`, implicit `From/Into` conversions for `StrictPath`/`VirtualPath`.
 - Rationale: They would bypass validation and blur dimension semantics (strict vs virtual).
 
+### Helper API Restrictions (Unbreakable)
+
+- Never introduce new `pub` helper functions or constructors. Public API additions must come from explicit maintainer direction, not autonomous agent judgment.
+- Before adding *any* new helper that is `fn`, `pub(crate) fn`, or otherwise widening internal surface area, pause and request maintainer approval. Document the need in the PR description rather than committing speculative helpers.
+
 ## Repository Layout
 
 - Root workspace: `[workspace].members = ["strict-path"]`, `exclude = ["demos"]`.
@@ -60,7 +65,7 @@ Do not implement leaky trait impls for secure types:
 - Demos must encode strict/virtual path guarantees in handlers so users learn the correct integration patterns (validate received paths → operate through `StrictPath`/`VirtualPath`).
 - No #[allow(...)] in demos — fix the code and naming to pass clippy with `-D warnings`.
 - Use domain names for variables (e.g., `user_project_root`, `system_root`, `entry_path`) — never one‑letter variables for paths.
-- Demonstrate directory discovery vs. validation: `read_dir(root.interop_path())` to discover names, then re‑join each name through `strict_join`/`virtual_join` for safe display and I/O.
+- Demonstrate directory discovery vs. validation: call the strict helper (`let entries = root.strict_join("")?.read_dir()?;`) to enumerate, then re‑join each discovered name through `strict_join`/`virtual_join`. Reserve `.interop_path()` for third‑party crates that require `AsRef<Path>`.
 
 Directory convention for demos:
 - Web servers: `demos/src/bin/web/...`
@@ -91,7 +96,7 @@ Avoid generic names like `boundary`, `jail`, or type-based suffixes. This applie
     - Keep a `PathBoundary`/`VirtualRoot` and call `strict_join`/`virtual_join` repeatedly.
     - Use policy types whenever passing “the root” across module boundaries, or when serde/OS-dirs/temp RAII are involved.
 - Interop vs display:
-  - Interop (`AsRef<Path>`): `interop_path()` on `StrictPath`/`VirtualPath`/`PathBoundary`/`VirtualRoot` (no allocations).
+  - Interop (`AsRef<Path>`): Call `.interop_path()` on `StrictPath`/`VirtualPath`/`PathBoundary`/`VirtualRoot` **only** when a third-party crate (including stdlib adapters that you cannot wrap) insists on an `AsRef<Path>` argument. If you reach for `.interop_path()` in any other context, pause and re-evaluate—the crate almost certainly already exposes a strict helper for that operation.
   - Display: `strictpath_display()` (system) / `virtualpath_display()` (virtual).
 - Explicit operations by dimension:
   - `strict_join`/`virtual_join`, `strictpath_parent`/`virtualpath_parent`, `strictpath_with_*`/`virtualpath_with_*`.
@@ -166,7 +171,8 @@ Escape hatches:
 - Validating only constants (no untrusted segment ever flows through validation).
 - Constructing boundaries/roots inside helpers.
 - Wrapping secure types in `Path::new()` / `PathBuf::from()`.
-- `interop_path().as_ref()` or `as_unvirtual().interop_path()` — use `interop_path()` directly.
+- Performing filesystem I/O via `std::fs` on `.interop_path()` paths instead of the built-in strict helpers (e.g., `StrictPath::create_file`, `StrictPath::read_to_string`).
+- `interop_path().as_ref()` or `as_unvirtual().interop_path()` — when adapting third-party crates, call `.interop_path()` directly; no extra `.as_ref()` dance.
 - Mixing interop and display (use `*_display()` for display).
 - Using std path ops on leaked values (`join`/`parent`).
 - Raw path parameters in safe helpers — use types/signatures that encode guarantees.
@@ -192,6 +198,7 @@ See also mdBook pages:
 - Use doctested examples in source whenever possible; examples must compile and follow path‑handling rules.
 - Examples should be runnable and realistic: prefer end‑to‑end flows over contrived snippets; show policy types for reusable flows.
 - Doctests and examples must not rely on `#[allow(..)]` to pass lints; fix code and naming instead.
+- Fenced code blocks in docs must execute as doctests. Do not use `no_run`, `ignore`, or similar escape hatches. If an example needs to show a failure path, structure it as a regular doctest that asserts the failure (or mark it `compile_fail` when the compiler should reject it).
 - Lead with sugar for ergonomics in simple flows; demonstrate policy types for reuse, serde context, OS dirs, and temp RAII.
 - For multi‑user flows, prefer `VirtualRoot`/`VirtualPath`; for shared strict logic, borrow `as_unvirtual()`.
 
@@ -232,6 +239,7 @@ Keep LLM_API_REFERENCE.md concise and stable. When APIs evolve, update it alongs
   - In such cases, create the required directories in doctest hidden lines using `std::fs::create_dir_all(...)` so the example compiles and runs:
     - Hidden setup line style: `# std::fs::create_dir_all("some_dir")?;`
   - In the visible code, include a brief note that these constructors require the directory to exist and must be a directory; advise using the `*_create` variants when creation is desired.
+- When demonstrating anti-patterns, keep the code runnable: capture the failure in a helper (`if let Err(e) = example() { panic!("{e}"); }`) or assert on the error instead of relying on `no_run` fences.
 - Do not use `std::fs` in visible example code unless strictly demonstrating interop via `interop_path()`; keep raw filesystem calls confined to hidden setup/cleanup.
 
 mdBook documentation system:

@@ -135,8 +135,8 @@ fn test_virtual_root_comparisons() {
     assert_ne!(vroot1, vroot3); // Different underlying paths
 
     // VirtualRoot vs PathBoundary (system path comparison)
-    let jail1 = PathBoundary::try_new_create(temp_dir1.path()).unwrap();
-    let jail2 = PathBoundary::try_new_create(temp_dir2.path()).unwrap();
+    let jail1: PathBoundary = PathBoundary::try_new_create(temp_dir1.path()).unwrap();
+    let jail2: PathBoundary = PathBoundary::try_new_create(temp_dir2.path()).unwrap();
     assert_eq!(vroot1, jail1); // Same underlying path
     assert_ne!(vroot1, jail2); // Different underlying paths
 

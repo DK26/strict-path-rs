@@ -1,5 +1,5 @@
 use crate::path::strict_path::StrictPath;
-use crate::PathBoundary;
+use crate::{PathBoundary, VirtualRoot};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -46,4 +46,64 @@ fn test_different_marker_types_are_incompatible() {
         logo_file.strictpath_to_string_lossy(),
         profile_file.strictpath_to_string_lossy()
     );
+}
+
+#[test]
+fn test_try_into_boundary_rebrands_marker() {
+    #[derive(Clone)]
+    struct VaultRoot;
+    #[derive(Clone)]
+    struct Confidential;
+    #[derive(Clone)]
+    struct Reports;
+
+    let temp = tempfile::tempdir().unwrap();
+    let vault_boundary = PathBoundary::<VaultRoot>::try_new(temp.path()).unwrap();
+    let strict_root: StrictPath<VaultRoot> = StrictPath::with_boundary(temp.path()).unwrap();
+
+    let confidential_boundary: PathBoundary<Confidential> = strict_root
+        .clone()
+        .try_into_boundary()
+        .unwrap()
+        .rebrand::<Confidential>();
+    let inferred_boundary: PathBoundary<VaultRoot> =
+        strict_root.clone().try_into_boundary().unwrap();
+
+    assert_eq!(confidential_boundary, vault_boundary);
+    assert_eq!(inferred_boundary, vault_boundary);
+
+    let reports_boundary = vault_boundary.clone().rebrand::<Reports>();
+    assert_eq!(reports_boundary, vault_boundary);
+
+    let rebrand_boundary = vault_boundary.clone().rebrand::<Reports>();
+    assert_eq!(rebrand_boundary, vault_boundary);
+
+    // Nested directories become new boundaries when they already exist
+    let reports_dir = vault_boundary.strict_join("reports").unwrap();
+    reports_dir.create_dir_all().unwrap();
+    let nested_boundary = reports_dir.clone().try_into_boundary().unwrap();
+    let expected_boundary = reports_dir.clone().try_into_boundary().unwrap();
+    assert_eq!(nested_boundary, expected_boundary);
+
+    // Create-and-rebrand should also work without panicking
+    let _: PathBoundary<Reports> = strict_root
+        .clone()
+        .try_into_boundary_create()
+        .unwrap()
+        .rebrand::<Reports>();
+}
+
+#[test]
+fn test_virtual_root_rebrand() {
+    #[derive(Clone)]
+    struct VaultRoot;
+    #[derive(Clone)]
+    struct Confidential;
+
+    let temp = tempfile::tempdir().unwrap();
+    let vroot = VirtualRoot::<VaultRoot>::try_new(temp.path()).unwrap();
+    let baseline = vroot.clone();
+
+    let rebranded = vroot.rebrand::<Confidential>();
+    assert_eq!(rebranded, baseline);
 }

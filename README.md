@@ -500,7 +500,7 @@ println!("System: {}", profile_avatar_file.as_unvirtual().strictpath_display());
 ```
 
 **Why this matters:**
-- `interop_path()` is designed for external API interop (`AsRef<Path>`)
+- `interop_path()` is designed solely for unavoidable third-party API interop (`AsRef<Path>`)
 - `*_display()` methods are designed for human-readable output
 - Mixing concerns makes code harder to understand and maintain
 

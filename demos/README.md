@@ -39,6 +39,12 @@ Rule of thumb: validate the untrusted part right at the boundary, then pass `&St
   - Shows a site build pipeline using strict-path joins and built-in I/O. If all inputs are local and trusted, strict-path isn’t required for safety, but the demo keeps the API usage consistent for boundary-aware I/O.
 - llm/mcp_file_service_rmcp (MCP stdio server)
   - Realistic MCP server using the official runtime. Registers tools `file.read`, `file.write`, `file.list`. All received paths are validated via `VirtualRoot::virtual_join(..)` (isolated projects) or `PathBoundary::strict_join(..)` (system). Shows the correct discovery vs. validation pattern for directory listings.
+- web/user_home_backup_service
+  - Axum API that authenticates per-user access tokens, validates user input into `StrictPath<UserHome>` paths, and issues typed backup capabilities. Demonstrates the `UserHome` authorization marker pattern together with backup-scoped permissions.
+- web/document_vault_service
+  - Multi-scope tuple-marker demo where tokens map to capabilities like `PathBoundary<(ConfidentialDocs, ReadOnly)>` or `(PublicReports, WriteOnly)`, and audit logging uses `PathBoundary<(AuditTrail, WriteOnly)>`.
+- web/document_vault_service
+  - Tuple markers encode `StrictPath<(Resource, Permission)>` for confidential docs vs. public reports. Shows how read vs. write vs. audit scopes stay isolated by marker type.
 - config/*, filesystem/*
   - Examples of using OS directories and app-relative locations; focus on correct boundary setup and display/interop practices.
 
@@ -48,6 +54,7 @@ Rule of thumb: validate the untrusted part right at the boundary, then pass `&St
 - No `Path::new(...)`/`PathBuf::from(...)` around secure types.
 - No `as_unvirtual().interop_path()` when `interop_path()` exists directly.
 - No `interop_path().as_ref()` — `interop_path()` already implements `AsRef<Path>`.
+- No `.interop_path()` unless you are adapting an unavoidable third-party `AsRef<Path>` API.
 - No `*_to_string_lossy()` for display of secure types — use `strictpath_display()` / `virtualpath_display()`.
 - Prefer `impl AsRef<Path>` in helper signatures; accept `&StrictPath/_` or `&VirtualPath/_` where safety must be encoded.
 

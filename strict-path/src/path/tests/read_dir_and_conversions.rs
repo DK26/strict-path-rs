@@ -55,25 +55,28 @@ fn test_conversion_helpers_for_strict_and_virtual_path() {
     dir.create_dir_all().unwrap();
 
     // StrictPath -> PathBoundary conversion symmetry
-    let b1 = dir.clone().try_into_boundary();
-    assert_eq!(b1, boundary);
+    let b1 = dir.clone().try_into_boundary().unwrap();
+    assert_eq!(dir, b1);
 
     // Simulate boundary deletion, then try_into_boundary_create recreates it
-    let boundary_path = std::path::PathBuf::from(boundary.interop_path().to_os_string());
-    std::fs::remove_dir_all(&boundary_path).unwrap();
-    let b2 = dir.try_into_boundary_create();
+    boundary.remove_dir_all().unwrap();
+    assert!(!boundary.exists());
+    let b2 = dir.try_into_boundary_create().unwrap();
     assert!(b2.exists());
-    assert!(std::path::Path::new(&boundary_path).exists());
+    assert!(boundary.exists());
 
     // VirtualPath -> VirtualRoot conversion symmetry
-    let vfile = b2.strict_join("workspace/note.txt").unwrap().virtualize();
-    let vroot: VirtualRoot = vfile.clone().try_into_root();
-    assert_eq!(vroot.as_unvirtual(), &b2);
+    let nested_dir = b2.strict_join("nested").unwrap();
+    nested_dir.create_dir_all().unwrap();
+    let vdir = nested_dir.clone().virtualize();
+    let nested_boundary = nested_dir.try_into_boundary_create().unwrap();
+    let vroot: VirtualRoot = vdir.clone().try_into_root().unwrap();
+    assert_eq!(vroot.as_unvirtual(), &nested_boundary);
 
     // Simulate root deletion, then try_into_root_create recreates it
-    let root_path = std::path::PathBuf::from(vroot.interop_path().to_os_string());
-    std::fs::remove_dir_all(&root_path).unwrap();
-    let vroot2: VirtualRoot = vfile.try_into_root_create();
+    vroot.remove_dir_all().unwrap();
+    assert!(!vroot.exists());
+    let vroot2: VirtualRoot = vdir.try_into_root_create().unwrap();
     assert!(vroot2.exists());
-    assert!(std::path::Path::new(&root_path).exists());
+    assert!(vroot.exists());
 }

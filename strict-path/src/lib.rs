@@ -64,27 +64,53 @@
 //! - Blind `canonicalize()` checks fail on non-existent files and enable TOCTOU races (e.g., symlink swaps) between resolution and use.
 //! - Lexical normalization ignores platform aliasing (Windows 8.3 short names), ADS streams, and UNC/verbatim quirks.
 //!
-//! Illustrative (simplified) examples — these are intentionally non-runnable here:
+//! Illustrative (simplified) examples — these compile to keep doctests honest, but the logic
+//! remains insecure on purpose:
 //!
-//! ```rust,ignore
-//! // ❌ Rejecting only "../" is bypassable via encoding
-//! if candidate.contains("../") { return Err("nope"); }
-//! // "..%2F..%2Fetc%2Fpasswd" or mixed separators can slip through
+//! ```rust
+//! # fn naive_filter(candidate: &str) -> Result<(), &'static str> {
+//! if candidate.contains("../") {
+//!     return Err("nope");
+//! }
+//! Ok(())
+//! # }
+//! // ❌ Rejecting only "../" is bypassable via encoding ("..%2F" sneaks by).
+//! assert!(naive_filter("..%2Fconfig").is_ok());
 //! ```
 //!
-//! ```rust,ignore
-//! // ❌ Canonicalize‑then‑check is subject to TOCTOU (CVE‑2022‑21658 class)
-//! let real = std::fs::canonicalize(&candidate)?;
-//! if !real.starts_with(root) { return Err("escape"); }
-//! // Attacker swaps a symlink between these calls
-//! std::fs::read(real)?;
+//! ```rust
+//! # use std::path::Path;
+//! # use std::{fs, io};
+//! # fn canonicalize_then_check(candidate: &Path, root: &Path) -> io::Result<()> {
+//! let real = fs::canonicalize(candidate)?;
+//! if !real.starts_with(root) {
+//!     return Err(io::Error::new(io::ErrorKind::Other, "escape"));
+//! }
+//! fs::read(real)?;
+//! Ok(())
+//! # }
+//! # fn demo() -> std::result::Result<(), Box<dyn std::error::Error>> {
+//! let sandbox = tempfile::tempdir()?;
+//! let root = sandbox.path();
+//! let candidate = root.join("example.txt");
+//! fs::write(&candidate, "data")?;
+//! // ❌ Canonicalize-then-check is subject to TOCTOU (CVE-2022-21658 class).
+//! let canonical_root = fs::canonicalize(root)?;
+//! canonicalize_then_check(&candidate, &canonical_root)?;
+//! Ok(())
+//! # }
+//! if let Err(issue) = demo() {
+//!     panic!("{issue}");
+//! }
 //! ```
 //!
-//! ```rust,ignore
-//! // ❌ Lexical only: misses Windows 8.3 short name aliasing (e.g., PROGRA~1)
-//! // CVEs: 2019‑9855, 2020‑12279 class of issues around aliasing/normalization
+//! ```rust
+//! # fn lexical_only(candidate: &str) -> bool {
 //! let norm = candidate.replace("\\", "/");
-//! if norm.starts_with("/safe/") { /* ... */ }
+//! norm.starts_with("/safe/")
+//! # }
+//! // ❌ Lexical only: misses Windows 8.3 short name aliasing (e.g., PROGRA~1).
+//! assert!(lexical_only("/safe/PROGRA~1"));
 //! ```
 //!
 //! strict‑path centralizes normalization, canonicalization, and boundary checks in a single auditable
@@ -607,34 +633,44 @@
 //!
 //! - **NEVER wrap our secure types in `Path::new()` or `PathBuf::from()`**.
 //!   This is a critical anti-pattern that bypasses all security guarantees.
-//!   ```rust,no_run
+//!   ```rust
 //!   # use strict_path::*;
-//!   # let restriction = PathBoundary::<()>::try_new(".").unwrap();
-//!   # let safe_path = restriction.strict_join("file.txt").unwrap();
-//!   // ❌ DANGEROUS: Wrapping secure types defeats the purpose
-//!   let dangerous = std::path::Path::new(safe_path.interop_path());
-//!   let also_bad = std::path::PathBuf::from(safe_path.interop_path());
-//!   
-//!   // ✅ CORRECT: Use interop_path() directly for external APIs
-//!   # fn some_external_api<P: AsRef<std::path::Path>>(_path: P) {}
-//!   some_external_api(safe_path.interop_path()); // AsRef<Path> satisfied
-//!   
-//!   // ✅ CORRECT: Use our secure operations
-//!   let child = safe_path.strict_join("subfile.txt")?;
-//!   # Ok::<(), Box<dyn std::error::Error>>(())
+//!   fn some_external_api<P: AsRef<std::path::Path>>(_path: P) {}
+//!   fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
+//!       let restriction = PathBoundary::<()>::try_new(".")?;
+//!       let safe_path = restriction.strict_join("file.txt")?;
+//!       // ❌ DANGEROUS: Wrapping secure types defeats the purpose
+//!       let _dangerous = std::path::Path::new(safe_path.interop_path());
+//!       let _also_bad = std::path::PathBuf::from(safe_path.interop_path());
+//!
+//!       // ✅ CORRECT: Use interop_path() directly for external APIs
+//!       some_external_api(safe_path.interop_path()); // AsRef<Path> satisfied
+//!
+//!       // ✅ CORRECT: Use our secure operations
+//!       let _child = safe_path.strict_join("subfile.txt")?;
+//!       Ok(())
+//!   }
+//!   if let Err(issue) = run() {
+//!       panic!("{issue}");
+//!   }
 //!   ```
 //! - **NEVER use `.interop_path().to_string_lossy()` for display purposes**.
 //!   This mixes interop concerns with display concerns. Use proper display methods:
-//!   ```rust,no_run
+//!   ```rust
 //!   # use strict_path::*;
-//!   # let restriction = PathBoundary::<()>::try_new(".").unwrap();
-//!   # let safe_path = restriction.strict_join("file.txt").unwrap();
-//!   // ❌ ANTI-PATTERN: Wrong method for display
-//!   println!("{}", safe_path.interop_path().to_string_lossy());
-//!   
-//!   // ✅ CORRECT: Use proper display methods
-//!   println!("{}", safe_path.strictpath_display());
-//!   # Ok::<(), Box<dyn std::error::Error>>(())
+//!   fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
+//!       let restriction = PathBoundary::<()>::try_new(".")?;
+//!       let safe_path = restriction.strict_join("file.txt")?;
+//!       // ❌ ANTI-PATTERN: Wrong method for display
+//!       println!("{}", safe_path.interop_path().to_string_lossy());
+//!
+//!       // ✅ CORRECT: Use proper display methods
+//!       println!("{}", safe_path.strictpath_display());
+//!       Ok(())
+//!   }
+//!   if let Err(issue) = run() {
+//!       panic!("{issue}");
+//!   }
 //!   ```
 //!   
 //!   ### Tell‑offs and fixes

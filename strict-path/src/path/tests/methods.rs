@@ -1,5 +1,6 @@
 use crate::PathBoundary;
 use std::fs;
+use std::io::{Read, Write};
 
 #[test]
 fn test_virtual_path_join_and_parent() {
@@ -71,6 +72,41 @@ fn test_virtual_path_pathbuf_methods() {
     let inner = strict_again.unstrict();
     let expected_path = temp_dir.path().join("foo/bar.txt");
     assert_eq!(inner.to_string_lossy(), expected_path.to_string_lossy());
+}
+
+#[test]
+fn test_strict_path_create_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+    let strict = boundary.strict_join("logs/output.txt").unwrap();
+    strict.create_parent_dir_all().unwrap();
+
+    let mut file = strict.create_file().unwrap();
+    file.write_all(b"hello strict").unwrap();
+    drop(file);
+
+    let mut file = strict.open_file().unwrap();
+    let mut content = String::new();
+    file.read_to_string(&mut content).unwrap();
+    assert_eq!(content, "hello strict");
+}
+
+#[test]
+fn test_virtual_path_create_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+    let strict = boundary.strict_join("reports/summary.txt").unwrap();
+    strict.create_parent_dir_all().unwrap();
+    let virtual_path = strict.clone().virtualize();
+
+    let mut file = virtual_path.create_file().unwrap();
+    file.write_all(b"virtual summary").unwrap();
+    drop(file);
+
+    let mut file = virtual_path.open_file().unwrap();
+    let mut content = String::new();
+    file.read_to_string(&mut content).unwrap();
+    assert_eq!(content, "virtual summary");
 }
 
 #[test]

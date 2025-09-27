@@ -53,10 +53,7 @@ async fn main() -> Result<()> {
             "/api/tenant/:tenant_id/audit/export",
             post(capture_audit_export),
         )
-        .route(
-            "/api/tenant/:tenant_id/audit",
-            get(list_audit_exports),
-        )
+        .route("/api/tenant/:tenant_id/audit", get(list_audit_exports))
         .with_state(state.clone());
 
     let addr: SocketAddr = "127.0.0.1:4007".parse().expect("valid socket address");
@@ -97,9 +94,10 @@ async fn create_document(
     let workspace = access.workspace_writer()?;
 
     let CreateDocumentRequest { path, contents } = payload;
-    let join_result = tokio::task::spawn_blocking(move || workspace.write_document(&path, &contents))
-        .await
-        .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))?;
+    let join_result =
+        tokio::task::spawn_blocking(move || workspace.write_document(&path, &contents))
+            .await
+            .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))?;
     let handle = join_result.map_err(ApiError::internal)?;
 
     Ok(Json(DocumentResponse::from_virtual(&handle)))
@@ -241,24 +239,15 @@ impl TokenStore {
         let mut map = HashMap::new();
         map.insert(
             "acme-editor-token".to_string(),
-            TokenRecord::new(
-                "acme_corp",
-                [Scope::WorkspaceRead, Scope::WorkspaceWrite],
-            ),
+            TokenRecord::new("acme_corp", [Scope::WorkspaceRead, Scope::WorkspaceWrite]),
         );
         map.insert(
             "acme-auditor-token".to_string(),
-            TokenRecord::new(
-                "acme_corp",
-                [Scope::WorkspaceRead, Scope::AuditRead],
-            ),
+            TokenRecord::new("acme_corp", [Scope::WorkspaceRead, Scope::AuditRead]),
         );
         map.insert(
             "globex-editor-token".to_string(),
-            TokenRecord::new(
-                "globex",
-                [Scope::WorkspaceRead, Scope::WorkspaceWrite],
-            ),
+            TokenRecord::new("globex", [Scope::WorkspaceRead, Scope::WorkspaceWrite]),
         );
         Self {
             records: Arc::new(RwLock::new(map)),
@@ -359,11 +348,7 @@ impl TenantDirectoryRegistry {
         })
     }
 
-    async fn build_access(
-        &self,
-        tenant_id: &str,
-        scopes: TenantScopes,
-    ) -> Result<TenantAccess> {
+    async fn build_access(&self, tenant_id: &str, scopes: TenantScopes) -> Result<TenantAccess> {
         let roots = self.obtain_roots(tenant_id).await?;
         let workspace_write = if scopes.workspace_write {
             Some(roots.workspace_write_access()?)
@@ -452,11 +437,9 @@ impl TenantRoots {
         let audit_dir = tenant_root.strict_join("audit")?;
         audit_dir.create_dir_all()?;
 
-        let workspace_boundary = PathBoundary::<WorkspaceStorage>::try_new(
-            workspace_dir.clone().unstrict(),
-        )?;
-        let audit_boundary =
-            PathBoundary::<AuditStorage>::try_new(audit_dir.clone().unstrict())?;
+        let workspace_boundary =
+            PathBoundary::<WorkspaceStorage>::try_new(workspace_dir.clone().unstrict())?;
+        let audit_boundary = PathBoundary::<AuditStorage>::try_new(audit_dir.clone().unstrict())?;
 
         Ok(Self {
             workspace_boundary,
@@ -481,10 +464,9 @@ impl TenantRoots {
     }
 
     fn audit_reader_access(&self) -> Result<AuditReadAccess> {
-        let reader_root = PathBoundary::<(AuditStorage, AuditRead)>::try_new(
-            self.audit_boundary.as_ref(),
-        )?
-        .virtualize();
+        let reader_root =
+            PathBoundary::<(AuditStorage, AuditRead)>::try_new(self.audit_boundary.as_ref())?
+                .virtualize();
         Ok(AuditReadAccess { root: reader_root })
     }
 }
@@ -597,9 +579,7 @@ impl AuditReadAccess {
                 let joined = self
                     .root
                     .virtual_join(PathBuf::from(&file_name))
-                    .with_context(|| {
-                        format!("Audit entry {display_name} rejected by boundary")
-                    })?;
+                    .with_context(|| format!("Audit entry {display_name} rejected by boundary"))?;
                 let size = joined.metadata()?.len();
                 records.push(AuditRecord { path: joined, size });
             }
