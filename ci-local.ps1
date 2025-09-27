@@ -68,6 +68,51 @@ Write-Host ""
 Write-Host "Auto-fixing common issues before CI checks" -ForegroundColor Cyan
 Write-Host ""
 
+Write-Host "Enforcing policy: no #[allow(...)] (except clippy::type_complexity) and no skipped doctests" -ForegroundColor Cyan
+# Inline scan mirroring CI behavior
+try {
+    $files = & git ls-files 2>$null
+    if (-not $files) { $files = Get-ChildItem -Recurse -File | ForEach-Object { $_.FullName } }
+    $files = $files | Where-Object { $_ -notmatch '(^|[\\/])(target|demos[\\/]target|\.git|\.docs|docs)([\\/]|$)' }
+
+    $allowAny = '#\s*\[\s*allow\s*\('
+    $allowWhitelist = '#\s*\[\s*allow\s*\(\s*clippy::type_complexity\s*\)'
+    $rustdocSkip = '```\s*rust[^\n]*\b(no_run|ignore|should_panic)\b'
+    $doctestFalse = 'doctest:\s*false'
+
+    $violations = @()
+
+    # 1) Scan Rust source files for #[allow(...)] and rustdoc fence skips
+    $rustFiles = $files | Where-Object { $_ -match '\.rs$' }
+    foreach ($f in $rustFiles) {
+        try { $null = Get-Item -LiteralPath $f -ErrorAction Stop } catch { continue }
+        $allowHits = Select-String -Path $f -Pattern $allowAny -AllMatches
+        if ($allowHits) {
+            $disallowed = Select-String -Path $f -Pattern $allowAny -AllMatches | Where-Object {
+                -not (Select-String -InputObject $_.Line -Pattern $allowWhitelist)
+            }
+            $violations += $disallowed
+        }
+        $violations += Select-String -Path $f -Pattern $rustdocSkip -AllMatches
+    }
+
+    # 2) Scan only Cargo.toml manifests for doctest:false
+    $manifests = @('Cargo.toml','strict-path/Cargo.toml','demos/Cargo.toml') | Where-Object { Test-Path $_ }
+    foreach ($mf in $manifests) {
+        $violations += Select-String -Path $mf -Pattern $doctestFalse -AllMatches
+    }
+
+    if ($violations.Count -gt 0) {
+        Write-Host "❌ Forbidden patterns found:" -ForegroundColor Red
+        $violations | ForEach-Object { Write-Host ("{0}:{1}:{2}" -f $_.Path, $_.LineNumber, $_.Line) }
+        Write-Host "These are not allowed (whitelist: #[allow(clippy::type_complexity)] only)." -ForegroundColor Yellow
+        exit 2
+    }
+    Write-Host "✅ No forbidden suppression patterns detected." -ForegroundColor Green
+} catch {
+    Write-Host "WARNING: Suppression scan encountered an error; continuing." -ForegroundColor Yellow
+}
+
 function Run-Check {
     param(
         [string]$Name,
@@ -475,25 +520,36 @@ Run-Check "Tests (library all features)" "cargo test -p strict-path --all-featur
 $env:RUSTDOCFLAGS = "-D warnings"
 Run-Check "Documentation" "cargo doc --no-deps --document-private-items --all-features"
 
-# Build mdbook documentation
+# Build mdbook documentation (only if docs sources exist)
 Write-Host "Building mdbook documentation..." -ForegroundColor Cyan
-if (Get-Command mdbook -ErrorAction SilentlyContinue) {
-    Run-Check "Build mdbook docs" "Push-Location docs_src; mdbook build; Pop-Location"
-} else {
-    Write-Host "WARNING: mdbook not found. Installing..." -ForegroundColor Yellow
-    try {
-        & cargo install mdbook --locked
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "SUCCESS: mdbook installed successfully" -ForegroundColor Green
-            Run-Check "Build mdbook docs" "Push-Location docs_src; mdbook build; Pop-Location"
-        } else {
-            throw "mdbook installation failed"
+$docsPath = $null
+if (Test-Path "docs_src") {
+    $docsPath = "docs_src"
+} elseif (Test-Path ".docs\docs_src") {
+    $docsPath = ".docs\\docs_src"
+}
+
+if ($docsPath) {
+    if (Get-Command mdbook -ErrorAction SilentlyContinue) {
+        Run-Check "Build mdbook docs" "Push-Location $docsPath; mdbook build; Pop-Location"
+    } else {
+        Write-Host "WARNING: mdbook not found. Installing..." -ForegroundColor Yellow
+        try {
+            & cargo install mdbook --locked
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "SUCCESS: mdbook installed successfully" -ForegroundColor Green
+                Run-Check "Build mdbook docs" "Push-Location $docsPath; mdbook build; Pop-Location"
+            } else {
+                throw "mdbook installation failed"
+            }
+        } catch {
+            Write-Host "ERROR: Failed to install mdbook. Skipping documentation build." -ForegroundColor Red
+            Write-Host "INFO: To install manually: cargo install mdbook" -ForegroundColor Yellow
+            Write-Host "INFO: Then run: cd $docsPath && mdbook build" -ForegroundColor Yellow
         }
-    } catch {
-        Write-Host "ERROR: Failed to install mdbook. Skipping documentation build." -ForegroundColor Red
-        Write-Host "INFO: To install manually: cargo install mdbook" -ForegroundColor Yellow
-        Write-Host "INFO: Then run: cd docs_src && mdbook build" -ForegroundColor Yellow
     }
+} else {
+    Write-Host "INFO: No docs sources found (docs_src or ./.docs/docs_src). Skipping mdbook build." -ForegroundColor Yellow
 }
 
 # Security audit (same as GitHub Actions)

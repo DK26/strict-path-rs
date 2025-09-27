@@ -102,7 +102,8 @@ async fn fetch_confidential(
     let path_for_read = path.clone();
     let contents = tokio::task::spawn_blocking(move || path_for_read.read_to_string())
         .await
-        .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))??;
+        .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))?
+        .map_err(|e| ApiError::internal(anyhow!(e)))?;
     Ok(Json(DocumentResponse::new(path, contents)))
 }
 
@@ -119,13 +120,14 @@ async fn update_confidential(
         .strict_join(&doc)
         .map_err(|err| ApiError::forbidden(&format!("Invalid document path: {err}")))?;
     let contents = body.contents.clone();
-    let bytes = contents.as_bytes().len();
+    let bytes = contents.len();
     tokio::task::spawn_blocking(move || {
         path.create_parent_dir_all()?;
         path.write(contents.as_bytes())
     })
     .await
-    .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))??;
+    .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))?
+    .map_err(|e| ApiError::internal(anyhow!(e)))?;
     Ok(Json(WriteResponse::from_bytes(bytes)))
 }
 
@@ -142,7 +144,8 @@ async fn fetch_report(
     let path_for_read = path.clone();
     let contents = tokio::task::spawn_blocking(move || path_for_read.read_to_string())
         .await
-        .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))??;
+        .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))?
+        .map_err(|e| ApiError::internal(anyhow!(e)))?;
     Ok(Json(DocumentResponse::new(path, contents)))
 }
 
@@ -159,13 +162,14 @@ async fn update_report(
         .strict_join(&doc)
         .map_err(|err| ApiError::forbidden(&format!("Invalid report path: {err}")))?;
     let contents = body.contents.clone();
-    let bytes = contents.as_bytes().len();
+    let bytes = contents.len();
     tokio::task::spawn_blocking(move || {
         path.create_parent_dir_all()?;
         path.write(contents.as_bytes())
     })
     .await
-    .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))??;
+    .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))?
+    .map_err(|e| ApiError::internal(anyhow!(e)))?;
     Ok(Json(WriteResponse::from_bytes(bytes)))
 }
 
@@ -180,7 +184,8 @@ async fn capture_audit(
     let note = body.note.clone();
     let entry = tokio::task::spawn_blocking(move || write_audit_entry(&writer, &source, &note))
         .await
-        .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))??;
+        .map_err(|err| ApiError::internal(anyhow!("task join error: {err}")))?
+        .map_err(|e| ApiError::internal(anyhow!(e)))?;
     Ok(Json(AuditResponse::new(entry)))
 }
 
@@ -225,8 +230,14 @@ impl AppState {
         let token = extract_token(headers)?;
         let grant = self.tokens.authorize(&token).await?;
 
-        let vault = self.vault.build_access(&grant.scopes)?;
-        let audit = self.audit.build_access(&grant.scopes)?;
+        let vault = self
+            .vault
+            .build_access(&grant.scopes)
+            .map_err(ApiError::internal)?;
+        let audit = self
+            .audit
+            .build_access(&grant.scopes)
+            .map_err(ApiError::internal)?;
 
         Ok(VaultAccess { vault, audit })
     }
@@ -642,10 +653,17 @@ fn sanitize(input: &str) -> String {
         .collect()
 }
 
+#[derive(Clone, Copy)]
 enum VaultRoot {}
+#[derive(Clone, Copy)]
 enum ConfidentialDocs {}
+#[derive(Clone, Copy)]
 enum PublicReports {}
+#[derive(Clone, Copy)]
 enum ReadOnly {}
+#[derive(Clone, Copy)]
 enum WriteOnly {}
+#[derive(Clone, Copy)]
 enum AuditRoot {}
+#[derive(Clone, Copy)]
 enum AuditTrail {}

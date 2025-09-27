@@ -48,7 +48,6 @@ struct Cli {
 
 #[derive(Deserialize)]
 struct JsonRpcRequest {
-    #[allow(dead_code)]
     jsonrpc: Option<String>,
     id: Option<Value>,
     method: String,
@@ -89,13 +88,6 @@ struct WriteParams {
 
 // Removed legacy OkResponse/ErrResponse wrappers; JSON-RPC responses are used instead.
 
-#[derive(Serialize)]
-#[allow(dead_code)]
-struct ErrResponse {
-    ok: bool,
-    error: String,
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
@@ -119,6 +111,15 @@ fn run_virtual(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         match read_framed_request(&mut stdin) {
             Ok(Some(req)) => {
+                // Minimal JSON-RPC version validation so the `jsonrpc` field is read and honored.
+                if let Some(ref v) = req.jsonrpc {
+                    if v != "2.0" {
+                        let out =
+                            respond_err(&req, -32600, format!("Unsupported jsonrpc version: {v}"));
+                        write_framed_response(&mut stdout, &out)?;
+                        continue;
+                    }
+                }
                 let out = match req.method.as_str() {
                     "initialize" => respond_ok(
                         &req,
@@ -241,6 +242,15 @@ fn run_strict(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         match read_framed_request(&mut stdin) {
             Ok(Some(req)) => {
+                // Minimal JSON-RPC version validation so the `jsonrpc` field is read and honored.
+                if let Some(ref v) = req.jsonrpc {
+                    if v != "2.0" {
+                        let out =
+                            respond_err(&req, -32600, format!("Unsupported jsonrpc version: {v}"));
+                        write_framed_response(&mut stdout, &out)?;
+                        continue;
+                    }
+                }
                 let out = match req.method.as_str() {
                     "initialize" => respond_ok(
                         &req,
@@ -445,8 +455,12 @@ fn read_framed_request<R: Read>(r: &mut R) -> io::Result<Option<JsonRpcRequest>>
         len.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing Content-Length"))?;
     let mut body = vec![0u8; content_len];
     r.read_exact(&mut body)?;
-    let req: JsonRpcRequest = serde_json::from_slice(&body)
+    let mut req: JsonRpcRequest = serde_json::from_slice(&body)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("json parse: {e}")))?;
+    // Ensure the jsonrpc field is observed and normalized
+    if req.jsonrpc.is_none() {
+        req.jsonrpc = Some("2.0".to_string());
+    }
     Ok(Some(req))
 }
 

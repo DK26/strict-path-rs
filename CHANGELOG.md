@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **New file handle methods**: `create_file()` and `open_file()` for both `StrictPath` and `VirtualPath`
+  - `create_file()` creates or truncates files and returns writable `std::fs::File` handles
+  - `open_file()` opens files in read-only mode
+  - Both methods maintain boundary security guarantees while providing direct streaming access
+- **Marker rebranding support**: New `rebrand<NewMarker>()` methods for `PathBoundary` and `VirtualRoot`
+  - Enables clean propagation of authorization markers after authentication
+  - Consumes the original value to make marker changes explicit during code review
+- **Enhanced cross-marker equality**: `PathBoundary<M1>` and `VirtualRoot<M1>` can now be compared with different marker types
+  - Enables flexible comparisons while preserving type safety in function signatures
+- **New example**: `user_virtual_root.rs` demonstrates per-user isolation patterns with `VirtualRoot<UserSpace>`
+
+### Changed
+- **BREAKING**: `StrictPath::try_into_boundary()` now returns `Result<PathBoundary<Marker>>` instead of `PathBoundary<Marker>`
+  - The directory must exist and be a directory, or the method returns `InvalidRestriction` error  
+  - Use `try_into_boundary_create()` to create the directory if missing
+- **BREAKING**: `StrictPath::try_into_boundary_create()` now returns `Result<PathBoundary<Marker>>` instead of `PathBoundary<Marker>`
+  - Proper error handling replaces previous best-effort directory creation
+- **BREAKING**: `VirtualPath::try_into_root()` now returns `Result<VirtualRoot<Marker>>` instead of `VirtualRoot<Marker>`
+  - Consistent error handling for directory validation
+- **BREAKING**: `VirtualPath::try_into_root_create()` now returns `Result<VirtualRoot<Marker>>` instead of `VirtualRoot<Marker>`
+  - Replaces best-effort creation with proper error propagation
+- **Package description**: Updated to "Stop path attacks before they happen. This crate makes sure file paths can't escape where you want them to go"
+  - More concise and user-focused than previous technical description
+
+### Documentation
+- **Enhanced interop guidance**: Stronger emphasis on using `.interop_path()` only for unavoidable third-party API adaptation
+  - Updated method documentation to clarify "unavoidable third-party" use cases
+  - Added clear anti-patterns and preferred alternatives
+- **Improved doctests**: Many examples now compile and run to ensure accuracy
+  - Previous illustrative examples were marked as `ignore`, now they demonstrate real working code
+  - Added proper error handling and cleanup in documentation examples
+- **Better API examples**: Enhanced examples showing file handle usage, marker rebranding, and conversion patterns
+
 ## [0.1.0-beta.1] - 2025-09-25
 
 ### Added

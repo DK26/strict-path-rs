@@ -81,6 +81,13 @@ When naming variables, treat `VirtualRoot` and `PathBoundary` as representations
 - If a variable represents a directory/root, name it by its domain and role (e.g., `user_uploads_root`, `public_assets_root`, `config_dir`, `archive_src`).
 Avoid generic names like `boundary`, `jail`, or type-based suffixes. This applies to all boundaries, roots, and path values—use descriptive, context-rich names that reflect their role in the application, not their type.
 
+### Marker Naming Rules
+
+- Marker types must describe the resource stored under the restriction, not the caller or the type system. Use concrete domain nouns such as `struct UserUploads;`, `struct BrandEditorWorkspace;`, or `struct BrandDirectorArchive;`.
+- Avoid suffixes like `Marker`, `Type`, `Root`, or `Context`—they add no meaning. `struct MediaLibrary;` is preferred over `struct MediaLibraryMarker;`.
+- When encoding authorization, pair the domain marker with a capability proof in a tuple: `StrictPath<(BrandEditorWorkspace, ReadWriteCapability)>`. The first element names the storage root; the second names the capability being proven.
+- Do not use human-centric labels (personas, job titles, teams) unless the directory truly stores those artifacts. Names must reflect the filesystem contents or policy root so reviewers can infer the restriction from the type alone.
+
 ## Code & API Usage Guidelines
 
 - Encode guarantees in function signatures:
@@ -430,6 +437,35 @@ Guidelines:
 ---
 
 If in doubt, prefer examples in `strict-path/src/lib.rs` and mdBook pages as the source of truth.
+
+## Doctest and Lint Suppression Policy (Non‑Negotiable)
+
+This repository enforces a zero‑tolerance policy for skipped doctests and warning suppressions. These rules are binding for all contributors and automation.
+
+What is forbidden (will be rejected):
+- Rustdoc code‑fence flags that avoid execution: `no_run`, `ignore`, `should_panic` (unless the example explicitly demonstrates a panic as part of API semantics).
+- `doctest: false` in manifests or docs config.
+- Any `#[allow(...)]` used to bypass warnings, with a single, explicit whitelist: `#[allow(clippy::type_complexity)]` for verbose type expressions only (e.g., internal `PathHistory` typing). No other `allow` is acceptable.
+
+Why this exists:
+- Doctests that don’t run are untrustworthy and silently rot; they mislead users and mask integration gaps.
+- Warning suppressions hide problems instead of fixing them; that’s not acceptable for a security‑critical crate.
+
+What to do instead:
+- Make doctests runnable: set up minimal hidden scaffolding lines in the example (e.g., create directories/files) and execute the real code path.
+- If the intent is to show a compile‑time failure, use `compile_fail`. If demonstrating a runtime error, assert on the error value in a regular test.
+- Remove or rework unused/dead code; do not mute the warning.
+
+PR acceptance gates (hard requirements):
+- Doctests: runnable with no skip flags; no `doctest: false`.
+- Lints: no new `#[allow(...)]` beyond `#[allow(clippy::type_complexity)]` where justified.
+- If an example or code path cannot be made to run, it must be simplified or removed—green by avoidance is not permitted.
+
+Reviewer template (paste into PRs when violations occur):
+> This repo does not accept skipped doctests or warning suppressions. Please:
+> - Remove `no_run`/`ignore`/`should_panic` flags and make the example execute (use `compile_fail` only when the compiler must reject the code).
+> - Remove `#[allow(...)]` suppressions. The only exception is `#[allow(clippy::type_complexity)]` for long type expressions; justify its use in the PR.
+> We do not hide problems to get a green check—fix the issue or cut the code.
 
 ## IO Return Value Policy
 

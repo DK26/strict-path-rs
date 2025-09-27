@@ -109,6 +109,46 @@ jobs:
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
 
+    - name: Enforce doctest/lint suppression policy
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "🔎 Scanning for forbidden patterns: #[allow(...)], no_run/ignore/should_panic in rustdoc fences, doctest:false"
+        # List tracked files and filter out build and VCS dirs
+        FILES=$(git ls-files | grep -Ev '^(target/|demos/target/|\.git/|\.docs/|docs/)' || true)
+        if [ -z "${FILES}" ]; then
+          echo "No files to scan"
+          exit 0
+        fi
+
+        # 1) Block #[allow(...)] except a single whitelisted case: #[allow(clippy::type_complexity)]
+        ALLOW_ANY='#[[:space:]]*\[[[:space:]]*allow[[:space:]]*\('
+        ALLOW_WHITELIST='#[[:space:]]*\[[[:space:]]*allow[[:space:]]*\([[:space:]]*clippy::type_complexity[[:space:]]*\)'
+        ALLOW_MATCHES=$(echo "${FILES}" | xargs -r grep -RInE "$ALLOW_ANY" || true)
+        ALLOW_VIOLATIONS=""
+        if [ -n "$ALLOW_MATCHES" ]; then
+          # Filter out the whitelisted exact form
+          ALLOW_VIOLATIONS=$(echo "$ALLOW_MATCHES" | grep -Ev "$ALLOW_WHITELIST" || true)
+        fi
+
+        # 2) Block rustdoc skip flags in code fences
+        RUSTDOC_FORBIDDEN='```[[:space:]]*rust[^\n]*\b(no_run|ignore|should_panic)\b'
+        RUSTDOC_MATCHES=$(echo "${FILES}" | xargs -r grep -RInE "$RUSTDOC_FORBIDDEN" || true)
+
+        # 3) Block doctest:false in Cargo/docs config
+        DOCTEST_FALSE='doctest:[[:space:]]*false'
+        DOCTEST_MATCHES=$(echo "${FILES}" | xargs -r grep -RInE "$DOCTEST_FALSE" || true)
+
+        if [ -n "$ALLOW_VIOLATIONS" ] || [ -n "$RUSTDOC_MATCHES" ] || [ -n "$DOCTEST_MATCHES" ]; then
+          echo "❌ Forbidden patterns found:"
+          [ -n "$ALLOW_VIOLATIONS" ] && { echo "-- Disallowed #[allow(...)] occurrences (whitelist: #[allow(clippy::type_complexity)] only):"; echo "$ALLOW_VIOLATIONS"; }
+          [ -n "$RUSTDOC_MATCHES" ] && { echo "-- Rustdoc fences with skip flags (no_run/ignore/should_panic):"; echo "$RUSTDOC_MATCHES"; }
+          [ -n "$DOCTEST_MATCHES" ] && { echo "-- doctest:false occurrences:"; echo "$DOCTEST_MATCHES"; }
+          exit 1
+        fi
+
+        echo "✅ No forbidden suppression patterns detected. Whitelisted: #[allow(clippy::type_complexity)] only."
+
     - name: Check formatting (demos)
       run: |
         cd demos
