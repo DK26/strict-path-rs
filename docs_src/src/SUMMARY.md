@@ -9,6 +9,7 @@
 - [Using with Archive Extractors](./archive_extractors.md)
 - [Best Practices & Guidelines](./best_practices.md)
 - [Path Permissions & Authorization Security](./authorization_security.md)
+- [Design Decisions - Guide for the Frustrated Rustacean](./design_decisions.md)
 - [Ergonomics](./ergonomics/overview.md)
   - [Interop vs Display](./ergonomics/interop_display.md)
   - [Function Signatures](./ergonomics/signatures.md)

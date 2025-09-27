@@ -2720,6 +2720,82 @@ async fn load_user_document&lt;const USER_ID: u64&gt;(
 <h2 id="conclusion"><a class="header" href="#conclusion">Conclusion</a></h2>
 <p>By extending strict-path's marker system with sophisticated authorization types, we can create <strong>compile-time authorization guarantees</strong> that complement the existing path boundary security. This approach represents a new frontier in secure systems design, where the type system becomes an active participant in authorization enforcement.</p>
 <p>While this adds complexity, the benefits of catching authorization bugs at compile time - rather than in production - make it compelling for security-critical applications.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="design-decisions---guide-for-the-frustrated-rustacean"><a class="header" href="#design-decisions---guide-for-the-frustrated-rustacean">Design Decisions - Guide for the Frustrated Rustacean</a></h1>
+<p>Since this is a security crate, I took on myself more design decision liberties towards increased security, correctness and avoidance of misuse.</p>
+<h2 id="the-journey-from-ergonomic-to-secure"><a class="header" href="#the-journey-from-ergonomic-to-secure">The Journey: From Ergonomic to Secure</a></h2>
+<p>The initial prototype had straightforward ergonomics, with non-original, boring API. Which is normally good and required design. Easy transitions between types and common method names.</p>
+<p>As I was generating code using different LLMs, a disaster unfolded. <strong>The LLM did not use the API correctly at all!</strong> It constantly worked its way around safety features and since it was generating a lot of code, it became harder to have code review and easy to miss an introduced vulnerability by the LLM.</p>
+<p>That had me realize that since LLM Agents is all that is happening nowadays, I had to think carefully about how to guide it towards correct usage of my API in a way that a human will also benefit from.</p>
+<h2 id="security-measures-taken"><a class="header" href="#security-measures-taken">Security Measures Taken</a></h2>
+<h3 id="llm-aware-documentation"><a class="header" href="#llm-aware-documentation">LLM-Aware Documentation</a></h3>
+<ul>
+<li><strong>Complete API summary file dedicated to an LLM</strong> - <a href="https://github.com/DK26/strict-path-rs/blob/main/LLM_API_REFERENCE.md"><code>LLM_API_REFERENCE.md</code></a> provides usage-first guidance</li>
+<li><strong>Code comments in a style that tooling agents can reason with</strong> - Explicit function documentation with SUMMARY/PARAMETERS/RETURNS/ERRORS/EXAMPLE sections</li>
+</ul>
+<h3 id="api-design-philosophy"><a class="header" href="#api-design-philosophy">API Design Philosophy</a></h3>
+<ul>
+<li><strong>Highly explicit API</strong> - Easy to review and detect errors by method names
+<ul>
+<li><code>strictpath_display()</code> vs <code>virtualpath_display()</code> instead of generic <code>display()</code></li>
+<li><code>strict_join()</code> vs <code>virtual_join()</code> instead of generic <code>join()</code></li>
+<li><code>interop_path()</code> for third-party integration instead of hidden <code>AsRef&lt;Path&gt;</code> impls</li>
+</ul>
+</li>
+<li><strong>Best practices vs anti-patterns in docs</strong> - Clear guidance on what to do and what to avoid</li>
+<li><strong>Minimal API surface</strong> - Less ways to get it wrong</li>
+<li><strong>Safe built-in I/O operations</strong> - <code>read_to_string()</code>, <code>write()</code>, <code>create_file()</code> on the secure types</li>
+<li><strong>Type-based security</strong> - Markers enforce boundaries at compile time</li>
+</ul>
+<h2 id="the-path-extension-trait-decision"><a class="header" href="#the-path-extension-trait-decision">The Path Extension Trait Decision</a></h2>
+<p>I was thinking about having an extension trait for <code>Path</code>/<code>PathBuf</code>, to introduce built-in I/O methods just like we have in our <code>StrictPath</code> and <code>VirtualPath</code>. The idea was to keep the code nice and consistent, since using <code>Path</code> and <code>PathBuf</code> are legit in some contexts.</p>
+<p>However, I realized <strong>it is far quicker to notice we are using the wrong Path type</strong>. The moment we see old-style code for I/O, it helps ask questions like:</p>
+<blockquote>
+<p>"Why do we use regular Path here? Is this legit?"</p>
+</blockquote>
+<p>And that's awesome for code review and overall security! 🛡️</p>
+<h2 id="why-this-matters-for-you"><a class="header" href="#why-this-matters-for-you">Why This Matters for You</a></h2>
+<h3 id="human-benefits"><a class="header" href="#human-benefits">Human Benefits</a></h3>
+<ul>
+<li><strong>Code review clarity</strong> - Suspicious patterns are immediately visible</li>
+<li><strong>Intention signaling</strong> - Method names communicate security guarantees</li>
+<li><strong>Compile-time safety</strong> - Type system prevents mixing secure and insecure paths</li>
+</ul>
+<h3 id="llm-agent-benefits"><a class="header" href="#llm-agent-benefits">LLM Agent Benefits</a></h3>
+<ul>
+<li><strong>Explicit guidance</strong> - Clear documentation prevents misuse</li>
+<li><strong>Fewer escape hatches</strong> - Limited ways to bypass security</li>
+<li><strong>Pattern recognition</strong> - Consistent naming helps AI understand correct usage</li>
+</ul>
+<h2 id="examples-of-security-first-design"><a class="header" href="#examples-of-security-first-design">Examples of Security-First Design</a></h2>
+<h3 id="-what-we-could-have-done-ergonomic-but-dangerous"><a class="header" href="#-what-we-could-have-done-ergonomic-but-dangerous">❌ What We Could Have Done (Ergonomic but Dangerous)</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Hypothetical "ergonomic" design - DON'T DO THIS
+let path: StrictPath&lt;_&gt; = boundary.join(user_input)?;  // Generic method
+let content = std::fs::read_to_string(path)?;          // Easy to bypass
+<span class="boring">}</span></code></pre></pre>
+<h3 id="-what-we-actually-do-explicit-and-secure"><a class="header" href="#-what-we-actually-do-explicit-and-secure">✅ What We Actually Do (Explicit and Secure)</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Actual secure design - explicit and reviewable
+let path: StrictPath&lt;_&gt; = boundary.strict_join(user_input)?;  // Clearly strict
+let content = path.read_to_string()?;                        // Built-in secure I/O
+<span class="boring">}</span></code></pre></pre>
+<p>The second example makes it immediately clear:</p>
+<ol>
+<li>We're operating in strict mode (<code>strict_join</code>)</li>
+<li>We're using built-in secure I/O (no raw <code>std::fs</code>)</li>
+<li>The path type carries security guarantees</li>
+</ol>
+<h2 id="the-result"><a class="header" href="#the-result">The Result</a></h2>
+<p>This design philosophy has proven effective in practice:</p>
+<ul>
+<li><strong>Reduced vulnerabilities</strong> - Harder to accidentally introduce path traversal</li>
+<li><strong>Better code reviews</strong> - Security issues are immediately visible</li>
+<li><strong>LLM-compatible</strong> - AI agents use the API correctly when following the documentation</li>
+<li><strong>Human-friendly</strong> - Developers understand the security implications at a glance</li>
+</ul>
+<p>Remember: <strong>Security-critical crates should prioritize correctness over ergonomics</strong>. A slightly more verbose API that prevents vulnerabilities is infinitely better than an elegant API that's easy to misuse.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="ergonomics-overview"><a class="header" href="#ergonomics-overview">Ergonomics Overview</a></h1>
 <p>This section collects high-signal, copy-pasteable guidance for day-to-day use without re-explaining the security model. Each page is short and focused so you can jump directly to what you need.</p>
 <ul>
