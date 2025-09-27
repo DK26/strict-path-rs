@@ -137,6 +137,7 @@ fn read_user_document(path: &StrictPath<(UserDocuments, ReadWrite)>) -> io::Resu
 }
 
 fn execute_system_binary(path: &StrictPath<(SystemFiles, ExecuteOnly)>) -> io::Result<std::process::Output> {
+    // `.interop_path()` is reserved for unavoidable adapters like `Command` that insist on `AsRef<Path>`.
     std::process::Command::new(path.interop_path()).output()
 }
 
@@ -504,7 +505,7 @@ async fn load_user_document<const USER_ID: u64>(
 
 This sophisticated authorization system works entirely with strict-path's existing marker system:
 - Same `PathBoundary<Marker>` and `StrictPath<Marker>` types
-- Same `strict_join()`, `interop_path()`, and file operations
+- Same `strict_join()` calls and the occasional `.interop_path()` only when adapting unavoidable third-party `AsRef<Path>` APIs
 - Zero changes to the core strict-path library
 
 You simply define more sophisticated marker types in your application code and let Rust's type system do the work. The authorization logic lives in:
