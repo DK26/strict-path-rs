@@ -11,7 +11,6 @@ compile_error!("Enable with --features with-app-path to run this example");
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::io::{self, Write};
 use strict_path::{PathBoundary, StrictPath, VirtualPath, VirtualRoot};
 
 /// Marker types for different application directories
@@ -401,53 +400,6 @@ fn main() -> Result<()> {
     println!("\n✨ Demo complete!");
     println!("All application data is stored portably relative to the executable.");
     println!("The app can be moved to any location and will continue to work.");
-
-    Ok(())
-}
-
-/// Interactive demo mode (commented out for automated demo)
-#[allow(dead_code)]
-fn run_interactive_demo() -> Result<()> {
-    println!("🎮 Interactive Portable App Demo");
-    println!("Type 'help' for commands, 'quit' to exit\n");
-
-    let app = PortableApp::new()?;
-
-    loop {
-        print!("> ");
-        io::stdout().flush()?;
-
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        let command = input.trim();
-
-        match command {
-            "help" => {
-                println!("Commands:");
-                println!("  status  - Show application status");
-                println!("  docs    - List documents");
-                println!("  plugins - List plugins");
-                println!("  quit    - Exit demo");
-            }
-            "status" => app.show_status()?,
-            "docs" => {
-                let docs = app.list_documents()?;
-                println!("Documents:");
-                for doc in docs {
-                    println!("  {doc}");
-                }
-            }
-            "plugins" => {
-                let plugins = app.list_plugins()?;
-                println!("Plugins:");
-                for plugin in plugins {
-                    println!("  • {plugin}");
-                }
-            }
-            "quit" => break,
-            _ => println!("Unknown command: {command}"),
-        }
-    }
 
     Ok(())
 }

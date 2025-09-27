@@ -42,9 +42,11 @@ Rule of thumb: validate the untrusted part right at the boundary, then pass `&St
 - web/user_home_backup_service
   - Axum API that authenticates per-user access tokens, validates user input into `StrictPath<UserHome>` paths, and issues typed backup capabilities. Demonstrates the `UserHome` authorization marker pattern together with backup-scoped permissions.
 - web/document_vault_service
-  - Multi-scope tuple-marker demo where tokens map to capabilities like `PathBoundary<(ConfidentialDocs, ReadOnly)>` or `(PublicReports, WriteOnly)`, and audit logging uses `PathBoundary<(AuditTrail, WriteOnly)>`.
-- web/document_vault_service
-  - Tuple markers encode `StrictPath<(Resource, Permission)>` for confidential docs vs. public reports. Shows how read vs. write vs. audit scopes stay isolated by marker type.
+  - Tuple markers encode `StrictPath<(Resource, Permission)>` for confidential docs vs. public reports. Shows how read vs. write vs. audit scopes stay isolated by marker type, and audit logging is enforced via a dedicated `(AuditTrail, WriteOnly)` capability.
+- web/capability_asset_service
+  - Capability-trait demo for a brand asset workflow. Tokens map to units like agency reviewers (read-only), brand editors (read/write), and brand directors (full control). Compile-time traits such as `HasCapability<CanWrite>` gate editing and deletion.
+- web/rbac_portal_service
+  - Role hierarchy demo that models guest/user/moderator/admin personas. Trait-based RBAC ensures only moderators can flag content and only admins can publish notices while everyone can view public announcements.
 - config/*, filesystem/*
   - Examples of using OS directories and app-relative locations; focus on correct boundary setup and display/interop practices.
 

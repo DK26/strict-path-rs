@@ -479,19 +479,17 @@ struct WorkspaceReadAccess {
 impl WorkspaceReadAccess {
     fn list_documents(&self) -> Result<Vec<DocumentRecord>> {
         let mut records = Vec::new();
-        let root_path = PathBuf::from(self.root.interop_path());
-        for entry in std::fs::read_dir(&root_path)? {
+        for entry in self.root.read_dir()? {
             let entry = entry?;
-            if entry.file_type()?.is_file() {
-                let file_name = entry.file_name();
-                let display_name = file_name.to_string_lossy().to_string();
-                let joined = self
-                    .root
-                    .virtual_join(PathBuf::from(&file_name))
-                    .with_context(|| {
-                        format!("Workspace entry {display_name} rejected by boundary")
-                    })?;
-                let size = joined.metadata()?.len();
+            let file_name = entry.file_name();
+            let display_name = file_name.to_string_lossy().to_string();
+            let joined = self
+                .root
+                .virtual_join(file_name)
+                .with_context(|| format!("Workspace entry {display_name} rejected by boundary"))?;
+            let meta = joined.metadata()?;
+            if meta.is_file() {
+                let size = meta.len();
                 records.push(DocumentRecord { path: joined, size });
             }
         }
@@ -570,17 +568,17 @@ impl AuditReadAccess {
 
     fn list_exports(&self) -> Result<Vec<AuditRecord>> {
         let mut records = Vec::new();
-        let root_path = PathBuf::from(self.root.interop_path());
-        for entry in std::fs::read_dir(&root_path)? {
+        for entry in self.root.read_dir()? {
             let entry = entry?;
-            if entry.file_type()?.is_file() {
-                let file_name = entry.file_name();
-                let display_name = file_name.to_string_lossy().to_string();
-                let joined = self
-                    .root
-                    .virtual_join(PathBuf::from(&file_name))
-                    .with_context(|| format!("Audit entry {display_name} rejected by boundary"))?;
-                let size = joined.metadata()?.len();
+            let file_name = entry.file_name();
+            let display_name = file_name.to_string_lossy().to_string();
+            let joined = self
+                .root
+                .virtual_join(file_name)
+                .with_context(|| format!("Audit entry {display_name} rejected by boundary"))?;
+            let meta = joined.metadata()?;
+            if meta.is_file() {
+                let size = meta.len();
                 records.push(AuditRecord { path: joined, size });
             }
         }

@@ -28,9 +28,14 @@ Audience and usage: This page is a minimal-context, copy/paste guide for tool-ca
 
 - **Domain markers**: Define markers that describe what lives under the boundary (e.g., `struct PublicAssets;`, `struct UserUploads;`). Create boundaries with those markers so helpers can accept `&StrictPath<PublicAssets>` vs `&StrictPath<UserUploads>` and the compiler blocks cross-domain mix-ups.
 - **Authorization markers**: Wrap a proof type in your marker when you need auth guarantees for shared system directories. Example: `struct UserHome { _proof: () }` with `fn authenticate_user_home(...) -> Result<UserHome, AuthError>`. After authentication, create a `PathBoundary<UserHome>` and call `.strict_join(...)` so every `StrictPath<UserHome>` proves both the boundary and the authorization.
-- **Permission tuples**: Combine resource + capability in a tuple marker: `StrictPath<(SystemFiles, ReadOnly)>` vs `StrictPath<(SystemFiles, AdminPermission)>`. Authentication helpers should return the tuple so the LLM propagates the compiler-checked permission.
+- **Permission tuples (convention)**: Combine resource + capability in a tuple marker with a FLAT tuple: `StrictPath<(SystemFiles, ReadOnly)>` and for multiple caps `StrictPath<(SystemFiles, ReadOnly, WriteOnly)>`. Avoid nesting tuples like `(SystemFiles, (ReadOnly, WriteOnly))` — keep it flat and always put the resource first.
+- **Naming rule (must follow)**: Use domain nouns that describe what lives under the boundary (`struct PublicAssets;`, `struct BrandEditorWorkspace;`). The marker must always communicate the filesystem contents protected by that restriction—any label that points at people, roles, or other metadata instead of the stored files is incorrect. Avoid meaningless suffixes like `Marker`, `Type`, or `Root`. Markers should never use human-centric labels unless the directory literally stores those artifacts; authorization state belongs in the capability witness. When combining with capabilities, keep the first tuple element as the storage domain and the remaining elements as capability proofs: `StrictPath<(BrandDirectorArchive, ReadOnly, WriteOnly)>`.
 - **Function signatures**: Accept either the validated path (`&StrictPath<Marker>`) or accept the policy root plus raw segment (`&PathBoundary<Marker>`, `&VirtualRoot<Marker>`). Never take raw `Path`/`String` parameters for untrusted input.
 - **Naming rule**: Use domain-based names (`public_assets_dir`, `user_uploads_dir`, `system_logs_dir`) for `PathBoundary`/`VirtualRoot` variables so the intent survives into code review.
+
+Rebrand guidance
+- `.rebrand::<NewMarker>()` consumes the value and changes only the marker. Use it when you have an existing, validated value and you want to attach a different marker that encodes authorization or domain context you just proved (for example, after login).
+- Do not call `.rebrand::<()>()` or other no-op marker changes. If you need the unit marker, annotate the binding or function signature instead: `let root: PathBoundary<()> = PathBoundary::try_new_create(dir)?;`.
 
 ## Quick Specs (LLM-friendly)
 

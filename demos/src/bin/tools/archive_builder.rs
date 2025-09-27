@@ -4,7 +4,6 @@
 // paths inside the PathBoundary are included and entry names are relative (virtual view).
 
 use std::fs;
-use std::path::Path;
 use strict_path::{PathBoundary, VirtualPath, VirtualRoot};
 use tar::Builder;
 use walkdir::WalkDir;
@@ -23,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let archive_src_vroot: VirtualRoot<Source> = VirtualRoot::try_new_create("archive_src")?;
 
     // Build tar archive
-    let tar_path = Path::new("out.tar");
+    let tar_path = "out.tar";
     let file = fs::File::create(tar_path)?;
     let mut builder = Builder::new(file);
 
@@ -63,8 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     builder.finish()?;
-    let tar = tar_path.display();
-    println!("Built archive: {tar}");
+    println!("Built archive: {tar_path}");
 
     // Cleanup demo source (keep tar)
     fs::remove_dir_all("archive_src").ok();

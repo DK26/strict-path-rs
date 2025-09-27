@@ -16,28 +16,30 @@
 
 use anyhow::Result;
 use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
 use strict_path::{VirtualPath, VirtualRoot};
 
 const UPLOAD_BASE_DIR: &str = "multi_tenant_uploads";
 
 /// Represents our multi-tenant file storage system.
 struct TenantStorage {
-    base_path: String,
+    // Base uploads root as a VirtualRoot to keep flows in the virtual dimension
+    base_root: VirtualRoot<()>,
     tenant_roots: HashMap<String, VirtualRoot<()>>,
 }
 
 impl TenantStorage {
     /// Initializes the storage system.
-    fn new(base_path: &str) -> Self {
-        // Create the base directory for all uploads.
-        fs::create_dir_all(base_path).expect("Failed to create base upload directory");
-        println!("Initialized storage base at: {base_path}");
-        Self {
-            base_path: base_path.to_string(),
+    ///
+    /// Accept `AsRef<Path>` instead of converting `&str` with `Path::new(...)`.
+    fn new(base_path: impl AsRef<std::path::Path>) -> Result<Self, strict_path::StrictPathError> {
+        // Create the base directory for all uploads as a VirtualRoot (creates dir if missing)
+        let base_root = VirtualRoot::<()>::try_new_create(base_path)?;
+        let base_disp = base_root.as_unvirtual().strictpath_display();
+        println!("Initialized storage base at: {base_disp}");
+        Ok(Self {
+            base_root,
             tenant_roots: HashMap::new(),
-        }
+        })
     }
 
     /// Retrieves or creates a virtual root for a specific tenant.
@@ -50,9 +52,10 @@ impl TenantStorage {
             return Ok(vr.clone());
         }
 
-        let tenant_dir = Path::new(&self.base_path).join(tenant_id);
-        // Create virtual root (creates directory if needed via try_new_create on inner PathBoundary)
-        let vroot = VirtualRoot::<()>::try_new_create(tenant_dir)?;
+        // Compose tenant directory in the virtual dimension and convert to a VirtualRoot
+        // This clamps traversal attempts in `tenant_id` and creates the directory if needed.
+        let tenant_vpath = self.base_root.virtual_join(tenant_id)?;
+        let vroot = tenant_vpath.try_into_root_create()?;
         self.tenant_roots
             .insert(tenant_id.to_string(), vroot.clone());
         let root_display = vroot.as_unvirtual().strictpath_display();
@@ -95,7 +98,7 @@ impl TenantStorage {
 
 fn main() -> Result<()> {
     // Initialize the storage system.
-    let mut storage = TenantStorage::new(UPLOAD_BASE_DIR);
+    let mut storage = TenantStorage::new(UPLOAD_BASE_DIR)?;
 
     println!("\n--- Scenario 1: Tenant 'acme' uploads a valid file ---");
     if let Ok(vroot) = storage.get_or_create_tenant_root("acme") {
@@ -153,8 +156,8 @@ fn main() -> Result<()> {
         }
     }
 
-    // Clean up the created directory
-    fs::remove_dir_all(UPLOAD_BASE_DIR).ok();
+    // Clean up the created directory using the VirtualRoot helper
+    storage.base_root.remove_dir_all().ok();
     println!("\nCleaned up base directory.");
     Ok(())
 }

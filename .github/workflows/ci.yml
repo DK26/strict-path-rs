@@ -109,6 +109,78 @@ jobs:
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
 
+    - name: Enforce doctest/lint suppression policy
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "🔎 Scanning for forbidden patterns: #[allow(...)], no_run/ignore/should_panic in rustdoc fences, doctest:false"
+
+        # Collect tracked files as NUL-delimited to handle spaces safely (bash 3.2 compatible)
+        ALL_FILES=()
+        while IFS= read -r -d '' f; do
+          ALL_FILES+=("$f")
+        done < <(git ls-files -z || printf '')
+
+        # Build the list of Rust source files only (for #[allow(...)] and rustdoc fence checks)
+        RUST_FILES=()
+        for f in "${ALL_FILES[@]}"; do
+          case "$f" in
+            *.rs) RUST_FILES+=("$f") ;;
+          esac
+        done
+
+        # Define manifests to check for doctest:false (limit scope to Cargo.toml files)
+        MANIFESTS=()
+        [ -f Cargo.toml ] && MANIFESTS+=("Cargo.toml")
+        [ -f strict-path/Cargo.toml ] && MANIFESTS+=("strict-path/Cargo.toml")
+        [ -f demos/Cargo.toml ] && MANIFESTS+=("demos/Cargo.toml")
+
+        # 1) Block #[allow(...)] except a single whitelisted case: #[allow(clippy::type_complexity)]
+        ALLOW_ANY='#[[:space:]]*\[[[:space:]]*allow[[:space:]]*\('
+        ALLOW_WHITELIST='#[[:space:]]*\[[[:space:]]*allow[[:space:]]*\([[:space:]]*clippy::type_complexity[[:space:]]*\)'
+        ALLOW_MATCHES=""
+        if [ ${#RUST_FILES[@]} -gt 0 ]; then
+          for f in "${RUST_FILES[@]}"; do
+            out=$(grep -nE -H "$ALLOW_ANY" -- "$f" || true)
+            [ -n "$out" ] && ALLOW_MATCHES+="${out}"$'\n'
+          done
+        fi
+        ALLOW_VIOLATIONS=""
+        if [ -n "$ALLOW_MATCHES" ]; then
+          # Filter out the whitelisted exact form
+          ALLOW_VIOLATIONS=$(echo "$ALLOW_MATCHES" | grep -Ev "$ALLOW_WHITELIST" || true)
+        fi
+
+        # 2) Block rustdoc skip flags in code fences (scan only .rs files)
+        RUSTDOC_FORBIDDEN='```[[:space:]]*rust[^\n]*\b(no_run|ignore|should_panic)\b'
+        RUSTDOC_MATCHES=""
+        if [ ${#RUST_FILES[@]} -gt 0 ]; then
+          for f in "${RUST_FILES[@]}"; do
+            out=$(grep -nE -H "$RUSTDOC_FORBIDDEN" -- "$f" || true)
+            [ -n "$out" ] && RUSTDOC_MATCHES+="${out}"$'\n'
+          done
+        fi
+
+        # 3) Block doctest:false in Cargo manifests only
+        DOCTEST_FALSE='doctest:[[:space:]]*false'
+        DOCTEST_MATCHES=""
+        if [ ${#MANIFESTS[@]} -gt 0 ]; then
+          for f in "${MANIFESTS[@]}"; do
+            out=$(grep -nE -H "$DOCTEST_FALSE" -- "$f" || true)
+            [ -n "$out" ] && DOCTEST_MATCHES+="${out}"$'\n'
+          done
+        fi
+
+        if [ -n "$ALLOW_VIOLATIONS" ] || [ -n "$RUSTDOC_MATCHES" ] || [ -n "$DOCTEST_MATCHES" ]; then
+          echo "❌ Forbidden patterns found:"
+          [ -n "$ALLOW_VIOLATIONS" ] && { echo "-- Disallowed #[allow(...)] occurrences (whitelist: #[allow(clippy::type_complexity)] only):"; echo "$ALLOW_VIOLATIONS"; }
+          [ -n "$RUSTDOC_MATCHES" ] && { echo "-- Rustdoc fences with skip flags (no_run/ignore/should_panic):"; echo "$RUSTDOC_MATCHES"; }
+          [ -n "$DOCTEST_MATCHES" ] && { echo "-- doctest:false occurrences (Cargo manifests only):"; echo "$DOCTEST_MATCHES"; }
+          exit 1
+        fi
+
+        echo "✅ No forbidden suppression patterns detected. Whitelisted: #[allow(clippy::type_complexity)] only. Scanned only .rs for macros/rustdoc; manifests for doctest:false."
+
     - name: Check formatting (demos)
       run: |
         cd demos

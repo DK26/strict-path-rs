@@ -25,7 +25,7 @@ use std::{
     path::Path,
     sync::Arc,
 };
-use strict_path::{PathBoundary, VirtualPath, VirtualRoot};
+use strict_path::{PathBoundary, VirtualPath};
 use tar::Builder;
 use tokio::{net::TcpListener, signal, sync::RwLock};
 use walkdir::WalkDir;
@@ -306,20 +306,13 @@ impl HomeRegistry {
         home_dir.create_dir_all()?;
 
         let boundary = home_dir.try_into_boundary_create()?.rebrand::<UserHome>();
-        let virtual_root = boundary.clone().virtualize();
-        Ok(UserHomeAccess {
-            username: username.to_string(),
-            boundary,
-            virtual_root,
-        })
+        Ok(UserHomeAccess { boundary })
     }
 }
 
 #[derive(Clone)]
 struct UserHomeAccess {
-    username: String,
     boundary: PathBoundary<UserHome>,
-    virtual_root: VirtualRoot<UserHome>,
 }
 
 impl UserHomeAccess {
@@ -334,7 +327,9 @@ impl UserHomeAccess {
                     .strip_prefix(root_path)
                     .context("failed to strip prefix")?;
                 let virtual_path = self
-                    .virtual_root
+                    .boundary
+                    .clone()
+                    .virtualize()
                     .virtual_join(rel)
                     .context("failed to virtualize file path")?;
                 files.push(virtual_path);
@@ -345,16 +340,15 @@ impl UserHomeAccess {
     }
 
     fn write_file(&self, relative: &str, contents: &str) -> Result<WriteFileOutcome> {
-        let file = self
-            .boundary
-            .strict_join(relative)
+        let vroot = self.boundary.clone().virtualize();
+        let vpath = vroot
+            .virtual_join(relative)
             .with_context(|| format!("path {relative} escapes user home"))?;
-        file.create_parent_dir_all()?;
-        file.write(contents)?;
-        let virtual_path = file.clone().virtualize();
+        vpath.create_parent_dir_all()?;
+        vpath.write(contents)?;
         Ok(WriteFileOutcome {
-            path: virtual_path,
-            bytes_written: contents.as_bytes().len(),
+            path: vpath,
+            bytes_written: contents.len(),
         })
     }
 }
@@ -377,17 +371,12 @@ impl BackupVault {
         let boundary = user_dir
             .try_into_boundary_create()?
             .rebrand::<BackupStorage>();
-        let virtual_root = boundary.clone().virtualize();
-        Ok(BackupAccess {
-            boundary,
-            virtual_root,
-        })
+        Ok(BackupAccess { boundary })
     }
 }
 
 struct BackupAccess {
     boundary: PathBoundary<BackupStorage>,
-    virtual_root: VirtualRoot<BackupStorage>,
 }
 
 impl BackupAccess {

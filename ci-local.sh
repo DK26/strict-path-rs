@@ -83,6 +83,70 @@ echo
 echo "🔧 Auto-fixing common issues before CI checks"
 echo
 
+# Enforce doctest/lint suppression policy (limit scans to .rs files only)
+echo "🔎 Enforcing policy: forbid #[allow(...)] (except clippy::type_complexity) and forbid skipped rustdoc fences in source (.rs only)"
+
+# Collect tracked files (fallback to find when git is unavailable)
+FILES=$(git ls-files 2>/dev/null | grep -Ev '^(target/|demos/target/|\.git/|\.docs/|docs/)' || true)
+if [[ -z "$FILES" ]]; then
+    # Fallback for environments without git metadata
+    if command -v find >/dev/null 2>&1; then
+        FILES=$(find . -type f \
+            \( -path './target/*' -o -path './demos/target/*' -o -path './.git/*' -o -path './.docs/*' -o -path './docs/*' \) -prune -false -o -print)
+    else
+        FILES=$(ls -1 || true)
+    fi
+fi
+
+# Restrict macro/rustdoc scans strictly to Rust source files
+RUST_FILES=$(printf '%s\n' "$FILES" | grep -E '\\.rs$' || true)
+
+ALLOW_ANY='#\s*\[\s*allow\s*\('
+ALLOW_WHITELIST='#\s*\[\s*allow\s*\(\s*clippy::type_complexity\s*\)'
+RUSTDOC_FORBIDDEN='```\s*rust[^`]*\b(no_run|ignore|should_panic)\b'
+
+ALLOW_MATCHES=""
+RUSTDOC_MATCHES=""
+DOCTEST_MATCHES=""
+
+if [[ -n "$RUST_FILES" ]]; then
+    # 1) #[allow(...)] scans in .rs only
+    ALLOW_MATCHES=$(printf '%s\n' "$RUST_FILES" | xargs -r grep -RInE "$ALLOW_ANY" || true)
+    if [[ -n "$ALLOW_MATCHES" ]]; then
+        # Exempt only clippy::type_complexity
+        ALLOW_VIOLATIONS=$(printf '%s\n' "$ALLOW_MATCHES" | grep -Ev "$ALLOW_WHITELIST" || true)
+    else
+        ALLOW_VIOLATIONS=""
+    fi
+
+    # 2) rustdoc fence skips in .rs only (doc comments)
+    RUSTDOC_MATCHES=$(printf '%s\n' "$RUST_FILES" | xargs -r grep -RInE "$RUSTDOC_FORBIDDEN" || true)
+else
+    ALLOW_VIOLATIONS=""
+    RUSTDOC_MATCHES=""
+fi
+
+# 3) Block doctest:false in Cargo/docs config (manifests only)
+DOCTEST_FALSE='doctest:[[:space:]]*false'
+MANIFESTS=()
+[[ -f "Cargo.toml" ]] && MANIFESTS+=("Cargo.toml")
+[[ -f "strict-path/Cargo.toml" ]] && MANIFESTS+=("strict-path/Cargo.toml")
+[[ -f "demos/Cargo.toml" ]] && MANIFESTS+=("demos/Cargo.toml")
+if [[ ${#MANIFESTS[@]} -gt 0 ]]; then
+    DOCTEST_MATCHES=$(printf '%s\n' "${MANIFESTS[@]}" | xargs -r grep -RInE "$DOCTEST_FALSE" || true)
+fi
+
+if [[ -n "$ALLOW_VIOLATIONS" ]] || [[ -n "$RUSTDOC_MATCHES" ]] || [[ -n "$DOCTEST_MATCHES" ]]; then
+    echo "❌ Forbidden patterns detected (restricted to .rs for macro/rustdoc scans):"
+    [[ -n "$ALLOW_VIOLATIONS" ]] && { echo "-- #[allow(...)] occurrences (disallowed):"; echo "$ALLOW_VIOLATIONS"; }
+    [[ -n "$RUSTDOC_MATCHES" ]] && { echo "-- rustdoc fences with no_run/ignore/should_panic:"; echo "$RUSTDOC_MATCHES"; }
+    [[ -n "$DOCTEST_MATCHES" ]] && { echo "-- doctest:false occurrences in manifests:"; echo "$DOCTEST_MATCHES"; }
+    echo "Only #[allow(clippy::type_complexity)] is allowed."
+    exit 2
+else
+    echo "✅ No forbidden suppression patterns detected (scanned only .rs files for macros/rustdoc)."
+fi
+
 run_check() {
     local name="$1"
     local command="$2"
@@ -466,19 +530,32 @@ run_check "Tests (library all features)" "cargo test -p strict-path --all-featur
 # Doc tests are included in 'cargo test --verbose', so no separate --doc run needed
 run_check "Documentation" "RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items --all-features"
 
-# Build mdbook documentation
+# Build mdbook documentation (only if docs worktree or local docs exist)
 echo "📚 Building mdbook documentation..."
-if command -v mdbook &> /dev/null; then
-    run_check "Build mdbook docs" "(cd docs_src && mdbook build)"
+
+# Prefer the worktree location described in AGENTS.md
+DOCS_DIR=""
+if [[ -d ".docs/docs_src" ]]; then
+    DOCS_DIR=".docs/docs_src"
+elif [[ -d "docs_src" ]]; then
+    DOCS_DIR="docs_src"
 else
-    echo "⚠️  mdbook not found. Installing..."
-    if cargo install mdbook --locked; then
-        echo "✓ mdbook installed successfully"
-        run_check "Build mdbook docs" "(cd docs_src && mdbook build)"
+    echo "ℹ️  No docs worktree found at .docs/docs_src and no local docs_src directory. Skipping mdBook build."
+fi
+
+if [[ -n "$DOCS_DIR" ]]; then
+    if command -v mdbook &> /dev/null; then
+        run_check "Build mdbook docs" "(cd \"$DOCS_DIR\" && mdbook build)"
     else
-        echo "❌ Failed to install mdbook. Skipping documentation build."
-        echo "💡 To install manually: cargo install mdbook"
-        echo "💡 Then run: cd docs_src && mdbook build"
+        echo "⚠️  mdbook not found. Installing..."
+        if cargo install mdbook --locked; then
+            echo "✓ mdbook installed successfully"
+            run_check "Build mdbook docs" "(cd \"$DOCS_DIR\" && mdbook build)"
+        else
+            echo "❌ Failed to install mdbook. Skipping documentation build."
+            echo "💡 To install manually: cargo install mdbook"
+            echo "💡 Then run: cd $DOCS_DIR && mdbook build"
+        fi
     fi
 fi
 
