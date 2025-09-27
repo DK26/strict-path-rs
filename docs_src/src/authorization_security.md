@@ -241,57 +241,53 @@ update_config(&app_config, "new settings")?; // ✅ OK - admin can update config
 
 ## Capability-Based Authorization
 
-For more sophisticated authorization, we can encode specific capabilities:
+For more sophisticated authorization, encode capabilities directly in the marker using tuples. This keeps capabilities visible in the type without extra traits or boilerplate and preserves the core guarantees (`StrictPath<...>`/`VirtualPath<...>` remain unchanged):
 
 ```rust
-use std::marker::PhantomData;
-
-// Capability types
+// Capability types (domain-level markers)
 struct CanRead;
-struct CanWrite; 
+struct CanWrite;
 struct CanDelete;
 struct CanAdmin;
 
-// Marker combines domain + user + capabilities
-struct UserDocument<User, Caps>(PhantomData<(User, Caps)>);
+// Resource marker (optionally parameterized by a user/account/domain id)
+struct UserDocument;
 
-// Type-level capability checking
-trait HasCapability<Cap> {}
-
-// Grant read capability to various permission combinations
-impl<U> HasCapability<CanRead> for UserDocument<U, (CanRead,)> {}
-impl<U> HasCapability<CanRead> for UserDocument<U, (CanRead, CanWrite)> {}
-impl<U> HasCapability<CanRead> for UserDocument<U, (CanRead, CanWrite, CanDelete)> {}
-
-// Grant write capability only when explicitly present
-impl<U> HasCapability<CanWrite> for UserDocument<U, (CanRead, CanWrite)> {}
-impl<U> HasCapability<CanWrite> for UserDocument<U, (CanRead, CanWrite, CanDelete)> {}
-
-// Grant delete capability only when explicitly present  
-impl<U> HasCapability<CanDelete> for UserDocument<U, (CanRead, CanWrite, CanDelete)> {}
-
-// Functions enforce capabilities at compile time
-fn read_file<M>(path: &StrictPath<M>) -> io::Result<String>
-where 
-    M: HasCapability<CanRead>
-{
+// Functions enforce capability requirements by constraining the marker shape
+fn read_file<R>(path: &StrictPath<(R, CanRead)>) -> io::Result<String> {
     path.read_to_string()
 }
 
-fn write_file<M>(path: &StrictPath<M>, content: &str) -> io::Result<()>
-where 
-    M: HasCapability<CanWrite>
-{
+fn write_file<R>(path: &StrictPath<(R, CanWrite)>, content: &str) -> io::Result<()> {
     path.write(content)
 }
 
-fn delete_file<M>(path: &StrictPath<M>) -> io::Result<()>
-where 
-    M: HasCapability<CanDelete>
-{
+fn delete_file<R>(path: &StrictPath<(R, CanDelete)>) -> io::Result<()> {
     path.remove_file()
 }
+
+// Example: a read-only document path
+let user_docs: PathBoundary<(UserDocument, CanRead)> = PathBoundary::try_new("docs")?;
+let report: StrictPath<(UserDocument, CanRead)> = user_docs.strict_join("report.txt")?;
+let _ = read_file::<(UserDocument,) /* R = UserDocument */>(&report)?; // ✅ OK
+
+// Compile-time capability mismatches are prevented by the type system:
+// write_file(&report, "new content")?; // ❌ Does not satisfy (R, CanWrite)
+
+// When multiple capabilities are needed, include them in the tuple:
+let editor_docs: PathBoundary<(UserDocument, CanRead, CanWrite)> = PathBoundary::try_new("docs")?;
+let draft: StrictPath<(UserDocument, CanRead, CanWrite)> = editor_docs.strict_join("draft.txt")?;
+write_file(&draft, "updated")?; // ✅ Has CanWrite
 ```
+
+Notes
+- Choose a consistent tuple shape across your app (e.g., `(Resource, CanRead)` for single caps; `(Resource, CanRead, CanWrite)` for combinations). Tuples of any arity are fine, but keep them FLAT — avoid nested tuples like `(Resource, (CanRead, CanWrite))`.
+- If you need to encode user/tenant identity, introduce a separate marker and compose it: `(UserDocument<User123>, CanRead)` or `(UserDocumentFor<UserId>, CanRead)`.
+- You can still add ergonomic type aliases near call sites, e.g., `type ReadOnlyDoc = (UserDocument, CanRead);`.
+
+Rebrand best practices
+- Use `.rebrand::<NewMarker>()` when you need to attach newly-proven authorization or refine the domain marker of an already-validated value.
+- Avoid no-op rebrands (e.g., `.rebrand::<()>()`). Prefer annotating the binding type or function signature when you need unit markers: `let vroot: VirtualRoot<()> = VirtualRoot::try_new(dir)?;`.
 
 ## Authorization Token Integration
 

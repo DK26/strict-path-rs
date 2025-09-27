@@ -8,7 +8,7 @@
 
         <!-- Custom HTML head -->
 
-        <meta name="description" content="">
+        <meta name="description" content="Comprehensive guide to strict-path: Type-safe path boundaries preventing directory traversal attacks">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
@@ -143,6 +143,12 @@
                     <div class="right-buttons">
                         <a href="print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/authorization_security.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
                     </div>
@@ -407,57 +413,55 @@ update_config(&amp;app_config, "new settings")?; // ✅ OK - admin can update co
 // read_logs(&amp;user_doc)?; // ❌ Can't pass UserDocuments to SystemLogs function
 <span class="boring">}</span></code></pre></pre>
 <h2 id="capability-based-authorization"><a class="header" href="#capability-based-authorization">Capability-Based Authorization</a></h2>
-<p>For more sophisticated authorization, we can encode specific capabilities:</p>
+<p>For more sophisticated authorization, encode capabilities directly in the marker using tuples. This keeps capabilities visible in the type without extra traits or boilerplate and preserves the core guarantees (<code>StrictPath&lt;...&gt;</code>/<code>VirtualPath&lt;...&gt;</code> remain unchanged):</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use std::marker::PhantomData;
-
-// Capability types
+</span>// Capability types (domain-level markers)
 struct CanRead;
-struct CanWrite; 
+struct CanWrite;
 struct CanDelete;
 struct CanAdmin;
 
-// Marker combines domain + user + capabilities
-struct UserDocument&lt;User, Caps&gt;(PhantomData&lt;(User, Caps)&gt;);
+// Resource marker (optionally parameterized by a user/account/domain id)
+struct UserDocument;
 
-// Type-level capability checking
-trait HasCapability&lt;Cap&gt; {}
-
-// Grant read capability to various permission combinations
-impl&lt;U&gt; HasCapability&lt;CanRead&gt; for UserDocument&lt;U, (CanRead,)&gt; {}
-impl&lt;U&gt; HasCapability&lt;CanRead&gt; for UserDocument&lt;U, (CanRead, CanWrite)&gt; {}
-impl&lt;U&gt; HasCapability&lt;CanRead&gt; for UserDocument&lt;U, (CanRead, CanWrite, CanDelete)&gt; {}
-
-// Grant write capability only when explicitly present
-impl&lt;U&gt; HasCapability&lt;CanWrite&gt; for UserDocument&lt;U, (CanRead, CanWrite)&gt; {}
-impl&lt;U&gt; HasCapability&lt;CanWrite&gt; for UserDocument&lt;U, (CanRead, CanWrite, CanDelete)&gt; {}
-
-// Grant delete capability only when explicitly present  
-impl&lt;U&gt; HasCapability&lt;CanDelete&gt; for UserDocument&lt;U, (CanRead, CanWrite, CanDelete)&gt; {}
-
-// Functions enforce capabilities at compile time
-fn read_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; io::Result&lt;String&gt;
-where 
-    M: HasCapability&lt;CanRead&gt;
-{
+// Functions enforce capability requirements by constraining the marker shape
+fn read_file&lt;R&gt;(path: &amp;StrictPath&lt;(R, CanRead)&gt;) -&gt; io::Result&lt;String&gt; {
     path.read_to_string()
 }
 
-fn write_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;, content: &amp;str) -&gt; io::Result&lt;()&gt;
-where 
-    M: HasCapability&lt;CanWrite&gt;
-{
+fn write_file&lt;R&gt;(path: &amp;StrictPath&lt;(R, CanWrite)&gt;, content: &amp;str) -&gt; io::Result&lt;()&gt; {
     path.write(content)
 }
 
-fn delete_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; io::Result&lt;()&gt;
-where 
-    M: HasCapability&lt;CanDelete&gt;
-{
+fn delete_file&lt;R&gt;(path: &amp;StrictPath&lt;(R, CanDelete)&gt;) -&gt; io::Result&lt;()&gt; {
     path.remove_file()
 }
+
+// Example: a read-only document path
+let user_docs: PathBoundary&lt;(UserDocument, CanRead)&gt; = PathBoundary::try_new("docs")?;
+let report: StrictPath&lt;(UserDocument, CanRead)&gt; = user_docs.strict_join("report.txt")?;
+let _ = read_file::&lt;(UserDocument,) /* R = UserDocument */&gt;(&amp;report)?; // ✅ OK
+
+// Compile-time capability mismatches are prevented by the type system:
+// write_file(&amp;report, "new content")?; // ❌ Does not satisfy (R, CanWrite)
+
+// When multiple capabilities are needed, include them in the tuple:
+let editor_docs: PathBoundary&lt;(UserDocument, CanRead, CanWrite)&gt; = PathBoundary::try_new("docs")?;
+let draft: StrictPath&lt;(UserDocument, CanRead, CanWrite)&gt; = editor_docs.strict_join("draft.txt")?;
+write_file(&amp;draft, "updated")?; // ✅ Has CanWrite
 <span class="boring">}</span></code></pre></pre>
+<p>Notes</p>
+<ul>
+<li>Choose a consistent tuple shape across your app (e.g., <code>(Resource, CanRead)</code> for single caps; <code>(Resource, CanRead, CanWrite)</code> for combinations). Tuples of any arity are fine, but keep them FLAT — avoid nested tuples like <code>(Resource, (CanRead, CanWrite))</code>.</li>
+<li>If you need to encode user/tenant identity, introduce a separate marker and compose it: <code>(UserDocument&lt;User123&gt;, CanRead)</code> or <code>(UserDocumentFor&lt;UserId&gt;, CanRead)</code>.</li>
+<li>You can still add ergonomic type aliases near call sites, e.g., <code>type ReadOnlyDoc = (UserDocument, CanRead);</code>.</li>
+</ul>
+<p>Rebrand best practices</p>
+<ul>
+<li>Use <code>.rebrand::&lt;NewMarker&gt;()</code> when you need to attach newly-proven authorization or refine the domain marker of an already-validated value.</li>
+<li>Avoid no-op rebrands (e.g., <code>.rebrand::&lt;()&gt;()</code>). Prefer annotating the binding type or function signature when you need unit markers: <code>let vroot: VirtualRoot&lt;()&gt; = VirtualRoot::try_new(dir)?;</code>.</li>
+</ul>
 <h2 id="authorization-token-integration"><a class="header" href="#authorization-token-integration">Authorization Token Integration</a></h2>
 <p>The key challenge is connecting runtime authentication with compile-time types:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -707,11 +711,19 @@ async fn load_user_document&lt;const USER_ID: u64&gt;(
 
 
 
+        <script>
+            window.playground_line_numbers = true;
+        </script>
 
         <script>
             window.playground_copyable = true;
         </script>
 
+        <script src="ace.js"></script>
+        <script src="mode-rust.js"></script>
+        <script src="editor.js"></script>
+        <script src="theme-dawn.js"></script>
+        <script src="theme-tomorrow_night.js"></script>
 
         <script src="elasticlunr.min.js"></script>
         <script src="mark.min.js"></script>
