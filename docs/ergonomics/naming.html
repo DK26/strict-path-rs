@@ -182,6 +182,13 @@
 <li>Avoid: <code>boundary</code>, <code>jail</code>, <code>source_</code> prefixes, or one-letter variables.</li>
 <li>Keep names consistent with the directory they represent and convey intent in code review.</li>
 </ul>
+<h3 id="marker-types"><a class="header" href="#marker-types">Marker Types</a></h3>
+<ul>
+<li>Name markers after the storage domain (<code>struct PublicAssets;</code>, <code>struct BrandEditorWorkspace;</code>). Reviewers should understand the filesystem contents from the type alone.</li>
+<li>Skip suffixes like <code>Marker</code>, <code>Type</code>, or <code>Root</code>; they repeat what Rust already communicates. <code>struct MediaLibrary;</code> is clearer than <code>struct MediaLibraryMarker;</code>.</li>
+<li>Tuples that pair storage with authorization should keep the resource first and the capability second: <code>StrictPath&lt;(BrandDirectorArchive, FullControlCapability)&gt;</code>.</li>
+<li>Focus on what's stored, not who uses it. A marker like <code>BrandAssets</code> tells you the directory contains brand materials, while <code>EditorFiles</code> only tells you someone called "Editor" uses it. The marker describes the filesystem contents and access policy, not the caller's identity.</li>
+</ul>
 
                     </main>
 
