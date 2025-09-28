@@ -10,19 +10,28 @@
 📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)**
 | 🧭 **[Choosing Canonicalized vs Lexical Solution](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)**
 
-> **Note:** Our doc comments and `LLM_API_REFERENCE.md` are designed for LLMs with function calling—so an AI can use this crate safely and correctly for file and path operations.
-
 Stop path attacks before they happen. This crate makes sure file paths can't escape where you want them to go.
+
+> **Note:** Our doc comments and [LLM_API_REFERENCE.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_API_REFERENCE.md) are designed for LLMs with function calling—so an AI can use this crate safely and correctly for file and path operations. 
+> 
+> ### 🤖 LLM agent prompt (copy/paste)
+> 
+> ``` 
+> Fetch and follow this reference (single source of truth):
+> https://github.com/DK26/strict-path-rs/blob/main/LLM_API_REFERENCE.md
+> ```
 
 ## What this crate does
 
 - **Blocks path attacks**: Turn dangerous paths like `../../../etc/passwd` into either safe paths or clear errors
+- **Handles the obscure edge cases**: Windows 8.3 short names, symlink cycles, NTFS streams, UNC paths, encoding tricks—the stuff you'd never think to test for
 - **Compiler-enforced guarantees**: `StrictPath<Marker>` types prove at compile-time that paths stay within boundaries
 - **Enables authorization architectures**: When you design markers to require authorization for construction, the compiler mathematically proves that any use of those markers went through authorization first
+- **Safe builtin I/O operations**: Complete filesystem API (read, write, create_dir, metadata, rename, copy, etc.) that eliminates the need for `.interop_path()` calls in routine operations
 - **Two modes to choose from**:
   - **StrictPath**: Rejects bad paths with an error (good for APIs and system access guarantees)  
   - **VirtualPath**: Clamps bad paths to safe ones (good for simulating virtual user spaces, extracting archives in isolation, etc.)
-- **Handles the tricky stuff**: Follows symlinks, resolves `..` and `.`, deals with Windows weirdness
+- **Built on battle-tested foundations**: Uses `soft-canonicalize` which has been validated against 19+ real-world path-related CVEs
 - **Easy to use**: Drop-in replacement for standard file operations, same return values
 - **Works everywhere**: Handles platform differences so you don't have to
 
@@ -81,18 +90,22 @@ StrictPath::with_boundary("uploads")?
 
 > "Symlinks: the ninja assassins of your filesystem."
 
-**strict-path isn't just validation—it's a complete solution to path security:**
+**strict-path isn't just validation—it's a complete solution to path security that handles edge cases you'd never think to check:**
 
-1. **🔧 [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs) foundation**: Heavily tested against 19+ globally known path-related CVEs
-2. **🚫 Hacky string rejection**: Advanced pattern detection blocks encoding tricks and malformed inputs  
-3. **📐 Mathematical correctness**: Rust's type system provides compile-time proof of path boundaries
-4. **🔐 Authorization architecture**: Enable compile-time authorization guarantees through marker types
-5. **👁️ Explicit operations**: Method names like `strict_join()` make security violations visible in code review
-6. **🤖 LLM-aware design**: Built specifically for untrusted AI-generated paths and modern threat models
-7. **🔗 Symlink resolution**: Safe handling of symbolic links with cycle detection and boundary enforcement
-8. **⚡ Dual protection modes**: Choose **Strict** (validate & reject) or **Virtual** (clamp & contain) based on your use case
-9. **🏗️ Battle-tested architecture**: Prototyped and refined across real-world production systems
-10. **🎯 Zero-allocation interop**: Seamless integration with existing `std::path` ecosystems
+1. **🔧 [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs) foundation**: Heavily tested against 19+ globally known path-related CVEs—the battle-tested work you don't want to reimplement
+2. **🚫 Advanced pattern detection**: Catches encoding tricks, Windows 8.3 short names (`PROGRA~1`), UNC paths, NTFS Alternate Data Streams, and malformed inputs that simple string checks miss
+3. **🔗 Full canonicalization pipeline**: Resolves symlinks, junctions, `.` and `..` components, and handles filesystem race conditions—the complex stuff that's easy to get wrong
+4. **📐 Mathematical correctness**: Rust's type system provides compile-time proof of path boundaries
+5. **🔐 Authorization architecture**: Enable compile-time authorization guarantees through marker types
+6. **👁️ Explicit operations**: Method names like `strict_join()` make security violations visible in code review
+7. **🛡️ Safe builtin I/O operations**: Complete filesystem API that reduces the need for `.interop_path()` calls in routine operations
+8. **🤖 LLM-aware design**: Built specifically for untrusted AI-generated paths and modern threat models
+9. **⚡ Dual protection modes**: Choose **Strict** (validate & reject) or **Virtual** (clamp & contain) based on your use case
+10. **🏗️ Battle-tested architecture**: Prototyped and refined across real-world production systems
+11. **🎯 Zero-allocation interop**: Seamless integration with existing `std::path` ecosystems when needed
+
+> 📖 **[Read our complete security methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)**  
+> *Deep dive into our 7-layer security approach: from CVE research to proactive breach attempts*
 
 ### **Recently Addressed CVEs**
 - **CVE-2025-8088** (WinRAR ADS): NTFS Alternate Data Stream traversal prevention
@@ -126,7 +139,25 @@ safe_path.remove_file()?; // Remove when cleanup is required
 
 **That's it.** No complex validation logic. No CVE research. No security expertise required.
 
+## 🧬 **The Edge Cases You'd Never Think Of**
+
+> "Security is hard because the edge cases are infinite—until now."
+
+**What would you check for when validating a file path?** Most developers think: *"I'll block `../` and call it a day."* But real attackers use techniques you've probably never heard of:
+
+- **Windows 8.3 short names**: `PROGRA~1` → `Program Files` (filesystem aliases that bypass string checks)
+- **NTFS Alternate Data Streams**: `config.txt:hidden:$DATA` (secret channels in "normal" files)
+- **Unicode normalization**: `..∕..∕etc∕passwd` (visually identical but different bytes)
+- **Symlink time-bombs**: Links that resolve differently between validation and use (TOCTOU)
+- **Mixed path separators**: `../\../etc/passwd` (exploiting parser differences)
+- **UNC path shenanigans**: `\\?\C:\Windows\..\..\..\etc\passwd` (Windows extended paths)
+
+**The reality**: You'd need months of research, testing across platforms, and deep filesystem knowledge to handle these correctly.
+
+**Our approach**: We've already done the research. `strict-path` is built on `soft-canonicalize`, which has been battle-tested against 19+ real CVEs. You get comprehensive protection without becoming a path security expert.
+
 ## 🧠 **The Secret Weapon: `StrictPath<Marker>` Types**
+
 
 > "Marker types: because your code deserves a secret identity."
 
@@ -415,19 +446,26 @@ fn load_user_config(config_dir: &PathBoundary<UserConfigs>, config_name: &str) -
 
 > "If your attacker has root, strict-path can't save you—but it can make them work for it."
 
-**What this protects against (99% of attacks):**
-- Path traversal (`../../../etc/passwd`)  
-- Symlink escapes and directory bombs
-- Archive extraction attacks (zip slip)
-- Unicode/encoding bypass attempts
-- Windows-specific attacks (8.3 names, UNC paths)
-- Race conditions during path resolution
+**What this protects against (99% of attacks)—including edge cases most developers miss:**
+- **Basic path traversal**: `../../../etc/passwd`
+- **Symlink escapes**: Following links outside boundaries, including directory bombs and cycle detection
+- **Archive extraction attacks**: Zip slip and similar archive-based traversal attempts
+- **Encoding bypass attempts**: Unicode normalization attacks, null bytes, and other encoding tricks
+- **Windows platform-specific attacks**:
+  - 8.3 short name aliasing (`PROGRA~1` → `Program Files`)
+  - UNC path manipulation (`\\?\C:\` and `\\server\share\`)
+  - NTFS Alternate Data Streams (`file.txt:hidden`)
+  - Drive-relative path forms and junction points
+- **Race conditions**: TOCTOU (Time-of-Check-Time-of-Use) during path resolution
+- **Canonicalization edge cases**: Mixed separators, redundant separators, current/parent directory references
+
+**The reality**: These aren't theoretical attacks—they're real vulnerabilities found in production systems. Instead of researching each CVE and implementing custom defenses, you get comprehensive protection from day one.
 
 **What requires system-level privileges (rare):**
 - **Hard links**: Multiple filesystem entries to same file data
 - **Mount points**: Admin/root can redirect paths via filesystem mounts
 
-**Bottom line**: If attackers have root/admin access, they've already won. This library stops the 99% of practical attacks that don't require special privileges.
+**Bottom line**: If attackers have root/admin access, they've already won. This library stops the 99% of practical attacks that don't require special privileges—and handles all the edge cases you'd probably forget to check.
 
 
 ## 🔐 **Advanced: Type-Safe Context Separation**
