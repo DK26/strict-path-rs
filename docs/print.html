@@ -868,707 +868,228 @@ fn access_secure_file(path: &amp;StrictPath&lt;SecureDocuments&gt;) -&gt; Result
 <p><strong>Remember:</strong> Path security isn't just about blocking <code>../../../etc/passwd</code>. It's about creating a robust defense against all the ways that untrusted paths can be crafted to bypass your security controls. That's what <code>strict-path</code> delivers.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="one-small-generic-for-marker-one-giant-leap-for-strictpath"><a class="header" href="#one-small-generic-for-marker-one-giant-leap-for-strictpath">"One Small Generic for Marker, One Giant Leap for StrictPath"</a></h1>
 <h2 id="unlocking-extra-security-powers"><a class="header" href="#unlocking-extra-security-powers">Unlocking Extra Security Powers</a></h2>
-<p>This chapter provides a comprehensive, hands-on journey through the marker system in <code>strict-path</code>. We'll start with the simplest use case and progressively build up to sophisticated authorization architectures that leverage Rust's type system for compile-time security guarantees.</p>
-<h2 id="chapter-overview"><a class="header" href="#chapter-overview">Chapter Overview</a></h2>
-<p>We'll follow a progressive learning path:</p>
-<ol>
-<li><strong>Basic StrictPath</strong> - Single path, no markers</li>
-<li><strong>Multiple Paths</strong> - The problem of mixing up different boundaries</li>
-<li><strong>Marker Types</strong> - Compiler-enforced path identification</li>
-<li><strong>Authentication Markers</strong> - Encoding auth requirements in types</li>
-<li><strong>Authorization Tuples</strong> - Sophisticated permission systems</li>
-<li><strong>Rebranding and Sub-Boundaries</strong> - Creating specialized roots</li>
-<li><strong>VirtualPath Integration</strong> - Applying the same concepts to virtual environments</li>
-<li><strong>Generic Functions</strong> - Working with both StrictPath and VirtualPath</li>
-</ol>
-<p>Let's begin this journey...</p>
-<h2 id="1-the-humble-beginning-basic-strictpath"><a class="header" href="#1-the-humble-beginning-basic-strictpath">1. The Humble Beginning: Basic StrictPath</a></h2>
-<p>Let's start with the most basic scenario - you have a single directory you want to restrict access to:</p>
+<p>Let’s build this up the way real apps grow: start with “one safe folder,” add a second one, teach the compiler the difference with markers, fold in auth, and finish with clean virtual sandboxes. Short, practical, and copy‑pasteable.</p>
+<p>Tip: When a folder may not exist yet, use <code>with_boundary_create</code> / <code>with_root_create</code>. When you know it exists, <code>with_boundary</code> / <code>with_root</code> is fine.</p>
+<h2 id="1-the-humble-beginning-one-safe-folder"><a class="header" href="#1-the-humble-beginning-one-safe-folder">1) The humble beginning: one safe folder</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::StrictPath;
 use std::io::Result;
 
 fn basic_file_server() -&gt; Result&lt;()&gt; {
-    // Simple case: one boundary, basic operations
-    let uploads_dir = StrictPath::with_boundary_create("./uploads")?;
-    
-    // All operations are guaranteed safe
-    let user_file = uploads_dir.strict_join("document.txt")?;
-    user_file.write("Hello, secure world!")?;
-    
-    let content = user_file.read_to_string()?;
-    println!("Content: {}", content);
-    
+    let uploads = StrictPath::with_boundary_create("./uploads")?;
+
+    let file = uploads.strict_join("document.txt")?;
+    file.create_parent_dir_all()?;
+    file.write("Hello, secure world!")?;
+
+    println!("{}", file.strictpath_display());
     Ok(())
 }
 <span class="boring">}</span></code></pre></pre>
-<p>This works perfectly for simple cases. But what happens when your application grows?</p>
-<h2 id="2-the-growing-pains-multiple-boundaries"><a class="header" href="#2-the-growing-pains-multiple-boundaries">2. The Growing Pains: Multiple Boundaries</a></h2>
-<p>As your application evolves, you'll likely need multiple restricted areas:</p>
+<h2 id="2-growing-pains-now-you-have-two"><a class="header" href="#2-growing-pains-now-you-have-two">2) Growing pains: now you have two</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::StrictPath;
+use std::io::Result;
 
-fn multi_directory_server() -&gt; Result&lt;()&gt; {
-    // Multiple boundaries for different purposes
+fn multi_area() -&gt; Result&lt;()&gt; {
     let user_uploads = StrictPath::with_boundary_create("./uploads")?;
     let system_config = StrictPath::with_boundary_create("./config")?;
-    let temp_processing = StrictPath::with_boundary_create("./temp")?;
-    
-    // Process a user upload
+
     let user_file = user_uploads.strict_join("user_document.txt")?;
-    
-    // Read system configuration
     let config_file = system_config.strict_join("app.toml")?;
-    
-    // ⚠️ THE PROBLEM: What if we accidentally mix them up?
-    process_user_file(&amp;config_file)?; // Oops! Wrong file!
-    
+
+    // Oops risk: both are StrictPath&lt;()&gt; — easy to mix up.
+    // process_user_file(&amp;config_file)?; // would compile with a loose signature
     Ok(())
 }
 
 fn process_user_file(file: &amp;StrictPath) -&gt; Result&lt;()&gt; {
-    // This function expects a user file, but we can accidentally 
-    // pass it a system config file. The compiler can't help us!
-    file.write("User data")?; // Might overwrite system config!
-    Ok(())
-}
-<span class="boring">}</span></code></pre></pre>
-<p><strong>The Problem</strong>: All <code>StrictPath</code> instances look the same to the compiler, regardless of which boundary they came from. This makes it easy to accidentally mix up files from different security contexts.</p>
-<h2 id="3-enter-the-marker-compiler-enforced-path-identity"><a class="header" href="#3-enter-the-marker-compiler-enforced-path-identity">3. Enter the Marker: Compiler-Enforced Path Identity</a></h2>
-<p>Markers solve this by making different boundaries have different types:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::StrictPath;
-
-// Define marker types for different purposes
-struct UserUploads;
-struct SystemConfig;
-struct TempProcessing;
-
-fn marked_multi_directory_server() -&gt; Result&lt;()&gt; {
-    // Each boundary now has a distinct type
-    let user_uploads: StrictPath&lt;UserUploads&gt; = 
-        StrictPath::with_boundary_create("./uploads")?;
-    let system_config: StrictPath&lt;SystemConfig&gt; = 
-        StrictPath::with_boundary_create("./config")?;
-    let temp_processing: StrictPath&lt;TempProcessing&gt; = 
-        StrictPath::with_boundary_create("./temp")?;
-    
-    let user_file = user_uploads.strict_join("user_document.txt")?;
-    let config_file = system_config.strict_join("app.toml")?;
-    
-    // ✅ This works - correct marker type
-    process_user_file(&amp;user_file)?;
-    
-    // ❌ Compile error! Can't mix up different marker types
-    // process_user_file(&amp;config_file)?; // Won't compile!
-    
-    Ok(())
-}
-
-// Function signature now enforces the correct marker type
-fn process_user_file(file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; Result&lt;()&gt; {
-    // Compiler guarantees this is a user upload file
     file.write("User data")?;
     Ok(())
 }
-
-fn process_config_file(file: &amp;StrictPath&lt;SystemConfig&gt;) -&gt; Result&lt;()&gt; {
-    // Compiler guarantees this is a system config file  
-    let config = file.read_to_string()?;
-    // Parse config...
-    Ok(())
-}
 <span class="boring">}</span></code></pre></pre>
-<p><strong>The Power</strong>: Now the compiler prevents you from accidentally passing the wrong type of file to functions. Each marker creates a distinct type that can't be mixed up.</p>
-<h2 id="4-authentication-markers-encoding-auth-in-the-type-system"><a class="header" href="#4-authentication-markers-encoding-auth-in-the-type-system">4. Authentication Markers: Encoding Auth in the Type System</a></h2>
-<p>Now let's take it further - what if creating certain markers requires authentication?</p>
+<h2 id="3-markers-to-the-rescue-give-folders-a-name-the-compiler-understands"><a class="header" href="#3-markers-to-the-rescue-give-folders-a-name-the-compiler-understands">3) Markers to the rescue: give folders a name the compiler understands</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::StrictPath;
+use std::io::Result;
+
+struct UserUploads;
+struct SystemConfig;
+
+fn safer_multi_area() -&gt; Result&lt;()&gt; {
+    let user_uploads: StrictPath&lt;UserUploads&gt; = StrictPath::with_boundary_create("./uploads")?;
+    let system_config: StrictPath&lt;SystemConfig&gt; = StrictPath::with_boundary_create("./config")?;
+
+    let user_file = user_uploads.strict_join("user_document.txt")?;
+    let config_file = system_config.strict_join("app.toml")?;
+
+    handle_user_file(&amp;user_file)?;            // ✅ OK
+    // handle_user_file(&amp;config_file)?;      // ❌ Won’t compile
+    Ok(())
+}
+
+fn handle_user_file(file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; Result&lt;()&gt; {
+    file.write("User data")
+}
+<span class="boring">}</span></code></pre></pre>
+<p>The wrong path in the wrong place is now a compile error, not a code review comment.</p>
+<h2 id="4-make-it-official-require-auth-to-get-certain-paths"><a class="header" href="#4-make-it-official-require-auth-to-get-certain-paths">4) Make it official: require auth to get certain paths</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+use std::io::Result;
 use std::path::Path;
 
-// Basic marker - anyone can create
 struct PublicAssets;
-
-// Restricted marker - requires authentication to create StrictPath instances
-struct AdminConfig;
+struct AdminConfig; // must be authenticated to obtain
 
 impl AdminConfig {
-    // Only way to create StrictPath&lt;AdminConfig&gt; is through this method
-    pub fn create_boundary&lt;P: AsRef&lt;Path&gt;&gt;(
-        path: P, 
-        admin_token: ValidatedAdminToken
-    ) -&gt; Result&lt;StrictPath&lt;AdminConfig&gt;&gt; {
-        // Token validation already happened to get ValidatedAdminToken
-        StrictPath::with_boundary_create(path)
+    pub fn create_boundary&lt;P: AsRef&lt;Path&gt;&gt;(p: P, _token: ValidatedAdminToken) -&gt; Result&lt;StrictPath&lt;AdminConfig&gt;&gt; {
+        StrictPath::with_boundary_create(p)
     }
 }
 
-// This represents a validated admin token (details omitted for brevity)
-struct ValidatedAdminToken {
-    user_id: String,
-    permissions: Vec&lt;String&gt;,
-}
+struct ValidatedAdminToken { user_id: String }
 
 impl ValidatedAdminToken {
-    pub fn authenticate(username: &amp;str, password: &amp;str) -&gt; Option&lt;Self&gt; {
-        // Authentication logic here...
-        if username == "admin" &amp;&amp; password == "secret" {
-            Some(ValidatedAdminToken {
-                user_id: "admin".to_string(),
-                permissions: vec!["read_config".to_string(), "write_config".to_string()],
-            })
-        } else {
-            None
-        }
+    pub fn authenticate(u: &amp;str, p: &amp;str) -&gt; Option&lt;Self&gt; {
+        (u == "admin" &amp;&amp; p == "secret").then(|| Self { user_id: u.into() })
     }
 }
 
-fn authenticated_access_example() -&gt; Result&lt;()&gt; {
-    // Anyone can access public assets
-    let public: StrictPath&lt;PublicAssets&gt; = 
-        StrictPath::with_boundary_create("./public")?;
-    
-    // But admin config requires authentication first
-    let admin_token = ValidatedAdminToken::authenticate("admin", "secret")
-        .ok_or("Authentication failed")?;
-    
-    // Only way to get StrictPath&lt;AdminConfig&gt; is through authenticated method
-    let admin_config = AdminConfig::create_boundary("./admin", admin_token)?;
-    
-    // These functions can only be called with authenticated paths
-    read_admin_settings(&amp;admin_config)?;
-    modify_system_config(&amp;admin_config)?;
-    
+fn auth_flow() -&gt; Result&lt;()&gt; {
+    let _public: StrictPath&lt;PublicAssets&gt; = StrictPath::with_boundary_create("./public")?;
+
+    let token = ValidatedAdminToken::authenticate("admin", "secret")
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "auth failed"))?;
+
+    let admin_root = AdminConfig::create_boundary("./admin", token)?;
+    read_admin(&amp;admin_root)?;
+    write_admin(&amp;admin_root)?;
     Ok(())
 }
 
-// These functions can only be called with authenticated admin paths
-fn read_admin_settings(config: &amp;StrictPath&lt;AdminConfig&gt;) -&gt; Result&lt;String&gt; {
-    // Compiler guarantees authentication happened
-    config.strict_join("settings.toml")?.read_to_string()
+fn read_admin(root: &amp;StrictPath&lt;AdminConfig&gt;) -&gt; Result&lt;String&gt; {
+    root.strict_join("settings.toml")?.read_to_string()
 }
 
-fn modify_system_config(config: &amp;StrictPath&lt;AdminConfig&gt;) -&gt; Result&lt;()&gt; {
-    // Compiler guarantees authentication happened
-    let settings_file = config.strict_join("system.toml")?;
-    settings_file.write("new_setting=value")?;
-    Ok(())
+fn write_admin(root: &amp;StrictPath&lt;AdminConfig&gt;) -&gt; Result&lt;()&gt; {
+    root.strict_join("system.toml")?.write("debug=true")
 }
 <span class="boring">}</span></code></pre></pre>
-<p><strong>The Magic</strong>: The type system now mathematically proves that any use of <code>StrictPath&lt;AdminConfig&gt;</code> went through authentication first. You can't create one without a <code>ValidatedAdminToken</code>.</p>
-<h2 id="5-authorization-tuples-fine-grained-permissions"><a class="header" href="#5-authorization-tuples-fine-grained-permissions">5. Authorization Tuples: Fine-Grained Permissions</a></h2>
-<p>For even more sophisticated authorization, we can use tuples to combine multiple security attributes:</p>
+<p>If a function takes <code>&amp;StrictPath&lt;AdminConfig&gt;</code>, the caller must have authenticated earlier. Simple.</p>
+<h2 id="5-permissions-as-types-small-flat-tuples"><a class="header" href="#5-permissions-as-types-small-flat-tuples">5) Permissions as types: small, flat tuples</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::StrictPath;
+use std::io::Result;
 
-// Domain markers
 struct UserFiles;
 struct SystemFiles;
-
-// Permission markers  
 struct ReadOnly;
 struct ReadWrite;
 struct AdminAccess;
 
-// Role markers (zero-sized for use in type system)
-struct RegularUser;
-struct PowerUser;  
-struct Administrator;
-
-// Role validation happens through separate constructors
-struct UserContext {
-    user_id: String,
-    role: UserRole,
+fn view_profile(p: &amp;StrictPath&lt;(UserFiles, ReadOnly)&gt;) -&gt; Result&lt;String&gt; {
+    p.strict_join("profile.json")?.read_to_string()
 }
 
-enum UserRole {
-    Regular,
-    Power,
-    Admin,
+fn update_settings(p: &amp;StrictPath&lt;(UserFiles, ReadWrite)&gt;) -&gt; Result&lt;()&gt; {
+    p.strict_join("settings.json")?.write("{\"theme\":\"dark\"}")
 }
 
-impl UserContext {
-    pub fn validate_regular_user(user_id: String, token: BasicUserToken) -&gt; Option&lt;Self&gt; {
-        // Validation logic...
-        Some(UserContext { 
-            user_id, 
-            role: UserRole::Regular 
-        })
-    }
-    
-    pub fn validate_power_user(user_id: String, token: PowerUserToken) -&gt; Option&lt;Self&gt; {
-        // Enhanced validation logic...
-        Some(UserContext { 
-            user_id, 
-            role: UserRole::Power 
-        })
-    }
-    
-    pub fn validate_administrator(token: AdminToken) -&gt; Option&lt;Self&gt; {
-        // Admin validation logic...
-        Some(UserContext { 
-            user_id: "admin".to_string(), 
-            role: UserRole::Admin 
-        })
-    }
-}
-
-// Example token types (implementation details omitted)
-struct BasicUserToken;
-struct PowerUserToken;  
-struct AdminToken;
-
-fn authorization_tuple_example() -&gt; Result&lt;()&gt; {
-    let user_token = BasicUserToken; // Assume authenticated
-    let power_token = PowerUserToken; // Assume authenticated
-    let admin_token = AdminToken; // Assume authenticated
-    
-    // Validate different authorization levels
-    let _regular_user_ctx = UserContext::validate_regular_user("alice".to_string(), user_token)
-        .ok_or("User validation failed")?;
-    let _power_user_ctx = UserContext::validate_power_user("bob".to_string(), power_token)
-        .ok_or("Power user validation failed")?;
-    let _admin_ctx = UserContext::validate_administrator(admin_token)
-        .ok_or("Admin validation failed")?;
-    
-    // Create paths with different permission combinations (zero-sized markers only)
-    let user_readonly: StrictPath&lt;(UserFiles, ReadOnly, RegularUser)&gt; = 
-        StrictPath::with_boundary_create("./user_data")?;
-        
-    let user_readwrite: StrictPath&lt;(UserFiles, ReadWrite, PowerUser)&gt; = 
-        StrictPath::with_boundary_create("./user_data")?;
-        
-    let system_admin: StrictPath&lt;(SystemFiles, AdminAccess, Administrator)&gt; = 
-        StrictPath::with_boundary_create("./system")?;
-    
-    // Functions with specific authorization requirements
-    read_user_profile(&amp;user_readonly)?;     // ✅ Read-only access
-    update_user_settings(&amp;user_readwrite)?; // ✅ Read-write access  
-    modify_system_config(&amp;system_admin)?;   // ✅ Admin access
-    
-    // These would be compile errors:
-    // update_user_settings(&amp;user_readonly)?;  // ❌ Need ReadWrite
-    // modify_system_config(&amp;user_readwrite)?; // ❌ Need AdminAccess
-    
-    Ok(())
-}
-
-fn read_user_profile(path: &amp;StrictPath&lt;(UserFiles, ReadOnly, RegularUser)&gt;) -&gt; Result&lt;String&gt; {
-    // Compiler guarantees: UserFiles domain, ReadOnly permission, RegularUser role
-    path.strict_join("profile.json")?.read_to_string()
-}
-
-fn update_user_settings(path: &amp;StrictPath&lt;(UserFiles, ReadWrite, PowerUser)&gt;) -&gt; Result&lt;()&gt; {
-    // Compiler guarantees: UserFiles domain, ReadWrite permission, PowerUser role
-    let settings = path.strict_join("settings.json")?;
-    settings.write(r#"{"theme": "dark", "notifications": true}"#)?;
-    Ok(())
-}
-
-fn modify_system_config(path: &amp;StrictPath&lt;(SystemFiles, AdminAccess, Administrator)&gt;) -&gt; Result&lt;()&gt; {
-    // Compiler guarantees: SystemFiles domain, AdminAccess permission, Administrator role
-    let config = path.strict_join("system.conf")?;
-    config.write("debug_mode=true")?;
-    Ok(())
+fn edit_system(p: &amp;StrictPath&lt;(SystemFiles, AdminAccess)&gt;) -&gt; Result&lt;()&gt; {
+    p.strict_join("system.conf")?.write("safe=true")
 }
 <span class="boring">}</span></code></pre></pre>
-<p><strong>The Power</strong>: The type system now tracks domain, permissions, AND user roles all at once. The compiler mathematically proves that all three security requirements are met before any operation.</p>
-<h2 id="6-rebranding-and-sub-boundaries-specialized-roots"><a class="header" href="#6-rebranding-and-sub-boundaries-specialized-roots">6. Rebranding and Sub-Boundaries: Specialized Roots</a></h2>
-<p>Sometimes you want to create specialized boundaries from existing paths:</p>
+<p>Keep it flat: <code>(Domain, CapabilityA, CapabilityB, ...)</code>. The signature says who can do what.</p>
+<h2 id="6-rebranding-and-subroots-this-folder-is-now-its-own-root"><a class="header" href="#6-rebranding-and-subroots-this-folder-is-now-its-own-root">6) Rebranding and sub‑roots: “this folder is now its own root”</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use strict_path::{StrictPath, PathBoundary};
+</span>use strict_path::{PathBoundary, StrictPath};
+use std::io::Result;
 
 struct MainStorage;
 struct UserData;
-struct ProjectFiles; // Zero-sized marker for type system
+struct ProjectFiles;
 
-// Project validation context (separate from marker)
-struct ProjectContext {
-    project_id: String,
-}
+fn rebrand() -&gt; Result&lt;()&gt; {
+    let storage: PathBoundary&lt;MainStorage&gt; = PathBoundary::try_new_create("./storage")?;
 
-impl ProjectContext {
-    pub fn validate_project(project_id: String, access_token: ProjectAccessToken) -&gt; Option&lt;Self&gt; {
-        // Validate project access...
-        Some(ProjectContext { project_id })
-    }
-}
+    // Same path, clearer meaning
+    let users_area: PathBoundary&lt;UserData&gt; = storage.clone().rebrand::&lt;UserData&gt;();
 
-struct ProjectAccessToken;
+    // Turn a subfolder into its own boundary
+    let alice: StrictPath&lt;UserData&gt; = users_area.strict_join("users/alice")?;
+    alice.create_dir_all()?;
+    let projects: PathBoundary&lt;ProjectFiles&gt; = alice.try_into_boundary()?.rebrand::&lt;ProjectFiles&gt;();
 
-fn rebranding_example() -&gt; Result&lt;()&gt; {
-    // Start with a main storage area
-    let main_storage: StrictPath&lt;MainStorage&gt; = 
-        StrictPath::with_boundary_create("./storage")?;
-    
-    // Create a user-specific subdirectory  
-    let user_dir = main_storage.strict_join("users/alice")?;
-    
-    // Rebrand it as a user data boundary
-    let user_boundary: PathBoundary&lt;UserData&gt; = user_dir.try_into_boundary_create()?;
-    let user_root = user_boundary.strict_join("")?;
-    
-    // Now work within the user's space
-    let user_profile = user_root.strict_join("profile.json")?;
-    let user_documents = user_root.strict_join("documents")?;
-    
-    // Create project-specific boundaries within user space
-    let project_token = ProjectAccessToken; // Assume validated
-    let _project_context = ProjectContext::validate_project("project_123".to_string(), project_token)
-        .ok_or("Project validation failed")?;
-    
-    let project_dir = user_root.strict_join("projects/project_123")?;
-    let project_boundary: PathBoundary&lt;ProjectFiles&gt; = project_dir.try_into_boundary_create()?;
-    let project_root = project_boundary.strict_join("")?;
-    
-    // Work within the project boundary
-    let source_code = project_root.strict_join("src/main.rs")?;
-    let build_output = project_root.strict_join("target/release/app")?;
-    
-    // Functions that work with specific boundary types
-    process_user_data(&amp;user_profile)?;
-    build_project(&amp;source_code, &amp;build_output)?;
-    
-    Ok(())
-}
-
-fn process_user_data(file: &amp;StrictPath&lt;UserData&gt;) -&gt; Result&lt;()&gt; {
-    // Guaranteed to be within user data boundary
-    let data = file.read_to_string()?;
-    println!("Processing user data: {}", data);
-    Ok(())
-}
-
-fn build_project(source: &amp;StrictPath&lt;ProjectFiles&gt;, output: &amp;StrictPath&lt;ProjectFiles&gt;) -&gt; Result&lt;()&gt; {
-    // Guaranteed to be within the same project boundary
-    let code = source.read_to_string()?;
-    // Compile code...
-    output.write("compiled binary data")?;
+    projects.strict_join("README.md")?.write("# Project")?;
     Ok(())
 }
 <span class="boring">}</span></code></pre></pre>
-<p><strong>The Insight</strong>: You can create hierarchical security boundaries, each with their own marker types, allowing for fine-grained access control at different levels.</p>
-<h2 id="7-virtualpath-integration-isolated-virtual-environments"><a class="header" href="#7-virtualpath-integration-isolated-virtual-environments">7. VirtualPath Integration: Isolated Virtual Environments</a></h2>
-<p>Now that you understand markers with <code>StrictPath</code>, let's apply the same concepts to <code>VirtualPath</code> for user-facing isolated environments. This is where the real power shows - <strong>dynamic, per-user/tenant virtual environments</strong>:</p>
-<pre><pre class="playground"><code class="language-rust">use strict_path::{VirtualPath, VirtualRoot};
+<p>Rebranding attaches a new marker to an existing, validated root. No extra filesystem work.</p>
+<h2 id="7-virtual-views-clean--for-users-same-safety-underneath"><a class="header" href="#7-virtual-views-clean--for-users-same-safety-underneath">7) Virtual views: clean “/” for users, same safety underneath</a></h2>
+<pre><pre class="playground"><code class="language-rust">use strict_path::VirtualPath;
+use std::io::Result;
 
-// Realistic markers for multi-tenant systems
-struct UserSandbox { 
-    user_id: String,
-    tenant_id: String,
-}
+struct TenantWorkspace;
 
-struct ContainerMount { 
-    container_id: String,
-    namespace: String,
-}
+fn virtual_space() -&gt; Result&lt;()&gt; {
+    let root: VirtualPath&lt;TenantWorkspace&gt; = VirtualPath::with_root_create("./tenants/acme/workspace")?;
 
-struct CustomerData {
-    customer_id: String,
-    subscription_tier: String,
-}
+    let doc = root.virtual_join("/projects/app/src/main.rs")?;
+    doc.create_parent_dir_all()?;
+    doc.write("fn main() { println!(\"hi\"); }")?;
 
-impl UserSandbox {
-    pub fn new(user_id: String, tenant_id: String, auth_token: UserAuthToken) -&gt; Self {
-        // Validate user belongs to tenant, has active session, etc.
-        Self { user_id, tenant_id }
-    }
-}
-
-impl ContainerMount {
-    pub fn new(container_id: String, namespace: String, container_token: ContainerAuthToken) -&gt; Self {
-        // Validate container exists, namespace permissions, etc.
-        Self { container_id, namespace }
-    }
-}
-
-impl CustomerData {
-    pub fn new(customer_id: String, subscription_tier: String, customer_token: CustomerAuthToken) -&gt; Self {
-        // Validate customer account, subscription status, etc.
-        Self { customer_id, subscription_tier }
-    }
-}
-
-struct UserAuthToken;
-struct ContainerAuthToken;
-struct CustomerAuthToken;
-
-fn realistic_virtual_environments() -&gt; Result&lt;()&gt; {
-    let user_token = UserAuthToken; // From actual authentication
-    let container_token = ContainerAuthToken; // From container orchestrator
-    let customer_token = CustomerAuthToken; // From billing system
-    
-    // REAL EXAMPLE 1: Multi-tenant user sandboxes
-    let user_marker = UserSandbox::new("alice_123".to_string(), "company_456".to_string(), user_token);
-    let user_sandbox: VirtualPath&lt;UserSandbox&gt; = 
-        VirtualPath::with_root_create(&amp;format!("./tenants/{}/users/{}/workspace", "company_456", "alice_123"))?;
-    
-    // REAL EXAMPLE 2: Container file system mounts
-    let container_marker = ContainerMount::new("web-server-7f3a".to_string(), "production".to_string(), container_token);
-    let container_fs: VirtualPath&lt;ContainerMount&gt; = 
-        VirtualPath::with_root_create(&amp;format!("./containers/{}/{}/filesystem", "production", "web-server-7f3a"))?;
-    
-    // REAL EXAMPLE 3: Customer data isolation
-    let customer_marker = CustomerData::new("cust_789".to_string(), "enterprise".to_string(), customer_token);
-    let customer_vault: VirtualPath&lt;CustomerData&gt; = 
-        VirtualPath::with_root_create(&amp;format!("./customers/{}/vault", "cust_789"))?;
-    
-    // Users see clean virtual paths, system handles dynamic routing
-    let user_document = user_sandbox.virtual_join("projects/my-app/src/main.rs")?;
-    user_document.create_parent_dir_all()?;
-    user_document.write("fn main() { println!(\"Hello from Alice's sandbox!\"); }")?;
-    
-    let container_config = container_fs.virtual_join("etc/nginx/nginx.conf")?;
-    container_config.create_parent_dir_all()?;
-    container_config.write("worker_processes auto;")?;
-    
-    let customer_secret = customer_vault.virtual_join("keys/api.key")?;
-    customer_secret.create_parent_dir_all()?;
-    customer_secret.write("sk-enterprise-key-789")?;
-    
-    // What users see vs reality:
-    println!("User sees: {}", user_document.virtualpath_display());
-    // Shows: /projects/my-app/src/main.rs
-    
-    println!("Container sees: {}", container_config.virtualpath_display());
-    // Shows: /etc/nginx/nginx.conf
-    
-    println!("Customer sees: {}", customer_secret.virtualpath_display());
-    // Shows: /keys/api.key
-    
-    // But system stores at:
-    // ./tenants/company_456/users/alice_123/workspace/projects/my-app/src/main.rs
-    // ./containers/production/web-server-7f3a/filesystem/etc/nginx/nginx.conf
-    // ./customers/cust_789/vault/keys/api.key
-    
-    // Type-safe functions prevent mixing up environments
-    process_user_code(&amp;user_document)?;
-    deploy_container_config(&amp;container_config)?;
-    encrypt_customer_data(&amp;customer_secret)?;
-    
-    Ok(())
-}
-
-fn process_user_code(file: &amp;VirtualPath&lt;UserSandbox&gt;) -&gt; Result&lt;()&gt; {
-    // Compiler guarantees this is from a user sandbox
-    println!("Processing code in tenant {} for user {}", 
-        file.as_unvirtual().boundary().path().display(),
-        file.virtualpath_display());
-    
-    let code = file.read_to_string()?;
-    // Run in isolated sandbox, bill to correct tenant...
-    Ok(())
-}
-
-fn deploy_container_config(file: &amp;VirtualPath&lt;ContainerMount&gt;) -&gt; Result&lt;()&gt; {
-    // Compiler guarantees this is from a container mount
-    println!("Deploying config: {}", file.virtualpath_display());
-    
-    let config = file.read_to_string()?;
-    // Apply to correct container, validate against namespace policies...
-    Ok(())
-}
-
-fn encrypt_customer_data(file: &amp;VirtualPath&lt;CustomerData&gt;) -&gt; Result&lt;()&gt; {
-    // Compiler guarantees this is from customer data vault
-    println!("Encrypting customer data: {}", file.virtualpath_display());
-    
-    let data = file.read_to_string()?;
-    // Use customer-specific encryption keys, apply retention policies...
-    Ok(())
-}
-
-// REAL EXAMPLE 4: Dynamic path construction for SaaS
-fn saas_document_storage_example() -&gt; Result&lt;()&gt; {
-    struct DocumentStore {
-        org_id: String,
-        workspace_id: String,
-        user_role: String,
-    }
-    
-    impl DocumentStore {
-        pub fn new(org_id: String, workspace_id: String, user_role: String, auth: SaaSAuthToken) -&gt; Self {
-            // Validate org membership, workspace access, role permissions
-            Self { org_id, workspace_id, user_role }
-        }
-    }
-    
-    struct SaaSAuthToken;
-    
-    let auth_token = SaaSAuthToken;
-    let doc_store = DocumentStore::new(
-        "org_acme".to_string(),
-        "workspace_marketing".to_string(), 
-        "editor".to_string(),
-        auth_token
-    );
-    
-    // Dynamic path based on organization and workspace
-    let storage_path = format!("./saas-data/{}/{}/documents", "org_acme", "workspace_marketing");
-    let doc_root: VirtualPath&lt;DocumentStore&gt; = VirtualPath::with_root_create(&amp;storage_path)?;
-    
-    // User works with clean virtual paths
-    let campaign_doc = doc_root.virtual_join("campaigns/2024/launch-plan.md")?;
-    campaign_doc.create_parent_dir_all()?;
-    campaign_doc.write("# Product Launch Plan\n\n## Phase 1...")?;
-    
-    // User sees: /campaigns/2024/launch-plan.md
-    // System stores: ./saas-data/org_acme/workspace_marketing/documents/campaigns/2024/launch-plan.md
-    
-    process_document(&amp;campaign_doc)?;
-    
-    Ok(())
-}
-
-fn process_document(doc: &amp;VirtualPath&lt;DocumentStore&gt;) -&gt; Result&lt;()&gt; {
-    println!("Processing document: {}", doc.virtualpath_display());
-    let content = doc.read_to_string()?;
-    // Apply workspace-specific permissions, version control, etc.
+    println!("User sees: {}", doc.virtualpath_display());
+    println!("Stored at: {}", doc.as_unvirtual().strictpath_display());
     Ok(())
 }</code></pre></pre>
-<p><strong>The Real Power</strong>: Now you can see why virtual paths matter:</p>
-<ul>
-<li><strong>Multi-tenancy</strong>: Each tenant/user gets isolated storage with clean virtual paths</li>
-<li><strong>Container isolation</strong>: Each container sees a clean filesystem regardless of host path structure</li>
-<li><strong>Customer data isolation</strong>: Enterprise customers get dedicated vaults with user-friendly paths</li>
-<li><strong>Dynamic routing</strong>: The system dynamically constructs storage paths based on IDs while users see consistent virtual paths</li>
-<li><strong>Type safety</strong>: The compiler prevents mixing up data between different tenants, users, or containers</li>
-</ul>
-<p>This is completely different from the terrible static <code>./media</code> examples - now you have <strong>real isolation with dynamic, authenticated access control</strong>.</p>
-<pre><code>
-**The Virtual Power**: Users and containers see clean, rooted virtual paths (`/documents/readme.txt`) while the system maintains strict security boundaries with compile-time guarantees.
-
-## 8. Generic Functions: Working with Both Dimensions
-
-Finally, let's create functions that work with both `StrictPath` and `VirtualPath` using the same marker types:
-
-```rust
-use strict_path::{StrictPath, VirtualPath};
+<p>Great for multi‑tenant storage, per‑user sandboxes, and container filesystems.</p>
+<h2 id="8-one-helper-two-worlds-as_unvirtual"><a class="header" href="#8-one-helper-two-worlds-as_unvirtual">8) One helper, two worlds (<code>as_unvirtual()</code>)</a></h2>
+<p>Write helpers for <code>&amp;StrictPath&lt;M&gt;</code> and call them with either a <code>StrictPath</code> or a borrowed view from a <code>VirtualPath</code>.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{StrictPath, VirtualPath};
+use std::io::{Read, Result};
 
 struct MediaLibrary;
-struct UserFiles;
 
-// Generic function that works with both StrictPath and VirtualPath
-fn process_media_file&lt;P&gt;(file: P) -&gt; Result&lt;String&gt; 
-where
-    P: AsRef&lt;StrictPath&lt;MediaLibrary&gt;&gt;
-{
-    let strict_path = file.as_ref();
-    let content = strict_path.read_to_string()?;
-    Ok(format!("Processed {} bytes", content.len()))
+fn sniff(file: &amp;StrictPath&lt;MediaLibrary&gt;) -&gt; Result&lt;String&gt; {
+    let meta = file.metadata()?;
+    let mut fh = file.open_file()?;
+    let mut header = [0u8; 4];
+    let _ = (&amp;mut fh).read(&amp;mut header)?;
+    Ok(format!("{} bytes, magic: {:x?}", meta.len(), &amp;header))
 }
 
-// Specialized functions for specific operations
-fn backup_strict_files(source: &amp;StrictPath&lt;MediaLibrary&gt;, dest: &amp;StrictPath&lt;MediaLibrary&gt;) -&gt; Result&lt;()&gt; {
-    // System-level backup operation
-    source.strict_copy(dest.path())?;
+fn demo() -&gt; Result&lt;()&gt; {
+    let strict: StrictPath&lt;MediaLibrary&gt; = StrictPath::with_boundary_create("./storage/media")?;
+    let input = strict.strict_join("in/video.mp4")?;
+
+    let vroot: VirtualPath&lt;MediaLibrary&gt; = VirtualPath::with_root_create("./public/media")?;
+    let pretty = vroot.virtual_join("processed/out.mp3")?;
+
+    println!("{}", sniff(&amp;input)?);                 // StrictPath
+    println!("{}", sniff(pretty.as_unvirtual())?);  // VirtualPath -&gt; borrow strict view
     Ok(())
 }
-
-fn display_virtual_files(file: &amp;VirtualPath&lt;MediaLibrary&gt;) -&gt; Result&lt;()&gt; {
-    // User-facing display
-    println!("File: {}", file.virtualpath_display());
-    println!("Size: {} bytes", file.metadata()?.len());
-    Ok(())
-}
-
-// Function that works with both StrictPath and VirtualPath
-// Use case: Shared validation logic that needs to work across dimensions
-fn validate_media_file_format(file: &amp;StrictPath&lt;MediaLibrary&gt;) -&gt; Result&lt;String&gt; {
-    let metadata = file.metadata()?;
-    
-    // Complex validation logic that you want to reuse
-    let file_extension = file.path().extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or("unknown");
-    
-    // Read first few bytes to check file headers (not entire content)
-    let header = {
-        use std::fs::File;
-        use std::io::Read;
-        let mut file_handle = File::open(file.interop_path())?;
-        let mut buffer = [0u8; 16];
-        file_handle.read(&amp;mut buffer)?;
-        buffer
-    };
-    
-    match file_extension {
-        "mp4" | "avi" | "mov" =&gt; {
-            if metadata.len() &gt; 100_000_000 {
-                Ok("Valid large video file".to_string())
-            } else {
-                Ok("Valid small video file".to_string())
-            }
-        },
-        "jpg" | "jpeg" =&gt; {
-            if header.starts_with(&amp;[0xFF, 0xD8]) {
-                Ok("Valid JPEG image file".to_string())
-            } else {
-                Err("Invalid JPEG file header")?
-            }
-        },
-        "png" =&gt; {
-            if header.starts_with(b"\x89PNG\r\n\x1A\n") {
-                Ok("Valid PNG image file".to_string())
-            } else {
-                Err("Invalid PNG file header")?
-            }
-        },
-        _ =&gt; Err("Unsupported media format")?,
-    }
-}
-
-fn mixed_dimension_example() -&gt; Result&lt;()&gt; {
-    // REALISTIC EXAMPLE: Multi-tenant media processing service
-    let tenant_id = "tenant_acme_corp";
-    let processing_job_id = "job_video_transcode_789";
-    
-    // System-facing paths for backend processing
-    let media_storage_path = format!("./storage/tenants/{}/media", tenant_id);
-    let media_strict: StrictPath&lt;MediaLibrary&gt; = 
-        StrictPath::with_boundary_create(&amp;media_storage_path)?;
-    let source_video = media_strict.strict_join("uploads/conference-recording.mp4")?;
-    
-    // User-facing paths for customer API  
-    let customer_media_path = format!("./tenants/{}/customer-media", tenant_id);
-    let media_virtual: VirtualPath&lt;MediaLibrary&gt; = 
-        VirtualPath::with_root_create(&amp;customer_media_path)?;
-    let processed_audio = media_virtual.virtual_join("processed/conference-audio.mp3")?;
-    
-    // Both work with the same validation function - showing the REAL value
-    let video_validation = validate_media_file_format(&amp;source_video)?;  // StrictPath directly
-    let audio_validation = validate_media_file_format(processed_audio.as_unvirtual())?;  // VirtualPath via .as_unvirtual()
-    
-    println!("Source video validation: {}", video_validation);
-    println!("Processed audio validation: {}", audio_validation);
-    
-    // Customer sees: /processed/conference-audio.mp3
-    // System uses: ./tenants/tenant_acme_corp/customer-media/processed/conference-audio.mp3
-    
-    Ok(())
-}
-</code></pre>
-<p><strong>The Final Power</strong>: You can write generic functions that work across both dimensions while maintaining all the security guarantees of marker types.</p>
-<h2 id="summary-the-journey-complete"><a class="header" href="#summary-the-journey-complete">Summary: The Journey Complete</a></h2>
-<p>We've traveled from basic single-boundary operations to sophisticated type-system-enforced authorization architectures:</p>
-<ol>
-<li><strong>Basic StrictPath</strong> - Simple, single boundary operations</li>
-<li><strong>Multiple Boundaries</strong> - The pain of manual tracking</li>
-<li><strong>Marker Types</strong> - Compiler-enforced separation</li>
-<li><strong>Authentication Markers</strong> - Encoding auth requirements in types</li>
-<li><strong>Authorization Tuples</strong> - Multi-dimensional security attributes</li>
-<li><strong>Rebranding</strong> - Creating specialized sub-boundaries</li>
-<li><strong>Virtual Integration</strong> - Applying markers to user-facing environments</li>
-<li><strong>Generic Functions</strong> - Working across dimensions with type safety</li>
-</ol>
-<p>The marker system transforms from a simple generic parameter into a powerful security architecture where the Rust compiler becomes your security auditor, mathematically proving that authentication, authorization, and boundary restrictions are all enforced at compile time.</p>
-<p><strong>One small generic for Marker, one giant leap for StrictPath</strong> - you've unlocked the full security potential of the type system!</p>
+<span class="boring">}</span></code></pre></pre>
+<p>Short, clear, and hard to misuse.</p>
+<hr />
+<h2 id="marker-chapter-at-a-glance"><a class="header" href="#marker-chapter-at-a-glance">Marker chapter (at a glance)</a></h2>
+<ul>
+<li>Name by domain: <code>struct PublicAssets;</code>, <code>struct UserUploads;</code> — functions take <code>&amp;StrictPath&lt;Domain&gt;</code>.</li>
+<li>Put auth in the constructor: return a domain type only after validation.</li>
+<li>Model permissions with small, flat tuples: <code>(Domain, ReadOnly)</code> or <code>(Domain, AdminAccess)</code>.</li>
+<li>Rebrand roots and sub‑folders to capture new meaning without re‑probing the filesystem.</li>
+</ul>
+<hr />
+<p>That’s it: one small generic for Marker, one giant leap for StrictPath.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="the-journey-to-strict-path"><a class="header" href="#the-journey-to-strict-path">The Journey to strict-path</a></h1>
 <h2 id="why-do-i-need-this-library"><a class="header" href="#why-do-i-need-this-library">Why Do I Need This Library?</a></h2>
 <p>The development of <code>strict-path</code> is a story of discovering security gaps in path handling and iteratively building a comprehensive solution. Here's the complete development journey that led to the creation of this crate.</p>
