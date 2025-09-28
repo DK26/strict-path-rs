@@ -2,6 +2,8 @@
 
  - [Getting Started](./getting_started.md)
 - [Type-System Guarantees](./type_system_guarantees.md)
+- [How We Achieve Security](./security_methodology.md)
+- ["One Small Generic for Marker, One Giant Leap for StrictPath"](./marker_tutorial.md)
 - [The Journey to strict-path](./development_story.md)
 - [Real-World Examples](./examples.md)
 - [Features](./features.md)
