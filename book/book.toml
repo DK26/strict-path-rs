@@ -1,0 +1,34 @@
+[book]
+authors = ["David Krasnitsky"]
+language = "en"
+multilingual = false
+src = "src"
+title = "The Complete StrictPath Guide"
+description = "Comprehensive guide to strict-path: Type-safe path boundaries preventing directory traversal attacks"
+
+[build]
+build-dir = "../docs"
+
+[output.html]
+git-repository-url = "https://github.com/DK26/strict-path-rs"
+edit-url-template = "https://github.com/DK26/strict-path-rs/edit/docs/docs_src/{path}"
+site-url = "https://dk26.github.io/strict-path-rs/"
+
+[output.html.playground]
+editable = true
+line-numbers = true
+copy-js = true
+
+[output.html.search]
+enable = true
+limit-results = 30
+teaser-word-count = 30
+use-boolean-and = true
+
+[output.html.fold]
+enable = true
+level = 0
+
+[output.html.print]
+enable = true
+page-break = true

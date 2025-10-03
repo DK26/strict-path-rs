@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-beta.2] - 2025-10-03
+
 ### Added
 - **New file handle methods**: `create_file()` and `open_file()` for both `StrictPath` and `VirtualPath`
   - `create_file()` creates or truncates files and returns writable `std::fs::File` handles
@@ -18,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Optimized with `Arc::try_unwrap()` to minimize allocations when possible
 - **Enhanced cross-marker equality**: `PathBoundary<M1>` and `VirtualRoot<M1>` can now be compared with different marker types
   - Enables flexible comparisons while preserving type safety in function signatures
+- **New conversion methods**: `PathBoundary::into_strictpath()` and `VirtualRoot::into_virtualpath()`
+  - Consume the boundary/root and return a `StrictPath`/`VirtualPath` anchored at the directory
+  - Both return `Result` for proper error handling of canonicalization failures or race conditions
+  - Replaces the pattern of calling `strict_join("")` or `virtual_join("")` with clearer intent
 - **New example**: `user_virtual_root.rs` demonstrates per-user isolation patterns with `VirtualRoot<UserSpace>`
 
 ### Changed

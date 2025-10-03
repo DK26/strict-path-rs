@@ -1,0 +1,289 @@
+# Type-System Guarantees in Signatures
+
+One of strict-path's most powerful features is its **marker type system** that lets you encode domain-specific path guarantees in function signatures. This makes incorrect path usage a compile-time error rather than a runtime vulnerability.
+
+## What Are Markers?
+
+A marker is a zero-cost type parameter that describes what a path contains or how it should be used. Markers have no runtime representation - they exist purely to help the type system prevent mistakes.
+
+```rust
+use strict_path::{PathBoundary, StrictPath};
+
+// Define markers for different content domains
+struct PublicAssets;   // CSS, JS, images for website
+struct UserUploads;    // Documents uploaded by users  
+struct TempFiles;      // Temporary processing files
+struct ConfigFiles;    // Application configuration
+
+// Use markers to create domain-specific boundaries
+let public_assets_dir: PathBoundary<PublicAssets> = PathBoundary::try_new("static")?;
+let user_uploads_dir: PathBoundary<UserUploads> = PathBoundary::try_new("uploads")?;
+let temp_files_dir: PathBoundary<TempFiles> = PathBoundary::try_new("temp")?;
+let app_config_dir: PathBoundary<ConfigFiles> = PathBoundary::try_new("config")?;
+
+// Join paths with their appropriate markers
+let css_file: StrictPath<PublicAssets> = public_assets_dir.strict_join("style.css")?;
+let user_doc: StrictPath<UserUploads> = user_uploads_dir.strict_join("report.pdf")?;
+let temp_file: StrictPath<TempFiles> = temp_files_dir.strict_join("processing.tmp")?;
+let app_config: StrictPath<ConfigFiles> = app_config_dir.strict_join("settings.json")?;
+```
+
+## Why Markers Matter
+
+Without markers, it's easy to accidentally mix up different types of paths:
+
+```rust
+// Without markers - dangerous mix-ups are possible
+fn process_user_upload(file_path: &StrictPath) -> io::Result<()> {
+    // Is this a user file? Config file? Temp file? 
+    // No way to know from the type!
+    file_path.read_to_string()
+}
+
+// With markers - impossible to mix up domains  
+fn process_user_upload(user_file: &StrictPath<UserUploads>) -> io::Result<String> {
+    // Clear: this function ONLY processes user uploads
+    user_file.read_to_string() 
+}
+
+fn load_app_config(config_file: &StrictPath<ConfigFiles>) -> io::Result<AppConfig> {
+    // Clear: this function ONLY loads config files
+    let content = config_file.read_to_string()?;
+    serde_json::from_str(&content)
+}
+```
+
+## Compile-Time Safety
+
+With markers, the compiler prevents domain mix-ups:
+
+```rust
+let user_doc: StrictPath<UserUploads> = user_uploads_dir.strict_join("report.pdf")?;
+let app_config: StrictPath<ConfigFiles> = app_config_dir.strict_join("settings.json")?;
+
+// ✅ These work - correct marker types
+process_user_upload(&user_doc)?;
+load_app_config(&app_config)?;
+
+// ❌ These are compile errors - marker type mismatch!
+// process_user_upload(&app_config)?;  // Can't pass ConfigFiles to UserUploads function
+// load_app_config(&user_doc)?;        // Can't pass UserUploads to ConfigFiles function
+```
+
+**The power**: If your code compiles, you know you're not accidentally processing config files as user uploads, or serving user uploads as public assets!
+
+## Function Signature Patterns
+
+### Pattern 1: Accept Validated Paths
+
+When the caller has already validated the path, accept the typed path directly:
+
+```rust
+fn serve_public_asset(asset: &StrictPath<PublicAssets>) -> io::Result<Vec<u8>> {
+    // Caller proved this is a public asset - we can serve it safely
+    asset.read()
+}
+
+fn delete_user_file(user_file: &StrictPath<UserUploads>) -> io::Result<()> {
+    // Caller proved this is a user upload - safe to delete
+    user_file.remove_file()
+}
+
+fn backup_config(config_file: &StrictPath<ConfigFiles>, backup_dir: &StrictPath<BackupStorage>) -> io::Result<()> {
+    let content = config_file.read()?;
+    let backup_name = format!("config-{}.json", chrono::Utc::now().format("%Y%m%d"));
+    let backup_path = backup_dir.strict_join(&backup_name)?;
+    backup_path.write(content)
+}
+```
+
+### Pattern 2: Validate Inside Helper
+
+When the helper needs to validate user input, accept the boundary plus untrusted segment:
+
+```rust
+fn save_user_upload(
+    uploads_dir: &PathBoundary<UserUploads>, 
+    filename: &str,  // untrusted input
+    content: &[u8]
+) -> io::Result<()> {
+    // Validate the untrusted filename
+    let user_file = uploads_dir.strict_join(filename)?;
+    user_file.create_parent_dir_all()?;
+    user_file.write(content)
+}
+
+fn load_config_by_name(
+    config_dir: &PathBoundary<ConfigFiles>, 
+    config_name: &str  // untrusted input
+) -> io::Result<serde_json::Value> {
+    // Validate the untrusted config name
+    let config_file = config_dir.strict_join(config_name)?; 
+    let content = config_file.read_to_string()?;
+    serde_json::from_str(&content).map_err(Into::into)
+}
+```
+
+### Pattern 3: Multiple Domain Access
+
+Some functions need to work with multiple domains - use multiple parameters:
+
+```rust
+fn generate_report(
+    user_data: &StrictPath<UserUploads>,
+    template: &StrictPath<PublicAssets>, 
+    temp_reports_dir: &PathBoundary<TempFiles>
+) -> io::Result<StrictPath<TempFiles>> {
+    let data = user_data.read_to_string()?;
+    let template_content = template.read_to_string()?;
+    
+    // Process data with template...
+    let report = process_template(&template_content, &data);
+    
+    let report_file = temp_reports_dir.strict_join("report.html")?;
+    report_file.write(report)?;
+    Ok(report_file)
+}
+```
+
+## Marker Best Practices
+
+### Use Descriptive Domain Names
+
+```rust
+// ✅ Good - describes what the paths contain
+struct UserHomes;
+struct ProductImages; 
+struct DatabaseBackups;
+struct AuditLogs;
+
+// ❌ Avoid - generic or implementation-focused names
+struct Files;
+struct Directory;
+struct Database;
+struct Secure;
+```
+
+### Create Markers for Business Domains
+
+```rust
+// ✅ Good - matches your application's business logic
+struct CustomerDocuments;
+struct FinancialReports;
+struct ProductCatalog; 
+struct EmployeeRecords;
+struct MarketingAssets;
+
+// ❌ Avoid - technical implementation details as primary markers
+struct JsonFiles;
+struct ReadOnlyData;
+struct EncryptedStorage;
+```
+
+### Use Meaningful Function Names
+
+```rust
+// ✅ Good - function names explain business intent
+fn archive_customer_document(doc: &StrictPath<CustomerDocuments>) -> io::Result<()> { ... }
+fn publish_marketing_asset(asset: &StrictPath<MarketingAssets>) -> io::Result<()> { ... }
+fn audit_financial_report(report: &StrictPath<FinancialReports>) -> io::Result<()> { ... }
+
+// ❌ Avoid - generic names that don't explain purpose  
+fn process_file(path: &StrictPath<SomeMarker>) -> io::Result<()> { ... }
+fn handle_data(path: &StrictPath<SomeMarker>) -> io::Result<()> { ... }
+```
+
+## Advanced Marker Patterns
+
+### Hierarchical Markers
+
+You can create marker hierarchies for more sophisticated type safety:
+
+```rust
+struct MediaFiles;
+struct Images;
+struct Videos;
+struct Documents;
+
+// Use PhantomData for hierarchical relationships
+struct MediaFile<T>(std::marker::PhantomData<T>);
+
+type ImageFile = MediaFile<Images>;
+type VideoFile = MediaFile<Videos>;
+type DocumentFile = MediaFile<Documents>;
+
+fn process_image(img: &StrictPath<ImageFile>) -> io::Result<()> { ... }
+fn process_video(vid: &StrictPath<VideoFile>) -> io::Result<()> { ... }
+fn process_document(doc: &StrictPath<DocumentFile>) -> io::Result<()> { ... }
+```
+
+### Environment-Specific Markers
+
+```rust
+struct Production;
+struct Staging;  
+struct Development;
+
+struct ConfigFile<Env>(std::marker::PhantomData<Env>);
+
+type ProdConfig = ConfigFile<Production>;
+type StagingConfig = ConfigFile<Staging>;
+type DevConfig = ConfigFile<Development>;
+
+fn deploy_to_production(config: &StrictPath<ProdConfig>) -> io::Result<()> {
+    // Only production configs can be deployed to production
+    apply_production_config(config)
+}
+```
+
+## Integration with Serde
+
+When deserializing paths from configuration, you still need runtime validation:
+
+```rust
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct AppConfig {
+    upload_directory: String,  // Raw path from config
+    static_directory: String,  // Raw path from config
+}
+
+fn load_app_config() -> Result<(PathBoundary<UserUploads>, PathBoundary<PublicAssets>), ConfigError> {
+    let config: AppConfig = serde_json::from_str(&config_json)?;
+    
+    // Validate raw config paths into typed boundaries
+    let user_uploads_dir = PathBoundary::<UserUploads>::try_new_create(&config.upload_directory)?;
+    let public_assets_dir = PathBoundary::<PublicAssets>::try_new_create(&config.static_directory)?;
+    
+    Ok((user_uploads_dir, public_assets_dir))
+}
+```
+
+## Zero Runtime Cost
+
+It's important to understand that markers are zero-cost abstractions:
+
+```rust
+// These have identical runtime performance
+let generic_path: StrictPath = some_root.strict_join("file.txt")?;
+let typed_path: StrictPath<UserUploads> = user_uploads_dir.strict_join("file.txt")?;
+
+// The marker information is erased at compile time
+assert_eq!(
+    std::mem::size_of::<StrictPath>(), 
+    std::mem::size_of::<StrictPath<UserUploads>>()
+);
+```
+
+All the type safety benefits come at compile time with no runtime overhead!
+
+## Common Patterns Summary
+
+1. **Validate once, use everywhere**: Create typed paths at boundaries, pass typed paths to functions
+2. **Encode intent in signatures**: Function parameters should clearly show what domains they work with
+3. **Separate validation from business logic**: Keep path validation separate from file processing
+4. **Use meaningful marker names**: Markers should describe business domains, not technical implementation
+5. **Fail at compile time**: Structure your code so domain mix-ups become type errors
+
+The type system becomes your ally in preventing path-related security bugs and logic errors!

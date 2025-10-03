@@ -106,7 +106,7 @@ StrictPath::with_boundary("uploads")?
 10. **🏗️ Battle-tested architecture**: Prototyped and refined across real-world production systems
 11. **🎯 Zero-allocation interop**: Seamless integration with existing `std::path` ecosystems when needed
 
-> 📖 **[Read our complete security methodology →](https://dk26.github.io/strict-path-rs/how_we_achieve_security.html)**  
+> 📖 **[Read our complete security methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)**  
 > *Deep dive into our 7-layer security approach: from CVE research to comprehensive testing*
 
 ### **Recently Addressed CVEs**
@@ -120,7 +120,7 @@ StrictPath::with_boundary("uploads")?
 
 ```toml
 [dependencies]
-strict-path = "0.1.0-beta.1"
+strict-path = "0.1.0-beta.2"
 ```
 
 ```rust
@@ -567,7 +567,7 @@ serve_static_file(&safe_path).await?;
 
 ### Archive Extraction (Zip Slip Prevention)
 
-📘 **[Complete Archive Extraction Guide →](https://dk26.github.io/strict-path-rs/archive_extractors.html)** - Full patterns for ZIP/TAR handling, security rationale, and anti-patterns
+📘 **[Complete Archive Extraction Guide →](https://dk26.github.io/strict-path-rs/examples/archive_extraction.html)** - Full patterns for ZIP/TAR handling, security rationale, and anti-patterns
 
 ### Cloud Storage API  
 
@@ -614,9 +614,9 @@ safe_ai_path.write(&ai_generated_content)?;
 > "Integrate like a pro: strict-path plays nice with everyone except attackers."
 
 - **🗂️ OS Directories** (`dirs` feature): `PathBoundary::try_new_os_config()`, `try_new_os_downloads()`, etc. - **[Full Guide](https://dk26.github.io/strict-path-rs/os_directories.html)**
-- **📄 Serde** (`serde` feature): Safe serialization/deserialization of path types - **[Integration Patterns](https://dk26.github.io/strict-path-rs/features.html#serde-integration)**
+- **📄 Serde** (`serde` feature): Safe serialization/deserialization of path types - **[Tutorial: Stage 6 Feature Integration](https://dk26.github.io/strict-path-rs/tutorial/stage6_features.html)**
 - **🌐 Axum**: Custom extractors for web servers - **[Complete Tutorial](https://dk26.github.io/strict-path-rs/axum_tutorial/overview.html)**
-- **📦 Archive Handling**: Safe ZIP/TAR extraction - **[Extractor Guide](https://dk26.github.io/strict-path-rs/archive_extractors.html)**
+- **📦 Archive Handling**: Safe ZIP/TAR extraction - **[Extractor Guide](https://dk26.github.io/strict-path-rs/examples/archive_extraction.html)**
 
 ## 📄 **License**
 
