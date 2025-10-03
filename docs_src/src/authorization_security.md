@@ -156,7 +156,9 @@ let admin_system_dir: PathBoundary<(SystemFiles, AdminPermission)> = PathBoundar
 let admin_file: StrictPath<(SystemFiles, AdminPermission)> = admin_system_dir.strict_join("sensitive.conf")?;
 
 manage_system_file(&admin_file)?; // ✅ OK - has AdminPermission
-read_system_file(&admin_file.as_unvirtual())?; // ❌ Would be compile error - type mismatch!
+// read_system_file(&admin_file)?; // ❌ Compile error - wrong permission type!
+//   Expected: &StrictPath<(SystemFiles, ReadOnly)>
+//   Got:      &StrictPath<(SystemFiles, AdminPermission)>
 ```
 
 **The power**: You can create very specific authorization matrices:
@@ -285,9 +287,9 @@ Notes
 - If you need to encode user/tenant identity, introduce a separate marker and compose it: `(UserDocument<User123>, CanRead)` or `(UserDocumentFor<UserId>, CanRead)`.
 - You can still add ergonomic type aliases near call sites, e.g., `type ReadOnlyDoc = (UserDocument, CanRead);`.
 
-Rebrand best practices
-- Use `.rebrand::<NewMarker>()` when you need to attach newly-proven authorization or refine the domain marker of an already-validated value.
-- Avoid no-op rebrands (e.g., `.rebrand::<()>()`). Prefer annotating the binding type or function signature when you need unit markers: `let vroot: VirtualRoot<()> = VirtualRoot::try_new(dir)?;`.
+Marker transformation best practices
+- Use `.change_marker::<NewMarker>()` when you need to attach newly-proven authorization or refine the domain marker of an already-validated value.
+- Only use `change_marker()` after performing authorization checks - NEVER change markers speculatively.
 
 ## Authorization Token Integration
 

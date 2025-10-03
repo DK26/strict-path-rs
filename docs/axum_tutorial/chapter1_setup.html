@@ -1,0 +1,550 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Chapter 1: Project Setup - The Complete StrictPath Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Comprehensive guide to strict-path: Type-safe path boundaries preventing directory traversal attacks">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/axum_tutorial/chapter1_setup.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="chapter-1-project-setup"><a class="header" href="#chapter-1-project-setup">Chapter 1: Project Setup</a></h1>
+<p>Let's set up our Axum web service with proper security boundaries from the start. We'll create the project structure, define our marker types, and establish path boundaries for different storage areas.</p>
+<h2 id="create-the-project"><a class="header" href="#create-the-project">Create the Project</a></h2>
+<pre><code class="language-bash">cargo new file-sharing-service
+cd file-sharing-service
+</code></pre>
+<h2 id="add-dependencies"><a class="header" href="#add-dependencies">Add Dependencies</a></h2>
+<p>Update your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[package]
+name = "file-sharing-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web framework
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "trace"] }
+
+# Security and paths
+strict-path = { version = "0.1", features = ["serde"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Utilities
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+</code></pre>
+<h2 id="define-security-boundaries"><a class="header" href="#define-security-boundaries">Define Security Boundaries</a></h2>
+<p>Create <code>src/markers.rs</code> - this is where we define our type-safe contexts:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>//! Type-safe markers for different storage contexts.
+//! 
+//! These zero-cost markers prevent accidentally mixing different
+//! types of files (e.g., serving user uploads as web assets).
+
+/// Public web assets (CSS, JavaScript, images, fonts)
+/// 
+/// Files with this marker can be served to anyone without authentication.
+pub struct WebAssets;
+
+/// User-uploaded files (documents, photos, videos)
+/// 
+/// Each user has their own isolated VirtualRoot with this marker.
+/// Files are private and require authentication to access.
+pub struct UserUploads;
+
+/// Application configuration files
+/// 
+/// Server configuration, secrets, and settings.
+/// Never exposed to users.
+pub struct AppConfig;
+
+/// Read-only permission marker
+pub struct ReadOnly;
+
+/// Read-write permission marker  
+pub struct ReadWrite;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="application-state"><a class="header" href="#application-state">Application State</a></h2>
+<p>Create <code>src/state.rs</code> - this holds our path boundaries and user sessions:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, VirtualRoot};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use uuid::Uuid;
+
+use crate::markers::{WebAssets, UserUploads, AppConfig};
+
+/// Shared application state passed to all route handlers
+#[derive(Clone)]
+pub struct AppState {
+    /// Path boundary for public web assets
+    pub assets: Arc&lt;PathBoundary&lt;WebAssets&gt;&gt;,
+    
+    /// Path boundary for server configuration
+    pub config: Arc&lt;PathBoundary&lt;AppConfig&gt;&gt;,
+    
+    /// Per-user upload roots (user_id -&gt; VirtualRoot)
+    pub user_uploads: Arc&lt;RwLock&lt;HashMap&lt;Uuid, VirtualRoot&lt;UserUploads&gt;&gt;&gt;&gt;,
+    
+    /// Active user sessions (session_id -&gt; user_id)
+    pub sessions: Arc&lt;RwLock&lt;HashMap&lt;String, Uuid&gt;&gt;&gt;,
+}
+
+impl AppState {
+    /// Create new application state with initialized boundaries
+    pub fn new() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Create boundary for public assets
+        let assets = PathBoundary::try_new_create("public")?;
+        
+        // Create boundary for config files
+        let config = PathBoundary::try_new_create("config")?;
+        
+        Ok(Self {
+            assets: Arc::new(assets),
+            config: Arc::new(config),
+            user_uploads: Arc::new(RwLock::new(HashMap::new())),
+            sessions: Arc::new(RwLock::new(HashMap::new())),
+        })
+    }
+    
+    /// Get or create a VirtualRoot for a specific user
+    pub async fn get_user_uploads(
+        &amp;self,
+        user_id: Uuid,
+    ) -&gt; Result&lt;VirtualRoot&lt;UserUploads&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+        let mut uploads = self.user_uploads.write().await;
+        
+        if let Some(vroot) = uploads.get(&amp;user_id) {
+            // Return existing user root
+            Ok(vroot.clone())
+        } else {
+            // Create new isolated storage for this user
+            let user_dir = format!("uploads/user_{}", user_id);
+            let vroot = VirtualRoot::try_new_create(&amp;user_dir)?;
+            uploads.insert(user_id, vroot.clone());
+            
+            tracing::info!("Created upload directory for user {}", user_id);
+            Ok(vroot)
+        }
+    }
+    
+    /// Create a new user session
+    pub async fn create_session(&amp;self, user_id: Uuid) -&gt; String {
+        let session_id = Uuid::new_v4().to_string();
+        self.sessions.write().await.insert(session_id.clone(), user_id);
+        session_id
+    }
+    
+    /// Get user ID from session ID
+    pub async fn get_user_from_session(&amp;self, session_id: &amp;str) -&gt; Option&lt;Uuid&gt; {
+        self.sessions.read().await.get(session_id).copied()
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="main-server-setup"><a class="header" href="#main-server-setup">Main Server Setup</a></h2>
+<p>Update <code>src/main.rs</code>:</p>
+<pre><pre class="playground"><code class="language-rust">use axum::{
+    Router,
+    routing::get,
+};
+use std::net::SocketAddr;
+use tower_http::trace::TraceLayer;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+mod markers;
+mod state;
+
+use state::AppState;
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Initialize tracing
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "file_sharing_service=debug,tower_http=debug".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
+    // Initialize application state with security boundaries
+    let state = AppState::new()?;
+    
+    tracing::info!("🔒 Security boundaries initialized:");
+    tracing::info!("  - Public assets: {}", state.assets.strictpath_display());
+    tracing::info!("  - Config files: {}", state.config.strictpath_display());
+    tracing::info!("  - User uploads: uploads/user_&lt;uuid&gt;/");
+
+    // Build our application with routes
+    let app = Router::new()
+        .route("/", get(root_handler))
+        .route("/health", get(health_check))
+        .layer(TraceLayer::new_for_http())
+        .with_state(state);
+
+    // Run the server
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    tracing::info!("🚀 Server listening on {}", addr);
+    
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}
+
+async fn root_handler() -&gt; &amp;'static str {
+    "File Sharing Service - Use /health to check status"
+}
+
+async fn health_check() -&gt; &amp;'static str {
+    "OK"
+}</code></pre></pre>
+<h2 id="project-structure"><a class="header" href="#project-structure">Project Structure</a></h2>
+<p>Create the initial directory structure:</p>
+<pre><code class="language-bash">mkdir -p public/{css,js,images}
+mkdir -p config
+mkdir -p src/routes
+mkdir -p src/middleware
+</code></pre>
+<p>Create a sample HTML file in <code>public/index.html</code>:</p>
+<pre><code class="language-html">&lt;!DOCTYPE html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+    &lt;meta charset="UTF-8"&gt;
+    &lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;
+    &lt;title&gt;File Sharing Service&lt;/title&gt;
+    &lt;link rel="stylesheet" href="/assets/css/style.css"&gt;
+&lt;/head&gt;
+&lt;body&gt;
+    &lt;h1&gt;🔐 Secure File Sharing Service&lt;/h1&gt;
+    &lt;p&gt;Protected by strict-path security boundaries.&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<p>Create <code>public/css/style.css</code>:</p>
+<pre><code class="language-css">body {
+    font-family: system-ui, -apple-system, sans-serif;
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    background: #f5f5f5;
+}
+
+h1 {
+    color: #2c3e50;
+}
+</code></pre>
+<h2 id="test-the-server"><a class="header" href="#test-the-server">Test the Server</a></h2>
+<p>Run the server:</p>
+<pre><code class="language-bash">cargo run
+</code></pre>
+<p>You should see:</p>
+<pre><code>🔒 Security boundaries initialized:
+  - Public assets: public
+  - Config files: config
+  - User uploads: uploads/user_&lt;uuid&gt;/
+🚀 Server listening on 127.0.0.1:3000
+</code></pre>
+<p>Visit <code>http://localhost:3000/health</code> - you should see "OK".</p>
+<h2 id="understanding-the-security-model"><a class="header" href="#understanding-the-security-model">Understanding the Security Model</a></h2>
+<p>Let's examine what we've built:</p>
+<h3 id="1-separate-boundaries-for-each-context"><a class="header" href="#1-separate-boundaries-for-each-context">1. Separate Boundaries for Each Context</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub assets: Arc&lt;PathBoundary&lt;WebAssets&gt;&gt;,
+pub config: Arc&lt;PathBoundary&lt;AppConfig&gt;&gt;,
+<span class="boring">}</span></code></pre></pre>
+<p>Each storage area has its own <code>PathBoundary</code> with a different marker type. This means:</p>
+<ul>
+<li>✅ You <strong>cannot</strong> accidentally serve config files as web assets</li>
+<li>✅ You <strong>cannot</strong> write user uploads to the config directory</li>
+<li>✅ The compiler <strong>enforces</strong> these boundaries</li>
+</ul>
+<h3 id="2-per-user-isolated-storage"><a class="header" href="#2-per-user-isolated-storage">2. Per-User Isolated Storage</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub user_uploads: Arc&lt;RwLock&lt;HashMap&lt;Uuid, VirtualRoot&lt;UserUploads&gt;&gt;&gt;&gt;,
+<span class="boring">}</span></code></pre></pre>
+<p>Each user gets their own <code>VirtualRoot</code>:</p>
+<ul>
+<li>✅ User A <strong>cannot</strong> access User B's files</li>
+<li>✅ Path traversal attacks (<code>../other-user/file.txt</code>) are automatically blocked</li>
+<li>✅ Each user sees clean paths starting from <code>/</code></li>
+</ul>
+<h3 id="3-type-safe-state"><a class="header" href="#3-type-safe-state">3. Type-Safe State</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub async fn get_user_uploads(
+    &amp;self,
+    user_id: Uuid,
+) -&gt; Result&lt;VirtualRoot&lt;UserUploads&gt;, Box&lt;dyn std::error::Error&gt;&gt;
+<span class="boring">}</span></code></pre></pre>
+<p>Functions return typed paths:</p>
+<ul>
+<li>✅ You know exactly what type of storage you're working with</li>
+<li>✅ Can't mix user uploads with web assets</li>
+<li>✅ Refactoring is safe - compiler finds all usages</li>
+</ul>
+<h2 id="whats-next"><a class="header" href="#whats-next">What's Next?</a></h2>
+<p>Now that we have our security boundaries established, we'll implement:</p>
+<ol>
+<li><strong><a href="./chapter2_static_assets.html">Chapter 2: Static Asset Serving</a></strong> - Serve CSS, JS, and images safely</li>
+<li>User authentication and session management</li>
+<li>File upload system with per-user isolation</li>
+<li>File download and listing with authorization</li>
+<li>Configuration management and deployment</li>
+</ol>
+<h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
+<p>✅ <strong>Separate boundaries</strong> - One <code>PathBoundary</code> per storage context<br />
+✅ <strong>Type-safe markers</strong> - Compiler prevents context mixing<br />
+✅ <strong>Per-user isolation</strong> - <code>VirtualRoot</code> for each user<br />
+✅ <strong>Lazy initialization</strong> - User storage created on first access<br />
+✅ <strong>Shared state</strong> - <code>Arc&lt;RwLock&lt;&gt;&gt;</code> for thread-safe access</p>
+<hr />
+<p><strong>Next:</strong> <a href="./chapter2_static_assets.html">Chapter 2: Static Asset Serving →</a></p>
+<p><strong>Navigation:</strong><br />
+← <a href="./overview.html">Tutorial Overview</a> | <a href="./chapter2_static_assets.html">Chapter 2 →</a></p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../axum_tutorial/overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../axum_tutorial/chapter2_static_assets.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../axum_tutorial/overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../axum_tutorial/chapter2_static_assets.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

@@ -1,0 +1,645 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>CLI Tool with Safe Paths - The Complete StrictPath Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Comprehensive guide to strict-path: Type-safe path boundaries preventing directory traversal attacks">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/examples/cli_tool.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="cli-tool-with-safe-path-handling"><a class="header" href="#cli-tool-with-safe-path-handling">CLI Tool with Safe Path Handling</a></h1>
+<p>Build command-line tools that safely process user-provided file paths. This example shows how to handle untrusted path arguments securely.</p>
+<h2 id="the-problem"><a class="header" href="#the-problem">The Problem</a></h2>
+<p>CLI tools accept file paths from users, but must prevent:</p>
+<ul>
+<li>❌ Users accessing files outside the working directory</li>
+<li>❌ Path traversal attacks via command-line arguments</li>
+<li>❌ Accidental exposure of sensitive files</li>
+</ul>
+<h2 id="the-solution"><a class="header" href="#the-solution">The Solution</a></h2>
+<p>Use <code>PathBoundary</code> to create a working directory jail. All file operations are restricted to this boundary.</p>
+<h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
+<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
+use std::env;
+use std::fs;
+
+struct SafeFileProcessor {
+    working_dir: PathBoundary,
+}
+
+impl SafeFileProcessor {
+    fn new(working_directory: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Create or validate the working directory
+        let working_dir = PathBoundary::try_new_create(working_directory)?;
+        println!("🔒 Working directory jail: {}", working_dir.strictpath_display());
+        Ok(Self { working_dir })
+    }
+    
+    fn process_file(&amp;self, relative_path: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+        // Validate the user-provided path
+        let safe_path = self.working_dir.strict_join(relative_path)?;
+        
+        if !safe_path.exists() {
+            return Err(format!("File not found: {}", relative_path).into());
+        }
+        
+        // Process the file (example: count lines)
+        let content = safe_path.read_to_string()?;
+        let line_count = content.lines().count();
+        let word_count = content.split_whitespace().count();
+        let char_count = content.chars().count();
+        
+        println!("📊 Statistics for {}:", relative_path);
+        println!("   Lines: {}", line_count);
+        println!("   Words: {}", word_count);
+        println!("   Characters: {}", char_count);
+        
+        Ok(())
+    }
+    
+    fn create_sample_files(&amp;self) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+        // Create some sample files for testing
+        let samples = vec![
+            ("sample1.txt", "Hello world!\nThis is a test file.\nWith multiple lines."),
+            ("data/sample2.txt", "Another file\nwith some content\nfor processing."),
+            ("docs/readme.md", "# Sample Project\n\nThis is a sample markdown file."),
+        ];
+        
+        for (path, content) in samples {
+            let safe_path = self.working_dir.strict_join(path)?;
+            safe_path.create_parent_dir_all()?;
+            safe_path.write(content)?;
+            println!("📝 Created: {path}");
+        }
+        
+        Ok(())
+    }
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let args: Vec&lt;String&gt; = env::args().collect();
+    
+    if args.len() &lt; 2 {
+        println!("Usage: {} &lt;file-path&gt;", args[0]);
+        println!("       {} --create-samples", args[0]);
+        return Ok(());
+    }
+    
+    // Set up our safe processor
+    let processor = SafeFileProcessor::new("workspace")?;
+    
+    if args[1] == "--create-samples" {
+        processor.create_sample_files()?;
+        println!("✅ Sample files created in workspace/");
+        return Ok(());
+    }
+    
+    // Process the user-specified file
+    let file_path = &amp;args[1];
+    
+    match processor.process_file(file_path) {
+        Ok(()) =&gt; println!("✅ File processed successfully!"),
+        Err(e) =&gt; {
+            println!("❌ Error processing file: {}", e);
+            
+            if file_path.contains("..") || file_path.starts_with('/') || file_path.contains('\\') {
+                println!("💡 Tip: Use relative paths within the workspace directory only.");
+                println!("   Trying to escape the workspace? That's not allowed! 🔒");
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+// Example usage:
+// cargo run -- --create-samples
+// cargo run -- sample1.txt                    # ✅ Works
+// cargo run -- data/sample2.txt              # ✅ Works  
+// cargo run -- ../../../etc/passwd           # ❌ Blocked!
+// cargo run -- /absolute/path/hack.txt       # ❌ Blocked!</code></pre></pre>
+<h2 id="key-security-features"><a class="header" href="#key-security-features">Key Security Features</a></h2>
+<h3 id="1-working-directory-jail"><a class="header" href="#1-working-directory-jail">1. Working Directory Jail</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let working_dir = PathBoundary::try_new_create(working_directory)?;
+<span class="boring">}</span></code></pre></pre>
+<p>All file operations are restricted to this directory and its subdirectories.</p>
+<h3 id="2-user-input-validation"><a class="header" href="#2-user-input-validation">2. User Input Validation</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let safe_path = self.working_dir.strict_join(relative_path)?;
+<span class="boring">}</span></code></pre></pre>
+<p>User-provided paths from command-line arguments are validated before any file access.</p>
+<h3 id="3-helpful-error-messages"><a class="header" href="#3-helpful-error-messages">3. Helpful Error Messages</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>if file_path.contains("..") || file_path.starts_with('/') {
+    println!("💡 Tip: Use relative paths within the workspace directory only.");
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Guide users toward safe usage patterns.</p>
+<h3 id="4-safe-file-operations"><a class="header" href="#4-safe-file-operations">4. Safe File Operations</a></h3>
+<p>All operations use the validated <code>StrictPath</code>, so security is guaranteed by the type system.</p>
+<h2 id="attack-scenarios-prevented"><a class="header" href="#attack-scenarios-prevented">Attack Scenarios Prevented</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>User Input</th><th>Result</th></tr></thead><tbody>
+<tr><td><code>sample1.txt</code></td><td>✅ Processes workspace/sample1.txt</td></tr>
+<tr><td><code>data/sample2.txt</code></td><td>✅ Processes workspace/data/sample2.txt</td></tr>
+<tr><td><code>../../../etc/passwd</code></td><td>❌ Error: path escapes boundary</td></tr>
+<tr><td><code>/var/log/system.log</code></td><td>❌ Error: absolute paths not allowed</td></tr>
+<tr><td><code>..\\..\\windows\\system32</code></td><td>❌ Error: path escapes boundary</td></tr>
+</tbody></table>
+</div>
+<h2 id="advanced-multiple-operations"><a class="header" href="#advanced-multiple-operations">Advanced: Multiple Operations</a></h2>
+<p>Process multiple files from command-line arguments:</p>
+<pre><pre class="playground"><code class="language-rust">impl SafeFileProcessor {
+    fn process_multiple(&amp;self, paths: &amp;[String]) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+        for path in paths {
+            match self.process_file(path) {
+                Ok(()) =&gt; println!("✅ Processed: {}", path),
+                Err(e) =&gt; println!("❌ Failed to process '{}': {}", path, e),
+            }
+        }
+        Ok(())
+    }
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let args: Vec&lt;String&gt; = env::args().collect();
+    
+    if args.len() &lt; 2 {
+        println!("Usage: {} &lt;file1&gt; [file2] [file3] ...", args[0]);
+        return Ok(());
+    }
+    
+    let processor = SafeFileProcessor::new("workspace")?;
+    let file_paths = &amp;args[1..];
+    
+    processor.process_multiple(file_paths)?;
+    
+    Ok(())
+}</code></pre></pre>
+<h2 id="pattern-matching-and-filtering"><a class="header" href="#pattern-matching-and-filtering">Pattern Matching and Filtering</a></h2>
+<p>Process files matching a pattern:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl SafeFileProcessor {
+    fn process_pattern(&amp;self, pattern: &amp;str) -&gt; Result&lt;Vec&lt;StrictPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+        let mut processed = Vec::new();
+        
+        for entry in self.working_dir.read_dir()? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let filename = entry.file_name();
+                let filename_str = filename.to_string_lossy();
+                
+                // Simple pattern matching (extend with regex if needed)
+                if filename_str.ends_with(pattern) {
+                    let file_path = self.working_dir.strict_join(&amp;filename)?;
+                    self.process_file(&amp;filename_str)?;
+                    processed.push(file_path);
+                }
+            }
+        }
+        
+        Ok(processed)
+    }
+}
+
+// Usage:
+// cargo run -- "*.txt"  // Process all .txt files
+// cargo run -- "*.md"   // Process all .md files
+<span class="boring">}</span></code></pre></pre>
+<h2 id="interactive-mode"><a class="header" href="#interactive-mode">Interactive Mode</a></h2>
+<p>Build an interactive CLI with safe path handling:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::io::{self, BufRead};
+
+fn interactive_mode(processor: &amp;SafeFileProcessor) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    println!("📂 Interactive mode - enter file paths to process (type 'quit' to exit)");
+    println!("🔒 Working in: {}", processor.working_dir.strictpath_display());
+    
+    let stdin = io::stdin();
+    for line in stdin.lock().lines() {
+        let line = line?;
+        let trimmed = line.trim();
+        
+        if trimmed == "quit" || trimmed == "exit" {
+            break;
+        }
+        
+        if trimmed == "list" {
+            list_files(&amp;processor.working_dir)?;
+            continue;
+        }
+        
+        if trimmed.is_empty() {
+            continue;
+        }
+        
+        match processor.process_file(trimmed) {
+            Ok(()) =&gt; println!("✅ Done"),
+            Err(e) =&gt; println!("❌ Error: {}", e),
+        }
+    }
+    
+    println!("👋 Goodbye!");
+    Ok(())
+}
+
+fn list_files(boundary: &amp;PathBoundary) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    println!("📁 Available files:");
+    for entry in boundary.read_dir()? {
+        let entry = entry?;
+        println!("  - {}", entry.file_name().to_string_lossy());
+    }
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="output-file-handling"><a class="header" href="#output-file-handling">Output File Handling</a></h2>
+<p>Write results to output files safely:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl SafeFileProcessor {
+    fn process_to_output(
+        &amp;self,
+        input_path: &amp;str,
+        output_path: &amp;str,
+    ) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+        // Validate both input and output paths
+        let input = self.working_dir.strict_join(input_path)?;
+        let output = self.working_dir.strict_join(output_path)?;
+        
+        // Process input
+        let content = input.read_to_string()?;
+        let processed = content.to_uppercase(); // Example transformation
+        
+        // Write to output
+        output.create_parent_dir_all()?;
+        output.write(&amp;processed)?;
+        
+        println!("✅ Processed {} -&gt; {}", input_path, output_path);
+        
+        Ok(())
+    }
+}
+
+// Usage:
+// cargo run -- input.txt output.txt
+<span class="boring">}</span></code></pre></pre>
+<h2 id="environment-variable-configuration"><a class="header" href="#environment-variable-configuration">Environment Variable Configuration</a></h2>
+<p>Allow configuration via environment variables:</p>
+<pre><pre class="playground"><code class="language-rust">fn get_working_directory() -&gt; String {
+    env::var("WORKSPACE_DIR")
+        .unwrap_or_else(|_| "workspace".to_string())
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let work_dir = get_working_directory();
+    let processor = SafeFileProcessor::new(&amp;work_dir)?;
+    
+    // ... rest of implementation
+    Ok(())
+}
+
+// Usage:
+// WORKSPACE_DIR=/path/to/data cargo run -- file.txt</code></pre></pre>
+<h2 id="progress-tracking"><a class="header" href="#progress-tracking">Progress Tracking</a></h2>
+<p>For processing many files:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl SafeFileProcessor {
+    fn process_directory(&amp;self) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+        let mut total = 0;
+        let mut processed = 0;
+        let mut failed = 0;
+        
+        // Count total files
+        for entry in self.working_dir.read_dir()? {
+            if entry?.file_type()?.is_file() {
+                total += 1;
+            }
+        }
+        
+        println!("📊 Processing {} files...", total);
+        
+        // Process each file
+        for entry in self.working_dir.read_dir()? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let filename = entry.file_name();
+                let path_str = filename.to_string_lossy();
+                
+                match self.process_file(&amp;path_str) {
+                    Ok(()) =&gt; {
+                        processed += 1;
+                        println!("[{}/{}] ✅ {}", processed + failed, total, path_str);
+                    }
+                    Err(e) =&gt; {
+                        failed += 1;
+                        println!("[{}/{}] ❌ {}: {}", processed + failed, total, path_str, e);
+                    }
+                }
+            }
+        }
+        
+        println!("\n📈 Summary:");
+        println!("   Total: {}", total);
+        println!("   Processed: {}", processed);
+        println!("   Failed: {}", failed);
+        
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
+<ol>
+<li><strong>Clear boundaries</strong> - Clearly communicate the working directory to users</li>
+<li><strong>Helpful errors</strong> - Explain why paths are rejected and suggest alternatives</li>
+<li><strong>Relative paths only</strong> - Guide users toward using relative paths</li>
+<li><strong>Validate early</strong> - Check paths before performing expensive operations</li>
+<li><strong>Log rejections</strong> - Track attempted path escapes for security monitoring</li>
+</ol>
+<h2 id="integration-tips"><a class="header" href="#integration-tips">Integration Tips</a></h2>
+<h3 id="with-clap-for-argument-parsing"><a class="header" href="#with-clap-for-argument-parsing">With <code>clap</code> for Argument Parsing</a></h3>
+<pre><pre class="playground"><code class="language-rust">use clap::Parser;
+
+#[derive(Parser)]
+struct Cli {
+    /// File to process (relative to workspace)
+    #[arg(value_name = "FILE")]
+    file_path: String,
+    
+    /// Working directory
+    #[arg(short, long, default_value = "workspace")]
+    workspace: String,
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let cli = Cli::parse();
+    let processor = SafeFileProcessor::new(&amp;cli.workspace)?;
+    processor.process_file(&amp;cli.file_path)?;
+    Ok(())
+}</code></pre></pre>
+<h3 id="with-glob-patterns"><a class="header" href="#with-glob-patterns">With Glob Patterns</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use glob::glob;
+
+fn process_glob(processor: &amp;SafeFileProcessor, pattern: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let workspace = processor.working_dir.strictpath_display().to_string();
+    let full_pattern = format!("{}/{}", workspace, pattern);
+    
+    for entry in glob(&amp;full_pattern)? {
+        let path = entry?;
+        if let Ok(relative) = path.strip_prefix(&amp;workspace) {
+            if let Some(relative_str) = relative.to_str() {
+                processor.process_file(relative_str)?;
+            }
+        }
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
+<ul>
+<li>See <a href="./config_manager.html">Configuration Manager</a> for handling config files safely</li>
+<li>See <a href="./archive_extraction.html">Archive Extraction</a> for processing archives from CLI</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../examples/archive_extraction.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../examples/type_safe_contexts.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../examples/archive_extraction.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../examples/type_safe_contexts.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

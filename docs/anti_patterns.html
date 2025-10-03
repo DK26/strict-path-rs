@@ -250,7 +250,7 @@ if Path::new(safe_path.interop_path()).exists() {
 if safe_path.exists() {
     let backup_dir = PathBoundary::try_new("./backup")?;
     let backup_path = backup_dir.strict_join("photo.jpg")?;
-    std::fs::copy(safe_path.interop_path(), backup_path.interop_path())?;
+    safe_path.strict_copy(backup_path.interop_path())?;
 }
 <span class="boring">}</span></code></pre></pre>
 <h2 id="using-std-path-operations-on-leaked-values"><a class="header" href="#using-std-path-operations-on-leaked-values">Using std Path Operations on Leaked Values</a></h2>
@@ -402,10 +402,13 @@ vpath.interop_path();
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="type_history_design.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="best_practices.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
+                            <a rel="next prefetch" href="ergonomics/overview.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -413,10 +416,13 @@ vpath.interop_path();
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="type_history_design.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="best_practices.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
+                    <a rel="next prefetch" href="ergonomics/overview.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
             </nav>
 
         </div>

@@ -122,7 +122,7 @@ fn write_admin(root: &StrictPath<AdminConfig>) -> Result<()> {
 
 If a function takes `&StrictPath<AdminConfig>`, the caller must have authenticated earlier. Simple.
 
-## 5) Permissions as types: small, flat tuples
+## 5) Permissions as types: combining domain + permission
 
 ```rust
 use strict_path::StrictPath;
@@ -130,9 +130,9 @@ use std::io::Result;
 
 struct UserFiles;
 struct SystemFiles;
-struct ReadOnly;
-struct ReadWrite;
-struct AdminAccess;
+struct ReadOnly;       // Can only read
+struct ReadWrite;      // Can read and write (supersedes ReadOnly)
+struct AdminAccess;    // Full control (supersedes ReadWrite)
 
 fn view_profile(p: &StrictPath<(UserFiles, ReadOnly)>) -> Result<String> {
     p.strict_join("profile.json")?.read_to_string()
@@ -147,7 +147,7 @@ fn edit_system(p: &StrictPath<(SystemFiles, AdminAccess)>) -> Result<()> {
 }
 ```
 
-Keep it flat: `(Domain, CapabilityA, CapabilityB, ...)`. The signature says who can do what.
+Use tuples to combine domain (what's stored) with permission level (what's allowed). The tuple `(Domain, Permission)` makes your security model explicit in the type signature.
 
 ## 6) Rebranding and sub‑roots: “this folder is now its own root”
 
@@ -159,23 +159,26 @@ struct MainStorage;
 struct UserData;
 struct ProjectFiles;
 
-fn rebrand() -> Result<()> {
+fn marker_transformation() -> Result<()> {
     let storage: PathBoundary<MainStorage> = PathBoundary::try_new_create("./storage")?;
 
-    // Same path, clearer meaning
-    let users_area: PathBoundary<UserData> = storage.clone().rebrand::<UserData>();
+    // Create a new boundary for the same directory with different marker
+    let users_area: PathBoundary<UserData> = PathBoundary::try_new("./storage")?;
 
     // Turn a subfolder into its own boundary
     let alice: StrictPath<UserData> = users_area.strict_join("users/alice")?;
     alice.create_dir_all()?;
-    let projects: PathBoundary<ProjectFiles> = alice.try_into_boundary()?.rebrand::<ProjectFiles>();
+    
+    // After authorization check, change the marker on the path, then convert to boundary
+    let alice_authorized: StrictPath<ProjectFiles> = alice.change_marker();
+    let projects: PathBoundary<ProjectFiles> = alice_authorized.try_into_boundary()?;
 
     projects.strict_join("README.md")?.write("# Project")?;
     Ok(())
 }
 ```
 
-Rebranding attaches a new marker to an existing, validated root. No extra filesystem work.
+Use `change_marker()` after authorization to attach a new marker to an already-validated path.
 
 ## 7) Virtual views: clean “/” for users, same safety underneath
 
@@ -240,7 +243,7 @@ Short, clear, and hard to misuse.
 - Name by domain: `struct PublicAssets;`, `struct UserUploads;` — functions take `&StrictPath<Domain>`.
 - Put auth in the constructor: return a domain type only after validation.
 - Model permissions with small, flat tuples: `(Domain, ReadOnly)` or `(Domain, AdminAccess)`.
-- Rebrand roots and sub‑folders to capture new meaning without re‑probing the filesystem.
+- Use `change_marker()` on paths after authorization to attach new markers. Conversions preserve markers automatically.
 
 ---
 

@@ -1,0 +1,436 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Chapter 3: Per-User Storage - The Complete StrictPath Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Comprehensive guide to strict-path: Type-safe path boundaries preventing directory traversal attacks">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/axum_tutorial/chapter3_user_storage.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="chapter-3-per-user-storage-with-virtualroot"><a class="header" href="#chapter-3-per-user-storage-with-virtualroot">Chapter 3: Per-User Storage with VirtualRoot</a></h1>
+<p>This chapter shows how to isolate user file storage using <code>VirtualRoot&lt;UserUploads&gt;</code>. Each user gets their own virtual filesystem that cannot access other users' files.</p>
+<h2 id="the-problem-user-isolation"><a class="header" href="#the-problem-user-isolation">The Problem: User Isolation</a></h2>
+<p>Without proper isolation, users could access each other's files:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ❌ UNSAFE: Users can escape their directory
+let user_file = format!("./uploads/{}/{}", user_id, filename);
+// User sends filename="../other_user/secret.txt"
+<span class="boring">}</span></code></pre></pre>
+<h2 id="the-solution-virtualroot-per-user"><a class="header" href="#the-solution-virtualroot-per-user">The Solution: VirtualRoot Per User</a></h2>
+<p><code>VirtualRoot</code> creates an isolated view where paths are relative to the user's directory:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ SAFE: Isolated per-user virtual filesystem
+let user_root = VirtualRoot::&lt;UserUploads&gt;::try_new(
+    format!("./uploads/user_{user_id}")
+)?;
+
+// User's paths are always within their root
+let file = user_root.virtual_join(filename)?; // Can't escape!
+<span class="boring">}</span></code></pre></pre>
+<h2 id="implementation-file-upload-handler"><a class="header" href="#implementation-file-upload-handler">Implementation: File Upload Handler</a></h2>
+<p>Create <code>src/routes/upload.rs</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use axum::{
+    extract::{Multipart, Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
+use strict_path::VirtualRoot;
+use crate::{markers::UserUploads, state::AppState, error::AppError};
+
+/// Handle file upload for authenticated user
+pub async fn upload_file(
+    State(state): State&lt;AppState&gt;,
+    Path(user_id): Path&lt;String&gt;,
+    mut multipart: Multipart,
+) -&gt; Result&lt;impl IntoResponse, AppError&gt; {
+    // Get or create user's virtual root
+    let user_root = state.get_user_root(&amp;user_id)?;
+
+    while let Some(field) = multipart.next_field().await? {
+        let filename = field
+            .file_name()
+            .ok_or(AppError::MissingFilename)?
+            .to_string();
+
+        // SECURITY: virtual_join validates filename
+        // Rejects: "../", absolute paths, special chars
+        let file_path = user_root
+            .virtual_join(&amp;filename)
+            .map_err(|_| AppError::InvalidFilename)?;
+
+        let data = field.bytes().await?;
+        
+        // Safe: file_path is guaranteed within user's boundary
+        file_path.write(data.as_ref())?;
+    }
+
+    Ok(StatusCode::CREATED)
+}
+
+/// List files in user's directory
+pub async fn list_files(
+    State(state): State&lt;AppState&gt;,
+    Path(user_id): Path&lt;String&gt;,
+) -&gt; Result&lt;impl IntoResponse, AppError&gt; {
+    let user_root = state.get_user_root(&amp;user_id)?;
+    
+    // Convert to StrictPath to read directory
+    let root_dir = user_root.as_unvirtual();
+    let entries = root_dir.read_dir()?;
+
+    let files: Vec&lt;String&gt; = entries
+        .filter_map(|e| e.ok())
+        .filter_map(|e| e.file_name().into_string().ok())
+        .collect();
+
+    Ok(axum::Json(files))
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="update-appstate"><a class="header" href="#update-appstate">Update AppState</a></h2>
+<p>Modify <code>src/state.rs</code> to manage per-user roots:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+use strict_path::{PathBoundary, VirtualRoot};
+use crate::markers::{WebAssets, UserUploads, AppConfig};
+
+pub struct AppState {
+    pub assets: PathBoundary&lt;WebAssets&gt;,
+    pub config: PathBoundary&lt;AppConfig&gt;,
+    uploads_base: PathBoundary&lt;UserUploads&gt;,
+    // Cache of user virtual roots
+    user_roots: Arc&lt;RwLock&lt;HashMap&lt;String, VirtualRoot&lt;UserUploads&gt;&gt;&gt;&gt;,
+}
+
+impl AppState {
+    pub fn new() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        Ok(Self {
+            assets: PathBoundary::try_new_create("./data/assets")?,
+            config: PathBoundary::try_new("./data/config")?,
+            uploads_base: PathBoundary::try_new_create("./data/uploads")?,
+            user_roots: Arc::new(RwLock::new(HashMap::new())),
+        })
+    }
+
+    /// Get or create virtual root for user
+    pub fn get_user_root(
+        &amp;self,
+        user_id: &amp;str,
+    ) -&gt; Result&lt;VirtualRoot&lt;UserUploads&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Check cache first
+        {
+            let cache = self.user_roots.read().unwrap();
+            if let Some(root) = cache.get(user_id) {
+                return Ok(root.clone());
+            }
+        }
+
+        // Create new user directory and virtual root
+        let user_dir = self.uploads_base.strict_join(user_id)?;
+        user_dir.create_dir_all()?;
+
+        let vroot = VirtualRoot::try_new(user_dir.interop_path())?;
+
+        // Cache it
+        self.user_roots.write().unwrap().insert(user_id.to_string(), vroot.clone());
+
+        Ok(vroot)
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="register-routes"><a class="header" href="#register-routes">Register Routes</a></h2>
+<p>Update <code>src/main.rs</code>:</p>
+<pre><pre class="playground"><code class="language-rust">mod routes {
+    pub mod assets;
+    pub mod upload;
+}
+
+use axum::{
+    routing::{get, post},
+    Router,
+};
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let state = AppState::new()?;
+
+    let app = Router::new()
+        .route("/assets/*path", get(routes::assets::serve_asset))
+        .route("/users/:user_id/files", post(routes::upload::upload_file))
+        .route("/users/:user_id/files", get(routes::upload::list_files))
+        .with_state(state);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
+    println!("Server running on http://127.0.0.1:3000");
+    
+    axum::serve(listener, app).await?;
+    Ok(())
+}</code></pre></pre>
+<h2 id="key-security-properties"><a class="header" href="#key-security-properties">Key Security Properties</a></h2>
+<ol>
+<li><strong>User Isolation</strong>: Each <code>VirtualRoot</code> is scoped to one user's directory</li>
+<li><strong>Path Validation</strong>: <code>virtual_join()</code> prevents directory traversal</li>
+<li><strong>Type Safety</strong>: <code>VirtualRoot&lt;UserUploads&gt;</code> can't mix with <code>PathBoundary&lt;WebAssets&gt;</code></li>
+<li><strong>Automatic Caching</strong>: User roots are cached for performance</li>
+</ol>
+<h2 id="testing-the-isolation"><a class="header" href="#testing-the-isolation">Testing the Isolation</a></h2>
+<pre><code class="language-bash"># Upload to user_001
+curl -F "file=@test.txt" http://localhost:3000/users/user_001/files
+
+# Try to access user_002's files (will fail)
+curl -F "file=@../user_002/secret.txt" http://localhost:3000/users/user_001/files
+# Returns 400: InvalidFilename
+
+# List user_001's files (only shows their files)
+curl http://localhost:3000/users/user_001/files
+</code></pre>
+<h2 id="what-we-learned"><a class="header" href="#what-we-learned">What We Learned</a></h2>
+<ul>
+<li><code>VirtualRoot</code> provides per-user filesystem isolation</li>
+<li><code>virtual_join()</code> validates filenames and prevents escapes</li>
+<li>AppState can manage multiple virtual roots efficiently</li>
+<li>Type markers prevent accidentally mixing user storage with other boundaries</li>
+</ul>
+<hr />
+<p><strong>Navigation:</strong><br />
+<a href="./chapter2_static_assets.html">← Chapter 2</a> | <a href="./overview.html">Tutorial Overview</a></p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../axum_tutorial/chapter2_static_assets.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../features.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../axum_tutorial/chapter2_static_assets.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../features.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

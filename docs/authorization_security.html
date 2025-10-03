@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Path Permissions &amp; Authorization Security - The Complete StrictPath Guide</title>
+        <title>Authorization &amp; Permissions - The Complete StrictPath Guide</title>
 
 
         <!-- Custom HTML head -->
@@ -332,7 +332,9 @@ let admin_system_dir: PathBoundary&lt;(SystemFiles, AdminPermission)&gt; = PathB
 let admin_file: StrictPath&lt;(SystemFiles, AdminPermission)&gt; = admin_system_dir.strict_join("sensitive.conf")?;
 
 manage_system_file(&amp;admin_file)?; // ✅ OK - has AdminPermission
-read_system_file(&amp;admin_file.as_unvirtual())?; // ❌ Would be compile error - type mismatch!
+// read_system_file(&amp;admin_file)?; // ❌ Compile error - wrong permission type!
+//   Expected: &amp;StrictPath&lt;(SystemFiles, ReadOnly)&gt;
+//   Got:      &amp;StrictPath&lt;(SystemFiles, AdminPermission)&gt;
 <span class="boring">}</span></code></pre></pre>
 <p><strong>The power</strong>: You can create very specific authorization matrices:</p>
 <ul>
@@ -457,10 +459,10 @@ write_file(&amp;draft, "updated")?; // ✅ Has CanWrite
 <li>If you need to encode user/tenant identity, introduce a separate marker and compose it: <code>(UserDocument&lt;User123&gt;, CanRead)</code> or <code>(UserDocumentFor&lt;UserId&gt;, CanRead)</code>.</li>
 <li>You can still add ergonomic type aliases near call sites, e.g., <code>type ReadOnlyDoc = (UserDocument, CanRead);</code>.</li>
 </ul>
-<p>Rebrand best practices</p>
+<p>Marker transformation best practices</p>
 <ul>
-<li>Use <code>.rebrand::&lt;NewMarker&gt;()</code> when you need to attach newly-proven authorization or refine the domain marker of an already-validated value.</li>
-<li>Avoid no-op rebrands (e.g., <code>.rebrand::&lt;()&gt;()</code>). Prefer annotating the binding type or function signature when you need unit markers: <code>let vroot: VirtualRoot&lt;()&gt; = VirtualRoot::try_new(dir)?;</code>.</li>
+<li>Use <code>.change_marker::&lt;NewMarker&gt;()</code> when you need to attach newly-proven authorization or refine the domain marker of an already-validated value.</li>
+<li>Only use <code>change_marker()</code> after performing authorization checks - NEVER change markers speculatively.</li>
 </ul>
 <h2 id="authorization-token-integration"><a class="header" href="#authorization-token-integration">Authorization Token Integration</a></h2>
 <p>The key challenge is connecting runtime authentication with compile-time types:</p>
@@ -684,11 +686,11 @@ async fn load_user_document&lt;const USER_ID: u64&gt;(
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="best_practices.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="security_methodology.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="design_decisions.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="examples/overview.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -698,11 +700,11 @@ async fn load_user_document&lt;const USER_ID: u64&gt;(
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="best_practices.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="security_methodology.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="design_decisions.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="examples/overview.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

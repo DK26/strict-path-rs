@@ -1,0 +1,628 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Stage 5: Virtual Paths for User Sandboxing - The Complete StrictPath Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Comprehensive guide to strict-path: Type-safe path boundaries preventing directory traversal attacks">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/tutorial/stage5_virtual_paths.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="stage-5-virtual-paths--user-friendly-sandboxes"><a class="header" href="#stage-5-virtual-paths--user-friendly-sandboxes">Stage 5: Virtual Paths — User-Friendly Sandboxes</a></h1>
+<blockquote>
+<p><em>"Give users a clean '/' view, hide the messy system paths."</em></p>
+</blockquote>
+<p>In Stage 4, you learned how to encode authorization in markers. Now you'll learn how <code>VirtualPath</code> extends <code>StrictPath</code> with <strong>user-friendly virtual roots</strong> — perfect for sandboxing users and showing clean paths.</p>
+<h2 id="the-problem-with-strictpath-for-user-ux"><a class="header" href="#the-problem-with-strictpath-for-user-ux">The Problem with StrictPath for User UX</a></h2>
+<p><code>StrictPath</code> is perfect for system operations, but it exposes real filesystem paths:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+fn show_user_files() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let uploads_dir = StrictPath::with_boundary_create("/var/app/users/alice/uploads")?;
+    let file = uploads_dir.strict_join("documents/report.pdf")?;
+
+    // User sees ugly system path
+    println!("Your file: {}", file.strictpath_display());
+    // Output: /var/app/users/alice/uploads/documents/report.pdf
+    
+    // User thinks: "Why do I need to know about /var/app/users/alice?"
+    // "I just want to see: /documents/report.pdf"
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Problems:</strong></p>
+<ul>
+<li>❌ Users see internal directory structure</li>
+<li>❌ Paths are long and confusing</li>
+<li>❌ Exposes system architecture details</li>
+<li>❌ Not user-friendly for file browsers, cloud storage UI, etc.</li>
+</ul>
+<h2 id="the-solution-virtualpath"><a class="header" href="#the-solution-virtualpath">The Solution: VirtualPath</a></h2>
+<p><code>VirtualPath</code> provides a <strong>virtual root</strong> — users see paths starting from <code>/</code>, but the system enforces the real boundary:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualPath;
+
+fn show_user_files_virtually() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create a virtual root (system boundary: /var/app/users/alice/uploads)
+    let user_vroot = VirtualPath::with_root("/var/app/users/alice/uploads")?;
+    
+    let file = user_vroot.virtual_join("documents/report.pdf")?;
+
+    // User sees clean virtual path
+    println!("Your file: {}", file.virtualpath_display());
+    // Output: /documents/report.pdf
+    
+    // User thinks: "Perfect! That's my file."
+
+    // System still operates on real path
+    file.write(b"File contents")?;  
+    // Actually writes to: /var/app/users/alice/uploads/documents/report.pdf
+
+    println!("System path: {}", file.as_unvirtual().strictpath_display());
+    // Output: /var/app/users/alice/uploads/documents/report.pdf
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="clamping-vs-rejecting"><a class="header" href="#clamping-vs-rejecting">Clamping vs. Rejecting</a></h2>
+<p>This is the <strong>key difference</strong> between <code>VirtualPath</code> and <code>StrictPath</code>:</p>
+<h3 id="strictpath-rejects-escapes"><a class="header" href="#strictpath-rejects-escapes">StrictPath: Rejects Escapes</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+fn strict_behavior() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let boundary = StrictPath::with_boundary_create("sandbox")?;
+
+    // Normal path works
+    let file1 = boundary.strict_join("data/file.txt")?;
+    println!("✅ Valid: {}", file1.strictpath_display());
+
+    // Attack attempt: FAILS with error
+    let file2 = boundary.strict_join("../../../etc/passwd");
+    match file2 {
+        Ok(_) =&gt; println!("✅ Valid path"),
+        Err(e) =&gt; println!("❌ Error: {}", e),  // PathEscapesBoundary
+    }
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="virtualpath-clamps-escapes"><a class="header" href="#virtualpath-clamps-escapes">VirtualPath: Clamps Escapes</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualPath;
+
+fn virtual_behavior() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let vroot = VirtualPath::with_root("sandbox")?;
+
+    // Normal path works
+    let file1 = vroot.virtual_join("data/file.txt")?;
+    println!("Virtual: {}", file1.virtualpath_display());  // /data/file.txt
+
+    // Attack attempt: CLAMPED safely
+    let file2 = vroot.virtual_join("../../../etc/passwd")?;  // No error!
+    println!("Virtual: {}", file2.virtualpath_display());    // /etc/passwd (clamped!)
+    
+    // But system path is still safe:
+    println!("System: {}", file2.as_unvirtual().strictpath_display());
+    // Output: sandbox/etc/passwd (still inside boundary!)
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Key difference:</strong></p>
+<ul>
+<li><strong><code>StrictPath</code>:</strong> Escape attempt → <strong>Error</strong> (explicit rejection)</li>
+<li><strong><code>VirtualPath</code>:</strong> Escape attempt → <strong>Clamped to boundary</strong> (graceful containment)</li>
+</ul>
+<h2 id="when-to-use-which"><a class="header" href="#when-to-use-which">When to Use Which</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Scenario</th><th>Use</th><th>Why</th></tr></thead><tbody>
+<tr><td><strong>Web API validation</strong></td><td><code>StrictPath</code></td><td>Fail fast on invalid input</td></tr>
+<tr><td><strong>System config files</strong></td><td><code>StrictPath</code></td><td>Reject malformed paths explicitly</td></tr>
+<tr><td><strong>User file browser</strong></td><td><code>VirtualPath</code></td><td>Show clean <code>/</code> paths, clamp escapes gracefully</td></tr>
+<tr><td><strong>Archive extraction</strong></td><td><code>VirtualPath</code></td><td>Hostile archive entries can't escape</td></tr>
+<tr><td><strong>Cloud storage UI</strong></td><td><code>VirtualPath</code></td><td>Users see <code>/MyFiles/</code> instead of system paths</td></tr>
+<tr><td><strong>LLM file operations</strong></td><td><code>StrictPath</code></td><td>LLM-generated paths validated strictly</td></tr>
+</tbody></table>
+</div>
+<p><strong>Rule of thumb:</strong></p>
+<ul>
+<li><strong>System-facing?</strong> → <code>StrictPath</code> (explicit errors)</li>
+<li><strong>User-facing?</strong> → <code>VirtualPath</code> (graceful clamping)</li>
+</ul>
+<h2 id="try-it-yourself-per-user-sandboxes"><a class="header" href="#try-it-yourself-per-user-sandboxes">Try It Yourself: Per-User Sandboxes</a></h2>
+<p>Here's a realistic example of per-user isolation:</p>
+<pre><pre class="playground"><code class="language-rust">use strict_path::{VirtualPath, VirtualRoot};
+
+struct UserFiles;
+
+fn create_user_workspace(user_id: u64) -&gt; Result&lt;VirtualRoot&lt;UserFiles&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+    // Each user gets their own virtual root
+    let user_dir = format!("users/user_{}", user_id);
+    Ok(VirtualRoot::try_new_create(user_dir)?)
+}
+
+fn user_file_browser(user_id: u64) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let user_workspace = create_user_workspace(user_id)?;
+
+    // User uploads files (they see clean paths)
+    let doc = user_workspace.virtual_join("Documents/report.pdf")?;
+    doc.create_parent_dir_all()?;
+    doc.write(b"User document content")?;
+
+    println!("User {} sees: {}", user_id, doc.virtualpath_display());
+    // Output: /Documents/report.pdf
+
+    println!("System stores at: {}", doc.as_unvirtual().strictpath_display());
+    // Output: users/user_123/Documents/report.pdf
+
+    // Even if user tries to escape, they stay in their sandbox
+    let sneaky = user_workspace.virtual_join("../../../etc/passwd")?;
+    println!("Attack clamped to: {}", sneaky.virtualpath_display());
+    // Output: /etc/passwd (virtual)
+    
+    println!("Actually safe at: {}", sneaky.as_unvirtual().strictpath_display());
+    // Output: users/user_123/etc/passwd (still in their sandbox!)
+
+    Ok(())
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    user_file_browser(123)?;
+    user_file_browser(456)?;
+    Ok(())
+}</code></pre></pre>
+<h2 id="virtualpath--strictpath--virtual-view"><a class="header" href="#virtualpath--strictpath--virtual-view">VirtualPath = StrictPath + Virtual View</a></h2>
+<p>Under the hood, <code>VirtualPath</code> <strong>wraps a <code>StrictPath</code></strong> and adds a virtual display layer:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualPath;
+
+fn demonstrate_duality() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let vpath = VirtualPath::with_root("data")?.virtual_join("file.txt")?;
+
+    // Virtual view (user-facing)
+    println!("Virtual: {}", vpath.virtualpath_display());
+    // Output: /file.txt
+
+    // System view (actual filesystem path)
+    println!("System: {}", vpath.as_unvirtual().strictpath_display());
+    // Output: data/file.txt
+
+    // All StrictPath operations work
+    vpath.write(b"Hello, virtual world!")?;
+    let content = vpath.read_to_string()?;
+    println!("Content: {}", content);
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>The relationship:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>VirtualPath&lt;Marker&gt; = StrictPath&lt;Marker&gt; + virtual display semantics
+<span class="boring">}</span></code></pre></pre>
+<h2 id="symlinks-and-virtual-paths"><a class="header" href="#symlinks-and-virtual-paths">Symlinks and Virtual Paths</a></h2>
+<p><strong>Important:</strong> While <code>VirtualPath</code> <strong>clamps</strong> relative path escapes (<code>../../../</code>), it still <strong>validates symlinks</strong>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualPath;
+
+fn symlink_behavior() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let vroot = VirtualPath::with_root("sandbox")?;
+
+    // Relative escape: CLAMPED (no error)
+    let relative_escape = vroot.virtual_join("../../../../etc/passwd")?;
+    println!("✅ Clamped: {}", relative_escape.virtualpath_display());
+
+    // Symlink escape: ERROR (same as StrictPath)
+    // If "sandbox/evil_link" -&gt; "/etc/passwd" exists:
+    let symlink_escape = vroot.virtual_join("evil_link");
+    match symlink_escape {
+        Ok(_) =&gt; println!("Path is safe"),
+        Err(e) =&gt; println!("❌ Symlink escape rejected: {}", e),
+    }
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Key point:</strong> <code>VirtualPath</code> is <strong>not</strong> a "just accept anything" mode. It's a "clamp relative paths, but still enforce boundary through symlink resolution" mode.</p>
+<h2 id="real-world-example-cloud-file-storage"><a class="header" href="#real-world-example-cloud-file-storage">Real-World Example: Cloud File Storage</a></h2>
+<pre><pre class="playground"><code class="language-rust">use strict_path::{VirtualPath, VirtualRoot};
+
+struct CloudStorage;
+
+struct UserCloudStorage {
+    user_id: u64,
+    vroot: VirtualRoot&lt;CloudStorage&gt;,
+}
+
+impl UserCloudStorage {
+    fn new(user_id: u64) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        let storage_path = format!("cloud_storage/user_{}", user_id);
+        let vroot = VirtualRoot::try_new_create(storage_path)?;
+        Ok(Self { user_id, vroot })
+    }
+
+    fn upload_file(&amp;self, virtual_path: &amp;str, data: &amp;[u8]) 
+        -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; 
+    {
+        let file = self.vroot.virtual_join(virtual_path)?;
+        file.create_parent_dir_all()?;
+        file.write(data)?;
+        
+        // Return clean virtual path for UI display
+        Ok(file.virtualpath_display().to_string())
+    }
+
+    fn download_file(&amp;self, virtual_path: &amp;str) 
+        -&gt; Result&lt;Vec&lt;u8&gt;, Box&lt;dyn std::error::Error&gt;&gt; 
+    {
+        let file = self.vroot.virtual_join(virtual_path)?;
+        Ok(file.read()?)
+    }
+
+    fn list_files(&amp;self, virtual_dir: &amp;str) 
+        -&gt; Result&lt;Vec&lt;String&gt;, Box&lt;dyn std::error::Error&gt;&gt; 
+    {
+        let dir = self.vroot.virtual_join(virtual_dir)?;
+        let mut files = Vec::new();
+        
+        for entry in dir.read_dir()? {
+            let entry = entry?;
+            let vpath = self.vroot.virtual_join(entry.file_name().to_string_lossy().as_ref())?;
+            files.push(vpath.virtualpath_display().to_string());
+        }
+        
+        Ok(files)
+    }
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let alice_storage = UserCloudStorage::new(1001)?;
+
+    // Upload files (user sees clean paths)
+    let path1 = alice_storage.upload_file("Photos/vacation.jpg", b"photo data")?;
+    let path2 = alice_storage.upload_file("Documents/report.pdf", b"document data")?;
+    
+    println!("Uploaded: {}", path1);  // /Photos/vacation.jpg
+    println!("Uploaded: {}", path2);  // /Documents/report.pdf
+
+    // Download files
+    let data = alice_storage.download_file("/Documents/report.pdf")?;
+    println!("Downloaded {} bytes", data.len());
+
+    // User tries to escape — safely clamped
+    let evil_path = alice_storage.upload_file("../../../etc/passwd", b"attack")?;
+    println!("Attack clamped to: {}", evil_path);  // /etc/passwd (in user's sandbox!)
+
+    Ok(())
+}</code></pre></pre>
+<h2 id="markers-work-with-virtualpath-too"><a class="header" href="#markers-work-with-virtualpath-too">Markers Work with VirtualPath Too</a></h2>
+<p>Just like <code>StrictPath</code>, you can use markers with <code>VirtualPath</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{VirtualPath, VirtualRoot};
+
+struct UserPhotos;
+struct UserDocuments;
+
+fn organize_virtual_storage(user_id: u64) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Each domain gets its own virtual root
+    let photos_vroot: VirtualRoot&lt;UserPhotos&gt; = 
+        VirtualRoot::try_new_create(format!("users/user_{}/photos", user_id))?;
+    
+    let docs_vroot: VirtualRoot&lt;UserDocuments&gt; = 
+        VirtualRoot::try_new_create(format!("users/user_{}/documents", user_id))?;
+
+    let photo = photos_vroot.virtual_join("vacation.jpg")?;  // VirtualPath&lt;UserPhotos&gt;
+    let doc = docs_vroot.virtual_join("report.pdf")?;        // VirtualPath&lt;UserDocuments&gt;
+
+    process_photo(&amp;photo)?;              // ✅ Correct type
+    process_document(&amp;doc)?;             // ✅ Correct type
+    // process_photo(&amp;doc)?;             // ❌ Compile error!
+
+    Ok(())
+}
+
+fn process_photo(photo: &amp;VirtualPath&lt;UserPhotos&gt;) -&gt; std::io::Result&lt;()&gt; {
+    println!("Processing photo: {}", photo.virtualpath_display());
+    Ok(())
+}
+
+fn process_document(doc: &amp;VirtualPath&lt;UserDocuments&gt;) -&gt; std::io::Result&lt;()&gt; {
+    println!("Processing document: {}", doc.virtualpath_display());
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="head-first-moment-storefront-facade"><a class="header" href="#head-first-moment-storefront-facade">Head First Moment: Storefront Facade</a></h2>
+<p><code>VirtualPath</code> is like a <strong>storefront with a clean facade</strong>:</p>
+<ul>
+<li><strong>Customers see:</strong> Beautiful <code>/Products/Item</code> URLs</li>
+<li><strong>Behind the scenes:</strong> Files stored at <code>/var/www/store/inventory/category-5/sku-12345/item.jpg</code></li>
+</ul>
+<p>The facade (virtual path) makes for better UX. The real structure (strict path) handles the actual filesystem operations.</p>
+<p><strong>Best of both worlds:</strong></p>
+<ul>
+<li>Users see clean, understandable paths</li>
+<li>System operates on real, validated paths</li>
+<li>Security boundary enforced throughout</li>
+</ul>
+<h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
+<p>✅ <strong><code>VirtualPath</code> = <code>StrictPath</code> + virtual <code>/</code> view</strong><br />
+✅ <strong>Clamping behavior</strong> — escapes are contained, not rejected<br />
+✅ <strong>User-friendly display</strong> — show clean paths in UIs<br />
+✅ <strong>Per-user sandboxes</strong> — each user gets their own virtual root<br />
+✅ <strong>Markers work</strong> — domain separation applies to virtual paths too<br />
+✅ <strong>Symlinks still validated</strong> — not a "trust everything" mode</p>
+<h2 id="the-complete-guarantee"><a class="header" href="#the-complete-guarantee">The Complete Guarantee</a></h2>
+<blockquote>
+<p><strong>If you have a <code>VirtualPath&lt;Marker&gt;</code>, the compiler guarantees:</strong></p>
+<ol>
+<li>✅ The path cannot escape its boundary (Stage 1)</li>
+<li>✅ The path is in the correct domain (Stage 3)</li>
+<li>✅ Virtual display is always rooted at <code>/</code> (Stage 5)</li>
+<li>✅ System operations use the validated real path (Stage 5)</li>
+</ol>
+</blockquote>
+<h2 id="whats-next"><a class="header" href="#whats-next">What's Next?</a></h2>
+<p>You now understand both <code>StrictPath</code> and <code>VirtualPath</code>. But how do you integrate with <strong>external ecosystem crates</strong> like OS directories, temp files, and app-specific paths?</p>
+<p>That's where <strong>feature-gated constructors</strong> come in...</p>
+<p><strong><a href="./stage6_features.html">Continue to Stage 6: Feature Integration →</a></strong></p>
+<hr />
+<p><strong>Quick Reference:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Create virtual root
+let vroot = VirtualPath::with_root("path")?;
+
+// Validate and clamp
+let vpath = vroot.virtual_join(untrusted_input)?;
+
+// Display
+println!("Virtual: {}", vpath.virtualpath_display());      // /file.txt
+println!("System: {}", vpath.as_unvirtual().strictpath_display());  // path/file.txt
+
+// I/O operations
+vpath.write(data)?;
+let content = vpath.read_to_string()?;
+<span class="boring">}</span></code></pre></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../tutorial/stage4_authorization.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../tutorial/stage6_features.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../tutorial/stage4_authorization.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../tutorial/stage6_features.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

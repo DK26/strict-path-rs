@@ -78,7 +78,7 @@ let safe_path = uploads_dir.strict_join("photo.jpg")?;
 if safe_path.exists() {
     let backup_dir = PathBoundary::try_new("./backup")?;
     let backup_path = backup_dir.strict_join("photo.jpg")?;
-    std::fs::copy(safe_path.interop_path(), backup_path.interop_path())?;
+    safe_path.strict_copy(backup_path.interop_path())?;
 }
 ```
 
