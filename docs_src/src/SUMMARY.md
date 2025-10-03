@@ -47,7 +47,6 @@
 # Features & Integration
 
 - [OS Standard Directories](./os_directories.md)
-- [Archive Extraction (zip, tar)](./archive_extractors.md)
 
 ---
 
@@ -61,6 +60,9 @@
 # API Design
 
 - [Ergonomics](./ergonomics/overview.md)
+  - [Builtin I/O Operations](./ergonomics/builtin_io.md)
+  - [Generic Functions & Markers](./ergonomics/generic_functions.md)
+  - [Daily Usage Patterns](./ergonomics/daily_patterns.md)
   - [Interop vs Display](./ergonomics/interop_display.md)
   - [Function Signatures](./ergonomics/signatures.md)
   - [Escape Hatches](./ergonomics/escape_hatches.md)

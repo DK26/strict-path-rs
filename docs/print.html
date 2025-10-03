@@ -3200,6 +3200,7 @@ async fn upload_handler(
 <span class="boring">}</span></code></pre></pre>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <ul>
+<li><strong>For Axum users</strong>: See the <a href="examples/../axum_tutorial/overview.html">Axum Web Service Tutorial</a> for a complete 3-chapter guide with project setup, static assets, and per-user storage</li>
 <li>See <a href="examples/./multi_user_storage.html">Multi-User Document Storage</a> for a more complex user isolation example</li>
 <li>See <a href="examples/./type_safe_contexts.html">Type-Safe Context Separation</a> to learn about using markers to prevent context mixing</li>
 </ul>
@@ -3709,8 +3710,27 @@ let bob_stats = analyze_document(bob_doc.as_unvirtual())?;
 <li>❌ Symlinks pointing outside the extraction directory</li>
 </ul>
 <h2 id="the-solution-3"><a class="header" href="#the-solution-3">The Solution</a></h2>
-<p>Use <code>PathBoundary</code> to restrict extraction to a specific directory. Malicious paths are automatically blocked.</p>
-<h2 id="complete-example-3"><a class="header" href="#complete-example-3">Complete Example</a></h2>
+<p>Use <code>PathBoundary</code> or <code>VirtualRoot</code> to restrict extraction to a specific directory. Malicious paths are automatically blocked.</p>
+<h3 id="choosing-between-pathboundary-and-virtualroot"><a class="header" href="#choosing-between-pathboundary-and-virtualroot">Choosing Between PathBoundary and VirtualRoot</a></h3>
+<ul>
+<li><strong>Use <code>VirtualRoot</code></strong> for extraction pipelines - it clamps any input to the boundary, making batch extraction resilient</li>
+<li><strong>Use <code>PathBoundary</code></strong> when you need strict validation and want errors on malicious paths</li>
+</ul>
+<h2 id="recommended-patterns"><a class="header" href="#recommended-patterns">Recommended Patterns</a></h2>
+<ul>
+<li>✅ Use <code>create_parent_dir_all()</code> before writes to avoid race conditions</li>
+<li>✅ Always join via <code>virtual_join()</code> or <code>strict_join()</code> - never concatenate paths manually</li>
+<li>✅ Treat absolute, UNC, drive-relative, or namespace-prefixed paths as untrusted</li>
+<li>✅ On Windows, NTFS Alternate Data Streams (ADS) like <code>"file.txt:stream"</code> are handled safely</li>
+</ul>
+<h2 id="anti-patterns-dont-do-this"><a class="header" href="#anti-patterns-dont-do-this">Anti-Patterns (Don't Do This)</a></h2>
+<ul>
+<li>❌ Building paths with <code>format!</code>/<code>push</code>/<code>join</code> on <code>std::path::Path</code> without validation</li>
+<li>❌ Stripping <code>"../"</code> by string replacement</li>
+<li>❌ Allowing absolute paths through to the OS</li>
+<li>❌ Treating encoded/unicode tricks (URL-encoded, dot lookalikes) as pre-sanitized</li>
+</ul>
+<h2 id="complete-example-with-pathboundary"><a class="header" href="#complete-example-with-pathboundary">Complete Example with PathBoundary</a></h2>
 <pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
 use std::fs;
 use std::io::Write;
@@ -3785,6 +3805,53 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     
     Ok(())
 }</code></pre></pre>
+<h2 id="alternative-virtualroot-for-resilient-extraction"><a class="header" href="#alternative-virtualroot-for-resilient-extraction">Alternative: VirtualRoot for Resilient Extraction</a></h2>
+<p>For extraction pipelines where you want to log and skip malicious entries rather than fail:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualRoot;
+
+fn extract_all_resilient(
+    dest: &amp;str,
+    entries: Vec&lt;(&amp;str, &amp;[u8])&gt;,
+) -&gt; Result&lt;usize, Box&lt;dyn std::error::Error&gt;&gt; {
+    let vroot: VirtualRoot = VirtualRoot::try_new_create(dest)?;
+    let mut extracted_count = 0;
+
+    for (name, data) in entries {
+        // VirtualRoot clamps malicious paths instead of erroring
+        match vroot.virtual_join(name) {
+            Ok(vpath) =&gt; {
+                // Ensure parent directories exist (inside the boundary)
+                vpath.create_parent_dir_all()?;
+                
+                // Perform the write safely
+                vpath.write(data)?;
+                
+                println!("📦 Extracted: {} -&gt; {}", name, vpath.virtualpath_display());
+                extracted_count += 1;
+            }
+            Err(e) =&gt; {
+                // Cleanly reject this entry, log if needed
+                println!("⚠️  Skipped malicious entry '{}': {}", name, e);
+                continue;
+            }
+        }
+    }
+    
+    Ok(extracted_count)
+}
+
+// Usage
+let entries = vec![
+    ("readme.txt", b"Safe content" as &amp;[u8]),
+    ("../../../etc/passwd", b"Malicious"), // Skipped with log
+    ("docs/api.md", b"More safe content"),
+];
+
+let count = extract_all_resilient("extracted", entries)?;
+println!("✅ Successfully extracted {} files", count);
+<span class="boring">}</span></code></pre></pre>
 <h2 id="key-security-features-3"><a class="header" href="#key-security-features-3">Key Security Features</a></h2>
 <h3 id="1-bounded-extraction-directory"><a class="header" href="#1-bounded-extraction-directory">1. Bounded Extraction Directory</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -3985,6 +4052,48 @@ fn extract_to_temp(archive_path: &amp;str) -&gt; Result&lt;(TempDir, Vec&lt;Stri
 
 // Temp directory is automatically cleaned up when TempDir is dropped
 <span class="boring">}</span></code></pre></pre>
+<h2 id="testing-advice"><a class="header" href="#testing-advice">Testing Advice</a></h2>
+<p>Test your extraction code with a malicious archive corpus:</p>
+<h3 id="test-cases-to-include"><a class="header" href="#test-cases-to-include">Test Cases to Include</a></h3>
+<ul>
+<li><strong>Directory traversal</strong>: <code>"../"</code>, <code>"..\\"</code>, <code>"legitimate/../../etc/passwd"</code></li>
+<li><strong>Absolute paths</strong>: <code>"/var/www/evil"</code>, <code>"C:\\windows\\system32\\evil.exe"</code></li>
+<li><strong>Windows-specific</strong>:
+<ul>
+<li>UNC paths: <code>"\\\\?\\C:\\windows\\evil"</code></li>
+<li>Drive-relative: <code>"C:..\\foo"</code></li>
+<li>ADS streams: <code>"decoy.txt:..\\..\\evil.exe"</code></li>
+<li>Reserved names: <code>"CON"</code>, <code>"PRN"</code>, <code>"AUX"</code></li>
+</ul>
+</li>
+<li><strong>Unicode tricks</strong>: Dot lookalikes, NFC vs NFD forms</li>
+<li><strong>Long paths</strong>: Paths exceeding system limits</li>
+</ul>
+<h3 id="assertions"><a class="header" href="#assertions">Assertions</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[test]
+fn test_archive_extraction_safety() {
+    let boundary = PathBoundary::try_new_create("test_extract").unwrap();
+    
+    // Should succeed
+    assert!(boundary.strict_join("safe/path.txt").is_ok());
+    
+    // Should fail
+    assert!(boundary.strict_join("../../../etc/passwd").is_err());
+    assert!(boundary.strict_join("/absolute/path").is_err());
+    
+    // Cleanup
+    std::fs::remove_dir_all("test_extract").ok();
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="behavior-notes"><a class="header" href="#behavior-notes">Behavior Notes</a></h2>
+<ul>
+<li><strong>Virtual joins clamp traversal</strong> lexically to the virtual root</li>
+<li><strong>System-facing escapes</strong> (via symlinks/junctions) are rejected during resolution</li>
+<li><strong>Unicode is not normalized</strong> - NFC and NFD forms are stored as-is, both safely contained</li>
+<li><strong>Hard links and privileged mount tricks</strong> are outside path-level protections (see README limitations)</li>
+</ul>
 <h2 id="best-practices-2"><a class="header" href="#best-practices-2">Best Practices</a></h2>
 <ol>
 <li><strong>Always validate</strong> - Never trust archive entry paths</li>
@@ -4044,7 +4153,7 @@ fn extract_to_temp(archive_path: &amp;str) -&gt; Result&lt;(TempDir, Vec&lt;Stri
 </ul>
 <h2 id="the-solution-4"><a class="header" href="#the-solution-4">The Solution</a></h2>
 <p>Use <code>PathBoundary</code> to create a working directory jail. All file operations are restricted to this boundary.</p>
-<h2 id="complete-example-4"><a class="header" href="#complete-example-4">Complete Example</a></h2>
+<h2 id="complete-example-3"><a class="header" href="#complete-example-3">Complete Example</a></h2>
 <pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
 use std::env;
 use std::fs;
@@ -4452,7 +4561,7 @@ fn process_glob(processor: &amp;SafeFileProcessor, pattern: &amp;str) -&gt; Resu
 </ul>
 <h2 id="the-solution-5"><a class="header" href="#the-solution-5">The Solution</a></h2>
 <p>Use marker types with <code>StrictPath&lt;Marker&gt;</code> and <code>VirtualPath&lt;Marker&gt;</code> to encode context at the type level. The compiler prevents context mixing.</p>
-<h2 id="complete-example-5"><a class="header" href="#complete-example-5">Complete Example</a></h2>
+<h2 id="complete-example-4"><a class="header" href="#complete-example-4">Complete Example</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
@@ -4818,6 +4927,9 @@ fn read_asset(path: &amp;StrictPath&lt;WebAssets&gt;) -&gt; std::io::Result&lt;V
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="axum-web-service-tutorial"><a class="header" href="#axum-web-service-tutorial">Axum Web Service Tutorial</a></h1>
 <p>This tutorial demonstrates <strong>key security patterns</strong> for web services using <strong>Axum</strong> and <strong>strict-path</strong>. We focus on the essential integration points where path validation prevents vulnerabilities.</p>
+<blockquote>
+<p><strong>Quick Start</strong>: If you want a framework-agnostic example first, see <a href="axum_tutorial/../examples/web_upload_service.html">Web File Upload Service</a> for the basic concepts without web framework complexity.</p>
+</blockquote>
 <h2 id="what-youll-learn-1"><a class="header" href="#what-youll-learn-1">What You'll Learn</a></h2>
 <p>How to integrate <code>strict-path</code> into an Axum web service:</p>
 <ul>
@@ -6116,59 +6228,6 @@ mod tests {
 <li><a href="https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html">XDG Base Directory Specification</a></li>
 <li><a href="https://docs.microsoft.com/en-us/windows/win32/shell/knownfolderid">Windows Known Folder API</a></li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="using-strict-path-with-archive-extractors"><a class="header" href="#using-strict-path-with-archive-extractors">Using strict-path with archive extractors</a></h1>
-<p>Archive formats (ZIP, TAR, etc.) embed file names provided by untrusted sources. Treat each entry name as hostile and validate it through VirtualRoot or PathBoundary before any filesystem I/O.</p>
-<h2 id="recommended-patterns"><a class="header" href="#recommended-patterns">Recommended patterns</a></h2>
-<ul>
-<li>Prefer VirtualRoot for extraction pipelines: it accepts any input and clamps it to the path boundary. This makes batch extraction resilient and user-friendly.</li>
-<li>Use create_parent_dir_all() before writes to avoid TOCTOU-style parent creation races in your own code. Our operations re-validate boundaries internally.</li>
-<li>Do not concatenate paths manually. Always join via vroot.virtual_join(name) or path_boundary.strict_join(name).</li>
-<li>Treat absolute, UNC, drive-relative, or namespace-prefixed paths as untrusted inputs. The virtual join will clamp these to the virtual root.</li>
-<li>On Windows, NTFS Alternate Data Streams (ADS) like "file.txt:stream" are handled safely. Writes remain within the path boundary or are cleanly rejected by the OS.</li>
-</ul>
-<h2 id="minimal-example-zip-like-flow"><a class="header" href="#minimal-example-zip-like-flow">Minimal example (ZIP-like flow)</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::VirtualRoot;
-
-fn extract_all&lt;M: Default&gt;(dest: &amp;std::path::Path, entries: impl IntoIterator&lt;Item=(String, Vec&lt;u8&gt;)&gt;) -&gt; std::io::Result&lt;()&gt; {
-    let vroot: VirtualRoot&lt;M&gt; = VirtualRoot::try_new_create(dest)?;
-
-    for (name, data) in entries {
-        // 1) Safely map entry name to a strict path (clamped on escape attempts)
-        let vpath = match vroot.virtual_join(&amp;name) {
-            Ok(v) =&gt; v,
-            Err(_) =&gt; continue, // cleanly reject this entry, log if needed
-        };
-
-        // 2) Ensure parent directories exist (inside the path boundary)
-        vpath.create_parent_dir_all()?;
-
-        // 3) Perform the write safely
-        vpath.write(&amp;data)?;
-    }
-    Ok(())
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="anti-patterns-dont-do-this"><a class="header" href="#anti-patterns-dont-do-this">Anti-patterns (don’t do this)</a></h2>
-<ul>
-<li>Building paths with format!/push/join on std::path::Path without validation</li>
-<li>Stripping "../" by string replacement</li>
-<li>Allowing absolute paths through to the OS</li>
-<li>Treating encoded/unicode tricks (URL-encoded, dot lookalikes) as pre-sanitized</li>
-</ul>
-<h2 id="testing-advice"><a class="header" href="#testing-advice">Testing advice</a></h2>
-<ul>
-<li>Add corpus entries with: "../", "..\", absolute paths, UNC/\?\ prefixes, drive-relative ("C:..\foo"), unicode lookalikes, long paths.</li>
-<li>On Windows, include ADS cases like "decoy.txt:..\..\evil.exe" and reserved names.</li>
-<li>Assert that successful joins produce paths contained within the path boundary and failed joins are clean, with no creation outside the path boundary.</li>
-</ul>
-<h2 id="notes-on-behavior"><a class="header" href="#notes-on-behavior">Notes on behavior</a></h2>
-<ul>
-<li>Virtual joins clamp traversal lexically to the virtual root; system-facing escapes (e.g., via symlinks/junctions) are rejected during resolution.</li>
-<li>We do not normalize Unicode; you can store/display NFC or NFD forms as-is. Both are contained safely.</li>
-<li>Hard links and privileged mount tricks are outside the scope of path-level protections (see README limitations).</li>
-</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="best-practices--guidelines"><a class="header" href="#best-practices--guidelines">Best Practices &amp; Guidelines</a></h1>
 <p>This page distills how to use strict-path correctly and ergonomically. Pair it with the Anti‑Patterns page for tell‑offs to avoid.</p>
 <h2 id="why-every-simple-solution-fails"><a class="header" href="#why-every-simple-solution-fails">Why Every "Simple" Solution Fails</a></h2>
@@ -6716,14 +6775,973 @@ vpath.interop_path();
 <p>Remember: The whole point of strict-path is to make path operations safe by design. If you find yourself converting back to regular paths or validating inside every function, you're probably doing it wrong!</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="ergonomics-overview"><a class="header" href="#ergonomics-overview">Ergonomics Overview</a></h1>
 <p>This section collects high-signal, copy-pasteable guidance for day-to-day use without re-explaining the security model. Each page is short and focused so you can jump directly to what you need.</p>
+<h2 id="new-to-strict-path"><a class="header" href="#new-to-strict-path">New to strict-path?</a></h2>
+<p>Start with <strong>Daily Usage Patterns</strong> for common workflows and real-world examples.</p>
+<h2 id="quick-reference"><a class="header" href="#quick-reference">Quick Reference</a></h2>
 <ul>
-<li>Interop vs Display: how to pass paths to std/third-party APIs vs how to render them for users.</li>
-<li>Function Signatures: encode guarantees in types; when to accept strict/virtual vs roots + segments.</li>
-<li>Escape Hatches: borrowing and ownership conversions; when to use them (sparingly).</li>
-<li>Equality &amp; Ordering: how comparisons work; what to compare and what not to.</li>
-<li>Naming: domain-first naming that teaches intent in code review.</li>
+<li><strong>Builtin I/O Operations</strong>: Complete guide to file/directory operations, when to use builtin methods vs <code>std::fs</code></li>
+<li><strong>Generic Functions &amp; Markers</strong>: Write reusable functions with <code>&lt;M&gt;</code>, understand when to use generic vs specific markers</li>
+<li><strong>Daily Usage Patterns</strong>: Common workflows (user input validation, config loading, per-user isolation, archive extraction, etc.)</li>
+<li><strong>Interop vs Display</strong>: How to pass paths to std/third-party APIs vs how to render them for users</li>
+<li><strong>Function Signatures</strong>: Encode guarantees in types; when to accept strict/virtual vs roots + segments</li>
+<li><strong>Escape Hatches</strong>: Borrowing and ownership conversions; when to use them (sparingly)</li>
+<li><strong>Equality &amp; Ordering</strong>: How comparisons work; what to compare and what not to</li>
+<li><strong>Naming Conventions</strong>: Domain-first naming that teaches intent in code review</li>
+<li><strong>Canonicalized vs Lexical</strong>: Choosing the right solution for your use case</li>
 </ul>
 <p>For in-depth design and security rationale, see Best Practices and Anti-Patterns. This section stays focused on ergonomics.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="builtin-io-operations"><a class="header" href="#builtin-io-operations">Builtin I/O Operations</a></h1>
+<p><code>strict-path</code> provides safe I/O helpers that maintain boundary security while eliminating the need for raw <code>std::fs</code> calls on leaked paths.</p>
+<h2 id="why-use-builtin-methods"><a class="header" href="#why-use-builtin-methods">Why Use Builtin Methods?</a></h2>
+<p><strong>Security</strong>: All operations stay within validated boundaries<br />
+<strong>Ergonomics</strong>: No need to call <code>.interop_path()</code> for common operations<br />
+<strong>Correctness</strong>: Type-checked paths guarantee safety at compile time</p>
+<h2 id="file-operations"><a class="header" href="#file-operations">File Operations</a></h2>
+<h3 id="reading-files"><a class="header" href="#reading-files">Reading Files</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+let config_dir = PathBoundary::try_new("/etc/myapp")?;
+let config_file = config_dir.strict_join("config.toml")?;
+
+// Read entire file as string
+let contents = config_file.read_to_string()?;
+
+// Read as bytes
+let bytes = config_file.read()?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="writing-files"><a class="header" href="#writing-files">Writing Files</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualRoot;
+
+let user_docs = VirtualRoot::try_new("/home/user/documents")?;
+let report = user_docs.virtual_join("reports/summary.txt")?;
+
+// Ensure parent directories exist
+report.create_parent_dir_all()?;
+
+// Write string content
+report.write("Monthly Summary\n\nTotal: 42")?;
+
+// Write bytes
+report.write_bytes(b"Binary data")?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="file-handles"><a class="header" href="#file-handles">File Handles</a></h3>
+<p>For streaming or more control, use file handles:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::io::{Read, Write};
+
+// Create or truncate file, get writable handle
+let mut file = report.create_file()?;
+file.write_all(b"Line 1\n")?;
+file.write_all(b"Line 2\n")?;
+
+// Open for reading
+let mut file = report.open_file()?;
+let mut contents = String::new();
+file.read_to_string(&amp;mut contents)?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="directory-operations"><a class="header" href="#directory-operations">Directory Operations</a></h2>
+<h3 id="creating-directories"><a class="header" href="#creating-directories">Creating Directories</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Create single directory (parent must exist)
+let subdir = config_dir.strict_join("plugins")?;
+subdir.create_dir()?;
+
+// Create all parent directories if missing
+let nested = config_dir.strict_join("data/cache/temp")?;
+nested.create_dir_all()?;
+
+// Non-recursive variant (VirtualPath)
+let vdir = user_docs.virtual_join("archive")?;
+vdir.create_dir_non_recursive()?; // Fails if parent missing
+<span class="boring">}</span></code></pre></pre>
+<h3 id="listing-directory-contents"><a class="header" href="#listing-directory-contents">Listing Directory Contents</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Discovery: enumerate entries
+for entry in config_dir.read_dir()? {
+    let entry = entry?;
+    let name = entry.file_name();
+    
+    // Re-validate discovered path before use
+    let validated = config_dir.strict_join(&amp;name)?;
+    println!("Found: {}", validated.strictpath_display());
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="removing-directories"><a class="header" href="#removing-directories">Removing Directories</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Remove empty directory
+subdir.remove_dir()?;
+
+// Remove directory and all contents (dangerous!)
+nested.remove_dir_all()?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="metadata-operations"><a class="header" href="#metadata-operations">Metadata Operations</a></h2>
+<h3 id="checking-existence-and-type"><a class="header" href="#checking-existence-and-type">Checking Existence and Type</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Check if path exists
+if config_file.exists() {
+    println!("Config file found");
+}
+
+// Check type
+if config_file.is_file() {
+    println!("It's a file");
+}
+
+if config_dir.is_dir() {
+    println!("It's a directory");
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="getting-metadata"><a class="header" href="#getting-metadata">Getting Metadata</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Get full metadata
+let metadata = config_file.metadata()?;
+
+println!("Size: {} bytes", metadata.len());
+println!("Read-only: {}", metadata.permissions().readonly());
+println!("Modified: {:?}", metadata.modified()?);
+<span class="boring">}</span></code></pre></pre>
+<h3 id="symlink-metadata-dont-follow-links"><a class="header" href="#symlink-metadata-dont-follow-links">Symlink Metadata (Don't Follow Links)</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Get metadata without following symlinks
+let link_meta = config_file.symlink_metadata()?;
+
+if link_meta.is_symlink() {
+    println!("This is a symbolic link");
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="copy-rename-and-link-operations"><a class="header" href="#copy-rename-and-link-operations">Copy, Rename, and Link Operations</a></h2>
+<h3 id="copying-files"><a class="header" href="#copying-files">Copying Files</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let source = config_dir.strict_join("template.conf")?;
+let dest = config_dir.strict_join("active.conf")?;
+
+// Copy file, returns bytes copied
+let bytes = source.strict_copy(&amp;dest)?;
+println!("Copied {} bytes", bytes);
+<span class="boring">}</span></code></pre></pre>
+<h3 id="renamingmoving"><a class="header" href="#renamingmoving">Renaming/Moving</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let old_name = config_dir.strict_join("draft.txt")?;
+let new_name = config_dir.strict_join("final.txt")?;
+
+// Move/rename within same boundary
+old_name.strict_rename(&amp;new_name)?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="creating-links"><a class="header" href="#creating-links">Creating Links</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Symbolic link
+let target = config_dir.strict_join("current")?;
+let link = config_dir.strict_join("link-to-current")?;
+target.strict_symlink(&amp;link)?;
+
+// Hard link
+target.strict_hard_link(&amp;link)?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="builtin-vs-stdfs-comparison"><a class="header" href="#builtin-vs-stdfs-comparison">Builtin vs std::fs Comparison</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Operation</th><th><code>strict-path</code></th><th><code>std::fs</code></th><th>Why Prefer Builtin?</th></tr></thead><tbody>
+<tr><td>Read file</td><td><code>.read_to_string()?</code></td><td><code>fs::read_to_string(path.interop_path())?</code></td><td>Shorter, stays typed</td></tr>
+<tr><td>Write file</td><td><code>.write("content")?</code></td><td><code>fs::write(path.interop_path(), "content")?</code></td><td>No interop needed</td></tr>
+<tr><td>Copy file</td><td><code>.strict_copy(&amp;dest)?</code></td><td><code>fs::copy(src.interop_path(), dst.interop_path())?</code></td><td>Both paths validated</td></tr>
+<tr><td>Metadata</td><td><code>.metadata()?</code></td><td><code>fs::metadata(path.interop_path())?</code></td><td>Cleaner, same result</td></tr>
+<tr><td>Create dir</td><td><code>.create_dir_all()?</code></td><td><code>fs::create_dir_all(path.interop_path())?</code></td><td>Type-safe path</td></tr>
+</tbody></table>
+</div>
+<h2 id="when-to-use-interop_path"><a class="header" href="#when-to-use-interop_path">When to Use interop_path()</a></h2>
+<p><strong>Only for unavoidable third-party crates</strong> that demand <code>AsRef&lt;Path&gt;</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ GOOD: Third-party crate requires AsRef&lt;Path&gt;
+let image = config_dir.strict_join("logo.png")?;
+let img = image::open(image.interop_path())?; // No choice
+
+// ❌ BAD: Using interop when builtin exists
+std::fs::read_to_string(image.interop_path())?; // Use .read_to_string() instead
+
+// ✅ GOOD: Use builtin
+let contents = image.read_to_string()?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="virtualpath-io-operations"><a class="header" href="#virtualpath-io-operations">VirtualPath I/O Operations</a></h2>
+<p>All methods work on <code>VirtualPath</code> too, maintaining virtual display semantics:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let user_root = VirtualRoot::try_new("/var/lib/app/users/alice")?;
+let doc = user_root.virtual_join("documents/readme.txt")?;
+
+// All I/O operations available
+doc.create_parent_dir_all()?;
+doc.write("Welcome to your virtual filesystem!")?;
+
+// Display shows virtual path
+println!("Wrote to: {}", doc.virtualpath_display()); // "/documents/readme.txt"
+
+// But I/O happens at real system location
+println!("System location: {}", doc.as_unvirtual().strictpath_display());
+<span class="boring">}</span></code></pre></pre>
+<h2 id="performance-notes"><a class="header" href="#performance-notes">Performance Notes</a></h2>
+<p><strong>No overhead</strong>: Builtin methods call <code>std::fs</code> internally with zero abstraction cost.<br />
+<strong>Same syscalls</strong>: Operations compile to identical machine code as direct <code>std::fs</code> usage.<br />
+<strong>Validation cost</strong>: Only paid once during <code>strict_join</code>/<code>virtual_join</code>, not on every I/O operation.</p>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<ul>
+<li><strong>Use builtin methods for all common I/O operations</strong></li>
+<li><strong>Reserve <code>.interop_path()</code> for third-party crates</strong></li>
+<li><strong>Both <code>StrictPath</code> and <code>VirtualPath</code> support the full I/O API</strong></li>
+<li><strong>No performance penalty vs raw <code>std::fs</code></strong></li>
+<li><strong>Type safety and boundary security maintained automatically</strong></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="generic-functions-and-marker-patterns"><a class="header" href="#generic-functions-and-marker-patterns">Generic Functions and Marker Patterns</a></h1>
+<p>Learn how to write reusable functions that work with any marker type using Rust's generics.</p>
+<h2 id="the-m-pattern"><a class="header" href="#the-m-pattern">The <code>&lt;M&gt;</code> Pattern</a></h2>
+<p>When you write <code>&lt;M&gt;</code>, you're saying "this function works with paths of <strong>any</strong> marker type."</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+// ✅ Generic: works with any marker
+fn get_size&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;u64&gt; {
+    Ok(path.metadata()?.len())
+}
+
+// Can call with any marker type
+let config: StrictPath&lt;ConfigDir&gt; = ...;
+let uploads: StrictPath&lt;UserUploads&gt; = ...;
+
+let config_size = get_size(&amp;config)?;   // M = ConfigDir
+let upload_size = get_size(&amp;uploads)?;  // M = UserUploads
+<span class="boring">}</span></code></pre></pre>
+<h2 id="when-to-use-generic-functions"><a class="header" href="#when-to-use-generic-functions">When to Use Generic Functions</a></h2>
+<p><strong>Use <code>&lt;M&gt;</code> when:</strong></p>
+<ul>
+<li>Function logic doesn't care about the specific marker</li>
+<li>You're building reusable utilities</li>
+<li>The operation applies to any path type</li>
+</ul>
+<p><strong>Use specific markers when:</strong></p>
+<ul>
+<li>Function requires specific authorization level</li>
+<li>Business logic depends on path context</li>
+<li>Type safety prevents mixing different domains</li>
+</ul>
+<h2 id="common-generic-patterns"><a class="header" href="#common-generic-patterns">Common Generic Patterns</a></h2>
+<h3 id="pattern-1-generic-helpers"><a class="header" href="#pattern-1-generic-helpers">Pattern 1: Generic Helpers</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Read and parse JSON from any path
+fn read_json&lt;M, T: serde::de::DeserializeOwned&gt;(
+    path: &amp;StrictPath&lt;M&gt;
+) -&gt; Result&lt;T, Box&lt;dyn std::error::Error&gt;&gt; {
+    let contents = path.read_to_string()?;
+    Ok(serde_json::from_str(&amp;contents)?)
+}
+
+// Works with any marker
+let config: Config = read_json(&amp;config_path)?;
+let data: UserData = read_json(&amp;user_path)?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="pattern-2-generic-validation"><a class="header" href="#pattern-2-generic-validation">Pattern 2: Generic Validation</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Ensure path exists and is a file
+fn validate_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;()&gt; {
+    if !path.exists() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("File not found: {}", path.strictpath_display())
+        ));
+    }
+    
+    if !path.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Path is not a file"
+        ));
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="pattern-3-generic-logging"><a class="header" href="#pattern-3-generic-logging">Pattern 3: Generic Logging</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use tracing::info;
+
+/// Log path access for audit trail
+fn log_access&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;, operation: &amp;str) {
+    info!(
+        operation = operation,
+        path = %path.strictpath_display(),
+        "Path accessed"
+    );
+}
+
+// Use in your code
+log_access(&amp;user_file, "read");
+<span class="boring">}</span></code></pre></pre>
+<h3 id="pattern-4-generic-directory-processing"><a class="header" href="#pattern-4-generic-directory-processing">Pattern 4: Generic Directory Processing</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Count files in directory
+fn count_files&lt;M&gt;(dir: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;usize&gt; {
+    let mut count = 0;
+    
+    for entry in dir.read_dir()? {
+        let entry = entry?;
+        if entry.metadata()?.is_file() {
+            count += 1;
+        }
+    }
+    
+    Ok(count)
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="specific-marker-functions"><a class="header" href="#specific-marker-functions">Specific Marker Functions</a></h2>
+<p>Sometimes you want <strong>exactly</strong> the right marker type:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct UserData;
+struct ConfigDir;
+
+// ✅ Only accepts UserData paths
+fn process_user_file(file: &amp;StrictPath&lt;UserData&gt;) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let contents = file.read_to_string()?;
+    // Process user-specific data
+    Ok(())
+}
+
+// ✅ Only accepts ConfigDir paths
+fn load_config(config: &amp;StrictPath&lt;ConfigDir&gt;) -&gt; Result&lt;AppConfig, Box&lt;dyn std::error::Error&gt;&gt; {
+    let contents = config.read_to_string()?;
+    Ok(toml::from_str(&amp;contents)?)
+}
+
+// ❌ Won't compile: wrong marker type
+let user_file: StrictPath&lt;UserData&gt; = ...;
+load_config(&amp;user_file); // ERROR: expected ConfigDir, found UserData
+<span class="boring">}</span></code></pre></pre>
+<h2 id="generic-virtualpath-functions"><a class="header" href="#generic-virtualpath-functions">Generic VirtualPath Functions</a></h2>
+<p>The same patterns work for <code>VirtualPath</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualPath;
+
+/// Generic file writer
+fn write_log&lt;M&gt;(path: &amp;VirtualPath&lt;M&gt;, message: &amp;str) -&gt; std::io::Result&lt;()&gt; {
+    path.create_parent_dir_all()?;
+    path.write(format!("[{}] {}\n", chrono::Utc::now(), message))
+}
+
+/// Generic directory validator
+fn ensure_directory&lt;M&gt;(path: &amp;VirtualPath&lt;M&gt;) -&gt; std::io::Result&lt;()&gt; {
+    if !path.exists() {
+        path.create_dir_all()?;
+    } else if !path.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "Path exists but is not a directory"
+        ));
+    }
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="passing-paths-through-call-chains"><a class="header" href="#passing-paths-through-call-chains">Passing Paths Through Call Chains</a></h2>
+<h3 id="generic-chain"><a class="header" href="#generic-chain">Generic Chain</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Generic all the way down
+fn read_data&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    validate_file(path)?;           // Generic
+    log_access(path, "read");        // Generic
+    path.read()                      // Read the file
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="specific-chain"><a class="header" href="#specific-chain">Specific Chain</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct TenantData;
+
+// Specific markers maintained through chain
+fn load_tenant_data(path: &amp;StrictPath&lt;TenantData&gt;) -&gt; Result&lt;Data, Error&gt; {
+    validate_tenant_path(path)?;     // Takes StrictPath&lt;TenantData&gt;
+    parse_tenant_data(path)?;        // Takes StrictPath&lt;TenantData&gt;
+    decrypt_tenant_data(path)        // Takes StrictPath&lt;TenantData&gt;
+}
+
+// Each function in chain requires TenantData marker
+fn validate_tenant_path(path: &amp;StrictPath&lt;TenantData&gt;) -&gt; Result&lt;(), Error&gt; { ... }
+fn parse_tenant_data(path: &amp;StrictPath&lt;TenantData&gt;) -&gt; Result&lt;(), Error&gt; { ... }
+fn decrypt_tenant_data(path: &amp;StrictPath&lt;TenantData&gt;) -&gt; Result&lt;Data, Error&gt; { ... }
+<span class="boring">}</span></code></pre></pre>
+<h2 id="returning-generic-paths"><a class="header" href="#returning-generic-paths">Returning Generic Paths</a></h2>
+<p>You can return paths with preserved markers:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+/// Find config file in directory
+fn find_config&lt;M&gt;(dir: &amp;PathBoundary&lt;M&gt;) -&gt; Option&lt;StrictPath&lt;M&gt;&gt; {
+    for entry in dir.read_dir().ok()? {
+        let entry = entry.ok()?;
+        let name = entry.file_name();
+        
+        if name.to_string_lossy().ends_with(".conf") {
+            return dir.strict_join(&amp;name).ok();
+        }
+    }
+    None
+}
+
+// Marker type flows through
+let config_dir: PathBoundary&lt;ConfigDir&gt; = ...;
+let found: Option&lt;StrictPath&lt;ConfigDir&gt;&gt; = find_config(&amp;config_dir);
+<span class="boring">}</span></code></pre></pre>
+<h2 id="generic-with-constraints"><a class="header" href="#generic-with-constraints">Generic with Constraints</a></h2>
+<p>You can constrain markers with trait bounds:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Marker must implement Send + Sync
+fn parallel_process&lt;M: Send + Sync&gt;(
+    paths: Vec&lt;StrictPath&lt;M&gt;&gt;
+) -&gt; Vec&lt;std::io::Result&lt;String&gt;&gt; {
+    use rayon::prelude::*;
+    
+    paths.par_iter()
+        .map(|p| p.read_to_string())
+        .collect()
+}
+
+/// Marker must implement custom trait
+trait Auditable {
+    fn audit_log_name() -&gt; &amp;'static str;
+}
+
+fn audit_access&lt;M: Auditable&gt;(path: &amp;StrictPath&lt;M&gt;) {
+    println!("Accessing {} path: {}", 
+        M::audit_log_name(), 
+        path.strictpath_display()
+    );
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="common-mistakes"><a class="header" href="#common-mistakes">Common Mistakes</a></h2>
+<h3 id="-unnecessary-generic-constraint"><a class="header" href="#-unnecessary-generic-constraint">❌ Unnecessary Generic Constraint</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Bad: overly restrictive
+fn read_size&lt;M: Sized&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;u64&gt; {
+    Ok(path.metadata()?.len())
+}
+
+// Good: no constraint needed
+fn read_size&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;u64&gt; {
+    Ok(path.metadata()?.len())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="-mixing-markers-unsafely"><a class="header" href="#-mixing-markers-unsafely">❌ Mixing Markers Unsafely</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Bad: forces marker type conversion
+fn bad_mix&lt;M1, M2&gt;(src: &amp;StrictPath&lt;M1&gt;, dst: &amp;StrictPath&lt;M2&gt;) {
+    // Won't compile: can't copy between different marker types
+    src.strict_copy(dst); // ERROR: marker type mismatch
+}
+
+// Good: require same marker
+fn good_copy&lt;M&gt;(src: &amp;StrictPath&lt;M&gt;, dst: &amp;StrictPath&lt;M&gt;) {
+    src.strict_copy(dst); // ✅ OK: both have marker M
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="-losing-marker-type"><a class="header" href="#-losing-marker-type">❌ Losing Marker Type</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Bad: loses type information
+fn process(path: &amp;StrictPath&lt;()&gt;) { ... }
+
+// Good: preserve marker
+fn process&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) { ... }
+<span class="boring">}</span></code></pre></pre>
+<h2 id="best-practices-6"><a class="header" href="#best-practices-6">Best Practices</a></h2>
+<h3 id="-start-generic-add-constraints-as-needed"><a class="header" href="#-start-generic-add-constraints-as-needed">✅ Start Generic, Add Constraints as Needed</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Start here
+fn process&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) { ... }
+
+// Add trait bounds only if needed
+fn process&lt;M: Send + Sync&gt;(path: &amp;StrictPath&lt;M&gt;) { ... }
+
+// Use specific markers only when required for business logic
+fn process_user(path: &amp;StrictPath&lt;UserData&gt;) { ... }
+<span class="boring">}</span></code></pre></pre>
+<h3 id="-document-marker-expectations"><a class="header" href="#-document-marker-expectations">✅ Document Marker Expectations</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Process any file in any boundary.
+///
+/// Generic over marker type `M` because the operation
+/// doesn't depend on specific authorization or context.
+fn process_file&lt;M&gt;(file: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;()&gt; {
+    // ...
+}
+
+/// Load user-specific configuration.
+///
+/// Requires `UserData` marker to enforce that only
+/// user-scoped paths can be processed here.
+fn load_user_config(file: &amp;StrictPath&lt;UserData&gt;) -&gt; Result&lt;Config&gt; {
+    // ...
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="-use-generic-for-utilities-specific-for-domain-logic"><a class="header" href="#-use-generic-for-utilities-specific-for-domain-logic">✅ Use Generic for Utilities, Specific for Domain Logic</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ Generic utility
+fn file_size&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;u64&gt; { ... }
+
+// ✅ Specific domain logic
+fn charge_storage_fees(path: &amp;StrictPath&lt;BillingData&gt;) -&gt; Result&lt;Amount&gt; { ... }
+<span class="boring">}</span></code></pre></pre>
+<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
+<ul>
+<li><strong><code>&lt;M&gt;</code> means "works with any marker"</strong></li>
+<li><strong>Use generics for reusable utilities</strong></li>
+<li><strong>Use specific markers for domain-specific logic</strong></li>
+<li><strong>The compiler prevents marker type mismatches</strong></li>
+<li><strong>Marker types flow through call chains automatically</strong></li>
+<li><strong>Add trait bounds only when needed</strong></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="daily-usage-patterns"><a class="header" href="#daily-usage-patterns">Daily Usage Patterns</a></h1>
+<p>Common workflows and patterns for everyday <code>strict-path</code> usage.</p>
+<h2 id="pattern-1-validate-user-input"><a class="header" href="#pattern-1-validate-user-input">Pattern 1: Validate User Input</a></h2>
+<p><strong>Problem</strong>: User provides a filename, you need to ensure it stays in your directory.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn handle_user_request(user_filename: &amp;str) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
+    let uploads = PathBoundary::try_new("/var/uploads")?;
+    
+    // Validate the user input
+    let safe_path = uploads.strict_join(user_filename)?;
+    
+    // Now safe to use
+    let contents = safe_path.read_to_string()?;
+    Ok(contents)
+}
+
+// ✅ Safe: "../etc/passwd" gets rejected
+// ✅ Safe: "documents/report.pdf" gets validated
+<span class="boring">}</span></code></pre></pre>
+<h2 id="pattern-2-configuration-loading"><a class="header" href="#pattern-2-configuration-loading">Pattern 2: Configuration Loading</a></h2>
+<p><strong>Problem</strong>: Load config files from multiple standard locations.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use std::path::PathBuf;
+
+fn find_config() -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
+    let config_locations = vec![
+        PathBuf::from("/etc/myapp/config.toml"),
+        PathBuf::from("/usr/local/etc/myapp/config.toml"),
+        dirs::config_dir().unwrap().join("myapp/config.toml"),
+    ];
+    
+    for location in config_locations {
+        if let Some(parent) = location.parent() {
+            if let Ok(boundary) = PathBoundary::try_new(parent) {
+                if let Some(filename) = location.file_name() {
+                    if let Ok(config_path) = boundary.strict_join(filename) {
+                        if config_path.exists() {
+                            return config_path.read_to_string();
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Err("No config file found".into())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="pattern-3-per-user-virtual-filesystem"><a class="header" href="#pattern-3-per-user-virtual-filesystem">Pattern 3: Per-User Virtual Filesystem</a></h2>
+<p><strong>Problem</strong>: Multiple users, each needs their own isolated filesystem view.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualRoot;
+
+struct UserSession {
+    user_id: String,
+    root: VirtualRoot&lt;UserSpace&gt;,
+}
+
+struct UserSpace;
+
+impl UserSession {
+    fn new(user_id: String) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        let base_dir = format!("/var/lib/app/users/{}", user_id);
+        let root = VirtualRoot::try_new_create(&amp;base_dir)?;
+        Ok(Self { user_id, root })
+    }
+    
+    fn read_file(&amp;self, virtual_path: &amp;str) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
+        let file = self.root.virtual_join(virtual_path)?;
+        Ok(file.read_to_string()?)
+    }
+    
+    fn write_file(&amp;self, virtual_path: &amp;str, contents: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+        let file = self.root.virtual_join(virtual_path)?;
+        file.create_parent_dir_all()?;
+        file.write(contents)?;
+        Ok(())
+    }
+    
+    fn list_files(&amp;self, virtual_dir: &amp;str) -&gt; Result&lt;Vec&lt;String&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+        let dir = self.root.virtual_join(virtual_dir)?;
+        let mut files = Vec::new();
+        
+        for entry in dir.as_unvirtual().read_dir()? {
+            let entry = entry?;
+            // Re-validate discovered names
+            let validated = self.root.virtual_join(format!("{}/{}", virtual_dir, entry.file_name().to_string_lossy()))?;
+            files.push(validated.virtualpath_display().to_string());
+        }
+        
+        Ok(files)
+    }
+}
+
+// Usage
+let alice = UserSession::new("alice".to_string())?;
+alice.write_file("documents/report.txt", "Quarterly report")?;
+let report = alice.read_file("documents/report.txt")?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="pattern-4-safe-archive-extraction"><a class="header" href="#pattern-4-safe-archive-extraction">Pattern 4: Safe Archive Extraction</a></h2>
+<p><strong>Problem</strong>: Extract ZIP/TAR without directory traversal attacks.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use zip::ZipArchive;
+use std::fs::File;
+
+fn safe_extract_zip(
+    zip_path: &amp;std::path::Path,
+    extract_to: &amp;str
+) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let extract_dir = PathBoundary::try_new_create(extract_to)?;
+    let mut archive = ZipArchive::new(File::open(zip_path)?)?;
+    
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let filename = file.name();
+        
+        // Validate each file path before extraction
+        let safe_path = match extract_dir.strict_join(filename) {
+            Ok(p) =&gt; p,
+            Err(_) =&gt; {
+                eprintln!("Skipping malicious path: {}", filename);
+                continue; // Skip paths that escape
+            }
+        };
+        
+        // Create parent directories
+        safe_path.create_parent_dir_all()?;
+        
+        // Extract to validated path
+        let mut outfile = safe_path.create_file()?;
+        std::io::copy(&amp;mut file, &amp;mut outfile)?;
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="pattern-5-temporary-file-processing"><a class="header" href="#pattern-5-temporary-file-processing">Pattern 5: Temporary File Processing</a></h2>
+<p><strong>Problem</strong>: Create temp directory for processing, auto-cleanup.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn process_upload(
+    data: &amp;[u8]
+) -&gt; Result&lt;ProcessedData, Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create temp directory with RAII cleanup
+    let temp_dir = PathBoundary::&lt;()&gt;::try_new_temp()?;
+    
+    // Write input
+    let input_file = temp_dir.strict_join("input.dat")?;
+    input_file.write_bytes(data)?;
+    
+    // Process
+    let output_file = temp_dir.strict_join("output.dat")?;
+    process_data(&amp;input_file, &amp;output_file)?;
+    
+    // Read result
+    let result = output_file.read()?;
+    
+    // temp_dir dropped here, automatically cleaned up
+    Ok(ProcessedData::from_bytes(&amp;result))
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="pattern-6-chaining-operations"><a class="header" href="#pattern-6-chaining-operations">Pattern 6: Chaining Operations</a></h2>
+<p><strong>Problem</strong>: Multiple sequential operations on paths.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn backup_and_update_config(
+    new_config: &amp;str
+) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let config_dir = PathBoundary::try_new("/etc/myapp")?;
+    
+    let config = config_dir.strict_join("config.toml")?;
+    let backup = config_dir.strict_join("config.toml.backup")?;
+    
+    // Chain operations
+    config.strict_copy(&amp;backup)?;           // Backup current
+    config.write(new_config)?;               // Write new
+    
+    // Verify
+    if config.read_to_string()? == new_config {
+        println!("Config updated successfully");
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="pattern-7-authorization-with-markers"><a class="header" href="#pattern-7-authorization-with-markers">Pattern 7: Authorization with Markers</a></h2>
+<p><strong>Problem</strong>: Different users need different access levels.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+struct ReadOnly;
+struct ReadWrite;
+
+fn authenticate_user(
+    username: &amp;str,
+    password: &amp;str
+) -&gt; Result&lt;PathBoundary&lt;ReadWrite&gt;, AuthError&gt; {
+    // Check credentials
+    if verify_credentials(username, password) {
+        let user_dir = format!("/var/data/users/{}", username);
+        let boundary: PathBoundary&lt;ReadOnly&gt; = PathBoundary::try_new(&amp;user_dir)
+            .map_err(|_| AuthError::NoAccess)?;
+        
+        // Escalate to write access after auth check
+        Ok(boundary.change_marker())
+    } else {
+        Err(AuthError::InvalidCredentials)
+    }
+}
+
+fn write_user_data(
+    boundary: &amp;PathBoundary&lt;ReadWrite&gt;, // Requires write marker
+    filename: &amp;str,
+    data: &amp;str
+) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let file = boundary.strict_join(filename)?;
+    file.write(data)?;
+    Ok(())
+}
+
+// ✅ Can only call write_user_data with ReadWrite marker
+let rw_boundary = authenticate_user("alice", "secret123")?;
+write_user_data(&amp;rw_boundary, "notes.txt", "My notes")?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="pattern-8-error-handling"><a class="header" href="#pattern-8-error-handling">Pattern 8: Error Handling</a></h2>
+<p><strong>Problem</strong>: Gracefully handle path validation failures.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPathError};
+
+fn safe_file_access(
+    base: &amp;str,
+    user_path: &amp;str
+) -&gt; Result&lt;String, AppError&gt; {
+    let boundary = PathBoundary::try_new(base)
+        .map_err(|e| AppError::InvalidBase(e))?;
+    
+    let file = boundary.strict_join(user_path)
+        .map_err(|e| match e {
+            StrictPathError::PathEscapesBoundary { attempted, boundary } =&gt; {
+                AppError::PathEscape { 
+                    path: attempted.display().to_string(),
+                    reason: "Attempted directory traversal"
+                }
+            }
+            StrictPathError::WindowsShortName { component } =&gt; {
+                AppError::InvalidPath {
+                    reason: format!("Windows short name detected: {}", component)
+                }
+            }
+            _ =&gt; AppError::ValidationFailed(e)
+        })?;
+    
+    file.read_to_string()
+        .map_err(|e| AppError::IoError(e))
+}
+
+#[derive(Debug)]
+enum AppError {
+    InvalidBase(StrictPathError),
+    PathEscape { path: String, reason: &amp;'static str },
+    InvalidPath { reason: String },
+    ValidationFailed(StrictPathError),
+    IoError(std::io::Error),
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="pattern-9-database-path-storage"><a class="header" href="#pattern-9-database-path-storage">Pattern 9: Database Path Storage</a></h2>
+<p><strong>Problem</strong>: Store and retrieve validated paths from database.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize)]
+struct FileRecord {
+    id: u64,
+    // Store as string in DB
+    relative_path: String,
+}
+
+struct FileService {
+    boundary: PathBoundary&lt;DataDir&gt;,
+}
+
+struct DataDir;
+
+impl FileService {
+    fn save_file(&amp;self, name: &amp;str, data: &amp;[u8]) -&gt; Result&lt;FileRecord, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Validate before using
+        let file = self.boundary.strict_join(name)?;
+        file.write_bytes(data)?;
+        
+        // Store relative path in DB
+        Ok(FileRecord {
+            id: generate_id(),
+            relative_path: name.to_string(),
+        })
+    }
+    
+    fn load_file(&amp;self, record: &amp;FileRecord) -&gt; Result&lt;Vec&lt;u8&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Re-validate on load
+        let file = self.boundary.strict_join(&amp;record.relative_path)?;
+        Ok(file.read()?)
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="pattern-10-logging-and-auditing"><a class="header" href="#pattern-10-logging-and-auditing">Pattern 10: Logging and Auditing</a></h2>
+<p><strong>Problem</strong>: Log file access for compliance.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+use tracing::{info, warn};
+
+fn audit_read&lt;M&gt;(
+    path: &amp;StrictPath&lt;M&gt;,
+    user: &amp;str
+) -&gt; std::io::Result&lt;String&gt; {
+    info!(
+        user = user,
+        path = %path.strictpath_display(),
+        action = "read",
+        "File access"
+    );
+    
+    match path.read_to_string() {
+        Ok(contents) =&gt; {
+            info!(
+                user = user,
+                path = %path.strictpath_display(),
+                size = contents.len(),
+                "Read successful"
+            );
+            Ok(contents)
+        }
+        Err(e) =&gt; {
+            warn!(
+                user = user,
+                path = %path.strictpath_display(),
+                error = %e,
+                "Read failed"
+            );
+            Err(e)
+        }
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="performance-tips"><a class="header" href="#performance-tips">Performance Tips</a></h2>
+<h3 id="reuse-boundaries"><a class="header" href="#reuse-boundaries">Reuse Boundaries</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ Good: create boundary once
+let boundary = PathBoundary::try_new("/var/data")?;
+
+for filename in filenames {
+    let file = boundary.strict_join(filename)?;
+    process(file)?;
+}
+
+// ❌ Bad: recreating boundary every iteration
+for filename in filenames {
+    let boundary = PathBoundary::try_new("/var/data")?; // Wasteful!
+    let file = boundary.strict_join(filename)?;
+    process(file)?;
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="batch-validation"><a class="header" href="#batch-validation">Batch Validation</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Validate all paths upfront
+let files: Result&lt;Vec&lt;_&gt;, _&gt; = filenames
+    .iter()
+    .map(|name| boundary.strict_join(name))
+    .collect();
+
+let files = files?; // Single error handling point
+
+// Then process
+for file in files {
+    process(&amp;file)?;
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="avoid-redundant-checks"><a class="header" href="#avoid-redundant-checks">Avoid Redundant Checks</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ❌ Bad: checking twice
+if file.exists() {
+    file.read_to_string()?;
+}
+
+// ✅ Good: let I/O operation handle it
+match file.read_to_string() {
+    Ok(contents) =&gt; { /* use contents */ }
+    Err(e) if e.kind() == std::io::ErrorKind::NotFound =&gt; { /* handle missing */ }
+    Err(e) =&gt; return Err(e.into()),
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="summary-2"><a class="header" href="#summary-2">Summary</a></h2>
+<ul>
+<li><strong>Always validate user input through <code>strict_join</code>/<code>virtual_join</code></strong></li>
+<li><strong>Create boundaries once, reuse for multiple paths</strong></li>
+<li><strong>Use markers to encode authorization at type level</strong></li>
+<li><strong>Handle errors gracefully with specific error types</strong></li>
+<li><strong>Re-validate paths loaded from databases</strong></li>
+<li><strong>Log file operations for audit trails</strong></li>
+<li><strong>Prefer builtin I/O methods over <code>.interop_path()</code></strong></li>
+<li><strong>Use temporary directories with RAII cleanup</strong></li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="interop-vs-display"><a class="header" href="#interop-vs-display">Interop vs Display</a></h1>
 <ul>
 <li>Interop (AsRef<Path>): use <code>interop_path()</code> on <code>StrictPath</code>, <code>VirtualPath</code>, <code>PathBoundary</code>, and <code>VirtualRoot</code>. It borrows the underlying OS path without allocations.</li>

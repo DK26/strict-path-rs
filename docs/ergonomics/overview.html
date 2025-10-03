@@ -183,12 +183,19 @@
                     <main>
                         <h1 id="ergonomics-overview"><a class="header" href="#ergonomics-overview">Ergonomics Overview</a></h1>
 <p>This section collects high-signal, copy-pasteable guidance for day-to-day use without re-explaining the security model. Each page is short and focused so you can jump directly to what you need.</p>
+<h2 id="new-to-strict-path"><a class="header" href="#new-to-strict-path">New to strict-path?</a></h2>
+<p>Start with <strong>Daily Usage Patterns</strong> for common workflows and real-world examples.</p>
+<h2 id="quick-reference"><a class="header" href="#quick-reference">Quick Reference</a></h2>
 <ul>
-<li>Interop vs Display: how to pass paths to std/third-party APIs vs how to render them for users.</li>
-<li>Function Signatures: encode guarantees in types; when to accept strict/virtual vs roots + segments.</li>
-<li>Escape Hatches: borrowing and ownership conversions; when to use them (sparingly).</li>
-<li>Equality &amp; Ordering: how comparisons work; what to compare and what not to.</li>
-<li>Naming: domain-first naming that teaches intent in code review.</li>
+<li><strong>Builtin I/O Operations</strong>: Complete guide to file/directory operations, when to use builtin methods vs <code>std::fs</code></li>
+<li><strong>Generic Functions &amp; Markers</strong>: Write reusable functions with <code>&lt;M&gt;</code>, understand when to use generic vs specific markers</li>
+<li><strong>Daily Usage Patterns</strong>: Common workflows (user input validation, config loading, per-user isolation, archive extraction, etc.)</li>
+<li><strong>Interop vs Display</strong>: How to pass paths to std/third-party APIs vs how to render them for users</li>
+<li><strong>Function Signatures</strong>: Encode guarantees in types; when to accept strict/virtual vs roots + segments</li>
+<li><strong>Escape Hatches</strong>: Borrowing and ownership conversions; when to use them (sparingly)</li>
+<li><strong>Equality &amp; Ordering</strong>: How comparisons work; what to compare and what not to</li>
+<li><strong>Naming Conventions</strong>: Domain-first naming that teaches intent in code review</li>
+<li><strong>Canonicalized vs Lexical</strong>: Choosing the right solution for your use case</li>
 </ul>
 <p>For in-depth design and security rationale, see Best Practices and Anti-Patterns. This section stays focused on ergonomics.</p>
 
@@ -200,7 +207,7 @@
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../ergonomics/interop_display.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../ergonomics/builtin_io.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -214,7 +221,7 @@
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../ergonomics/interop_display.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../ergonomics/builtin_io.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

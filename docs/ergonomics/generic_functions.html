@@ -1,0 +1,563 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Generic Functions &amp; Markers - The Complete StrictPath Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Comprehensive guide to strict-path: Type-safe path boundaries preventing directory traversal attacks">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/ergonomics/generic_functions.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="generic-functions-and-marker-patterns"><a class="header" href="#generic-functions-and-marker-patterns">Generic Functions and Marker Patterns</a></h1>
+<p>Learn how to write reusable functions that work with any marker type using Rust's generics.</p>
+<h2 id="the-m-pattern"><a class="header" href="#the-m-pattern">The <code>&lt;M&gt;</code> Pattern</a></h2>
+<p>When you write <code>&lt;M&gt;</code>, you're saying "this function works with paths of <strong>any</strong> marker type."</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+// ✅ Generic: works with any marker
+fn get_size&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;u64&gt; {
+    Ok(path.metadata()?.len())
+}
+
+// Can call with any marker type
+let config: StrictPath&lt;ConfigDir&gt; = ...;
+let uploads: StrictPath&lt;UserUploads&gt; = ...;
+
+let config_size = get_size(&amp;config)?;   // M = ConfigDir
+let upload_size = get_size(&amp;uploads)?;  // M = UserUploads
+<span class="boring">}</span></code></pre></pre>
+<h2 id="when-to-use-generic-functions"><a class="header" href="#when-to-use-generic-functions">When to Use Generic Functions</a></h2>
+<p><strong>Use <code>&lt;M&gt;</code> when:</strong></p>
+<ul>
+<li>Function logic doesn't care about the specific marker</li>
+<li>You're building reusable utilities</li>
+<li>The operation applies to any path type</li>
+</ul>
+<p><strong>Use specific markers when:</strong></p>
+<ul>
+<li>Function requires specific authorization level</li>
+<li>Business logic depends on path context</li>
+<li>Type safety prevents mixing different domains</li>
+</ul>
+<h2 id="common-generic-patterns"><a class="header" href="#common-generic-patterns">Common Generic Patterns</a></h2>
+<h3 id="pattern-1-generic-helpers"><a class="header" href="#pattern-1-generic-helpers">Pattern 1: Generic Helpers</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Read and parse JSON from any path
+fn read_json&lt;M, T: serde::de::DeserializeOwned&gt;(
+    path: &amp;StrictPath&lt;M&gt;
+) -&gt; Result&lt;T, Box&lt;dyn std::error::Error&gt;&gt; {
+    let contents = path.read_to_string()?;
+    Ok(serde_json::from_str(&amp;contents)?)
+}
+
+// Works with any marker
+let config: Config = read_json(&amp;config_path)?;
+let data: UserData = read_json(&amp;user_path)?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="pattern-2-generic-validation"><a class="header" href="#pattern-2-generic-validation">Pattern 2: Generic Validation</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Ensure path exists and is a file
+fn validate_file&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;()&gt; {
+    if !path.exists() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("File not found: {}", path.strictpath_display())
+        ));
+    }
+    
+    if !path.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Path is not a file"
+        ));
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="pattern-3-generic-logging"><a class="header" href="#pattern-3-generic-logging">Pattern 3: Generic Logging</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use tracing::info;
+
+/// Log path access for audit trail
+fn log_access&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;, operation: &amp;str) {
+    info!(
+        operation = operation,
+        path = %path.strictpath_display(),
+        "Path accessed"
+    );
+}
+
+// Use in your code
+log_access(&amp;user_file, "read");
+<span class="boring">}</span></code></pre></pre>
+<h3 id="pattern-4-generic-directory-processing"><a class="header" href="#pattern-4-generic-directory-processing">Pattern 4: Generic Directory Processing</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Count files in directory
+fn count_files&lt;M&gt;(dir: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;usize&gt; {
+    let mut count = 0;
+    
+    for entry in dir.read_dir()? {
+        let entry = entry?;
+        if entry.metadata()?.is_file() {
+            count += 1;
+        }
+    }
+    
+    Ok(count)
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="specific-marker-functions"><a class="header" href="#specific-marker-functions">Specific Marker Functions</a></h2>
+<p>Sometimes you want <strong>exactly</strong> the right marker type:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct UserData;
+struct ConfigDir;
+
+// ✅ Only accepts UserData paths
+fn process_user_file(file: &amp;StrictPath&lt;UserData&gt;) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let contents = file.read_to_string()?;
+    // Process user-specific data
+    Ok(())
+}
+
+// ✅ Only accepts ConfigDir paths
+fn load_config(config: &amp;StrictPath&lt;ConfigDir&gt;) -&gt; Result&lt;AppConfig, Box&lt;dyn std::error::Error&gt;&gt; {
+    let contents = config.read_to_string()?;
+    Ok(toml::from_str(&amp;contents)?)
+}
+
+// ❌ Won't compile: wrong marker type
+let user_file: StrictPath&lt;UserData&gt; = ...;
+load_config(&amp;user_file); // ERROR: expected ConfigDir, found UserData
+<span class="boring">}</span></code></pre></pre>
+<h2 id="generic-virtualpath-functions"><a class="header" href="#generic-virtualpath-functions">Generic VirtualPath Functions</a></h2>
+<p>The same patterns work for <code>VirtualPath</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualPath;
+
+/// Generic file writer
+fn write_log&lt;M&gt;(path: &amp;VirtualPath&lt;M&gt;, message: &amp;str) -&gt; std::io::Result&lt;()&gt; {
+    path.create_parent_dir_all()?;
+    path.write(format!("[{}] {}\n", chrono::Utc::now(), message))
+}
+
+/// Generic directory validator
+fn ensure_directory&lt;M&gt;(path: &amp;VirtualPath&lt;M&gt;) -&gt; std::io::Result&lt;()&gt; {
+    if !path.exists() {
+        path.create_dir_all()?;
+    } else if !path.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "Path exists but is not a directory"
+        ));
+    }
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="passing-paths-through-call-chains"><a class="header" href="#passing-paths-through-call-chains">Passing Paths Through Call Chains</a></h2>
+<h3 id="generic-chain"><a class="header" href="#generic-chain">Generic Chain</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Generic all the way down
+fn read_data&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    validate_file(path)?;           // Generic
+    log_access(path, "read");        // Generic
+    path.read()                      // Read the file
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="specific-chain"><a class="header" href="#specific-chain">Specific Chain</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct TenantData;
+
+// Specific markers maintained through chain
+fn load_tenant_data(path: &amp;StrictPath&lt;TenantData&gt;) -&gt; Result&lt;Data, Error&gt; {
+    validate_tenant_path(path)?;     // Takes StrictPath&lt;TenantData&gt;
+    parse_tenant_data(path)?;        // Takes StrictPath&lt;TenantData&gt;
+    decrypt_tenant_data(path)        // Takes StrictPath&lt;TenantData&gt;
+}
+
+// Each function in chain requires TenantData marker
+fn validate_tenant_path(path: &amp;StrictPath&lt;TenantData&gt;) -&gt; Result&lt;(), Error&gt; { ... }
+fn parse_tenant_data(path: &amp;StrictPath&lt;TenantData&gt;) -&gt; Result&lt;(), Error&gt; { ... }
+fn decrypt_tenant_data(path: &amp;StrictPath&lt;TenantData&gt;) -&gt; Result&lt;Data, Error&gt; { ... }
+<span class="boring">}</span></code></pre></pre>
+<h2 id="returning-generic-paths"><a class="header" href="#returning-generic-paths">Returning Generic Paths</a></h2>
+<p>You can return paths with preserved markers:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+/// Find config file in directory
+fn find_config&lt;M&gt;(dir: &amp;PathBoundary&lt;M&gt;) -&gt; Option&lt;StrictPath&lt;M&gt;&gt; {
+    for entry in dir.read_dir().ok()? {
+        let entry = entry.ok()?;
+        let name = entry.file_name();
+        
+        if name.to_string_lossy().ends_with(".conf") {
+            return dir.strict_join(&amp;name).ok();
+        }
+    }
+    None
+}
+
+// Marker type flows through
+let config_dir: PathBoundary&lt;ConfigDir&gt; = ...;
+let found: Option&lt;StrictPath&lt;ConfigDir&gt;&gt; = find_config(&amp;config_dir);
+<span class="boring">}</span></code></pre></pre>
+<h2 id="generic-with-constraints"><a class="header" href="#generic-with-constraints">Generic with Constraints</a></h2>
+<p>You can constrain markers with trait bounds:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Marker must implement Send + Sync
+fn parallel_process&lt;M: Send + Sync&gt;(
+    paths: Vec&lt;StrictPath&lt;M&gt;&gt;
+) -&gt; Vec&lt;std::io::Result&lt;String&gt;&gt; {
+    use rayon::prelude::*;
+    
+    paths.par_iter()
+        .map(|p| p.read_to_string())
+        .collect()
+}
+
+/// Marker must implement custom trait
+trait Auditable {
+    fn audit_log_name() -&gt; &amp;'static str;
+}
+
+fn audit_access&lt;M: Auditable&gt;(path: &amp;StrictPath&lt;M&gt;) {
+    println!("Accessing {} path: {}", 
+        M::audit_log_name(), 
+        path.strictpath_display()
+    );
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="common-mistakes"><a class="header" href="#common-mistakes">Common Mistakes</a></h2>
+<h3 id="-unnecessary-generic-constraint"><a class="header" href="#-unnecessary-generic-constraint">❌ Unnecessary Generic Constraint</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Bad: overly restrictive
+fn read_size&lt;M: Sized&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;u64&gt; {
+    Ok(path.metadata()?.len())
+}
+
+// Good: no constraint needed
+fn read_size&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;u64&gt; {
+    Ok(path.metadata()?.len())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="-mixing-markers-unsafely"><a class="header" href="#-mixing-markers-unsafely">❌ Mixing Markers Unsafely</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Bad: forces marker type conversion
+fn bad_mix&lt;M1, M2&gt;(src: &amp;StrictPath&lt;M1&gt;, dst: &amp;StrictPath&lt;M2&gt;) {
+    // Won't compile: can't copy between different marker types
+    src.strict_copy(dst); // ERROR: marker type mismatch
+}
+
+// Good: require same marker
+fn good_copy&lt;M&gt;(src: &amp;StrictPath&lt;M&gt;, dst: &amp;StrictPath&lt;M&gt;) {
+    src.strict_copy(dst); // ✅ OK: both have marker M
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="-losing-marker-type"><a class="header" href="#-losing-marker-type">❌ Losing Marker Type</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Bad: loses type information
+fn process(path: &amp;StrictPath&lt;()&gt;) { ... }
+
+// Good: preserve marker
+fn process&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) { ... }
+<span class="boring">}</span></code></pre></pre>
+<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
+<h3 id="-start-generic-add-constraints-as-needed"><a class="header" href="#-start-generic-add-constraints-as-needed">✅ Start Generic, Add Constraints as Needed</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Start here
+fn process&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) { ... }
+
+// Add trait bounds only if needed
+fn process&lt;M: Send + Sync&gt;(path: &amp;StrictPath&lt;M&gt;) { ... }
+
+// Use specific markers only when required for business logic
+fn process_user(path: &amp;StrictPath&lt;UserData&gt;) { ... }
+<span class="boring">}</span></code></pre></pre>
+<h3 id="-document-marker-expectations"><a class="header" href="#-document-marker-expectations">✅ Document Marker Expectations</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Process any file in any boundary.
+///
+/// Generic over marker type `M` because the operation
+/// doesn't depend on specific authorization or context.
+fn process_file&lt;M&gt;(file: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;()&gt; {
+    // ...
+}
+
+/// Load user-specific configuration.
+///
+/// Requires `UserData` marker to enforce that only
+/// user-scoped paths can be processed here.
+fn load_user_config(file: &amp;StrictPath&lt;UserData&gt;) -&gt; Result&lt;Config&gt; {
+    // ...
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="-use-generic-for-utilities-specific-for-domain-logic"><a class="header" href="#-use-generic-for-utilities-specific-for-domain-logic">✅ Use Generic for Utilities, Specific for Domain Logic</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ Generic utility
+fn file_size&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;u64&gt; { ... }
+
+// ✅ Specific domain logic
+fn charge_storage_fees(path: &amp;StrictPath&lt;BillingData&gt;) -&gt; Result&lt;Amount&gt; { ... }
+<span class="boring">}</span></code></pre></pre>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<ul>
+<li><strong><code>&lt;M&gt;</code> means "works with any marker"</strong></li>
+<li><strong>Use generics for reusable utilities</strong></li>
+<li><strong>Use specific markers for domain-specific logic</strong></li>
+<li><strong>The compiler prevents marker type mismatches</strong></li>
+<li><strong>Marker types flow through call chains automatically</strong></li>
+<li><strong>Add trait bounds only when needed</strong></li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../ergonomics/builtin_io.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../ergonomics/daily_patterns.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../ergonomics/builtin_io.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../ergonomics/daily_patterns.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

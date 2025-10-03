@@ -191,8 +191,27 @@
 <li>❌ Symlinks pointing outside the extraction directory</li>
 </ul>
 <h2 id="the-solution"><a class="header" href="#the-solution">The Solution</a></h2>
-<p>Use <code>PathBoundary</code> to restrict extraction to a specific directory. Malicious paths are automatically blocked.</p>
-<h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
+<p>Use <code>PathBoundary</code> or <code>VirtualRoot</code> to restrict extraction to a specific directory. Malicious paths are automatically blocked.</p>
+<h3 id="choosing-between-pathboundary-and-virtualroot"><a class="header" href="#choosing-between-pathboundary-and-virtualroot">Choosing Between PathBoundary and VirtualRoot</a></h3>
+<ul>
+<li><strong>Use <code>VirtualRoot</code></strong> for extraction pipelines - it clamps any input to the boundary, making batch extraction resilient</li>
+<li><strong>Use <code>PathBoundary</code></strong> when you need strict validation and want errors on malicious paths</li>
+</ul>
+<h2 id="recommended-patterns"><a class="header" href="#recommended-patterns">Recommended Patterns</a></h2>
+<ul>
+<li>✅ Use <code>create_parent_dir_all()</code> before writes to avoid race conditions</li>
+<li>✅ Always join via <code>virtual_join()</code> or <code>strict_join()</code> - never concatenate paths manually</li>
+<li>✅ Treat absolute, UNC, drive-relative, or namespace-prefixed paths as untrusted</li>
+<li>✅ On Windows, NTFS Alternate Data Streams (ADS) like <code>"file.txt:stream"</code> are handled safely</li>
+</ul>
+<h2 id="anti-patterns-dont-do-this"><a class="header" href="#anti-patterns-dont-do-this">Anti-Patterns (Don't Do This)</a></h2>
+<ul>
+<li>❌ Building paths with <code>format!</code>/<code>push</code>/<code>join</code> on <code>std::path::Path</code> without validation</li>
+<li>❌ Stripping <code>"../"</code> by string replacement</li>
+<li>❌ Allowing absolute paths through to the OS</li>
+<li>❌ Treating encoded/unicode tricks (URL-encoded, dot lookalikes) as pre-sanitized</li>
+</ul>
+<h2 id="complete-example-with-pathboundary"><a class="header" href="#complete-example-with-pathboundary">Complete Example with PathBoundary</a></h2>
 <pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
 use std::fs;
 use std::io::Write;
@@ -267,6 +286,53 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     
     Ok(())
 }</code></pre></pre>
+<h2 id="alternative-virtualroot-for-resilient-extraction"><a class="header" href="#alternative-virtualroot-for-resilient-extraction">Alternative: VirtualRoot for Resilient Extraction</a></h2>
+<p>For extraction pipelines where you want to log and skip malicious entries rather than fail:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualRoot;
+
+fn extract_all_resilient(
+    dest: &amp;str,
+    entries: Vec&lt;(&amp;str, &amp;[u8])&gt;,
+) -&gt; Result&lt;usize, Box&lt;dyn std::error::Error&gt;&gt; {
+    let vroot: VirtualRoot = VirtualRoot::try_new_create(dest)?;
+    let mut extracted_count = 0;
+
+    for (name, data) in entries {
+        // VirtualRoot clamps malicious paths instead of erroring
+        match vroot.virtual_join(name) {
+            Ok(vpath) =&gt; {
+                // Ensure parent directories exist (inside the boundary)
+                vpath.create_parent_dir_all()?;
+                
+                // Perform the write safely
+                vpath.write(data)?;
+                
+                println!("📦 Extracted: {} -&gt; {}", name, vpath.virtualpath_display());
+                extracted_count += 1;
+            }
+            Err(e) =&gt; {
+                // Cleanly reject this entry, log if needed
+                println!("⚠️  Skipped malicious entry '{}': {}", name, e);
+                continue;
+            }
+        }
+    }
+    
+    Ok(extracted_count)
+}
+
+// Usage
+let entries = vec![
+    ("readme.txt", b"Safe content" as &amp;[u8]),
+    ("../../../etc/passwd", b"Malicious"), // Skipped with log
+    ("docs/api.md", b"More safe content"),
+];
+
+let count = extract_all_resilient("extracted", entries)?;
+println!("✅ Successfully extracted {} files", count);
+<span class="boring">}</span></code></pre></pre>
 <h2 id="key-security-features"><a class="header" href="#key-security-features">Key Security Features</a></h2>
 <h3 id="1-bounded-extraction-directory"><a class="header" href="#1-bounded-extraction-directory">1. Bounded Extraction Directory</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -467,6 +533,48 @@ fn extract_to_temp(archive_path: &amp;str) -&gt; Result&lt;(TempDir, Vec&lt;Stri
 
 // Temp directory is automatically cleaned up when TempDir is dropped
 <span class="boring">}</span></code></pre></pre>
+<h2 id="testing-advice"><a class="header" href="#testing-advice">Testing Advice</a></h2>
+<p>Test your extraction code with a malicious archive corpus:</p>
+<h3 id="test-cases-to-include"><a class="header" href="#test-cases-to-include">Test Cases to Include</a></h3>
+<ul>
+<li><strong>Directory traversal</strong>: <code>"../"</code>, <code>"..\\"</code>, <code>"legitimate/../../etc/passwd"</code></li>
+<li><strong>Absolute paths</strong>: <code>"/var/www/evil"</code>, <code>"C:\\windows\\system32\\evil.exe"</code></li>
+<li><strong>Windows-specific</strong>:
+<ul>
+<li>UNC paths: <code>"\\\\?\\C:\\windows\\evil"</code></li>
+<li>Drive-relative: <code>"C:..\\foo"</code></li>
+<li>ADS streams: <code>"decoy.txt:..\\..\\evil.exe"</code></li>
+<li>Reserved names: <code>"CON"</code>, <code>"PRN"</code>, <code>"AUX"</code></li>
+</ul>
+</li>
+<li><strong>Unicode tricks</strong>: Dot lookalikes, NFC vs NFD forms</li>
+<li><strong>Long paths</strong>: Paths exceeding system limits</li>
+</ul>
+<h3 id="assertions"><a class="header" href="#assertions">Assertions</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[test]
+fn test_archive_extraction_safety() {
+    let boundary = PathBoundary::try_new_create("test_extract").unwrap();
+    
+    // Should succeed
+    assert!(boundary.strict_join("safe/path.txt").is_ok());
+    
+    // Should fail
+    assert!(boundary.strict_join("../../../etc/passwd").is_err());
+    assert!(boundary.strict_join("/absolute/path").is_err());
+    
+    // Cleanup
+    std::fs::remove_dir_all("test_extract").ok();
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="behavior-notes"><a class="header" href="#behavior-notes">Behavior Notes</a></h2>
+<ul>
+<li><strong>Virtual joins clamp traversal</strong> lexically to the virtual root</li>
+<li><strong>System-facing escapes</strong> (via symlinks/junctions) are rejected during resolution</li>
+<li><strong>Unicode is not normalized</strong> - NFC and NFD forms are stored as-is, both safely contained</li>
+<li><strong>Hard links and privileged mount tricks</strong> are outside path-level protections (see README limitations)</li>
+</ul>
 <h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
 <ol>
 <li><strong>Always validate</strong> - Never trust archive entry paths</li>

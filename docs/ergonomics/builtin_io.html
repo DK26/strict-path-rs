@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Web File Upload Service - The Complete StrictPath Guide</title>
+        <title>Builtin I/O Operations - The Complete StrictPath Guide</title>
 
 
         <!-- Custom HTML head -->
@@ -147,7 +147,7 @@
                         <a href="https://github.com/DK26/strict-path-rs" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/examples/web_upload_service.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/ergonomics/builtin_io.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -181,186 +181,229 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="web-file-upload-service"><a class="header" href="#web-file-upload-service">Web File Upload Service</a></h1>
-<p>Let's build a simple file upload service that allows users to upload files safely. This example demonstrates per-user isolation using <code>VirtualRoot</code>.</p>
-<h2 id="the-problem"><a class="header" href="#the-problem">The Problem</a></h2>
-<p>Web applications need to accept file uploads from users, but must prevent:</p>
-<ul>
-<li>❌ Path traversal attacks (<code>../../../etc/passwd</code>)</li>
-<li>❌ Users accessing other users' files</li>
-<li>❌ Absolute path injections (<code>/var/www/html/shell.php</code>)</li>
-</ul>
-<h2 id="the-solution"><a class="header" href="#the-solution">The Solution</a></h2>
-<p>Use <code>VirtualRoot</code> to create isolated storage for each user. Each user operates in their own sandboxed environment.</p>
-<h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
-<pre><pre class="playground"><code class="language-rust">use strict_path::{StrictPath, VirtualPath, VirtualRoot};
-use std::io;
+                        <h1 id="builtin-io-operations"><a class="header" href="#builtin-io-operations">Builtin I/O Operations</a></h1>
+<p><code>strict-path</code> provides safe I/O helpers that maintain boundary security while eliminating the need for raw <code>std::fs</code> calls on leaked paths.</p>
+<h2 id="why-use-builtin-methods"><a class="header" href="#why-use-builtin-methods">Why Use Builtin Methods?</a></h2>
+<p><strong>Security</strong>: All operations stay within validated boundaries<br />
+<strong>Ergonomics</strong>: No need to call <code>.interop_path()</code> for common operations<br />
+<strong>Correctness</strong>: Type-checked paths guarantee safety at compile time</p>
+<h2 id="file-operations"><a class="header" href="#file-operations">File Operations</a></h2>
+<h3 id="reading-files"><a class="header" href="#reading-files">Reading Files</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
 
-struct FileUploadService;
+let config_dir = PathBoundary::try_new("/etc/myapp")?;
+let config_file = config_dir.strict_join("config.toml")?;
 
-impl FileUploadService {
-    // Multi-user: each user operates under their own VirtualRoot
-    fn upload_file(
-        &amp;self,
-        user_uploads_root: &amp;VirtualRoot,
-        upload_file_name: &amp;str,
-        upload_file_content: &amp;[u8],
-    ) -&gt; Result&lt;VirtualPath, Box&lt;dyn std::error::Error&gt;&gt; {
-        // Validate the untrusted filename at the user's virtual root
-        let uploaded_file: VirtualPath = user_uploads_root.virtual_join(upload_file_name)?;
-        // Reuse strict-typed helper when needed
-        self.save_uploaded(uploaded_file.as_unvirtual(), upload_file_content)?;
-        println!("✅ File uploaded safely to: {}", uploaded_file.virtualpath_display());
-        Ok(uploaded_file)
-    }
+// Read entire file as string
+let contents = config_file.read_to_string()?;
 
-    // Internal helper: signature encodes guarantee (accepts only &amp;StrictPath)
-    fn save_uploaded(&amp;self, file: &amp;StrictPath, content: &amp;[u8]) -&gt; io::Result&lt;()&gt; {
-        file.create_parent_dir_all()?;
-        file.write(content)
-    }
+// Read as bytes
+let bytes = config_file.read()?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="writing-files"><a class="header" href="#writing-files">Writing Files</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualRoot;
 
-    fn list_files(
-        &amp;self,
-        user_uploads_root: &amp;VirtualRoot,
-    ) -&gt; Result&lt;Vec&lt;VirtualPath&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
-        let mut files = Vec::new();
-        for entry in user_uploads_root.read_dir()? {
-            let entry = entry?;
-            if entry.file_type()?.is_file() {
-                let file: VirtualPath = user_uploads_root.virtual_join(entry.file_name())?;
-                files.push(file);
-            }
-        }
-        Ok(files)
-    }
+let user_docs = VirtualRoot::try_new("/home/user/documents")?;
+let report = user_docs.virtual_join("reports/summary.txt")?;
 
-    fn download_file(&amp;self, file: &amp;VirtualPath) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
-        // Read and return the file content — type ensures safety
-        file.read()
-    }
+// Ensure parent directories exist
+report.create_parent_dir_all()?;
+
+// Write string content
+report.write("Monthly Summary\n\nTotal: 42")?;
+
+// Write bytes
+report.write_bytes(b"Binary data")?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="file-handles"><a class="header" href="#file-handles">File Handles</a></h3>
+<p>For streaming or more control, use file handles:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::io::{Read, Write};
+
+// Create or truncate file, get writable handle
+let mut file = report.create_file()?;
+file.write_all(b"Line 1\n")?;
+file.write_all(b"Line 2\n")?;
+
+// Open for reading
+let mut file = report.open_file()?;
+let mut contents = String::new();
+file.read_to_string(&amp;mut contents)?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="directory-operations"><a class="header" href="#directory-operations">Directory Operations</a></h2>
+<h3 id="creating-directories"><a class="header" href="#creating-directories">Creating Directories</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Create single directory (parent must exist)
+let subdir = config_dir.strict_join("plugins")?;
+subdir.create_dir()?;
+
+// Create all parent directories if missing
+let nested = config_dir.strict_join("data/cache/temp")?;
+nested.create_dir_all()?;
+
+// Non-recursive variant (VirtualPath)
+let vdir = user_docs.virtual_join("archive")?;
+vdir.create_dir_non_recursive()?; // Fails if parent missing
+<span class="boring">}</span></code></pre></pre>
+<h3 id="listing-directory-contents"><a class="header" href="#listing-directory-contents">Listing Directory Contents</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Discovery: enumerate entries
+for entry in config_dir.read_dir()? {
+    let entry = entry?;
+    let name = entry.file_name();
+    
+    // Re-validate discovered path before use
+    let validated = config_dir.strict_join(&amp;name)?;
+    println!("Found: {}", validated.strictpath_display());
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="removing-directories"><a class="header" href="#removing-directories">Removing Directories</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Remove empty directory
+subdir.remove_dir()?;
+
+// Remove directory and all contents (dangerous!)
+nested.remove_dir_all()?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="metadata-operations"><a class="header" href="#metadata-operations">Metadata Operations</a></h2>
+<h3 id="checking-existence-and-type"><a class="header" href="#checking-existence-and-type">Checking Existence and Type</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Check if path exists
+if config_file.exists() {
+    println!("Config file found");
 }
 
-fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let service = FileUploadService;
+// Check type
+if config_file.is_file() {
+    println!("It's a file");
+}
 
-    // Per-user virtual roots
-    let alice_uploads_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/alice")?;
-    let bob_uploads_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/bob")?;
-
-    // Simulate user uploads - these are all SAFE and isolated
-    service.upload_file(&amp;alice_uploads_root, "document.txt", b"Hello, world!")?;
-    service.upload_file(&amp;alice_uploads_root, "reports/january.pdf", b"PDF content here")?;
-    service.upload_file(&amp;bob_uploads_root, "images/photo.jpg", b"JPEG data")?;
-
-    // These would be clamped/blocked by validation:
-    // service.upload_file(&amp;alice_uploads_root, "../../../etc/passwd", b"attack")?;  // ❌ Blocked!
-    // service.upload_file(&amp;alice_uploads_root, "..\\windows\\system32\\evil.exe", b"malware")?;  // ❌ Blocked!
-
-    // List Alice's uploaded files (virtual paths)
-    println!("📁 Alice's files:");
-    for file in service.list_files(&amp;alice_uploads_root)? {
-        println!("  - {}", file.virtualpath_display());
-    }
-
-    // Download a file using VirtualPath
-    let document_file = alice_uploads_root.virtual_join("document.txt")?;
-    let content = service.download_file(&amp;document_file)?;
-    println!("📄 Downloaded: {}", String::from_utf8_lossy(&amp;content));
-
-    Ok(())
-}</code></pre></pre>
-<h2 id="key-security-features"><a class="header" href="#key-security-features">Key Security Features</a></h2>
-<h3 id="1-per-user-isolation"><a class="header" href="#1-per-user-isolation">1. Per-User Isolation</a></h3>
-<p>Each user gets their own <code>VirtualRoot</code>. Alice can't access Bob's files and vice versa.</p>
-<h3 id="2-automatic-path-validation"><a class="header" href="#2-automatic-path-validation">2. Automatic Path Validation</a></h3>
+if config_dir.is_dir() {
+    println!("It's a directory");
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="getting-metadata"><a class="header" href="#getting-metadata">Getting Metadata</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>let uploaded_file = user_uploads_root.virtual_join(upload_file_name)?;
+</span>// Get full metadata
+let metadata = config_file.metadata()?;
+
+println!("Size: {} bytes", metadata.len());
+println!("Read-only: {}", metadata.permissions().readonly());
+println!("Modified: {:?}", metadata.modified()?);
 <span class="boring">}</span></code></pre></pre>
-<p>This validates the filename and ensures it stays within the user's boundary. Attacks are automatically blocked.</p>
-<h3 id="3-type-safe-helpers"><a class="header" href="#3-type-safe-helpers">3. Type-Safe Helpers</a></h3>
+<h3 id="symlink-metadata-dont-follow-links"><a class="header" href="#symlink-metadata-dont-follow-links">Symlink Metadata (Don't Follow Links)</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>fn save_uploaded(&amp;self, file: &amp;StrictPath, content: &amp;[u8]) -&gt; io::Result&lt;()&gt;
+</span>// Get metadata without following symlinks
+let link_meta = config_file.symlink_metadata()?;
+
+if link_meta.is_symlink() {
+    println!("This is a symbolic link");
+}
 <span class="boring">}</span></code></pre></pre>
-<p>By accepting <code>&amp;StrictPath</code>, the function signature guarantees the path has been validated.</p>
-<h3 id="4-virtual-path-display"><a class="header" href="#4-virtual-path-display">4. Virtual Path Display</a></h3>
+<h2 id="copy-rename-and-link-operations"><a class="header" href="#copy-rename-and-link-operations">Copy, Rename, and Link Operations</a></h2>
+<h3 id="copying-files"><a class="header" href="#copying-files">Copying Files</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>uploaded_file.virtualpath_display()  // Shows "/document.txt" to the user
-uploaded_file.strictpath_display()   // Shows "user_uploads/alice/document.txt" (system path)
+</span>let source = config_dir.strict_join("template.conf")?;
+let dest = config_dir.strict_join("active.conf")?;
+
+// Copy file, returns bytes copied
+let bytes = source.strict_copy(&amp;dest)?;
+println!("Copied {} bytes", bytes);
 <span class="boring">}</span></code></pre></pre>
-<p>Users see clean paths starting from <code>/</code>, while the system knows the real location.</p>
-<h2 id="attack-scenarios-prevented"><a class="header" href="#attack-scenarios-prevented">Attack Scenarios Prevented</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Attack</th><th>Result</th></tr></thead><tbody>
-<tr><td><code>../../../etc/passwd</code></td><td>❌ Clamped to user's root</td></tr>
-<tr><td><code>..\\windows\\system32\\evil.exe</code></td><td>❌ Clamped to user's root</td></tr>
-<tr><td><code>/var/www/html/shell.php</code></td><td>❌ Treated as relative, stays in boundary</td></tr>
-<tr><td><code>alice/../bob/secret.txt</code></td><td>❌ Normalized and clamped</td></tr>
+<h3 id="renamingmoving"><a class="header" href="#renamingmoving">Renaming/Moving</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let old_name = config_dir.strict_join("draft.txt")?;
+let new_name = config_dir.strict_join("final.txt")?;
+
+// Move/rename within same boundary
+old_name.strict_rename(&amp;new_name)?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="creating-links"><a class="header" href="#creating-links">Creating Links</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Symbolic link
+let target = config_dir.strict_join("current")?;
+let link = config_dir.strict_join("link-to-current")?;
+target.strict_symlink(&amp;link)?;
+
+// Hard link
+target.strict_hard_link(&amp;link)?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="builtin-vs-stdfs-comparison"><a class="header" href="#builtin-vs-stdfs-comparison">Builtin vs std::fs Comparison</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Operation</th><th><code>strict-path</code></th><th><code>std::fs</code></th><th>Why Prefer Builtin?</th></tr></thead><tbody>
+<tr><td>Read file</td><td><code>.read_to_string()?</code></td><td><code>fs::read_to_string(path.interop_path())?</code></td><td>Shorter, stays typed</td></tr>
+<tr><td>Write file</td><td><code>.write("content")?</code></td><td><code>fs::write(path.interop_path(), "content")?</code></td><td>No interop needed</td></tr>
+<tr><td>Copy file</td><td><code>.strict_copy(&amp;dest)?</code></td><td><code>fs::copy(src.interop_path(), dst.interop_path())?</code></td><td>Both paths validated</td></tr>
+<tr><td>Metadata</td><td><code>.metadata()?</code></td><td><code>fs::metadata(path.interop_path())?</code></td><td>Cleaner, same result</td></tr>
+<tr><td>Create dir</td><td><code>.create_dir_all()?</code></td><td><code>fs::create_dir_all(path.interop_path())?</code></td><td>Type-safe path</td></tr>
 </tbody></table>
 </div>
-<h2 id="sharing-common-logic"><a class="header" href="#sharing-common-logic">Sharing Common Logic</a></h2>
-<p>If you need to share logic between strict and virtual paths:</p>
+<h2 id="when-to-use-interop_path"><a class="header" href="#when-to-use-interop_path">When to Use interop_path()</a></h2>
+<p><strong>Only for unavoidable third-party crates</strong> that demand <code>AsRef&lt;Path&gt;</code>:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use strict_path::{PathBoundary, StrictPath, VirtualPath, VirtualRoot};
-use std::io;
+</span>// ✅ GOOD: Third-party crate requires AsRef&lt;Path&gt;
+let image = config_dir.strict_join("logo.png")?;
+let img = image::open(image.interop_path())?; // No choice
 
-// One helper that works with any marker
-fn process_common&lt;M&gt;(file: &amp;StrictPath&lt;M&gt;) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
-    file.read()
-}
+// ❌ BAD: Using interop when builtin exists
+std::fs::read_to_string(image.interop_path())?; // Use .read_to_string() instead
 
-// Prepare one strict file and one virtual file
-let public_assets_root = PathBoundary::try_new("./assets")?;
-let css_file: StrictPath = public_assets_root.strict_join("style.css")?;
-
-let alice_uploads_root = VirtualRoot::try_new("./uploads/alice")?;
-let avatar_file: VirtualPath = alice_uploads_root.virtual_join("avatar.jpg")?;
-
-// Call with either type
-let _ = process_common(&amp;css_file)?;                   // StrictPath
-let _ = process_common(avatar_file.as_unvirtual())?; // Borrow strict view from VirtualPath
+// ✅ GOOD: Use builtin
+let contents = image.read_to_string()?;
 <span class="boring">}</span></code></pre></pre>
-<h2 id="integration-tips"><a class="header" href="#integration-tips">Integration Tips</a></h2>
-<h3 id="with-web-frameworks"><a class="header" href="#with-web-frameworks">With Web Frameworks</a></h3>
+<h2 id="virtualpath-io-operations"><a class="header" href="#virtualpath-io-operations">VirtualPath I/O Operations</a></h2>
+<p>All methods work on <code>VirtualPath</code> too, maintaining virtual display semantics:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// Example with axum/actix-web
-async fn upload_handler(
-    user_id: String,
-    filename: String,
-    content: Vec&lt;u8&gt;,
-) -&gt; Result&lt;String, AppError&gt; {
-    let user_root = get_user_root(&amp;user_id)?;
-    let file = user_root.virtual_join(&amp;filename)?;
-    file.write(&amp;content)?;
-    Ok(file.virtualpath_display().to_string())
-}
+</span>let user_root = VirtualRoot::try_new("/var/lib/app/users/alice")?;
+let doc = user_root.virtual_join("documents/readme.txt")?;
+
+// All I/O operations available
+doc.create_parent_dir_all()?;
+doc.write("Welcome to your virtual filesystem!")?;
+
+// Display shows virtual path
+println!("Wrote to: {}", doc.virtualpath_display()); // "/documents/readme.txt"
+
+// But I/O happens at real system location
+println!("System location: {}", doc.as_unvirtual().strictpath_display());
 <span class="boring">}</span></code></pre></pre>
-<h3 id="with-async-runtimes"><a class="header" href="#with-async-runtimes">With Async Runtimes</a></h3>
-<p>All file operations work with <code>tokio::fs</code> or <code>async-std</code> - just use <code>.interop_path()</code> when needed:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>tokio::fs::write(file.interop_path(), content).await?;
-<span class="boring">}</span></code></pre></pre>
-<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
+<h2 id="performance-notes"><a class="header" href="#performance-notes">Performance Notes</a></h2>
+<p><strong>No overhead</strong>: Builtin methods call <code>std::fs</code> internally with zero abstraction cost.<br />
+<strong>Same syscalls</strong>: Operations compile to identical machine code as direct <code>std::fs</code> usage.<br />
+<strong>Validation cost</strong>: Only paid once during <code>strict_join</code>/<code>virtual_join</code>, not on every I/O operation.</p>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
 <ul>
-<li><strong>For Axum users</strong>: See the <a href="../axum_tutorial/overview.html">Axum Web Service Tutorial</a> for a complete 3-chapter guide with project setup, static assets, and per-user storage</li>
-<li>See <a href="./multi_user_storage.html">Multi-User Document Storage</a> for a more complex user isolation example</li>
-<li>See <a href="./type_safe_contexts.html">Type-Safe Context Separation</a> to learn about using markers to prevent context mixing</li>
+<li><strong>Use builtin methods for all common I/O operations</strong></li>
+<li><strong>Reserve <code>.interop_path()</code> for third-party crates</strong></li>
+<li><strong>Both <code>StrictPath</code> and <code>VirtualPath</code> support the full I/O API</strong></li>
+<li><strong>No performance penalty vs raw <code>std::fs</code></strong></li>
+<li><strong>Type safety and boundary security maintained automatically</strong></li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../examples/overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../ergonomics/overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../examples/config_manager.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../ergonomics/generic_functions.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -370,11 +413,11 @@ async fn upload_handler(
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../examples/overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../ergonomics/overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../examples/config_manager.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../ergonomics/generic_functions.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

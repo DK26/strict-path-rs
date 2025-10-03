@@ -2,6 +2,8 @@
 
 This tutorial demonstrates **key security patterns** for web services using **Axum** and **strict-path**. We focus on the essential integration points where path validation prevents vulnerabilities.
 
+> **Quick Start**: If you want a framework-agnostic example first, see [Web File Upload Service](../examples/web_upload_service.md) for the basic concepts without web framework complexity.
+
 ## What You'll Learn
 
 How to integrate `strict-path` into an Axum web service:
