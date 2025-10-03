@@ -20,7 +20,6 @@
 
 - [Type-System Guarantees](./type_system_guarantees.md)
 - [Security Methodology](./security_methodology.md)
-- [Authorization & Permissions](./authorization_security.md)
 
 ---
 
