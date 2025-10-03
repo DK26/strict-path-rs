@@ -1,13 +1,17 @@
-//! Advanced capability-based medical records system.
+//! Advanced capability-based medical records system (Stage 4 pattern).
 //!
-//! This service demonstrates sophisticated capability-based authorization using
-//! complex trait hierarchies. In a medical records system, different roles
-//! (patients, nurses, doctors, administrators) have different capabilities
-//! (read-only, read-write, audit, emergency access). The type system enforces
-//! that only authorized combinations can access specific record types. Emergency
-//! override capabilities can be granted temporarily, and audit logs track all
-//! access. This showcases the most advanced authorization patterns possible
-//! with strict-path's marker system and Rust's type system.
+//! This demo follows the tutorial Stage 4 pattern: check authorization FIRST,
+//! THEN encode it in the type via change_marker(). This service demonstrates
+//! sophisticated capability-based authorization using complex trait hierarchies.
+//! In a medical records system, different roles (patients, nurses, doctors,
+//! administrators) have different capabilities (read-only, read-write, audit,
+//! emergency access). We validate roles FIRST (e.g., `match self.claims.role`),
+//! THEN call change_marker() to encode proven authorization as tuple markers like
+//! `PathBoundary<(VitalsData, CanWrite)>`. The type system enforces that only
+//! authorized combinations can access specific record types. Emergency override
+//! capabilities can be granted temporarily, and audit logs track all access. This
+//! showcases the most advanced authorization patterns possible with strict-path's
+//! marker system and Rust's type system.
 
 use anyhow::{anyhow, Context, Result};
 use axum::{
@@ -634,10 +638,9 @@ struct MedicalRecordsSystem {
 
 impl MedicalRecordsSystem {
     fn new<P: AsRef<std::path::Path>>(root: P) -> Result<Self> {
-        let records_root = PathBoundary::<()>::try_new_create(
+        let records_root = PathBoundary::<(PatientRecords, CanRead)>::try_new_create(
             root.as_ref().join("patient_records"),
-        )?
-        .rebrand::<(PatientRecords, CanRead)>();
+        )?;
 
         Ok(Self {
             records_root,
@@ -714,7 +717,7 @@ impl AuthenticatedSession {
                             .map_err(|e| {
                                 ApiError::internal(anyhow!("Failed to access patient records: {e}"))
                             })?;
-                        Ok(patient_dir.rebrand::<(PatientRecords, CanRead)>())
+                        Ok(patient_dir)
                     } else {
                         Err(ApiError::forbidden(
                             "Patients can only access their own records",
@@ -733,7 +736,7 @@ impl AuthenticatedSession {
                     .map_err(|e| {
                         ApiError::internal(anyhow!("Failed to access patient records: {e}"))
                     })?;
-                Ok(patient_dir.rebrand::<(PatientRecords, CanRead)>())
+                Ok(patient_dir)
             }
         }
     }
@@ -742,18 +745,38 @@ impl AuthenticatedSession {
         &self,
         patient_id: Uuid,
     ) -> ApiResult<PathBoundary<(VitalsData, CanRead)>> {
+        // ✅ Authorization already validated: patient_records_access() checks access rights
+        // ✅ Now encode read capability in type via change_marker()
         let patient_records = self.patient_records_access(patient_id)?;
-        Ok(patient_records.rebrand::<(VitalsData, CanRead)>())
+        patient_records
+            .clone()
+            .into_strictpath()
+            .map_err(|e| ApiError::internal(anyhow!("Failed to open vitals: {e}")))?
+            .change_marker::<(VitalsData, CanRead)>()
+            .try_into_boundary()
+            .map_err(|e| ApiError::internal(anyhow!("Failed to open vitals: {e}")))
     }
 
     fn vitals_write_access(
         &self,
         patient_id: Uuid,
     ) -> ApiResult<PathBoundary<(VitalsData, CanWrite)>> {
+        // ✅ Step 1: Check authorization (validate role has write capability)
         match self.claims.role {
             MedicalRole::Nurse | MedicalRole::Doctor | MedicalRole::Admin => {
+                // ✅ Step 2: Authorization passed → encode it in type via change_marker()
                 let patient_records = self.patient_records_access(patient_id)?;
-                Ok(patient_records.rebrand::<(VitalsData, CanWrite)>())
+                patient_records
+                    .clone()
+                    .into_strictpath()
+                    .map_err(|e| {
+                        ApiError::internal(anyhow!("Failed to open vitals for write: {e}"))
+                    })?
+                    .change_marker::<(VitalsData, CanWrite)>()
+                    .try_into_boundary()
+                    .map_err(|e| {
+                        ApiError::internal(anyhow!("Failed to open vitals for write: {e}"))
+                    })
             }
             MedicalRole::Patient => Err(ApiError::forbidden("Patients cannot write vitals")),
         }
@@ -763,18 +786,38 @@ impl AuthenticatedSession {
         &self,
         patient_id: Uuid,
     ) -> ApiResult<PathBoundary<(DiagnosisData, CanRead)>> {
+        // ✅ Authorization already validated: patient_records_access() checks access rights
+        // ✅ Now encode read capability in type via change_marker()
         let patient_records = self.patient_records_access(patient_id)?;
-        Ok(patient_records.rebrand::<(DiagnosisData, CanRead)>())
+        patient_records
+            .clone()
+            .into_strictpath()
+            .map_err(|e| ApiError::internal(anyhow!("Failed to open diagnosis: {e}")))?
+            .change_marker::<(DiagnosisData, CanRead)>()
+            .try_into_boundary()
+            .map_err(|e| ApiError::internal(anyhow!("Failed to open diagnosis: {e}")))
     }
 
     fn diagnosis_write_access(
         &self,
         patient_id: Uuid,
     ) -> ApiResult<PathBoundary<(DiagnosisData, CanWrite)>> {
+        // ✅ Step 1: Check authorization (only doctors can write diagnoses)
         match self.claims.role {
             MedicalRole::Doctor | MedicalRole::Admin => {
+                // ✅ Step 2: Authorization passed → encode it in type via change_marker()
                 let patient_records = self.patient_records_access(patient_id)?;
-                Ok(patient_records.rebrand::<(DiagnosisData, CanWrite)>())
+                patient_records
+                    .clone()
+                    .into_strictpath()
+                    .map_err(|e| {
+                        ApiError::internal(anyhow!("Failed to open diagnosis for write: {e}"))
+                    })?
+                    .change_marker::<(DiagnosisData, CanWrite)>()
+                    .try_into_boundary()
+                    .map_err(|e| {
+                        ApiError::internal(anyhow!("Failed to open diagnosis for write: {e}"))
+                    })
             }
             MedicalRole::Patient | MedicalRole::Nurse => {
                 Err(ApiError::forbidden("Only doctors can write diagnoses"))
@@ -786,18 +829,38 @@ impl AuthenticatedSession {
         &self,
         patient_id: Uuid,
     ) -> ApiResult<PathBoundary<(PrescriptionData, CanRead)>> {
+        // ✅ Authorization already validated: patient_records_access() checks access rights
+        // ✅ Now encode read capability in type via change_marker()
         let patient_records = self.patient_records_access(patient_id)?;
-        Ok(patient_records.rebrand::<(PrescriptionData, CanRead)>())
+        patient_records
+            .clone()
+            .into_strictpath()
+            .map_err(|e| ApiError::internal(anyhow!("Failed to open prescriptions: {e}")))?
+            .change_marker::<(PrescriptionData, CanRead)>()
+            .try_into_boundary()
+            .map_err(|e| ApiError::internal(anyhow!("Failed to open prescriptions: {e}")))
     }
 
     fn prescriptions_write_access(
         &self,
         patient_id: Uuid,
     ) -> ApiResult<PathBoundary<(PrescriptionData, CanWrite)>> {
+        // ✅ Step 1: Check authorization (only doctors can write prescriptions)
         match self.claims.role {
             MedicalRole::Doctor | MedicalRole::Admin => {
+                // ✅ Step 2: Authorization passed → encode it in type via change_marker()
                 let patient_records = self.patient_records_access(patient_id)?;
-                Ok(patient_records.rebrand::<(PrescriptionData, CanWrite)>())
+                patient_records
+                    .clone()
+                    .into_strictpath()
+                    .map_err(|e| {
+                        ApiError::internal(anyhow!("Failed to open prescriptions for write: {e}"))
+                    })?
+                    .change_marker::<(PrescriptionData, CanWrite)>()
+                    .try_into_boundary()
+                    .map_err(|e| {
+                        ApiError::internal(anyhow!("Failed to open prescriptions for write: {e}"))
+                    })
             }
             MedicalRole::Patient | MedicalRole::Nurse => {
                 Err(ApiError::forbidden("Only doctors can write prescriptions"))
@@ -806,12 +869,19 @@ impl AuthenticatedSession {
     }
 
     fn audit_access(&self) -> ApiResult<PathBoundary<(AuditLog, CanAudit)>> {
+        // ✅ Step 1: Check authorization (only admins can audit)
         match self.claims.role {
-            MedicalRole::Admin => Ok(self
-                .workspace_access
-                .records_root
-                .clone()
-                .rebrand::<(AuditLog, CanAudit)>()),
+            MedicalRole::Admin => {
+                // ✅ Step 2: Authorization passed → encode it in type via change_marker()
+                self.workspace_access
+                    .records_root
+                    .clone()
+                    .into_strictpath()
+                    .map_err(|e| ApiError::internal(anyhow!("Failed to access audit logs: {e}")))?
+                    .change_marker::<(AuditLog, CanAudit)>()
+                    .try_into_boundary()
+                    .map_err(|e| ApiError::internal(anyhow!("Failed to access audit logs: {e}")))
+            }
             _ => Err(ApiError::forbidden("Only admins can access audit logs")),
         }
     }
@@ -819,12 +889,23 @@ impl AuthenticatedSession {
     fn emergency_override_access(
         &self,
     ) -> ApiResult<PathBoundary<(EmergencyAccess, CanEmergencyOverride)>> {
+        // ✅ Step 1: Check authorization (only doctors/admins can emergency override)
         match self.claims.role {
-            MedicalRole::Doctor | MedicalRole::Admin => Ok(self
-                .workspace_access
-                .records_root
-                .clone()
-                .rebrand::<(EmergencyAccess, CanEmergencyOverride)>()),
+            MedicalRole::Doctor | MedicalRole::Admin => {
+                // ✅ Step 2: Authorization passed → encode it in type via change_marker()
+                self.workspace_access
+                    .records_root
+                    .clone()
+                    .into_strictpath()
+                    .map_err(|e| {
+                        ApiError::internal(anyhow!("Failed to access emergency overrides: {e}"))
+                    })?
+                    .change_marker::<(EmergencyAccess, CanEmergencyOverride)>()
+                    .try_into_boundary()
+                    .map_err(|e| {
+                        ApiError::internal(anyhow!("Failed to access emergency overrides: {e}"))
+                    })
+            }
             _ => Err(ApiError::forbidden(
                 "Only doctors and admins can request emergency overrides",
             )),

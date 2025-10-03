@@ -104,9 +104,9 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
 /// A path boundary that serves as the secure foundation for validated path operations.
 ///
 /// SUMMARY:
-/// Represent the trusted filesystem root for all strict and virtual path operations. All
-/// `StrictPath`/`VirtualPath` values derived from a `PathBoundary` are guaranteed to remain
-/// within this boundary.
+/// Represent the trusted filesystem boundary directory for all strict and virtual path
+/// operations. All `StrictPath`/`VirtualPath` values derived from a `PathBoundary` are
+/// guaranteed to remain within this boundary.
 ///
 /// EXAMPLE:
 /// ```rust
@@ -195,37 +195,6 @@ impl<Marker> PartialEq<&std::path::Path> for PathBoundary<Marker> {
 }
 
 impl<Marker> PathBoundary<Marker> {
-    /// SUMMARY:
-    /// Consume this boundary and return it with a new marker type.
-    ///
-    /// DETAILS:
-    /// Preferred ergonomic for marker rebranding when propagating authorization
-    /// or capability markers from a policy root (`try_into_boundary()?.rebrand()`).
-    /// Consumes `self` to make the intent explicit during code review; callers
-    /// can `clone()` beforehand when they truly need to keep the original.
-    ///
-    /// PARAMETERS:
-    /// - `NewMarker` (type parameter): Marker to brand the returned boundary with.
-    ///
-    /// RETURNS:
-    /// - `PathBoundary<NewMarker>`: Same root directory, rebranded with `NewMarker`.
-    #[inline]
-    pub fn rebrand<NewMarker>(self) -> PathBoundary<NewMarker> {
-        let PathBoundary {
-            path,
-            #[cfg(feature = "tempfile")]
-            _temp_dir,
-            _marker: _,
-        } = self;
-
-        PathBoundary {
-            path,
-            #[cfg(feature = "tempfile")]
-            _temp_dir,
-            _marker: PhantomData,
-        }
-    }
-
     /// Private constructor that allows setting the temp_dir during construction
     #[cfg(feature = "tempfile")]
     fn new_with_temp_dir(
@@ -239,7 +208,7 @@ impl<Marker> PathBoundary<Marker> {
         }
     }
 
-    /// Creates a new `PathBoundary` rooted at `restriction_path` (which must already exist and be a directory).
+    /// Creates a new `PathBoundary` anchored at `restriction_path` (which must already exist and be a directory).
     ///
     /// SUMMARY:
     /// Create a boundary anchored at an existing directory (must exist and be a directory).
@@ -248,10 +217,10 @@ impl<Marker> PathBoundary<Marker> {
     /// - `restriction_path` (`AsRef<Path>`): Existing directory to anchor the boundary.
     ///
     /// RETURNS:
-    /// - `Result<PathBoundary<Marker>>`: New boundary whose root is canonicalized and verified to exist.
+    /// - `Result<PathBoundary<Marker>>`: New boundary whose directory is canonicalized and verified to exist.
     ///
     /// ERRORS:
-    /// - `StrictPathError::InvalidRestriction`: Root is missing, not a directory, or cannot be canonicalized.
+    /// - `StrictPathError::InvalidRestriction`: Boundary directory is missing, not a directory, or cannot be canonicalized.
     ///
     /// EXAMPLE:
     /// Uses `AsRef<Path>` for maximum ergonomics, including direct `TempDir` support for clean shadowing patterns:
@@ -311,13 +280,13 @@ impl<Marker> PathBoundary<Marker> {
     /// Creates the directory if missing, then constructs a new `PathBoundary`.
     ///
     /// SUMMARY:
-    /// Ensure the root exists (create if missing) and construct a new boundary.
+    /// Ensure the boundary directory exists (create if missing) and construct a new boundary.
     ///
     /// PARAMETERS:
-    /// - `root` (`AsRef<Path>`): Directory to create if needed and use as boundary root.
+    /// - `boundary_dir` (`AsRef<Path>`): Directory to create if needed and use as the boundary directory.
     ///
     /// RETURNS:
-    /// - `Result<PathBoundary<Marker>>`: New boundary anchored at `root`.
+    /// - `Result<PathBoundary<Marker>>`: New boundary anchored at `boundary_dir`.
     ///
     /// ERRORS:
     /// - `StrictPathError::InvalidRestriction`: Directory creation/canonicalization fails.
@@ -332,13 +301,14 @@ impl<Marker> PathBoundary<Marker> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn try_new_create<P: AsRef<Path>>(root: P) -> Result<Self> {
-        let root_path = root.as_ref();
-        if !root_path.exists() {
-            std::fs::create_dir_all(root_path)
-                .map_err(|e| StrictPathError::invalid_restriction(root_path.to_path_buf(), e))?;
+    pub fn try_new_create<P: AsRef<Path>>(boundary_dir: P) -> Result<Self> {
+        let boundary_path = boundary_dir.as_ref();
+        if !boundary_path.exists() {
+            std::fs::create_dir_all(boundary_path).map_err(|e| {
+                StrictPathError::invalid_restriction(boundary_path.to_path_buf(), e)
+            })?;
         }
-        Self::try_new(root_path)
+        Self::try_new(boundary_path)
     }
 
     /// SUMMARY:
@@ -358,19 +328,92 @@ impl<Marker> PathBoundary<Marker> {
         canonicalize_and_enforce_restriction_boundary(candidate_path, self)
     }
 
-    /// Returns the canonicalized PathBoundary root path. Kept crate-private to avoid leaking raw path.
+    /// SUMMARY:
+    /// Consume this boundary and substitute a new marker type.
+    ///
+    /// DETAILS:
+    /// Mirrors [`crate::StrictPath::change_marker`] and [`crate::VirtualPath::change_marker`], enabling
+    /// marker transformation after authorization checks. Use this when encoding proven
+    /// authorization into the type system (e.g., after validating a user's permissions).
+    /// The consumption makes marker changes explicit during code review.
+    ///
+    /// PARAMETERS:
+    /// - `NewMarker` (type parameter): Marker to associate with the boundary.
+    ///
+    /// RETURNS:
+    /// - `PathBoundary<NewMarker>`: Same underlying boundary, rebranded with `NewMarker`.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::PathBoundary;
+    /// # let boundary_dir = std::env::temp_dir().join("change-marker-example");
+    /// # std::fs::create_dir_all(&boundary_dir)?;
+    /// struct ReadOnly;
+    /// struct ReadWrite;
+    ///
+    /// let read_boundary: PathBoundary<ReadOnly> = PathBoundary::try_new(&boundary_dir)?;
+    ///
+    /// // After authorization check...
+    /// let write_boundary: PathBoundary<ReadWrite> = read_boundary.change_marker();
+    /// # std::fs::remove_dir_all(&boundary_dir)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn change_marker<NewMarker>(self) -> PathBoundary<NewMarker> {
+        PathBoundary {
+            path: self.path,
+            #[cfg(feature = "tempfile")]
+            _temp_dir: self._temp_dir,
+            _marker: PhantomData,
+        }
+    }
+
+    /// SUMMARY:
+    /// Consume this boundary and return a `StrictPath` anchored at the boundary directory.
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `Result<StrictPath<Marker>>`: Strict path for the canonicalized boundary directory.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::PathResolutionError`: Canonicalization fails (directory removed or inaccessible).
+    /// - `StrictPathError::PathEscapesBoundary`: Guard against race conditions that move the directory.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{PathBoundary, StrictPath};
+    /// # let boundary_dir = std::env::temp_dir().join("into-strictpath-example");
+    /// # std::fs::create_dir_all(&boundary_dir)?;
+    /// let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
+    /// let boundary_path: StrictPath = boundary.into_strictpath()?;
+    /// assert!(boundary_path.is_dir());
+    /// # std::fs::remove_dir_all(&boundary_dir)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn into_strictpath(self) -> Result<StrictPath<Marker>> {
+        let root_history = self.path.clone();
+        let validated = PathHistory::<Raw>::new(root_history.as_ref().to_path_buf())
+            .canonicalize()?
+            .boundary_check(root_history.as_ref())?;
+        Ok(StrictPath::new(Arc::new(self), validated))
+    }
+
+    /// Returns the canonicalized PathBoundary directory path. Kept crate-private to avoid leaking raw path.
     #[inline]
     pub(crate) fn path(&self) -> &Path {
         self.path.as_ref()
     }
 
-    /// Internal: returns the canonicalized PathHistory of the PathBoundary root for boundary checks.
+    /// Internal: returns the canonicalized PathHistory of the PathBoundary directory for boundary checks.
     #[inline]
     pub(crate) fn stated_path(&self) -> &PathHistory<((Raw, Canonicalized), Exists)> {
         &self.path
     }
 
-    /// Returns true if the PathBoundary root exists.
+    /// Returns true if the PathBoundary directory exists.
     ///
     /// This is always true for a constructed PathBoundary, but we query the filesystem for robustness.
     #[inline]
@@ -379,13 +422,13 @@ impl<Marker> PathBoundary<Marker> {
     }
 
     /// SUMMARY:
-    /// Return the root path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop (no allocation).
+    /// Return the boundary directory path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop (no allocation).
     #[inline]
     pub fn interop_path(&self) -> &std::ffi::OsStr {
         self.path.as_os_str()
     }
 
-    /// Returns a Display wrapper that shows the PathBoundary root system path.
+    /// Returns a Display wrapper that shows the PathBoundary directory system path.
     #[inline]
     pub fn strictpath_display(&self) -> std::path::Display<'_> {
         self.path().display()
@@ -399,14 +442,14 @@ impl<Marker> PathBoundary<Marker> {
     }
 
     /// SUMMARY:
-    /// Return filesystem metadata for the boundary root.
+    /// Return filesystem metadata for the boundary directory.
     #[inline]
     pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
         std::fs::metadata(self.path())
     }
 
     /// SUMMARY:
-    /// Create a symbolic link at `link_path` pointing to this boundary's root.
+    /// Create a symbolic link at `link_path` pointing to this boundary's directory.
     ///
     /// PARAMETERS:
     /// - `link_path` (&`StrictPath<Marker>`): Destination for the symlink, within the same boundary.
@@ -418,14 +461,15 @@ impl<Marker> PathBoundary<Marker> {
         link_path: &crate::path::strict_path::StrictPath<Marker>,
     ) -> std::io::Result<()> {
         let root = self
-            .strict_join("")
+            .clone()
+            .into_strictpath()
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
 
         root.strict_symlink(link_path)
     }
 
     /// SUMMARY:
-    /// Create a hard link at `link_path` pointing to this boundary's root.
+    /// Create a hard link at `link_path` pointing to this boundary's directory.
     ///
     /// PARAMETERS and RETURNS mirror `strict_symlink`.
     pub fn strict_hard_link(
@@ -433,28 +477,29 @@ impl<Marker> PathBoundary<Marker> {
         link_path: &crate::path::strict_path::StrictPath<Marker>,
     ) -> std::io::Result<()> {
         let root = self
-            .strict_join("")
+            .clone()
+            .into_strictpath()
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
 
         root.strict_hard_link(link_path)
     }
 
     /// SUMMARY:
-    /// Read directory entries under the boundary root (discovery only).
+    /// Read directory entries under the boundary directory (discovery only).
     #[inline]
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
         std::fs::read_dir(self.path())
     }
 
     /// SUMMARY:
-    /// Remove the boundary root directory (non-recursive); fails if not empty.
+    /// Remove the boundary directory (non-recursive); fails if not empty.
     #[inline]
     pub fn remove_dir(&self) -> std::io::Result<()> {
         std::fs::remove_dir(self.path())
     }
 
     /// SUMMARY:
-    /// Recursively remove the boundary root directory and contents.
+    /// Recursively remove the boundary directory and its contents.
     #[inline]
     pub fn remove_dir_all(&self) -> std::io::Result<()> {
         std::fs::remove_dir_all(self.path())
@@ -780,8 +825,8 @@ impl<Marker> PathBoundary<Marker> {
 
     /// Creates a PathBoundary in a unique temporary directory with RAII cleanup.
     ///
-    /// Returns a `StrictPath` pointing to the temp directory root. The directory
-    /// will be automatically cleaned up when the `StrictPath` is dropped.
+    /// Returns a `StrictPath` pointing to the temporary boundary directory. The
+    /// directory will be automatically cleaned up when the `StrictPath` is dropped.
     ///
     /// # Example
     /// ```
@@ -789,13 +834,13 @@ impl<Marker> PathBoundary<Marker> {
     /// use strict_path::PathBoundary;
     ///
     /// // Get a validated temp directory path directly
-    /// let temp_root = PathBoundary::<()>::try_new_temp()?;
+    /// let temp_boundary = PathBoundary::<()>::try_new_temp()?;
     /// let user_input = "uploads/document.pdf";
-    /// let validated_path = temp_root.strict_join(user_input)?; // Returns StrictPath
+    /// let validated_path = temp_boundary.strict_join(user_input)?; // Returns StrictPath
     /// // Ensure parent directories exist before writing
     /// validated_path.create_parent_dir_all()?;
     /// validated_path.write(b"content")?; // Prefer strict-path helpers over std::fs
-    /// // temp_root is dropped here, directory gets cleaned up automatically
+    /// // temp_boundary is dropped here, directory gets cleaned up automatically
     /// # }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -828,8 +873,8 @@ impl<Marker> PathBoundary<Marker> {
 
     /// Creates a PathBoundary in a temporary directory with a custom prefix and RAII cleanup.
     ///
-    /// Returns a `StrictPath` pointing to the temp directory root. The directory
-    /// will be automatically cleaned up when the `StrictPath` is dropped.
+    /// Returns a `StrictPath` pointing to the prefixed temporary boundary directory. The
+    /// directory will be automatically cleaned up when the `StrictPath` is dropped.
     ///
     /// # Example
     /// ```
@@ -837,10 +882,10 @@ impl<Marker> PathBoundary<Marker> {
     /// use strict_path::PathBoundary;
     ///
     /// // Get a validated temp directory path with session prefix
-    /// let upload_root = PathBoundary::<()>::try_new_temp_with_prefix("upload_batch")?;
-    /// let user_file = upload_root.strict_join("user_document.pdf")?; // Validate path
+    /// let upload_boundary = PathBoundary::<()>::try_new_temp_with_prefix("upload_batch")?;
+    /// let user_file = upload_boundary.strict_join("user_document.pdf")?; // Validate path
     /// // Process validated path with direct filesystem operations
-    /// // upload_root is dropped here, directory gets cleaned up automatically
+    /// // upload_boundary is dropped here, directory gets cleaned up automatically
     /// # }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```

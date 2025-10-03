@@ -35,14 +35,14 @@ impl<Marker> VirtualPath<Marker> {
     /// Create the virtual root (`"/"`) for the given filesystem root.
     pub fn with_root<P: AsRef<Path>>(root: P) -> Result<Self> {
         let vroot = crate::validator::virtual_root::VirtualRoot::try_new(root)?;
-        vroot.virtual_join("")
+        vroot.into_virtualpath()
     }
 
     /// SUMMARY:
     /// Create the virtual root, creating the filesystem root if missing.
     pub fn with_root_create<P: AsRef<Path>>(root: P) -> Result<Self> {
         let vroot = crate::validator::virtual_root::VirtualRoot::try_new_create(root)?;
-        vroot.virtual_join("")
+        vroot.into_virtualpath()
     }
     #[inline]
     pub(crate) fn new(strict_path: StrictPath<Marker>) -> Self {
@@ -150,6 +150,87 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub fn unvirtual(self) -> StrictPath<Marker> {
         self.inner
+    }
+
+    /// SUMMARY:
+    /// Change the compile-time marker while keeping the virtual and strict views in sync.
+    ///
+    /// WHEN TO USE:
+    /// - After authenticating/authorizing a user and granting them access to a virtual path
+    /// - When escalating or downgrading permissions (e.g., ReadOnly → ReadWrite)
+    /// - When reinterpreting a path's domain (e.g., TempStorage → UserUploads)
+    ///
+    /// WHEN NOT TO USE:
+    /// - When converting between path types - conversions preserve markers automatically
+    /// - When the current marker already matches your needs - no transformation needed
+    /// - When you haven't verified authorization - NEVER change markers without checking permissions
+    ///
+    /// PARAMETERS:
+    /// - `_none_`
+    ///
+    /// RETURNS:
+    /// - `VirtualPath<NewMarker>`: Same clamped path encoded with the new marker.
+    ///
+    /// ERRORS:
+    /// - `_none_`
+    ///
+    /// SECURITY:
+    /// This method performs no permission checks. Only elevate markers after verifying real
+    /// authorization out-of-band.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualPath;
+    /// # struct GuestAccess;
+    /// # struct UserAccess;
+    /// # let root_dir = std::env::temp_dir().join("virtual-change-marker-example");
+    /// # std::fs::create_dir_all(&root_dir)?;
+    /// # let guest_root: VirtualPath<GuestAccess> = VirtualPath::with_root(&root_dir)?;
+    /// // Simulated authorization: verify user credentials before granting access
+    /// fn grant_user_access(user_token: &str, path: VirtualPath<GuestAccess>) -> Option<VirtualPath<UserAccess>> {
+    ///     if user_token == "valid-token-12345" {
+    ///         Some(path.change_marker())  // ✅ Only after token validation
+    ///     } else {
+    ///         None  // ❌ Invalid token
+    ///     }
+    /// }
+    ///
+    /// let guest_path: VirtualPath<GuestAccess> = guest_root.virtual_join("docs/readme.md")?;
+    /// let user_path = grant_user_access("valid-token-12345", guest_path).expect("authorized");
+    /// assert_eq!(user_path.virtualpath_display().to_string(), "/docs/readme.md");
+    /// # std::fs::remove_dir_all(&root_dir)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// **Type Safety Guarantee:**
+    ///
+    /// The following code **fails to compile** because you cannot pass a path with one marker
+    /// type to a function expecting a different marker type. This compile-time check enforces
+    /// that permission changes are explicit and cannot be bypassed accidentally.
+    ///
+    /// ```compile_fail
+    /// # use strict_path::VirtualPath;
+    /// # struct GuestAccess;
+    /// # struct EditorAccess;
+    /// # let root_dir = std::env::temp_dir().join("virtual-change-marker-deny");
+    /// # std::fs::create_dir_all(&root_dir).unwrap();
+    /// # let guest_root: VirtualPath<GuestAccess> = VirtualPath::with_root(&root_dir).unwrap();
+    /// fn require_editor(_: VirtualPath<EditorAccess>) {}
+    /// let guest_file = guest_root.virtual_join("docs/manual.txt").unwrap();
+    /// // ❌ Compile error: expected `VirtualPath<EditorAccess>`, found `VirtualPath<GuestAccess>`
+    /// require_editor(guest_file);
+    /// ```
+    #[inline]
+    pub fn change_marker<NewMarker>(self) -> VirtualPath<NewMarker> {
+        let VirtualPath {
+            inner,
+            virtual_path,
+        } = self;
+
+        VirtualPath {
+            inner: inner.change_marker(),
+            virtual_path,
+        }
     }
 
     /// SUMMARY:
@@ -542,7 +623,13 @@ impl<Marker> VirtualPath<Marker> {
             // Resolve as sibling under the current virtual parent (or root if at "/")
             let parent = match self.virtualpath_parent() {
                 Ok(Some(p)) => p,
-                Ok(None) => match self.virtual_join("") {
+                Ok(None) => match self
+                    .inner
+                    .boundary()
+                    .clone()
+                    .virtualize()
+                    .into_virtualpath()
+                {
                     Ok(root) => root,
                     Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
                 },
@@ -572,7 +659,13 @@ impl<Marker> VirtualPath<Marker> {
             // Resolve as sibling under the current virtual parent (or root if at "/")
             let parent = match self.virtualpath_parent() {
                 Ok(Some(p)) => p,
-                Ok(None) => match self.virtual_join("") {
+                Ok(None) => match self
+                    .inner
+                    .boundary()
+                    .clone()
+                    .virtualize()
+                    .into_virtualpath()
+                {
                     Ok(root) => root,
                     Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
                 },

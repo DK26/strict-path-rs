@@ -39,14 +39,14 @@ impl<Marker> StrictPath<Marker> {
     /// NOTE: Prefer passing `PathBoundary` in reusable flows.
     pub fn with_boundary<P: AsRef<Path>>(dir_path: P) -> Result<Self> {
         let boundary = crate::PathBoundary::try_new(dir_path)?;
-        boundary.strict_join("")
+        boundary.into_strictpath()
     }
 
     /// SUMMARY:
     /// Create the base `StrictPath`, creating the boundary directory if missing.
     pub fn with_boundary_create<P: AsRef<Path>>(dir_path: P) -> Result<Self> {
         let boundary = crate::PathBoundary::try_new_create(dir_path)?;
-        boundary.strict_join("")
+        boundary.into_strictpath()
     }
     pub(crate) fn new(
         boundary: Arc<crate::PathBoundary<Marker>>,
@@ -112,10 +112,95 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Change the compile-time marker while reusing the validated strict path.
+    ///
+    /// WHEN TO USE:
+    /// - After authenticating/authorizing a user and granting them access to a path
+    /// - When escalating or downgrading permissions (e.g., ReadOnly → ReadWrite)
+    /// - When reinterpreting a path's domain (e.g., TempStorage → UserUploads)
+    ///
+    /// WHEN NOT TO USE:
+    /// - When converting between path types - conversions preserve markers automatically
+    /// - When the current marker already matches your needs - no transformation needed
+    /// - When you haven't verified authorization - NEVER change markers without checking permissions
+    ///
+    /// PARAMETERS:
+    /// - `_none_`
+    ///
+    /// RETURNS:
+    /// - `StrictPath<NewMarker>`: Same boundary-checked system path encoded with the new marker.
+    ///
+    /// ERRORS:
+    /// - `_none_`
+    ///
+    /// SECURITY:
+    /// The caller MUST ensure the new marker reflects real-world permissions. This method does not
+    /// perform any authorization checks.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{PathBoundary, StrictPath};
+    /// # struct ReadOnly;
+    /// # struct ReadWrite;
+    /// # let boundary_dir = std::env::temp_dir().join("strict-path-change-marker-example");
+    /// # std::fs::create_dir_all(&boundary_dir)?;
+    /// # let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
+    /// // Simulated authorization: verify user can write before granting write access
+    /// fn authorize_write_access(user_id: &str, path: StrictPath<ReadOnly>) -> Option<StrictPath<ReadWrite>> {
+    ///     if user_id == "admin" {
+    ///         Some(path.change_marker())  // ✅ Only after checking permissions
+    ///     } else {
+    ///         None  // ❌ User lacks write permission
+    ///     }
+    /// }
+    ///
+    /// let read_only_path: StrictPath<ReadOnly> = boundary.strict_join("logs/app.log")?.change_marker();
+    /// let read_write_path = authorize_write_access("admin", read_only_path).expect("authorized");
+    /// assert_eq!(read_write_path.strictpath_display().to_string(),
+    ///            boundary.strict_join("logs/app.log")?.strictpath_display().to_string());
+    /// # std::fs::remove_dir_all(&boundary_dir)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// **Type Safety Guarantee:**
+    ///
+    /// The following code **fails to compile** because you cannot pass a path with one marker
+    /// type to a function expecting a different marker type. This compile-time check enforces
+    /// that permission changes are explicit and cannot be bypassed accidentally.
+    ///
+    /// ```compile_fail
+    /// # use strict_path::{PathBoundary, StrictPath};
+    /// # struct ReadOnly;
+    /// # struct WritePermission;
+    /// # let boundary_dir = std::env::temp_dir().join("strict-path-change-marker-deny");
+    /// # std::fs::create_dir_all(&boundary_dir).unwrap();
+    /// # let boundary: PathBoundary<ReadOnly> = PathBoundary::try_new(&boundary_dir).unwrap();
+    /// let read_only_path: StrictPath<ReadOnly> = boundary.strict_join("logs/app.log").unwrap();
+    /// fn require_write(_: StrictPath<WritePermission>) {}
+    /// // ❌ Compile error: expected `StrictPath<WritePermission>`, found `StrictPath<ReadOnly>`
+    /// require_write(read_only_path);
+    /// ```
+    #[inline]
+    pub fn change_marker<NewMarker>(self) -> StrictPath<NewMarker> {
+        let StrictPath { path, boundary, .. } = self;
+
+        // Try to unwrap the Arc (zero-cost if this is the only reference).
+        // If other references exist, clone the boundary (allocation needed).
+        let boundary_owned = Arc::try_unwrap(boundary).unwrap_or_else(|arc| (*arc).clone());
+        let new_boundary = Arc::new(boundary_owned.change_marker::<NewMarker>());
+
+        StrictPath {
+            path,
+            boundary: new_boundary,
+            _marker: PhantomData,
+        }
+    }
+
+    /// SUMMARY:
     /// Consume and return a new `PathBoundary` anchored at this strict path.
     ///
     /// RETURNS:
-    /// - `Result<PathBoundary<Marker>>`: Boundary rooted at the strict path's
+    /// - `Result<PathBoundary<Marker>>`: Boundary anchored at the strict path's
     ///   system location (must already exist and be a directory).
     ///
     /// ERRORS:
@@ -131,7 +216,7 @@ impl<Marker> StrictPath<Marker> {
     /// Consume and return a `PathBoundary`, creating the directory if missing.
     ///
     /// RETURNS:
-    /// - `Result<PathBoundary<Marker>>`: Boundary rooted at the strict path's
+    /// - `Result<PathBoundary<Marker>>`: Boundary anchored at the strict path's
     ///   system location (created if necessary).
     ///
     /// ERRORS:
@@ -305,14 +390,14 @@ impl<Marker> StrictPath<Marker> {
     /// ```rust
     /// # use strict_path::{PathBoundary, StrictPath};
     /// # use std::io::Write;
-    /// # let root = std::env::temp_dir().join("strict-path-create-file-example");
-    /// # std::fs::create_dir_all(&root)?;
-    /// # let boundary: PathBoundary = PathBoundary::try_new(&root)?;
+    /// # let boundary_dir = std::env::temp_dir().join("strict-path-create-file-example");
+    /// # std::fs::create_dir_all(&boundary_dir)?;
+    /// # let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
     /// let log_path: StrictPath = boundary.strict_join("logs/app.log")?;
     /// log_path.create_parent_dir_all()?;
     /// let mut file = log_path.create_file()?;
     /// file.write_all(b"session started")?;
-    /// # std::fs::remove_dir_all(&root)?;
+    /// # std::fs::remove_dir_all(&boundary_dir)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[inline]
@@ -336,9 +421,9 @@ impl<Marker> StrictPath<Marker> {
     /// ```rust
     /// # use strict_path::{PathBoundary, StrictPath};
     /// # use std::io::{Read, Write};
-    /// # let root = std::env::temp_dir().join("strict-path-open-file-example");
-    /// # std::fs::create_dir_all(&root)?;
-    /// # let boundary: PathBoundary = PathBoundary::try_new(&root)?;
+    /// # let boundary_dir = std::env::temp_dir().join("strict-path-open-file-example");
+    /// # std::fs::create_dir_all(&boundary_dir)?;
+    /// # let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
     /// let transcript: StrictPath = boundary.strict_join("logs/session.log")?;
     /// transcript.create_parent_dir_all()?;
     /// transcript.write("session start")?;
@@ -346,7 +431,7 @@ impl<Marker> StrictPath<Marker> {
     /// let mut contents = String::new();
     /// file.read_to_string(&mut contents)?;
     /// assert_eq!(contents, "session start");
-    /// # std::fs::remove_dir_all(&root)?;
+    /// # std::fs::remove_dir_all(&boundary_dir)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[inline]
@@ -445,7 +530,7 @@ impl<Marker> StrictPath<Marker> {
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
-                Ok(None) => match self.boundary.strict_join("") {
+                Ok(None) => match self.boundary.as_ref().clone().into_strictpath() {
                     Ok(root) => root,
                     Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
                 },
@@ -475,7 +560,7 @@ impl<Marker> StrictPath<Marker> {
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
-                Ok(None) => match self.boundary.strict_join("") {
+                Ok(None) => match self.boundary.as_ref().clone().into_strictpath() {
                     Ok(root) => root,
                     Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
                 },

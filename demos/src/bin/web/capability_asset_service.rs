@@ -1,12 +1,14 @@
-//! Capability-driven brand asset service demonstrating compile-time capability checks.
+//! Capability-driven brand asset service demonstrating tuple marker authorization.
 //!
-//! Creative teams often need stronger guarantees that staging editors can update
-//! campaign assets while read-only stakeholders can preview them without risk of
-//! accidental modification. This Axum service encodes capabilities into the
-//! marker type so that only sessions with the appropriate capability can compile
-//! calls to the write/delete helpers. Tokens map to real user personas: a
-//! read-only agency reviewer, an in-house brand editor, and the brand director
-//! with full control over the asset vault.
+//! This demo follows the tutorial Stage 4 pattern: check authorization FIRST,
+//! THEN encode it in the type via change_marker(). Creative teams often need
+//! stronger guarantees that staging editors can update campaign assets while
+//! read-only stakeholders can preview them without risk of accidental modification.
+//! This Axum service validates token capabilities, then calls change_marker() to
+//! encode proven authorization into tuple markers like (BrandEditorWorkspace, CanWrite).
+//! The type system prevents tokens with only read access from compiling calls to
+//! write/delete helpers. Tokens map to real user personas: a read-only agency
+//! reviewer, an in-house brand editor, and the brand director with full control.
 
 use anyhow::{anyhow, Context, Result};
 use axum::{
@@ -263,49 +265,61 @@ impl AssetWorkspace {
     }
 
     fn session_for(&self, persona: Persona, caps: CapabilitySet) -> Result<CapabilitySession> {
+        // ✅ Step 1: Validate authorization (check persona matches capability set)
         match (persona, caps) {
             (Persona::AgencyReviewer, CapabilitySet::ReadOnly) => {
+                // Authorization confirmed: AgencyReviewer with ReadOnly capability
                 Ok(CapabilitySession::AgencyReviewer(self.agency_reviewer()?))
             }
             (Persona::BrandEditor, CapabilitySet::ReadWrite) => {
+                // Authorization confirmed: BrandEditor with ReadWrite capability
                 Ok(CapabilitySession::BrandEditor(self.brand_editor()?))
             }
             (Persona::BrandDirector, CapabilitySet::FullControl) => {
+                // Authorization confirmed: BrandDirector with FullControl capability
                 Ok(CapabilitySession::BrandDirector(self.brand_director()?))
             }
-            _ => Err(anyhow!("token configuration mismatch")),
+            _ => Err(anyhow!(
+                "token configuration mismatch: persona/capability combination not authorized"
+            )),
         }
     }
 
     fn agency_reviewer(&self) -> Result<PersonaWorkspace<(AgencyReviewAssets, CanRead)>> {
+        // ✅ Step 2: Authorization already validated in session_for()
+        // Now encode it in the type via change_marker()
         Ok(PersonaWorkspace::new(
             "Agency Reviewer",
             self.base
                 .strict_join("agency_review")?
-                .try_into_boundary_create()? // ensures directory exists
-                .rebrand::<(AgencyReviewAssets, CanRead)>(),
+                .change_marker::<(AgencyReviewAssets, CanRead)>()
+                .try_into_boundary_create()?, // ensures directory exists
         ))
     }
 
     fn brand_editor(&self) -> Result<PersonaWorkspace<(BrandEditorWorkspace, CanRead, CanWrite)>> {
+        // ✅ Step 2: Authorization already validated in session_for()
+        // Now encode it in the type via change_marker()
         Ok(PersonaWorkspace::new(
             "Brand Editor",
             self.base
                 .strict_join("brand_editors")?
-                .try_into_boundary_create()? // ensures directory exists
-                .rebrand::<(BrandEditorWorkspace, CanRead, CanWrite)>(),
+                .change_marker::<(BrandEditorWorkspace, CanRead, CanWrite)>()
+                .try_into_boundary_create()?, // ensures directory exists
         ))
     }
 
     fn brand_director(
         &self,
     ) -> Result<PersonaWorkspace<(BrandDirectorArchive, CanRead, CanWrite, CanDelete)>> {
+        // ✅ Step 2: Authorization already validated in session_for()
+        // Now encode it in the type via change_marker()
         Ok(PersonaWorkspace::new(
             "Brand Director",
             self.base
                 .strict_join("brand_director")?
-                .try_into_boundary_create()? // ensures directory exists
-                .rebrand::<(BrandDirectorArchive, CanRead, CanWrite, CanDelete)>(),
+                .change_marker::<(BrandDirectorArchive, CanRead, CanWrite, CanDelete)>()
+                .try_into_boundary_create()?, // ensures directory exists
         ))
     }
 }

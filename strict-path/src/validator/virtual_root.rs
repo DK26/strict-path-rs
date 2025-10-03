@@ -59,37 +59,6 @@ impl<Marker> VirtualRoot<Marker> {
     }
 
     /// SUMMARY:
-    /// Consume this virtual root and substitute a new marker type.
-    ///
-    /// DETAILS:
-    /// Mirrors [`PathBoundary::rebrand`], ensuring the marker change happens at
-    /// the policy root rather than on derived paths. Use this when propagating
-    /// additional capability markers (e.g., `(UserHome, Backups)`) without
-    /// reopening the filesystem.
-    ///
-    /// PARAMETERS:
-    /// - `NewMarker` (type parameter): Marker to associate with the cloned virtual root.
-    ///
-    /// RETURNS:
-    /// - `VirtualRoot<NewMarker>`: Same underlying root, rebranded with `NewMarker`.
-    #[inline]
-    pub fn rebrand<NewMarker>(self) -> VirtualRoot<NewMarker> {
-        let VirtualRoot {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir,
-            _marker: _,
-        } = self;
-
-        VirtualRoot {
-            root: root.rebrand::<NewMarker>(),
-            #[cfg(feature = "tempfile")]
-            _temp_dir,
-            _marker: PhantomData,
-        }
-    }
-
-    /// SUMMARY:
     /// Create a `VirtualRoot` backed by a unique temporary directory with RAII cleanup.
     ///
     /// # Example
@@ -153,16 +122,96 @@ impl<Marker> VirtualRoot<Marker> {
     }
 
     /// SUMMARY:
+    /// Consume this virtual root and return the rooted `VirtualPath` ("/").
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `Result<VirtualPath<Marker>>`: Virtual root path clamped to this boundary.
+    ///
+    /// ERRORS:
+    /// - `StrictPathError::PathResolutionError`: Canonicalization fails (root removed or inaccessible).
+    /// - `StrictPathError::PathEscapesBoundary`: Root moved outside the boundary between checks.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{VirtualPath, VirtualRoot};
+    /// # let root = std::env::temp_dir().join("into-virtualpath-example");
+    /// # std::fs::create_dir_all(&root)?;
+    /// let vroot: VirtualRoot = VirtualRoot::try_new(&root)?;
+    /// let root_virtual: VirtualPath = vroot.into_virtualpath()?;
+    /// assert_eq!(root_virtual.virtualpath_display().to_string(), "/");
+    /// # std::fs::remove_dir_all(&root)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn into_virtualpath(self) -> Result<VirtualPath<Marker>> {
+        let strict_root = self.root.into_strictpath()?;
+        Ok(strict_root.virtualize())
+    }
+
+    /// SUMMARY:
+    /// Consume this virtual root and substitute a new marker type.
+    ///
+    /// DETAILS:
+    /// Mirrors [`crate::PathBoundary::change_marker`], [`crate::StrictPath::change_marker`], and
+    /// [`crate::VirtualPath::change_marker`]. Use this when encoding proven authorization
+    /// into the type system (e.g., after validating a user's permissions). The
+    /// consumption makes marker changes explicit during code review.
+    ///
+    /// PARAMETERS:
+    /// - `NewMarker` (type parameter): Marker to associate with the virtual root.
+    ///
+    /// RETURNS:
+    /// - `VirtualRoot<NewMarker>`: Same underlying root, rebranded with `NewMarker`.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # let root_dir = std::env::temp_dir().join("vroot-change-marker-example");
+    /// # std::fs::create_dir_all(&root_dir)?;
+    /// struct UserFiles;
+    /// struct ReadOnly;
+    /// struct ReadWrite;
+    ///
+    /// let read_root: VirtualRoot<(UserFiles, ReadOnly)> = VirtualRoot::try_new(&root_dir)?;
+    ///
+    /// // After authorization check...
+    /// let write_root: VirtualRoot<(UserFiles, ReadWrite)> = read_root.change_marker();
+    /// # std::fs::remove_dir_all(&root_dir)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn change_marker<NewMarker>(self) -> VirtualRoot<NewMarker> {
+        let VirtualRoot {
+            root,
+            #[cfg(feature = "tempfile")]
+            _temp_dir,
+            ..
+        } = self;
+
+        VirtualRoot {
+            root: root.change_marker(),
+            #[cfg(feature = "tempfile")]
+            _temp_dir,
+            _marker: PhantomData,
+        }
+    }
+
+    /// SUMMARY:
     /// Create a symbolic link at `link_path` pointing to this root's underlying directory.
     pub fn virtual_symlink(
         &self,
         link_path: &crate::path::virtual_path::VirtualPath<Marker>,
     ) -> std::io::Result<()> {
         let root = self
-            .virtual_join("")
+            .root
+            .clone()
+            .into_strictpath()
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
 
-        root.as_unvirtual().strict_symlink(link_path.as_unvirtual())
+        root.strict_symlink(link_path.as_unvirtual())
     }
 
     /// SUMMARY:
@@ -172,11 +221,12 @@ impl<Marker> VirtualRoot<Marker> {
         link_path: &crate::path::virtual_path::VirtualPath<Marker>,
     ) -> std::io::Result<()> {
         let root = self
-            .virtual_join("")
+            .root
+            .clone()
+            .into_strictpath()
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
 
-        root.as_unvirtual()
-            .strict_hard_link(link_path.as_unvirtual())
+        root.strict_hard_link(link_path.as_unvirtual())
     }
 
     /// SUMMARY:

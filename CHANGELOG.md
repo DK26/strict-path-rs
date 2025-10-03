@@ -12,9 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `create_file()` creates or truncates files and returns writable `std::fs::File` handles
   - `open_file()` opens files in read-only mode
   - Both methods maintain boundary security guarantees while providing direct streaming access
-- **Marker rebranding support**: New `rebrand<NewMarker>()` methods for `PathBoundary` and `VirtualRoot`
+- **Marker transformation support**: New `change_marker<NewMarker>()` methods for `PathBoundary`, `VirtualRoot`, `StrictPath`, and `VirtualPath`
   - Enables clean propagation of authorization markers after authentication
   - Consumes the original value to make marker changes explicit during code review
+  - Optimized with `Arc::try_unwrap()` to minimize allocations when possible
 - **Enhanced cross-marker equality**: `PathBoundary<M1>` and `VirtualRoot<M1>` can now be compared with different marker types
   - Enables flexible comparisons while preserving type safety in function signatures
 - **New example**: `user_virtual_root.rs` demonstrates per-user isolation patterns with `VirtualRoot<UserSpace>`
@@ -39,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Improved doctests**: Many examples now compile and run to ensure accuracy
   - Previous illustrative examples were marked as `ignore`, now they demonstrate real working code
   - Added proper error handling and cleanup in documentation examples
-- **Better API examples**: Enhanced examples showing file handle usage, marker rebranding, and conversion patterns
+- **Better API examples**: Enhanced examples showing file handle usage, marker transformation, and conversion patterns
 
 ## [0.1.0-beta.1] - 2025-09-25
 

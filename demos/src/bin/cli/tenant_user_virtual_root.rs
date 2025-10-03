@@ -47,7 +47,7 @@ fn main() -> Result<()> {
     let tenant_boundary: PathBoundary<TenantRoot> = tenant_dir
         .try_into_boundary_create()
         .context("tenant boundary")?
-        .rebrand::<TenantRoot>();
+        .change_marker::<TenantRoot>();
 
     // 3) Derive per-user boundary inside tenant and virtualize to get a VirtualRoot<UserSpace>
     validate_segment(&cli.user)?;
@@ -57,7 +57,7 @@ fn main() -> Result<()> {
     let user_boundary = user_dir
         .try_into_boundary_create()
         .context("user boundary")?
-        .rebrand::<UserSpace>();
+        .change_marker::<UserSpace>();
     let user_vroot: VirtualRoot<UserSpace> = user_boundary.clone().virtualize();
 
     // All user-visible work happens via VirtualPath off user_vroot

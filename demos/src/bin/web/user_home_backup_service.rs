@@ -305,7 +305,9 @@ impl HomeRegistry {
         let home_dir = user_root.strict_join("home")?;
         home_dir.create_dir_all()?;
 
-        let boundary = home_dir.try_into_boundary_create()?.rebrand::<UserHome>();
+        let boundary = home_dir
+            .change_marker::<UserHome>()
+            .try_into_boundary_create()?;
         Ok(UserHomeAccess { boundary })
     }
 }
@@ -369,8 +371,8 @@ impl BackupVault {
         let user_dir = self.base.strict_join(username)?;
         user_dir.create_dir_all()?;
         let boundary = user_dir
-            .try_into_boundary_create()?
-            .rebrand::<BackupStorage>();
+            .change_marker::<BackupStorage>()
+            .try_into_boundary_create()?;
         Ok(BackupAccess { boundary })
     }
 }
@@ -401,7 +403,7 @@ impl BackupAccess {
 
     fn list_archives(&self) -> Result<Vec<VirtualPath<BackupStorage>>> {
         let mut archives = Vec::new();
-        let vault_root = self.boundary.strict_join("")?;
+        let vault_root = self.boundary.clone().into_strictpath()?;
         for entry in vault_root.read_dir()? {
             let entry = entry?;
             let file_name = entry.file_name();

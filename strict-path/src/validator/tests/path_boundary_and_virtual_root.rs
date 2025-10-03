@@ -16,6 +16,19 @@ fn test_restriction_try_new_create_and_path() {
 }
 
 #[test]
+fn test_path_boundary_into_strictpath_returns_root() {
+    let tmp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(tmp.path()).unwrap();
+
+    let root = boundary.into_strictpath().unwrap();
+    assert!(root.is_dir());
+    assert_eq!(
+        root.interop_path(),
+        tmp.path().canonicalize().unwrap().as_os_str()
+    );
+}
+
+#[test]
 fn test_virtual_root_try_new_create_and_path() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path().join("vroot_dir");
@@ -25,6 +38,16 @@ fn test_virtual_root_try_new_create_and_path() {
         vroot.interop_path(),
         root.canonicalize().unwrap().as_os_str()
     );
+}
+
+#[test]
+fn test_virtual_root_into_virtualpath_returns_root() {
+    let tmp = tempfile::tempdir().unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new(tmp.path()).unwrap();
+
+    let root_virtual = vroot.into_virtualpath().unwrap();
+    assert_eq!(root_virtual.virtualpath_display().to_string(), "/");
+    assert!(root_virtual.as_unvirtual().is_dir());
 }
 
 #[test]

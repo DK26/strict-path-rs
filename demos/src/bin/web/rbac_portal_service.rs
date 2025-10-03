@@ -5,7 +5,8 @@
 //! realistic content portal with role hierarchies (guest → user → moderator →
 //! admin) and three content areas: public announcements, member-only briefs, and
 //! administrative audit logs. Marker types encode both the content space and the
-//! role, so compile-time trait bounds enforce who may read or mutate each area.
+//! proven capability (e.g., `(MemberBriefs, CanRead)`), making every filesystem
+//! call state the resource being touched and the permission that unlocked it.
 
 use anyhow::{anyhow, Context, Result};
 use axum::{
@@ -17,7 +18,7 @@ use axum::{
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::{marker::PhantomData, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 use strict_path::PathBoundary;
 use tokio::{net::TcpListener, signal};
 
@@ -147,10 +148,12 @@ fn bootstrap_portal() -> Result<()> {
     let members = root.join("members");
     let admin = root.join("admin");
     let flags = admin.join("moderation_flags");
+    let notices = admin.join("notices");
 
     std::fs::create_dir_all(public.join("announcements"))?;
     std::fs::create_dir_all(members.join("briefs"))?;
     std::fs::create_dir_all(&flags)?;
+    std::fs::create_dir_all(&notices)?;
 
     std::fs::write(
         public.join("announcements/launch.txt"),
@@ -264,220 +267,297 @@ impl PortalWorkspace {
     }
 
     fn session_for(&self, persona: Persona) -> Result<RoleSession> {
+        // Authorization: persona was verified by TokenStore::authorize()
+        // Now grant access to resources based on proven role
         match persona {
-            Persona::Guest => Ok(RoleSession::Guest(self.guest()?)),
-            Persona::Member => Ok(RoleSession::Member(self.member()?)),
-            Persona::Moderator => Ok(RoleSession::Moderator(self.moderator()?)),
-            Persona::Admin => Ok(RoleSession::Admin(self.admin()?)),
+            Persona::Guest => self.grant_guest_access(),
+            Persona::Member => self.grant_member_access(),
+            Persona::Moderator => self.grant_moderator_access(),
+            Persona::Admin => self.grant_admin_access(),
         }
     }
 
-    fn guest(&self) -> Result<PortalSession<Guest>> {
-        let public = self.public_boundary::<Guest>()?;
-        Ok(PortalSession::new("Guest", public, None, None))
+    fn grant_guest_access(&self) -> Result<RoleSession> {
+        // ✅ Authorization: Guest persona verified by TokenStore::authorize()
+        let announcements_dir = self
+            .base
+            .strict_join("public")?
+            .change_marker::<(PublicAnnouncements, CanRead)>()
+            .try_into_boundary_create()?;
+
+        Ok(RoleSession::Guest(GuestSession {
+            label: "Guest",
+            announcements_dir,
+        }))
     }
 
-    fn member(&self) -> Result<PortalSession<User>> {
-        let public = self.public_boundary::<User>()?;
-        let member = Some(self.member_boundary::<User>()?);
-        Ok(PortalSession::new("Member", public, member, None))
+    fn grant_member_access(&self) -> Result<RoleSession> {
+        // ✅ Authorization: Member persona verified by TokenStore::authorize()
+        let announcements_dir = self
+            .base
+            .strict_join("public")?
+            .change_marker::<(PublicAnnouncements, CanRead)>()
+            .try_into_boundary_create()?;
+        let briefs_dir = self
+            .base
+            .strict_join("members")?
+            .change_marker::<(MemberBriefs, CanRead)>()
+            .try_into_boundary_create()?;
+
+        Ok(RoleSession::Member(MemberSession {
+            label: "Member",
+            announcements_dir,
+            briefs_dir,
+        }))
     }
 
-    fn moderator(&self) -> Result<PortalSession<Moderator>> {
-        let public = self.public_boundary::<Moderator>()?;
-        let member = Some(self.member_boundary::<Moderator>()?);
-        let admin = Some(self.admin_boundary::<Moderator>()?);
-        Ok(PortalSession::new("Moderator", public, member, admin))
+    fn grant_moderator_access(&self) -> Result<RoleSession> {
+        // ✅ Authorization: Moderator persona verified by TokenStore::authorize()
+        let announcements_dir = self
+            .base
+            .strict_join("public")?
+            .change_marker::<(PublicAnnouncements, CanRead)>()
+            .try_into_boundary_create()?;
+        let briefs_dir = self
+            .base
+            .strict_join("members")?
+            .change_marker::<(MemberBriefs, CanRead)>()
+            .try_into_boundary_create()?;
+        let flags_dir = self
+            .base
+            .strict_join("admin")?
+            .strict_join("moderation_flags")?
+            .change_marker::<(ModerationFlagArchive, CanModerate)>()
+            .try_into_boundary_create()?;
+
+        Ok(RoleSession::Moderator(ModeratorSession {
+            label: "Moderator",
+            announcements_dir,
+            briefs_dir,
+            flags_dir,
+        }))
     }
 
-    fn admin(&self) -> Result<PortalSession<Admin>> {
-        let public = self.public_boundary::<Admin>()?;
-        let member = Some(self.member_boundary::<Admin>()?);
-        let admin = Some(self.admin_boundary::<Admin>()?);
-        Ok(PortalSession::new("Administrator", public, member, admin))
-    }
+    fn grant_admin_access(&self) -> Result<RoleSession> {
+        // ✅ Authorization: Admin persona verified by TokenStore::authorize()
+        let announcements_dir = self
+            .base
+            .strict_join("public")?
+            .change_marker::<(PublicAnnouncements, CanRead)>()
+            .try_into_boundary_create()?;
+        let briefs_dir = self
+            .base
+            .strict_join("members")?
+            .change_marker::<(MemberBriefs, CanRead)>()
+            .try_into_boundary_create()?;
+        let flags_dir = self
+            .base
+            .strict_join("admin")?
+            .strict_join("moderation_flags")?
+            .change_marker::<(ModerationFlagArchive, CanModerate)>()
+            .try_into_boundary_create()?;
+        let notices_dir = self
+            .base
+            .strict_join("admin")?
+            .strict_join("notices")?
+            .change_marker::<(AdminNotices, CanPublish)>()
+            .try_into_boundary_create()?;
 
-    fn public_boundary<Role>(&self) -> Result<PathBoundary<PublicContent<Role>>> {
-        let root = self.base.strict_join("public")?;
-        Ok(root
-            .try_into_boundary_create()? // ensures directory existence
-            .rebrand::<PublicContent<Role>>())
-    }
-
-    fn member_boundary<Role>(&self) -> Result<PathBoundary<UserContent<Role>>> {
-        let root = self.base.strict_join("members")?;
-        Ok(root
-            .try_into_boundary_create()? // ensures directory existence
-            .rebrand::<UserContent<Role>>())
-    }
-
-    fn admin_boundary<Role>(&self) -> Result<PathBoundary<AdminContent<Role>>> {
-        let root = self.base.strict_join("admin")?;
-        Ok(root
-            .try_into_boundary_create()? // ensures directory existence
-            .rebrand::<AdminContent<Role>>())
+        Ok(RoleSession::Admin(AdminSession {
+            label: "Administrator",
+            announcements_dir,
+            briefs_dir,
+            flags_dir,
+            notices_dir,
+        }))
     }
 }
 
 #[derive(Clone)]
-struct PortalSession<Role> {
+struct GuestSession {
     label: &'static str,
-    public: PathBoundary<PublicContent<Role>>,
-    member: Option<PathBoundary<UserContent<Role>>>,
-    admin: Option<PathBoundary<AdminContent<Role>>>,
+    announcements_dir: PathBoundary<(PublicAnnouncements, CanRead)>,
 }
 
-impl<Role> PortalSession<Role> {
-    fn new(
-        label: &'static str,
-        public: PathBoundary<PublicContent<Role>>,
-        member: Option<PathBoundary<UserContent<Role>>>,
-        admin: Option<PathBoundary<AdminContent<Role>>>,
-    ) -> Self {
-        Self {
-            label,
-            public,
-            member,
-            admin,
-        }
-    }
-
+impl GuestSession {
     fn label(&self) -> &'static str {
         self.label
     }
-}
 
-impl<Role> PortalSession<Role>
-where
-    Role: RoleHierarchy<Guest> + Send + Sync + 'static,
-{
     async fn read_public(&self, page: &str) -> ApiResult<ContentResponse> {
-        let path = self
-            .public
-            .strict_join(page)
-            .map_err(|err| ApiError::forbidden(&format!("Invalid public page: {err}")))?;
-        let display = self
-            .public
-            .clone()
-            .virtualize()
-            .virtual_join(page)
-            .map_err(|err| ApiError::forbidden(&format!("Invalid public page: {err}")))?;
-        let body = tokio::task::spawn_blocking(move || path.read_to_string())
-            .await
-            .map_err(|err| ApiError::internal(&format!("task join error: {err}")))?
-            .map_err(|err| ApiError::internal(&format!("failed to read page: {err}")))?;
-        Ok(ContentResponse::new(
-            self.label(),
-            &display.virtualpath_display().to_string(),
-            body,
-        ))
+        read_document(self.label(), &self.announcements_dir, page, "public page").await
     }
 }
 
-impl<Role> PortalSession<Role>
-where
-    Role: CanAccess<UserContent<User>> + Send + Sync + 'static,
-{
+#[derive(Clone)]
+struct MemberSession {
+    label: &'static str,
+    announcements_dir: PathBoundary<(PublicAnnouncements, CanRead)>,
+    briefs_dir: PathBoundary<(MemberBriefs, CanRead)>,
+}
+
+impl MemberSession {
+    fn label(&self) -> &'static str {
+        self.label
+    }
+
+    async fn read_public(&self, page: &str) -> ApiResult<ContentResponse> {
+        read_document(self.label(), &self.announcements_dir, page, "public page").await
+    }
+
     async fn read_member(&self, page: &str) -> ApiResult<ContentResponse> {
-        let boundary = self
-            .member
-            .as_ref()
-            .ok_or_else(|| ApiError::forbidden("Role lacks member access"))?;
-        let path = boundary
-            .strict_join(page)
-            .map_err(|err| ApiError::forbidden(&format!("Invalid member page: {err}")))?;
-        let display = boundary
-            .clone()
-            .virtualize()
-            .virtual_join(page)
-            .map_err(|err| ApiError::forbidden(&format!("Invalid member page: {err}")))?;
-        let body = tokio::task::spawn_blocking(move || path.read_to_string())
-            .await
-            .map_err(|err| ApiError::internal(&format!("task join error: {err}")))?
-            .map_err(|err| ApiError::internal(&format!("failed to read member content: {err}")))?;
-        Ok(ContentResponse::new(
-            self.label(),
-            &display.virtualpath_display().to_string(),
-            body,
-        ))
+        read_document(self.label(), &self.briefs_dir, page, "member brief").await
     }
 }
 
-impl<Role> PortalSession<Role>
-where
-    Role: RoleHierarchy<Moderator> + Send + Sync + 'static,
-{
+#[derive(Clone)]
+struct ModeratorSession {
+    label: &'static str,
+    announcements_dir: PathBoundary<(PublicAnnouncements, CanRead)>,
+    briefs_dir: PathBoundary<(MemberBriefs, CanRead)>,
+    flags_dir: PathBoundary<(ModerationFlagArchive, CanModerate)>,
+}
+
+impl ModeratorSession {
+    fn label(&self) -> &'static str {
+        self.label
+    }
+
+    async fn read_public(&self, page: &str) -> ApiResult<ContentResponse> {
+        read_document(self.label(), &self.announcements_dir, page, "public page").await
+    }
+
+    async fn read_member(&self, page: &str) -> ApiResult<ContentResponse> {
+        read_document(self.label(), &self.briefs_dir, page, "member brief").await
+    }
+
     async fn record_flag(&self, subject: &str, reason: &str) -> ApiResult<ModerationResponse> {
-        let admin_boundary = self
-            .admin
-            .as_ref()
-            .ok_or_else(|| ApiError::forbidden("Role lacks moderation archive access"))?;
-        let flags_dir = admin_boundary
-            .strict_join("moderation_flags")
-            .map_err(|err| ApiError::forbidden(&format!("Invalid flag directory: {err}")))?;
-        let filename = format!("{subject}-{}.log", Utc::now().timestamp());
-        let log_path = flags_dir
-            .strict_join(&filename)
-            .map_err(|err| ApiError::forbidden(&format!("Invalid flag path: {err}")))?;
-        let entry = format!("{} :: {} :: {}", self.label(), subject, reason);
-        let display = admin_boundary
-            .clone()
-            .virtualize()
-            .virtual_join("moderation_flags")
-            .and_then(|v| v.virtual_join(&filename))
-            .map_err(|err| ApiError::forbidden(&format!("Invalid flag path: {err}")))?;
-        let payload = entry.clone();
-        tokio::task::spawn_blocking(move || {
-            log_path.create_parent_dir_all()?;
-            log_path.write(payload.as_bytes())
-        })
-        .await
-        .map_err(|err| ApiError::internal(&format!("task join error: {err}")))?
-        .map_err(|err| ApiError::internal(&format!("failed to write moderation flag: {err}")))?;
-        Ok(ModerationResponse::new(
-            self.label(),
-            &display.virtualpath_display().to_string(),
-        ))
+        archive_moderation_flag(self.label(), &self.flags_dir, subject, reason).await
     }
 }
 
-impl<Role> PortalSession<Role>
-where
-    Role: RoleHierarchy<Admin> + Send + Sync + 'static,
-{
+#[derive(Clone)]
+struct AdminSession {
+    label: &'static str,
+    announcements_dir: PathBoundary<(PublicAnnouncements, CanRead)>,
+    briefs_dir: PathBoundary<(MemberBriefs, CanRead)>,
+    flags_dir: PathBoundary<(ModerationFlagArchive, CanModerate)>,
+    notices_dir: PathBoundary<(AdminNotices, CanPublish)>,
+}
+
+impl AdminSession {
+    fn label(&self) -> &'static str {
+        self.label
+    }
+
+    async fn read_public(&self, page: &str) -> ApiResult<ContentResponse> {
+        read_document(self.label(), &self.announcements_dir, page, "public page").await
+    }
+
+    async fn read_member(&self, page: &str) -> ApiResult<ContentResponse> {
+        read_document(self.label(), &self.briefs_dir, page, "member brief").await
+    }
+
+    async fn record_flag(&self, subject: &str, reason: &str) -> ApiResult<ModerationResponse> {
+        archive_moderation_flag(self.label(), &self.flags_dir, subject, reason).await
+    }
+
     async fn publish_notice(
         &self,
         subject: &str,
         contents: &str,
     ) -> ApiResult<AdminPublishResponse> {
-        let admin_boundary = self
-            .admin
-            .as_ref()
-            .ok_or_else(|| ApiError::forbidden("Role lacks admin publishing access"))?;
-        let rel = format!("notices/{subject}.txt");
-        let path = admin_boundary
-            .strict_join(&rel)
-            .map_err(|err| ApiError::forbidden(&format!("Invalid admin notice path: {err}")))?;
-        let display = admin_boundary
-            .clone()
-            .virtualize()
-            .virtual_join(&rel)
-            .map_err(|err| ApiError::forbidden(&format!("Invalid admin notice path: {err}")))?;
-        let payload = contents.to_owned();
-        let write_payload = payload.clone();
-        tokio::task::spawn_blocking(move || {
-            path.create_parent_dir_all()?;
-            path.write(write_payload.as_bytes())
-        })
+        persist_admin_notice(self.label(), &self.notices_dir, subject, contents).await
+    }
+}
+
+async fn read_document<Marker>(
+    role_label: &'static str,
+    boundary: &PathBoundary<Marker>,
+    page: &str,
+    context: &str,
+) -> ApiResult<ContentResponse>
+where
+    Marker: Send + Sync + 'static,
+{
+    let strict_path = boundary
+        .strict_join(page)
+        .map_err(|err| ApiError::forbidden(&format!("Invalid {context}: {err}")))?;
+    let virtual_path = boundary
+        .clone()
+        .virtualize()
+        .virtual_join(page)
+        .map_err(|err| ApiError::forbidden(&format!("Invalid {context}: {err}")))?;
+    let body = tokio::task::spawn_blocking(move || strict_path.read_to_string())
         .await
         .map_err(|err| ApiError::internal(&format!("task join error: {err}")))?
-        .map_err(|err| ApiError::internal(&format!("failed to write admin notice: {err}")))?;
-        Ok(AdminPublishResponse::new(
-            self.label(),
-            &display.virtualpath_display().to_string(),
-            payload,
-        ))
-    }
+        .map_err(|err| ApiError::internal(&format!("failed to read {context}: {err}")))?;
+    Ok(ContentResponse::new(
+        role_label,
+        &virtual_path.virtualpath_display().to_string(),
+        body,
+    ))
+}
+
+async fn archive_moderation_flag(
+    role_label: &'static str,
+    boundary: &PathBoundary<(ModerationFlagArchive, CanModerate)>,
+    subject: &str,
+    reason: &str,
+) -> ApiResult<ModerationResponse> {
+    let filename = format!("{subject}-{}.log", Utc::now().timestamp());
+    let log_path = boundary
+        .strict_join(&filename)
+        .map_err(|err| ApiError::forbidden(&format!("Invalid flag path: {err}")))?;
+    let display = boundary
+        .clone()
+        .virtualize()
+        .virtual_join(&filename)
+        .map_err(|err| ApiError::forbidden(&format!("Invalid flag path: {err}")))?;
+    let entry = format!("{} :: {} :: {}", role_label, subject, reason);
+    let payload = entry.clone();
+    tokio::task::spawn_blocking(move || {
+        log_path.create_parent_dir_all()?;
+        log_path.write(payload.as_bytes())
+    })
+    .await
+    .map_err(|err| ApiError::internal(&format!("task join error: {err}")))?
+    .map_err(|err| ApiError::internal(&format!("failed to write moderation flag: {err}")))?;
+    Ok(ModerationResponse::new(
+        role_label,
+        &display.virtualpath_display().to_string(),
+    ))
+}
+
+async fn persist_admin_notice(
+    role_label: &'static str,
+    boundary: &PathBoundary<(AdminNotices, CanPublish)>,
+    subject: &str,
+    contents: &str,
+) -> ApiResult<AdminPublishResponse> {
+    let filename = format!("{subject}.txt");
+    let notice_path = boundary
+        .strict_join(&filename)
+        .map_err(|err| ApiError::forbidden(&format!("Invalid admin notice path: {err}")))?;
+    let display = boundary
+        .clone()
+        .virtualize()
+        .virtual_join(&filename)
+        .map_err(|err| ApiError::forbidden(&format!("Invalid admin notice path: {err}")))?;
+    let payload = contents.to_owned();
+    let write_payload = payload.clone();
+    tokio::task::spawn_blocking(move || {
+        notice_path.create_parent_dir_all()?;
+        notice_path.write(write_payload.as_bytes())
+    })
+    .await
+    .map_err(|err| ApiError::internal(&format!("task join error: {err}")))?
+    .map_err(|err| ApiError::internal(&format!("failed to write admin notice: {err}")))?;
+    Ok(AdminPublishResponse::new(
+        role_label,
+        &display.virtualpath_display().to_string(),
+        payload,
+    ))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -584,45 +664,31 @@ impl IntoResponse for ApiError {
 
 #[derive(Clone, Copy)]
 struct PortalRoot;
-#[derive(Clone, Copy)]
-struct Guest;
-#[derive(Clone, Copy)]
-struct User;
-#[derive(Clone, Copy)]
-struct Moderator;
-#[derive(Clone, Copy)]
-struct Admin;
 
+// Resource markers describe on-disk domains. They intentionally name the
+// directory contents so reviewers can see which area is being accessed.
 #[derive(Clone, Copy)]
-struct PublicContent<Role>(PhantomData<Role>);
+struct PublicAnnouncements;
 #[derive(Clone, Copy)]
-struct UserContent<Role>(PhantomData<Role>);
+struct MemberBriefs;
 #[derive(Clone, Copy)]
-struct AdminContent<Role>(PhantomData<Role>);
+struct ModerationFlagArchive;
+#[derive(Clone, Copy)]
+struct AdminNotices;
 
-trait RoleHierarchy<Role> {}
-
-impl RoleHierarchy<Guest> for Guest {}
-impl RoleHierarchy<Guest> for User {}
-impl RoleHierarchy<User> for User {}
-impl RoleHierarchy<Guest> for Moderator {}
-impl RoleHierarchy<User> for Moderator {}
-impl RoleHierarchy<Moderator> for Moderator {}
-impl RoleHierarchy<Guest> for Admin {}
-impl RoleHierarchy<User> for Admin {}
-impl RoleHierarchy<Moderator> for Admin {}
-impl RoleHierarchy<Admin> for Admin {}
-
-trait CanAccess<Resource> {}
-
-impl<R> CanAccess<PublicContent<Guest>> for R where R: RoleHierarchy<Guest> {}
-impl<R> CanAccess<UserContent<User>> for R where R: RoleHierarchy<User> {}
-impl<R> CanAccess<AdminContent<Admin>> for R where R: RoleHierarchy<Admin> {}
+// Capability markers carry the proof that the caller passed authorization for a
+// given action within the paired resource.
+#[derive(Clone, Copy)]
+struct CanRead;
+#[derive(Clone, Copy)]
+struct CanModerate;
+#[derive(Clone, Copy)]
+struct CanPublish;
 
 #[derive(Clone)]
 enum RoleSession {
-    Guest(PortalSession<Guest>),
-    Member(PortalSession<User>),
-    Moderator(PortalSession<Moderator>),
-    Admin(PortalSession<Admin>),
+    Guest(GuestSession),
+    Member(MemberSession),
+    Moderator(ModeratorSession),
+    Admin(AdminSession),
 }

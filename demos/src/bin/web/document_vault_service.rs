@@ -1,12 +1,14 @@
-//! Document vault service demonstrating tuple markers `(Resource, Permission)`.
+//! Document vault service demonstrating tuple marker authorization (Stage 4 pattern).
 //!
-//! This Actix-lite style Axum demo exposes endpoints for an internal document
-//! vault containing confidential data and public reports. Access tokens grant
-//! resource-specific permissions, which we encode as tuple markers like
-//! `StrictPath<(ConfidentialDocs, ReadOnly)>`. The tuple prevents a token with
-//! only read access from being passed to write operations, and keeps audit scope
-//! separate from document scope. This example mirrors the authorization patterns
-//! discussed in the strict-path documentation.
+//! This demo follows the tutorial Stage 4 pattern: check authorization FIRST,
+//! THEN encode it in the type via change_marker(). This Actix-lite style Axum demo
+//! exposes endpoints for an internal document vault containing confidential data and
+//! public reports. Access tokens grant resource-specific permissions (scopes). We
+//! validate token scopes FIRST (e.g., `scopes.contains(&Scope::ConfidentialRead)`),
+//! THEN call change_marker() to encode proven authorization as tuple markers like
+//! `PathBoundary<(ConfidentialDocs, ReadOnly)>`. The type system prevents tokens with
+//! only read access from compiling calls to write operations, and keeps audit scope
+//! separate from document scope.
 
 use anyhow::{anyhow, Context, Result};
 use axum::{
@@ -312,47 +314,53 @@ struct ScopedVaultAccess {
 
 impl ScopedVaultAccess {
     fn new(base: PathBoundary<VaultRoot>, scopes: &HashSet<Scope>) -> Result<Self> {
-        let confidential_root = base.strict_join("confidential")?;
-        let reports_root = base.strict_join("reports")?;
+        let confidential_dir = base.strict_join("confidential")?;
+        let reports_dir = base.strict_join("reports")?;
 
-        let confidential_boundary = confidential_root.clone().try_into_boundary_create()?;
-        let reports_boundary = reports_root.clone().try_into_boundary_create()?;
-
+        // ✅ Step 1: Check authorization (validate token scope)
+        // ✅ Step 2: Encode authorization in type via change_marker()
         let confidential_read = if scopes.contains(&Scope::ConfidentialRead) {
             Some(
-                confidential_boundary
+                confidential_dir
                     .clone()
-                    .rebrand::<(ConfidentialDocs, ReadOnly)>(),
+                    .change_marker::<(ConfidentialDocs, ReadOnly)>()
+                    .try_into_boundary_create()?,
             )
         } else {
             None
         };
 
+        // ✅ Authorization check → change_marker() pattern
         let confidential_write = if scopes.contains(&Scope::ConfidentialWrite) {
             Some(
-                confidential_boundary
+                confidential_dir
                     .clone()
-                    .rebrand::<(ConfidentialDocs, WriteOnly)>(),
+                    .change_marker::<(ConfidentialDocs, WriteOnly)>()
+                    .try_into_boundary_create()?,
             )
         } else {
             None
         };
 
+        // ✅ Authorization check → change_marker() pattern
         let report_read = if scopes.contains(&Scope::ReportRead) {
             Some(
-                reports_boundary
+                reports_dir
                     .clone()
-                    .rebrand::<(PublicReports, ReadOnly)>(),
+                    .change_marker::<(PublicReports, ReadOnly)>()
+                    .try_into_boundary_create()?,
             )
         } else {
             None
         };
 
+        // ✅ Authorization check → change_marker() pattern
         let report_write = if scopes.contains(&Scope::ReportWrite) {
             Some(
-                reports_boundary
+                reports_dir
                     .clone()
-                    .rebrand::<(PublicReports, WriteOnly)>(),
+                    .change_marker::<(PublicReports, WriteOnly)>()
+                    .try_into_boundary_create()?,
             )
         } else {
             None
@@ -400,8 +408,16 @@ impl AuditRegistry {
     }
 
     fn build_access(&self, scopes: &HashSet<Scope>) -> Result<ScopedAuditAccess> {
+        // ✅ Step 1: Check authorization (validate token scope)
+        // ✅ Step 2: Encode authorization in type via change_marker()
         let writer = if scopes.contains(&Scope::AuditWrite) {
-            Some(self.base.clone().rebrand::<(AuditTrail, WriteOnly)>())
+            Some(
+                self.base
+                    .clone()
+                    .into_strictpath()? // ensure directory still exists
+                    .change_marker::<(AuditTrail, WriteOnly)>()
+                    .try_into_boundary()?,
+            )
         } else {
             None
         };

@@ -1,12 +1,12 @@
-//! Document database service demonstrating authorization with database queries.
+//! Document database service demonstrating authorization with tuple markers.
 //!
-//! This service shows how to connect file-system authorization with database
-//! authorization patterns. Users have documents stored both in files and database
-//! records. The authorization system ensures that a user can only access their
-//! own documents through both file paths and database queries. The StrictPath
-//! proof serves as compile-time evidence that the caller is authorized to access
-//! specific user documents, which then allows database queries scoped to that
-//! same user. This prevents authorization mix-ups between filesystem and database.
+//! This service shows how to connect file-system authorization with database queries
+//! using the tutorial pattern: check authorization FIRST, THEN encode it in the type
+//! via `change_marker()`. Users have documents stored in both files and database
+//! records. The `VirtualRoot<(UserDocuments, Permission)>` tuple marker serves as
+//! compile-time proof that authorization already passed, which then allows both
+//! filesystem operations AND database queries scoped to that user. The compiler
+//! guarantees that authorization checks cannot be forgotten.
 
 use anyhow::{anyhow, Context, Result};
 use axum::{
@@ -331,10 +331,11 @@ fn extract_session_token(headers: &HeaderMap) -> ApiResult<String> {
 }
 
 // Database integration functions that require authorization proof
-async fn load_user_documents<Caps>(
+// Accepts any permission level (CanRead, CanWrite, CanDelete) via generic
+async fn load_user_documents<Perm>(
     pool: &SqlitePool,
     user_id: u64,
-    _auth_proof: &VirtualRoot<Caps>, // Proof that caller is authorized for this user (capabilities marker)
+    _auth_proof: &VirtualRoot<(UserDocuments, Perm)>, // Proof that caller is authorized for this user
     limit: u32,
     offset: u32,
 ) -> Result<Vec<Document>> {
@@ -372,10 +373,10 @@ async fn load_user_documents<Caps>(
     Ok(documents)
 }
 
-async fn load_user_document_by_id<Caps>(
+async fn load_user_document_by_id<Perm>(
     pool: &SqlitePool,
     user_id: u64,
-    _auth_proof: &VirtualRoot<Caps>,
+    _auth_proof: &VirtualRoot<(UserDocuments, Perm)>,
     doc_id: Uuid,
 ) -> ApiResult<Document> {
     let row = sqlx::query(
@@ -408,10 +409,10 @@ async fn load_user_document_by_id<Caps>(
     })
 }
 
-async fn create_user_document<Caps>(
+async fn create_user_document(
     pool: &SqlitePool,
     user_id: u64,
-    _auth_proof: &VirtualRoot<Caps>,
+    _auth_proof: &VirtualRoot<(UserDocuments, CanWrite)>, // Requires write permission
     doc_id: Uuid,
     title: &str,
     _content: &str, // Content goes in file, not database
@@ -439,10 +440,10 @@ async fn create_user_document<Caps>(
     })
 }
 
-async fn update_user_document<Caps>(
+async fn update_user_document(
     pool: &SqlitePool,
     user_id: u64,
-    _auth_proof: &VirtualRoot<Caps>,
+    _auth_proof: &VirtualRoot<(UserDocuments, CanWrite)>, // Requires write permission
     doc_id: Uuid,
     title: Option<&str>,
     _content: Option<&str>, // Content updates go to file
@@ -467,10 +468,10 @@ async fn update_user_document<Caps>(
     load_user_document_by_id(pool, user_id, _auth_proof, doc_id).await
 }
 
-async fn delete_user_document<Caps>(
+async fn delete_user_document(
     pool: &SqlitePool,
     user_id: u64,
-    _auth_proof: &VirtualRoot<Caps>,
+    _auth_proof: &VirtualRoot<(UserDocuments, CanDelete)>, // Requires delete permission
     doc_id: Uuid,
 ) -> ApiResult<()> {
     let result = sqlx::query("DELETE FROM documents WHERE user_id = ? AND doc_id = ?")
@@ -583,13 +584,14 @@ struct SessionClaims {
     session_token: String,
 }
 
-// Authorization marker types (capabilities only; no custom resource marker for demos)
+// Marker types following the tutorial pattern:
+// - Resource marker: describes WHAT directory contains
+// - Permission markers: describe LEVEL of access granted after authorization
 
-struct CanRead;
-struct CanWrite;
-struct CanDelete;
-
-// NOTE: Avoid type aliases in demos; use explicit types to keep guarantees visible.
+struct UserDocuments; // Resource: user's document storage
+struct CanRead; // Permission: read-only access
+struct CanWrite; // Permission: write access (includes read)
+struct CanDelete; // Permission: full access (includes read + write)
 
 #[derive(Clone)]
 struct DocumentWorkspace {
@@ -606,17 +608,21 @@ impl DocumentWorkspace {
     }
 
     fn create_session(&self, claims: &SessionClaims) -> Result<WorkspaceAccess> {
-        // Create user-specific directory
-        let user_root = self
+        // Create user-specific virtual root with read-only marker initially
+        let user_docs_readonly = self
             .user_docs_root
             .strict_join(&format!("user_{}", claims.user_id))?
             .virtualize()
-            .try_into_root_create()? // ensure the per-user root exists
-            .rebrand::<CanRead>();
+            .change_marker::<(UserDocuments, CanRead)>()
+            .try_into_root_create()?;
+
+        // In a real system, permissions would come from the database or JWT claims.
+        // For this demo, we grant all permissions unconditionally.
+        // Authorization will happen when accessing write/delete via change_marker()
 
         Ok(WorkspaceAccess {
             claims: claims.clone(),
-            user_docs_root: user_root,
+            user_docs_readonly,
         })
     }
 }
@@ -624,8 +630,9 @@ impl DocumentWorkspace {
 #[derive(Clone)]
 struct WorkspaceAccess {
     claims: SessionClaims,
-    // Session-scoped VirtualRoot limited to this user's directory
-    user_docs_root: VirtualRoot<CanRead>,
+    // VirtualRoot with read-only access initially
+    // Authorization upgrades happen via change_marker() in access methods
+    user_docs_readonly: VirtualRoot<(UserDocuments, CanRead)>,
 }
 
 struct AuthenticatedSession {
@@ -634,24 +641,47 @@ struct AuthenticatedSession {
 }
 
 impl AuthenticatedSession {
-    fn user_documents_access(&self) -> ApiResult<&VirtualRoot<CanRead>> {
-        Ok(&self.workspace_access.user_docs_root)
+    /// Read-only access: Always available
+    fn user_documents_access(&self) -> ApiResult<&VirtualRoot<(UserDocuments, CanRead)>> {
+        Ok(&self.workspace_access.user_docs_readonly)
     }
 
-    fn user_documents_access_with_write(&self) -> ApiResult<VirtualRoot<(CanRead, CanWrite)>> {
+    /// Write access: Check authorization FIRST, THEN change_marker()
+    fn user_documents_access_with_write(
+        &self,
+    ) -> ApiResult<VirtualRoot<(UserDocuments, CanWrite)>> {
+        // ✅ Step 1: Check authorization (in real apps: check JWT claims, database, etc.)
+        let has_write_permission = true; // Demo: grant to all authenticated users
+
+        if !has_write_permission {
+            return Err(ApiError::forbidden("User does not have write permission"));
+        }
+
+        // ✅ Step 2: Authorization passed → encode it in the type via change_marker()
         Ok(self
             .workspace_access
-            .user_docs_root
-            .rebrand::<(CanRead, CanWrite)>())
+            .user_docs_readonly
+            .clone()
+            .change_marker::<(UserDocuments, CanWrite)>())
     }
 
+    /// Delete access: Check authorization FIRST, THEN change_marker()
     fn user_documents_access_with_delete(
         &self,
-    ) -> ApiResult<VirtualRoot<(CanRead, CanWrite, CanDelete)>> {
+    ) -> ApiResult<VirtualRoot<(UserDocuments, CanDelete)>> {
+        // ✅ Step 1: Check authorization (in real apps: check JWT claims, database, etc.)
+        let has_delete_permission = true; // Demo: grant to all authenticated users
+
+        if !has_delete_permission {
+            return Err(ApiError::forbidden("User does not have delete permission"));
+        }
+
+        // ✅ Step 2: Authorization passed → encode it in the type via change_marker()
         Ok(self
             .workspace_access
-            .user_docs_root
-            .rebrand::<(CanRead, CanWrite, CanDelete)>())
+            .user_docs_readonly
+            .clone()
+            .change_marker::<(UserDocuments, CanDelete)>())
     }
 }
 

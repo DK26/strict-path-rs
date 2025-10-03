@@ -448,10 +448,10 @@ enum Capability {
     AdminLogsRead,
 }
 
-// Authorization-aware marker types
-struct PersonalFiles<Caps>(std::marker::PhantomData<Caps>);
-struct SharedFiles<Caps>(std::marker::PhantomData<Caps>);
-struct AdminLogs<Caps>(std::marker::PhantomData<Caps>);
+// Resource marker types
+struct PersonalFiles;
+struct SharedFiles;
+struct AdminLogs;
 
 // Capability marker types
 struct CanRead;
@@ -460,33 +460,102 @@ struct CanDelete;
 
 #[derive(Clone)]
 struct FileWorkspace {
-    personal_root: PathBoundary<PersonalFiles<CanRead>>,
-    shared_root: PathBoundary<SharedFiles<CanRead>>,
-    admin_root: PathBoundary<AdminLogs<CanRead>>,
+    personal_dir: PathBoundary<PersonalFiles>,
+    shared_dir: PathBoundary<SharedFiles>,
+    admin_dir: PathBoundary<AdminLogs>,
 }
 
 impl FileWorkspace {
-    fn new(root: impl AsRef<Path>) -> Result<Self> {
-        let personal_root = PathBoundary::try_new_create(root.join("personal"))?
-            .rebrand::<PersonalFiles<CanRead>>();
-        let shared_root =
-            PathBoundary::try_new_create(root.join("shared"))?.rebrand::<SharedFiles<CanRead>>();
-        let admin_root =
-            PathBoundary::try_new_create(root.join("admin"))?.rebrand::<AdminLogs<CanRead>>();
+    fn new(root: impl AsRef<std::path::Path>) -> Result<Self> {
+        let root = root.as_ref();
+        let personal_dir = PathBoundary::try_new_create(root.join("personal"))?;
+        let shared_dir = PathBoundary::try_new_create(root.join("shared"))?;
+        let admin_dir = PathBoundary::try_new_create(root.join("admin"))?;
 
         Ok(Self {
-            personal_root,
-            shared_root,
-            admin_root,
+            personal_dir,
+            shared_dir,
+            admin_dir,
         })
     }
 
     fn create_session(&self, claims: &TokenClaims) -> Result<WorkspaceAccess> {
+        let has_pr = claims.capabilities.contains(&Capability::PersonalFilesRead);
+        let has_pw = claims
+            .capabilities
+            .contains(&Capability::PersonalFilesWrite);
+        let has_pd = claims
+            .capabilities
+            .contains(&Capability::PersonalFilesDelete);
+
+        let personal_files_readonly = self
+            .personal_dir
+            .clone()
+            .into_strictpath()?
+            .change_marker::<(PersonalFiles, CanRead)>()
+            .try_into_boundary()?;
+
+        let personal_files_readwrite = if has_pr && has_pw {
+            Some(
+                self.personal_dir
+                    .clone()
+                    .into_strictpath()?
+                    .change_marker::<(PersonalFiles, CanRead, CanWrite)>()
+                    .try_into_boundary()?,
+            )
+        } else {
+            None
+        };
+
+        let personal_files_full = if has_pr && has_pw && has_pd {
+            Some(
+                self.personal_dir
+                    .clone()
+                    .into_strictpath()?
+                    .change_marker::<(PersonalFiles, CanRead, CanWrite, CanDelete)>()
+                    .try_into_boundary()?,
+            )
+        } else {
+            None
+        };
+
+        let has_sr = claims.capabilities.contains(&Capability::SharedFilesRead);
+        let has_sw = claims.capabilities.contains(&Capability::SharedFilesWrite);
+
+        let shared_files_readonly = self
+            .shared_dir
+            .clone()
+            .into_strictpath()?
+            .change_marker::<(SharedFiles, CanRead)>()
+            .try_into_boundary()?;
+
+        let shared_files_readwrite = if has_sr && has_sw {
+            Some(
+                self.shared_dir
+                    .clone()
+                    .into_strictpath()?
+                    .change_marker::<(SharedFiles, CanRead, CanWrite)>()
+                    .try_into_boundary()?,
+            )
+        } else {
+            None
+        };
+
+        let admin_logs_readonly = self
+            .admin_dir
+            .clone()
+            .into_strictpath()?
+            .change_marker::<(AdminLogs, CanRead)>()
+            .try_into_boundary()?;
+
         Ok(WorkspaceAccess {
             claims: claims.clone(),
-            personal_root: self.personal_root.clone(),
-            shared_root: self.shared_root.clone(),
-            admin_root: self.admin_root.clone(),
+            personal_files_readonly,
+            personal_files_readwrite,
+            personal_files_full,
+            shared_files_readonly,
+            shared_files_readwrite,
+            admin_logs_readonly,
         })
     }
 }
@@ -494,9 +563,15 @@ impl FileWorkspace {
 #[derive(Clone)]
 struct WorkspaceAccess {
     claims: TokenClaims,
-    personal_root: PathBoundary<PersonalFiles<CanRead>>,
-    shared_root: PathBoundary<SharedFiles<CanRead>>,
-    admin_root: PathBoundary<AdminLogs<CanRead>>,
+    // Personal files directory with different capability levels
+    personal_files_readonly: PathBoundary<(PersonalFiles, CanRead)>,
+    personal_files_readwrite: Option<PathBoundary<(PersonalFiles, CanRead, CanWrite)>>,
+    personal_files_full: Option<PathBoundary<(PersonalFiles, CanRead, CanWrite, CanDelete)>>,
+    // Shared files directory with different capability levels
+    shared_files_readonly: PathBoundary<(SharedFiles, CanRead)>,
+    shared_files_readwrite: Option<PathBoundary<(SharedFiles, CanRead, CanWrite)>>,
+    // Admin logs directory (read-only)
+    admin_logs_readonly: PathBoundary<(AdminLogs, CanRead)>,
 }
 
 struct AuthenticatedSession {
@@ -505,109 +580,43 @@ struct AuthenticatedSession {
 }
 
 impl AuthenticatedSession {
-    fn personal_files_access(&self) -> ApiResult<&PathBoundary<PersonalFiles<CanRead>>> {
-        if self
-            .claims
-            .capabilities
-            .contains(&Capability::PersonalFilesRead)
-        {
-            Ok(&self.workspace_access.personal_root)
-        } else {
-            Err(ApiError::forbidden("Missing PersonalFilesRead capability"))
-        }
+    fn personal_files_access(&self) -> ApiResult<&PathBoundary<(PersonalFiles, CanRead)>> {
+        Ok(&self.workspace_access.personal_files_readonly)
     }
 
     fn personal_files_access_with_write(
         &self,
-    ) -> ApiResult<PathBoundary<PersonalFiles<(CanRead, CanWrite)>>> {
-        if self
-            .claims
-            .capabilities
-            .contains(&Capability::PersonalFilesRead)
-            && self
-                .claims
-                .capabilities
-                .contains(&Capability::PersonalFilesWrite)
-        {
-            Ok(self
-                .workspace_access
-                .personal_root
-                .rebrand::<PersonalFiles<(CanRead, CanWrite)>>())
-        } else {
-            Err(ApiError::forbidden("Missing PersonalFilesWrite capability"))
-        }
+    ) -> ApiResult<PathBoundary<(PersonalFiles, CanRead, CanWrite)>> {
+        self.workspace_access
+            .personal_files_readwrite
+            .clone()
+            .ok_or_else(|| ApiError::forbidden("Missing PersonalFilesWrite capability"))
     }
 
     fn personal_files_access_with_delete(
         &self,
-    ) -> ApiResult<PathBoundary<PersonalFiles<(CanRead, CanWrite, CanDelete)>>> {
-        if self
-            .claims
-            .capabilities
-            .contains(&Capability::PersonalFilesRead)
-            && self
-                .claims
-                .capabilities
-                .contains(&Capability::PersonalFilesWrite)
-            && self
-                .claims
-                .capabilities
-                .contains(&Capability::PersonalFilesDelete)
-        {
-            Ok(self
-                .workspace_access
-                .personal_root
-                .rebrand::<PersonalFiles<(CanRead, CanWrite, CanDelete)>>())
-        } else {
-            Err(ApiError::forbidden(
-                "Missing PersonalFilesDelete capability",
-            ))
-        }
+    ) -> ApiResult<PathBoundary<(PersonalFiles, CanRead, CanWrite, CanDelete)>> {
+        self.workspace_access
+            .personal_files_full
+            .clone()
+            .ok_or_else(|| ApiError::forbidden("Missing PersonalFilesDelete capability"))
     }
 
-    fn shared_files_access(&self) -> ApiResult<&PathBoundary<SharedFiles<CanRead>>> {
-        if self
-            .claims
-            .capabilities
-            .contains(&Capability::SharedFilesRead)
-        {
-            Ok(&self.workspace_access.shared_root)
-        } else {
-            Err(ApiError::forbidden("Missing SharedFilesRead capability"))
-        }
+    fn shared_files_access(&self) -> ApiResult<&PathBoundary<(SharedFiles, CanRead)>> {
+        Ok(&self.workspace_access.shared_files_readonly)
     }
 
     fn shared_files_access_with_write(
         &self,
-    ) -> ApiResult<PathBoundary<SharedFiles<(CanRead, CanWrite)>>> {
-        if self
-            .claims
-            .capabilities
-            .contains(&Capability::SharedFilesRead)
-            && self
-                .claims
-                .capabilities
-                .contains(&Capability::SharedFilesWrite)
-        {
-            Ok(self
-                .workspace_access
-                .shared_root
-                .rebrand::<SharedFiles<(CanRead, CanWrite)>>())
-        } else {
-            Err(ApiError::forbidden("Missing SharedFilesWrite capability"))
-        }
+    ) -> ApiResult<PathBoundary<(SharedFiles, CanRead, CanWrite)>> {
+        self.workspace_access
+            .shared_files_readwrite
+            .clone()
+            .ok_or_else(|| ApiError::forbidden("Missing SharedFilesWrite capability"))
     }
 
-    fn admin_logs_access(&self) -> ApiResult<&PathBoundary<AdminLogs<CanRead>>> {
-        if self
-            .claims
-            .capabilities
-            .contains(&Capability::AdminLogsRead)
-        {
-            Ok(&self.workspace_access.admin_root)
-        } else {
-            Err(ApiError::forbidden("Missing AdminLogsRead capability"))
-        }
+    fn admin_logs_access(&self) -> ApiResult<&PathBoundary<(AdminLogs, CanRead)>> {
+        Ok(&self.workspace_access.admin_logs_readonly)
     }
 }
 

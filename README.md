@@ -59,6 +59,8 @@ let logo_file = VirtualPath::with_root("./public")?
     .virtual_join("assets/logo.png")?;
 ```
 
+> 📖 **New to strict-path?** Start with the **[Tutorial: Stage 1 - The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/stage1_basic_promise.html)** to learn the core concepts step-by-step.
+
 > *The Type-State Police have set up PathBoundary checkpoints*  
 > *because your LLM is running wild*
 
@@ -104,8 +106,8 @@ StrictPath::with_boundary("uploads")?
 10. **🏗️ Battle-tested architecture**: Prototyped and refined across real-world production systems
 11. **🎯 Zero-allocation interop**: Seamless integration with existing `std::path` ecosystems when needed
 
-> 📖 **[Read our complete security methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)**  
-> *Deep dive into our 7-layer security approach: from CVE research to proactive breach attempts*
+> 📖 **[Read our complete security methodology →](https://dk26.github.io/strict-path-rs/how_we_achieve_security.html)**  
+> *Deep dive into our 7-layer security approach: from CVE research to comprehensive testing*
 
 ### **Recently Addressed CVEs**
 - **CVE-2025-8088** (WinRAR ADS): NTFS Alternate Data Stream traversal prevention
@@ -191,6 +193,8 @@ serve_public_asset(&css_file);    // ✅ Works
 
 **The power**: Mix up user uploads with public assets? **Impossible**. The compiler catches domain violations.
 
+> 📖 **[Tutorial: Stage 3 - Markers →](https://dk26.github.io/strict-path-rs/tutorial/stage3_markers.html)** explains marker fundamentals and domain separation patterns.
+
 ### **Level 2: Authorization Architecture**
 
 ```rust
@@ -252,7 +256,7 @@ view_system_file(&system_file)?;    // ✅ Has ReadOnly permission
 
 **Bottom line**: Turn authorization bugs from "runtime disasters" into "won't compile" problems.
 
-> 📚 **[Learn More](https://dk26.github.io/strict-path-rs/authorization_security.html)**: See the complete guide for advanced patterns like role hierarchies, capability-based markers, and web framework integration.
+> 📚 **[Learn Authorization Patterns →](https://dk26.github.io/strict-path-rs/tutorial/stage4_authorization.html)**: Step-by-step tutorial on encoding authorization in the type system with `change_marker()`, tuple markers, and capability-based patterns.
 
 ##  Where This Makes Sense
 
@@ -293,10 +297,12 @@ Notes that matter:
 | **Example attack** | `"../../../etc/passwd"` → **System breach** | `"../../../etc/passwd"` → **Error** | `"../../../etc/passwd"` → **`/etc/passwd`** (safe) |
 | **Best for**       | Known-safe paths                            | System boundaries                   | User interfaces                                    |
 
-Further reading in the book:
-- Best Practices (full decision matrix and rationale): https://dk26.github.io/strict-path-rs/best_practices.html
-- Anti-Patterns (what not to do, with fixes): https://dk26.github.io/strict-path-rs/anti_patterns.html
-- Examples (end-to-end realistic scenarios): https://dk26.github.io/strict-path-rs/examples.html
+📚 **Further Reading in the Complete Guide:**
+- **[Tutorial Series](https://dk26.github.io/strict-path-rs/tutorial/overview.html)** - 6-stage progressive guide from basics to advanced patterns
+- **[Best Practices](https://dk26.github.io/strict-path-rs/best_practices.html)** - Full decision matrix and design rationale
+- **[Anti-Patterns](https://dk26.github.io/strict-path-rs/anti_patterns.html)** - What not to do, with fixes
+- **[Real-World Examples](https://dk26.github.io/strict-path-rs/examples/overview.html)** - End-to-end realistic scenarios
+- **[Type-System Guarantees](https://dk26.github.io/strict-path-rs/type_system_guarantees.html)** - How markers prevent bugs at compile-time
 
 ## 🛡️ **Core Security Foundation**
 
@@ -340,6 +346,8 @@ let doc = VirtualPath::with_root(format!("users/{user_id}"))?
     .virtual_join("My Documents/report.pdf")?;
 println!("Saved to: {}", doc.virtualpath_display()); // Shows "/My Documents/report.pdf"
 ```
+
+> 📖 **Learn more:** **[Tutorial: Stage 5 - Virtual Paths →](https://dk26.github.io/strict-path-rs/tutorial/stage5_virtual_paths.html)** explains user sandboxing and virtual root semantics.
 
 ### ⚔️ **StrictPath** - LLM Agents & System Boundaries  
 *"Validate everything, trust nothing"*
@@ -558,8 +566,8 @@ serve_static_file(&safe_path).await?;
 ```
 
 ### Archive Extraction (Zip Slip Prevention)
-See the mdBook archive extractors guide for the full example and rationale:
-https://dk26.github.io/strict-path-rs/archive_extractors.html
+
+📘 **[Complete Archive Extraction Guide →](https://dk26.github.io/strict-path-rs/archive_extractors.html)** - Full patterns for ZIP/TAR handling, security rationale, and anti-patterns
 
 ### Cloud Storage API  
 
@@ -605,9 +613,10 @@ safe_ai_path.write(&ai_generated_content)?;
 
 > "Integrate like a pro: strict-path plays nice with everyone except attackers."
 
-- **🗂️ OS Directories** (`dirs` feature): `PathBoundary::try_new_os_config()`, `try_new_os_downloads()`, etc.
-- **📄 Serde** (`serde` feature): Safe serialization/deserialization of path types
-- **🌐 Axum**: Custom extractors for web servers (see `demos/` for examples)
+- **🗂️ OS Directories** (`dirs` feature): `PathBoundary::try_new_os_config()`, `try_new_os_downloads()`, etc. - **[Full Guide](https://dk26.github.io/strict-path-rs/os_directories.html)**
+- **📄 Serde** (`serde` feature): Safe serialization/deserialization of path types - **[Integration Patterns](https://dk26.github.io/strict-path-rs/features.html#serde-integration)**
+- **🌐 Axum**: Custom extractors for web servers - **[Complete Tutorial](https://dk26.github.io/strict-path-rs/axum_tutorial/overview.html)**
+- **📦 Archive Handling**: Safe ZIP/TAR extraction - **[Extractor Guide](https://dk26.github.io/strict-path-rs/archive_extractors.html)**
 
 ## 📄 **License**
 

@@ -4,7 +4,47 @@ Operational guide for AI assistants, bots, and automation working in this reposi
 
 ## Project Overview
 
-- Purpose: Prevent directory traversal with type‑safe path boundaries and safe symlinks.
+- Purpose: Prevent directory traversal with Escape hatches:
+- Borrow strict view from virtual with `as_unvirtual()` for shared helpers.
+- Use `.unvirtual()` and `.unstrict()` only when ownership is required; isolate in dedicated "escape hatches" sections.
+
+### Marker Transformation with `change_marker()`
+
+`StrictPath<Marker>` and `VirtualPath<Marker>` provide `change_marker::<NewMarker>()` to transform the compile-time marker while keeping the validated path.
+
+**When to use `change_marker()`:**
+- After authenticating/authorizing a user and granting them different permissions (e.g., ReadOnly → ReadWrite)
+- When escalating or downgrading access levels based on runtime checks
+- When reinterpreting a path's security context (e.g., TempStorage → UserUploads after validation)
+
+**When NOT to use `change_marker()`:**
+- When converting between path types - conversions preserve markers automatically
+- When the current marker already represents the correct permissions - no transformation needed
+- Without verifying authorization first - NEVER change markers speculatively or "just because"
+
+**Key insight:** Conversions preserve markers by design. Use `change_marker()` only when you need a *different* marker type, typically after performing authorization checks in your application logic.
+
+**Example:**
+```rust
+// ✅ Correct: change_marker() after authorization check
+fn grant_write_access(
+    path: StrictPath<(Documents, ReadOnly)>,
+    user: &User
+) -> Result<StrictPath<(Documents, ReadWrite)>> {
+    if user.has_write_permission() {
+        Ok(path.change_marker())  // Transform after verifying authorization
+    } else {
+        Err(AccessDenied)
+    }
+}
+
+// ❌ Wrong: change_marker() when conversion preserves marker anyway
+let boundary = strict_path.change_marker::<NewMarker>().try_into_boundary()?;
+// Should be: let boundary = strict_path.try_into_boundary()?;
+// (Marker is already preserved; change_marker() does nothing useful here)
+```
+
+## Anti‑Patterns (Tell‑offs)safe path boundaries and safe symlinks.
 - Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError` (see LLM_API_REFERENCE.md).
 - Security model: “Restrict every external path.” Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
 - Foundation: Built on `soft-canonicalize` for resolution; Windows 8.3 short‑name handling is considered a security surface.
@@ -85,8 +125,8 @@ Avoid generic names like `boundary`, `jail`, or type-based suffixes. This applie
 
 - Marker types must describe the resource stored under the restriction, not the caller or the type system. Use concrete domain nouns such as `struct UserUploads;`, `struct BrandEditorWorkspace;`, or `struct BrandDirectorArchive;`.
 - Avoid suffixes like `Marker`, `Type`, `Root`, or `Context`—they add no meaning. `struct MediaLibrary;` is preferred over `struct MediaLibraryMarker;`.
-- When encoding authorization, pair the domain marker with a capability proof in a tuple: `StrictPath<(BrandEditorWorkspace, ReadWriteCapability)>`. The first element names the storage root; the second names the capability being proven.
-- Do not use human-centric labels (personas, job titles, teams) unless the directory truly stores those artifacts. Names must reflect the filesystem contents or policy root so reviewers can infer the restriction from the type alone.
+- When encoding authorization, pair the domain marker with a permission marker in a tuple: `StrictPath<(BrandEditorWorkspace, ReadWrite)>`. The first element names the storage root; the second names the permission being granted.
+- Do not use human-centric labels (personas, job titles, teams) unless the directory truly stores those artifacts. Names must reflect the filesystem contents or policy boundary/virtual root so reviewers can infer the restriction from the type alone.
 
 ## Code & API Usage Guidelines
 
@@ -122,7 +162,7 @@ Avoid generic names like `boundary`, `jail`, or type-based suffixes. This applie
 - Safe deserialization requires runtime policy; use seeds on policy types:
   - `serde_ext::WithBoundary(&boundary)` → `StrictPath`
   - `serde_ext::WithVirtualRoot(&vroot)` → `VirtualPath`
-- For config structs: deserialize raw `String`/path-like fields and validate by calling `strict_join` or `virtual_join` using either a sugar-constructed root or a policy root.
+- For config structs: deserialize raw `String`/path-like fields and validate by calling `strict_join` or `virtual_join` using either a sugar-constructed boundary directory or a policy root.
 - Do not add blanket `Deserialize` impls for the secure path types; they need context.
 
 ### Internal Design: PathHistory & Type‑State
@@ -133,7 +173,7 @@ PathHistory is the internal engine that performs normalization, canonicalization
   - `Raw`: Constructed from any input (`AsRef<Path>`).
   - `Canonicalized`: After full canonicalization (resolves `.`/`..`, symlinks/junctions, prefixes).
   - `AnchoredCanonicalized`: Canonicalized relative to a specific jail/root (virtual anchoring).
-  - `Exists`: Canonicalized path verified to exist (used for PathBoundary roots).
+  - `Exists`: Canonicalized path verified to exist (used for PathBoundary boundary directories).
   - `BoundaryChecked`: Canonicalized path proven to be within the PathBoundary.
 
 - Typical flows:
@@ -184,6 +224,8 @@ Escape hatches:
 - Using std path ops on leaked values (`join`/`parent`).
 - Raw path parameters in safe helpers — use types/signatures that encode guarantees.
 - Single‑user demo flows for multi‑user services — use per‑user `VirtualRoot`.
+- Calling `strict_join("")` or `virtual_join("")` to grab the root. Prefer the dedicated conversions (`PathBoundary::into_strictpath()`, `VirtualRoot::into_virtualpath()`) so empty segments never creep into reviewer-approved flows.
+- Using `change_marker()` without authorization checks or when converting between path types — conversions preserve markers automatically; only use `change_marker()` when you need a *different* marker after verification.
 
 Path handling rules (very important):
 - Do not expose raw `Path`/`PathBuf` from `StrictPath`/`VirtualPath` in public APIs or examples.

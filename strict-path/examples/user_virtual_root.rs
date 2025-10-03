@@ -12,7 +12,7 @@ struct UserSpace;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Suppose you discovered/created a per-user directory externally,
     // e.g., from config, DB, or after auth. You now create a VirtualRoot
-    // anchored to that directory and rebrand it to UserSpace.
+    // anchored to that directory and mark it with UserSpace directly.
     let tmp = tempfile::tempdir()?; // demo root
 
     // For a given user_id, derive their dedicated directory
@@ -20,8 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_dir = tmp.path().join(user_id);
 
     // Create a VirtualRoot anchored at user_dir
-    let vroot: VirtualRoot<UserSpace> =
-        VirtualRoot::<UserSpace>::try_new_create(&user_dir)?.rebrand();
+    let vroot: VirtualRoot<UserSpace> = VirtualRoot::try_new_create(&user_dir)?;
 
     // Write a doc in the user's virtual space
     let doc: VirtualPath<UserSpace> = vroot.virtual_join("docs/welcome.txt")?;

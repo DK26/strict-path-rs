@@ -33,9 +33,9 @@ Audience and usage: This page is a minimal-context, copy/paste guide for tool-ca
 - **Function signatures**: Accept either the validated path (`&StrictPath<Marker>`) or accept the policy root plus raw segment (`&PathBoundary<Marker>`, `&VirtualRoot<Marker>`). Never take raw `Path`/`String` parameters for untrusted input.
 - **Naming rule**: Use domain-based names (`public_assets_dir`, `user_uploads_dir`, `system_logs_dir`) for `PathBoundary`/`VirtualRoot` variables so the intent survives into code review.
 
-Rebrand guidance
-- `.rebrand::<NewMarker>()` consumes the value and changes only the marker. Use it when you have an existing, validated value and you want to attach a different marker that encodes authorization or domain context you just proved (for example, after login).
-- Do not call `.rebrand::<()>()` or other no-op marker changes. If you need the unit marker, annotate the binding or function signature instead: `let root: PathBoundary<()> = PathBoundary::try_new_create(dir)?;`.
+Marker transformation guidance
+- `.change_marker::<NewMarker>()` consumes the value and swaps only the marker. Use it right after you have proved a new authorization or capability (for example, after login or policy elevation).
+- Do not call `.change_marker::<()>()` for a no-op update. Prefer annotating the binding or function signature instead: `let boundary: PathBoundary<()> = PathBoundary::try_new_create(dir)?;`.
 
 ## Quick Specs (LLM-friendly)
 
@@ -55,7 +55,7 @@ Rebrand guidance
 		- Errors: `PathEscapesBoundary`, `PathResolutionError`, `WindowsShortName`
 	- `StrictPath::interop_path(&self) -> &OsStr` (for unavoidable third-party `AsRef<Path>` APIs)
 	- `StrictPath::strictpath_display(&self) -> Display`
-		- `StrictPath::try_into_boundary(self) -> Result<PathBoundary<T>>` — promote the validated path to a boundary (directory must exist); call `.rebrand::<NewMarker>()` to propagate authorization markers
+		- `StrictPath::try_into_boundary(self) -> Result<PathBoundary<T>>` — promote the validated path to a boundary (directory must exist); call `.change_marker::<NewMarker>()` to propagate authorization markers
 		- `StrictPath::try_into_boundary_create(self) -> Result<PathBoundary<T>>` — same as above but ensures the directory exists first
 	- `StrictPath::create_file(&self) -> io::Result<File>` — open writable handle; call `.open_file()` for read-only access
 
@@ -214,6 +214,7 @@ match boundary.strict_join(user_input) {
 
 - with_boundary<P: AsRef<Path>>(dir_path: P) -> Result<Self>  // sugar; directory must exist
 - with_boundary_create<P: AsRef<Path>>(dir_path: P) -> Result<Self>  // sugar; creates directory if missing
+- change_marker<NewMarker>(self) -> StrictPath<NewMarker>  // transform marker after authorization
 - unstrict(self) -> PathBuf  // consumes — escape hatch (avoid)
 - virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
 - strictpath_to_string_lossy(&self) -> Cow<'_, str>
@@ -342,8 +343,8 @@ Top-level exports
 | `serde_ext` (feature `serde`) | module | Context-aware deserialization helpers (`WithBoundary`, `WithVirtualRoot`).                                   |
 
 ## Quick Recipes
-- Create restriction (create dir if missing) and validate: `let restriction = PathBoundary::try_new_create("./safe")?; let sp = restriction.strict_join("a/b.txt")?;`
-- Virtual user path: `let vroot = VirtualRoot::try_new("./safe")?; let vp = vroot.virtual_join("a/b.txt")?;`
+- **Sugar constructors (simple flows)**: `let sp = StrictPath::with_boundary_create("./safe")?.strict_join("a/b.txt")?;` or `let vp = VirtualPath::with_root_create("./safe")?.virtual_join("a/b.txt")?;`
+- **Policy types (reusable roots)**: `let restriction = PathBoundary::try_new_create("./safe")?; let sp = restriction.strict_join("a/b.txt")?;` or `let vroot = VirtualRoot::try_new("./safe")?; let vp = vroot.virtual_join("a/b.txt")?;`
 - Convert between types: `vpath.unvirtual()` → `StrictPath`, `spath.virtualize()` → `VirtualPath`
 - Unified functions: take `&StrictPath<_>` and call with `vpath.as_unvirtual()`
 
@@ -384,10 +385,11 @@ StrictPathError (variants)
 - `WindowsShortName { component, original, checked_at }` (windows)
 
 PathBoundary<Marker>
-- rebrand<NewMarker>(self) -> PathBoundary<NewMarker>
+- change_marker<NewMarker>(self) -> PathBoundary<NewMarker>
 - try_new<P: AsRef<Path>>(restriction_path: P) -> Result<Self>
 - try_new_create<P: AsRef<Path>>(root: P) -> Result<Self>
 - strict_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<StrictPath<Marker>>
+- into_strictpath(self) -> Result<StrictPath<Marker>>  // convert root into path (directory must exist)
 - exists(&self) -> bool
 - metadata(&self) -> io::Result<std::fs::Metadata>
 - interop_path(&self) -> &OsStr  // for unavoidable third-party `AsRef<Path>` adapters only
@@ -443,10 +445,11 @@ Note: `.unstrict()` is an explicit escape hatch. Interop doesn’t require it �
 - remove_dir_all(&self) -> io::Result<()>
 
 VirtualRoot<Marker>
-- rebrand<NewMarker>(self) -> VirtualRoot<NewMarker>
+- change_marker<NewMarker>(self) -> VirtualRoot<NewMarker>
 - try_new<P: AsRef<Path>>(root_path: P) -> Result<Self>
 - try_new_create<P: AsRef<Path>>(root_path: P) -> Result<Self>
 - virtual_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<VirtualPath<Marker>>
+- into_virtualpath(self) -> Result<VirtualPath<Marker>>  // convert root into virtual path (directory must exist)
 - metadata(&self) -> io::Result<std::fs::Metadata>
 - virtual_symlink(&self, link_path: &VirtualPath<Marker>) -> io::Result<()>
 - virtual_hard_link(&self, link_path: &VirtualPath<Marker>) -> io::Result<()>
@@ -461,6 +464,7 @@ VirtualRoot<Marker>
 VirtualPath<Marker>
 - with_root<P: AsRef<Path>>(root: P) -> Result<Self>  // sugar; root must exist
 - with_root_create<P: AsRef<Path>>(root: P) -> Result<Self>  // sugar; creates root if missing
+- change_marker<NewMarker>(self) -> VirtualPath<NewMarker>  // transform marker after authorization
 - unvirtual(self) -> StrictPath<Marker>  // downgrade to system-facing view when ownership is needed
 - as_unvirtual(&self) -> &StrictPath<Marker> // borrow the underlying strict path for system-facing related operations
 - interop_path(&self) -> &OsStr // for APIs that accept AsRef<Path>
