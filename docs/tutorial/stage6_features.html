@@ -601,6 +601,24 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 </ol>
 <p><strong>All enforced at compile time with zero runtime overhead.</strong></p>
 </blockquote>
+<h2 id="feature-combinations"><a class="header" href="#feature-combinations">Feature Combinations</a></h2>
+<p>Features can be combined as needed:</p>
+<pre><code class="language-toml">[dependencies]
+strict-path = { 
+    version = "0.1.0-beta.1", 
+    features = ["dirs", "serde", "tempfile", "app-path"] 
+}
+</code></pre>
+<p>All combinations work seamlessly together - choose the features your application needs.</p>
+<h2 id="design-philosophy"><a class="header" href="#design-philosophy">Design Philosophy</a></h2>
+<p>All optional features:</p>
+<ul>
+<li><strong>Maintain security</strong>: Never compromise path boundary enforcement</li>
+<li><strong>Zero-cost when unused</strong>: Features add no overhead if not enabled</li>
+<li><strong>Composable</strong>: Features work together seamlessly</li>
+<li><strong>Platform-aware</strong>: Handle platform differences gracefully</li>
+<li><strong>Standards-compliant</strong>: Follow established conventions and specifications</li>
+</ul>
 <h2 id="congratulations-"><a class="header" href="#congratulations-">Congratulations! 🎉</a></h2>
 <p>You've completed the full tutorial! You now understand:</p>
 <ul>
@@ -613,12 +631,11 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 <h2 id="whats-next"><a class="header" href="#whats-next">What's Next?</a></h2>
 <p>Explore these resources to deepen your knowledge:</p>
 <ul>
-<li><strong><a href="../examples.html">Real-World Examples</a></strong> — Copy-pasteable patterns for web servers, CLI tools, archives</li>
-<li><strong><a href="../authorization_security.html">Authorization Security</a></strong> — Deep dive into RBAC, JWT, and capability-based auth</li>
+<li><strong><a href="../examples/overview.html">Real-World Examples</a></strong> — Copy-pasteable patterns for web servers, CLI tools, archives</li>
 <li><strong><a href="../best_practices.html">Best Practices</a></strong> — Decision matrices, design patterns, and guidelines</li>
 <li><strong><a href="../anti_patterns.html">Anti-Patterns</a></strong> — Common mistakes and how to fix them</li>
-<li><strong><a href="../os_directories.html">OS Directories</a></strong> — Complete list of OS directory constructors</li>
-<li><strong><a href="../features.html">Features</a></strong> — Full feature documentation</li>
+<li><strong><a href="../os_directories.html">OS Directories</a></strong> — Complete API reference for all OS directory constructors</li>
+<li><strong><a href="../axum_tutorial/overview.html">Axum Tutorial</a></strong> — Build a complete web service with strict-path</li>
 </ul>
 <p><strong>You're ready to build secure systems!</strong> 🚀</p>
 <hr />

@@ -46,8 +46,7 @@
 
 # Features & Integration
 
-- [Feature Flags Overview](./features.md)
-  - [OS Standard Directories](./os_directories.md)
+- [OS Standard Directories](./os_directories.md)
 - [Archive Extraction (zip, tar)](./archive_extractors.md)
 
 ---
@@ -75,5 +74,5 @@
 # Internals
 
 - [Design & Implementation](./internals.md)
-  - [Type-History Pattern](./type_history_design.md)
+- [Type-History Pattern](./type_history_design.md)
 - [Development Journey](./development_story.md)

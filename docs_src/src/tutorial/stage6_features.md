@@ -453,6 +453,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 > 
 > **All enforced at compile time with zero runtime overhead.**
 
+## Feature Combinations
+
+Features can be combined as needed:
+
+```toml
+[dependencies]
+strict-path = { 
+    version = "0.1.0-beta.1", 
+    features = ["dirs", "serde", "tempfile", "app-path"] 
+}
+```
+
+All combinations work seamlessly together - choose the features your application needs.
+
+## Design Philosophy
+
+All optional features:
+- **Maintain security**: Never compromise path boundary enforcement
+- **Zero-cost when unused**: Features add no overhead if not enabled  
+- **Composable**: Features work together seamlessly
+- **Platform-aware**: Handle platform differences gracefully
+- **Standards-compliant**: Follow established conventions and specifications
+
 ## Congratulations! 🎉
 
 You've completed the full tutorial! You now understand:
@@ -467,12 +490,11 @@ You've completed the full tutorial! You now understand:
 
 Explore these resources to deepen your knowledge:
 
-- **[Real-World Examples](../examples.md)** — Copy-pasteable patterns for web servers, CLI tools, archives
-- **[Authorization Security](../authorization_security.md)** — Deep dive into RBAC, JWT, and capability-based auth
+- **[Real-World Examples](../examples/overview.md)** — Copy-pasteable patterns for web servers, CLI tools, archives
 - **[Best Practices](../best_practices.md)** — Decision matrices, design patterns, and guidelines
 - **[Anti-Patterns](../anti_patterns.md)** — Common mistakes and how to fix them
-- **[OS Directories](../os_directories.md)** — Complete list of OS directory constructors
-- **[Features](../features.md)** — Full feature documentation
+- **[OS Directories](../os_directories.md)** — Complete API reference for all OS directory constructors
+- **[Axum Tutorial](../axum_tutorial/overview.md)** — Build a complete web service with strict-path
 
 **You're ready to build secure systems!** 🚀
 
