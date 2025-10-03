@@ -20,7 +20,7 @@ Enable features in `Cargo.toml`:
 
 ```toml
 [dependencies]
-strict-path = { version = "0.1.0-beta.1", features = ["dirs", "tempfile", "app-path", "serde"] }
+strict-path = { version = "0.1.0-beta.2", features = ["dirs", "tempfile", "app-path", "serde"] }
 ```
 
 Now you get special constructors that combine external crate APIs with strict-path's boundary enforcement.
@@ -460,7 +460,7 @@ Features can be combined as needed:
 ```toml
 [dependencies]
 strict-path = { 
-    version = "0.1.0-beta.1", 
+    version = "0.1.0-beta.2", 
     features = ["dirs", "serde", "tempfile", "app-path"] 
 }
 ```

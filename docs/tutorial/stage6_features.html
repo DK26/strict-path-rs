@@ -198,7 +198,7 @@
 <h2 id="the-solution-feature-gated-constructors"><a class="header" href="#the-solution-feature-gated-constructors">The Solution: Feature-Gated Constructors</a></h2>
 <p>Enable features in <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-beta.1", features = ["dirs", "tempfile", "app-path", "serde"] }
+strict-path = { version = "0.1.0-beta.2", features = ["dirs", "tempfile", "app-path", "serde"] }
 </code></pre>
 <p>Now you get special constructors that combine external crate APIs with strict-path's boundary enforcement.</p>
 <h2 id="feature-dirs--os-standard-directories"><a class="header" href="#feature-dirs--os-standard-directories">Feature: <code>dirs</code> — OS Standard Directories</a></h2>
@@ -605,7 +605,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 <p>Features can be combined as needed:</p>
 <pre><code class="language-toml">[dependencies]
 strict-path = { 
-    version = "0.1.0-beta.1", 
+    version = "0.1.0-beta.2", 
     features = ["dirs", "serde", "tempfile", "app-path"] 
 }
 </code></pre>
