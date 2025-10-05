@@ -398,11 +398,13 @@ fn virtual_join_clamps_absolute_paths_before_symlink_creation() {
         target.virtualpath_display().to_string(),
         "/etc/config/app.conf"
     );
-    let target_system_path = target.interop_path().to_string_lossy();
-    let vroot_path = td.path().to_string_lossy();
+    let vroot_canonical = std::fs::canonicalize(td.path()).unwrap();
     assert!(
-        target_system_path.contains(&*vroot_path),
-        "Target should be inside vroot, got: {target_system_path}"
+        target
+            .as_unvirtual()
+            .strictpath_starts_with(&vroot_canonical),
+        "Target should be inside vroot, got: {}",
+        target.as_unvirtual().strictpath_display()
     );
 
     // Create symlink at "/var/app/link.conf" (also clamped) pointing to the target
@@ -493,11 +495,13 @@ fn virtual_hard_link_with_absolute_paths_clamped_to_vroot() {
         target.virtualpath_display().to_string(),
         "/etc/data/shared.dat"
     );
-    let target_system_path = target.interop_path().to_string_lossy();
-    let vroot_path = td.path().to_string_lossy();
+    let vroot_canonical = std::fs::canonicalize(td.path()).unwrap();
     assert!(
-        target_system_path.contains(&*vroot_path),
-        "Target should be inside vroot, got: {target_system_path}"
+        target
+            .as_unvirtual()
+            .strictpath_starts_with(&vroot_canonical),
+        "Target should be inside vroot, got: {}",
+        target.as_unvirtual().strictpath_display()
     );
 
     // Create hard link at "/var/app/data.link" (also clamped) pointing to the target
@@ -560,11 +564,11 @@ fn virtual_copy_with_absolute_paths_clamped_to_vroot() {
     // Verify destination was clamped to virtual root
     let dest = vroot.virtual_join(dest_path).unwrap();
     assert_eq!(dest.virtualpath_display().to_string(), "/backup/copy.txt");
-    let dest_system_path = dest.interop_path().to_string_lossy();
-    let vroot_path = td.path().to_string_lossy();
+    let vroot_canonical = std::fs::canonicalize(td.path()).unwrap();
     assert!(
-        dest_system_path.contains(&*vroot_path),
-        "Destination should be inside vroot, got: {dest_system_path}"
+        dest.as_unvirtual().strictpath_starts_with(&vroot_canonical),
+        "Destination should be inside vroot, got: {}",
+        dest.as_unvirtual().strictpath_display()
     );
 
     // Verify content was copied
@@ -604,11 +608,11 @@ fn virtual_rename_with_absolute_paths_clamped_to_vroot() {
         dest.virtualpath_display().to_string(),
         "/archive/renamed.txt"
     );
-    let dest_system_path = dest.interop_path().to_string_lossy();
-    let vroot_path = td.path().to_string_lossy();
+    let vroot_canonical = std::fs::canonicalize(td.path()).unwrap();
     assert!(
-        dest_system_path.contains(&*vroot_path),
-        "Destination should be inside vroot, got: {dest_system_path}"
+        dest.as_unvirtual().strictpath_starts_with(&vroot_canonical),
+        "Destination should be inside vroot, got: {}",
+        dest.as_unvirtual().strictpath_display()
     );
 
     // Verify content was moved
@@ -685,11 +689,11 @@ fn virtual_symlink_from_root_with_absolute_target() {
 
     // Verify link was created at the clamped location within vroot
     assert!(link.exists(), "Symlink should exist");
-    let link_system = link.interop_path().to_string_lossy();
-    let vroot_path = td.path().to_string_lossy();
+    let vroot_canonical = std::fs::canonicalize(td.path()).unwrap();
     assert!(
-        link_system.contains(&*vroot_path),
-        "Link should be inside vroot, got: {link_system}"
+        link.as_unvirtual().strictpath_starts_with(&vroot_canonical),
+        "Link should be inside vroot, got: {}",
+        link.as_unvirtual().strictpath_display()
     );
 }
 
