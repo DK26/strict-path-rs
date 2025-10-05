@@ -4,8 +4,6 @@ use crate::path::strict_path::StrictPath;
 use crate::validator::path_history::*;
 use crate::Result;
 
-#[cfg(windows)]
-use std::ffi::OsStr;
 use std::io::{Error as IoError, ErrorKind};
 use std::marker::PhantomData;
 use std::path::Path;
@@ -13,22 +11,6 @@ use std::sync::Arc;
 
 #[cfg(feature = "tempfile")]
 use tempfile::TempDir;
-
-#[cfg(windows)]
-use std::path::Component;
-
-#[cfg(windows)]
-fn is_potential_83_short_name(os: &OsStr) -> bool {
-    let s = os.to_string_lossy();
-    if let Some(pos) = s.find('~') {
-        s[pos + 1..]
-            .chars()
-            .next()
-            .is_some_and(|ch| ch.is_ascii_digit())
-    } else {
-        false
-    }
-}
 
 /// SUMMARY:
 /// Canonicalize a candidate path and enforce the `PathBoundary` boundary, returning a `StrictPath`.
@@ -41,7 +23,6 @@ fn is_potential_83_short_name(os: &OsStr) -> bool {
 /// - `Result<StrictPath<Marker>>`: Canonicalized path proven to be within `restriction`.
 ///
 /// ERRORS:
-/// - `StrictPathError::WindowsShortName` (windows): Relative input contains a DOS 8.3 short name segment.
 /// - `StrictPathError::PathResolutionError`: Canonicalization fails (I/O or resolution error).
 /// - `StrictPathError::PathEscapesBoundary`: Resolved path would escape the boundary.
 ///
@@ -68,25 +49,6 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
     };
 
     let canonicalized = PathHistory::<Raw>::new(target_path).canonicalize()?;
-
-    // Windows: Reject paths where canonicalization couldn't expand 8.3 short names.
-    // This only happens when the path doesn't exist, creating a security risk where
-    // we cannot verify if "LONGNA~1" and "LongName" refer to the same path.
-    #[cfg(windows)]
-    {
-        for comp in canonicalized.components() {
-            if let Component::Normal(name) = comp {
-                if is_potential_83_short_name(name) {
-                    // Path doesn't exist (otherwise canonicalization would have expanded the short name)
-                    return Err(StrictPathError::windows_short_name(
-                        name.to_os_string(),
-                        path.as_ref().to_path_buf(),
-                        canonicalized.to_path_buf(),
-                    ));
-                }
-            }
-        }
-    }
 
     let validated_path = canonicalized.boundary_check(&restriction.path)?;
 
@@ -316,8 +278,7 @@ impl<Marker> PathBoundary<Marker> {
     /// - `Result<StrictPath<Marker>>`: Canonicalized, boundary-checked path.
     ///
     /// ERRORS:
-    /// - `StrictPathError::WindowsShortName` (windows), `StrictPathError::PathResolutionError`,
-    ///   `StrictPathError::PathEscapesBoundary`.
+    /// - `StrictPathError::PathResolutionError`, `StrictPathError::PathEscapesBoundary`.
     #[inline]
     pub fn strict_join(&self, candidate_path: impl AsRef<Path>) -> Result<StrictPath<Marker>> {
         canonicalize_and_enforce_restriction_boundary(candidate_path, self)

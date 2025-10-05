@@ -38,16 +38,6 @@ fn strict_path_error_sources_are_reported() {
         restriction_boundary: PathBuf::from("/root"),
     };
     assert!(escape.source().is_none());
-
-    #[cfg(windows)]
-    {
-        let short = StrictPathError::WindowsShortName {
-            component: std::ffi::OsString::from("PROGRA~1"),
-            original: PathBuf::from("prog/segment"),
-            checked_at: PathBuf::from("C:/root"),
-        };
-        assert!(short.source().is_none());
-    }
 }
 
 #[test]
@@ -60,17 +50,4 @@ fn path_escape_display_mentions_attempt_and_boundary() {
     assert!(rendered.contains("escapes path restriction boundary"));
     assert!(rendered.contains("/tmp/attempt"));
     assert!(rendered.contains("/tmp/restriction"));
-}
-
-#[cfg(windows)]
-#[test]
-fn windows_short_name_display_mentions_component() {
-    let error = StrictPathError::WindowsShortName {
-        component: std::ffi::OsString::from("PROGRA~1"),
-        original: PathBuf::from("C:/Program Files"),
-        checked_at: PathBuf::from("C:/Program Files"),
-    };
-    let rendered = error.to_string();
-    assert!(rendered.contains("PROGRA~1"));
-    assert!(rendered.contains("Windows 8.3 short filename"));
 }

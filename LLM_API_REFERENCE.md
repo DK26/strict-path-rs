@@ -45,14 +45,14 @@ Marker transformation guidance
 		- Errors: `InvalidRestriction`
 		- Example: `let boundary = PathBoundary::try_new_create("./config")?;`
 	- `PathBoundary::strict_join<P: AsRef<Path>>(&self, candidate: P) -> Result<StrictPath<T>>`
-		- Errors: `PathEscapesBoundary`, `PathResolutionError`, `WindowsShortName`
+		- Errors: `PathEscapesBoundary`, `PathResolutionError`
 		- Security: Validates against boundary; prevents traversal/symlink escapes
 		- Example: `let file = boundary.strict_join(user_input)?; file.read()?;`
 
 - StrictPath<T>
 	- Purpose: Proven-safe system path (within its boundary)
 	- `StrictPath::strict_join<P: AsRef<Path>>(&self, path: P) -> Result<StrictPath<T>>`
-		- Errors: `PathEscapesBoundary`, `PathResolutionError`, `WindowsShortName`
+		- Errors: `PathEscapesBoundary`, `PathResolutionError`
 	- `StrictPath::interop_path(&self) -> &OsStr` (for unavoidable third-party `AsRef<Path>` APIs)
 	- `StrictPath::strictpath_display(&self) -> Display`
 		- `StrictPath::try_into_boundary(self) -> Result<PathBoundary<T>>` — promote the validated path to a boundary (directory must exist); call `.change_marker::<NewMarker>()` to propagate authorization markers
@@ -64,7 +64,7 @@ Marker transformation guidance
 	- `VirtualRoot::try_new_create<P: AsRef<Path>>(dir: P) -> Result<VirtualRoot<T>>`
 		- Errors: `InvalidRestriction`
 	- `VirtualRoot::virtual_join<P: AsRef<Path>>(&self, candidate: P) -> Result<VirtualPath<T>>`
-		- Errors: `PathEscapesBoundary`, `PathResolutionError`, `WindowsShortName`
+		- Errors: `PathEscapesBoundary`, `PathResolutionError`
 
 - VirtualPath<T>
 	- Purpose: Virtual path with rooted "/" view; safe virtual operations mapped to a strict path
@@ -140,12 +140,70 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 ### Feature semantics (when enabled)
 - `app-path`: Environment override resolves to the final root path. When the env var is set, no subdirectory append occurs — the env value becomes the root.
 
-### Anti‑Patterns (do NOT)
-- Wrap secure types in `Path::new(..)` / `PathBuf::from(..)`.
-- Use std `Path::join`/`parent` on leaked `StrictPath`/`VirtualPath` — use `strict_join`/`virtualpath_parent`.
-- Construct `PathBoundary`/`VirtualRoot` inside helpers — treat them as policy and pass them in.
-- Convert `StrictPath` → `VirtualPath` just to print; use `strictpath_display()` or start with `VirtualPath` for UI.
-- Rely on implicit conversions: there is no `AsRef<Path>` on secure types; when a third-party API insists on `AsRef<Path>`, use `.interop_path()` explicitly and nothing else.
+### Anti‑Patterns (Tell‑offs — do NOT do these!)
+
+**⚠️ SECURITY THEATER (THE ABSOLUTE WORST!) ⚠️**
+
+If you're only validating constants or immediately converting back to unsafe paths, **you're writing security theater, not security code.**
+
+- ❌ **Only validating constants**: `boundary.strict_join("hardcoded.txt")?` — no untrusted input ever flows through validation. This is completely pointless.
+- ❌ **Validating then converting back to unsafe types**: `let safe = boundary.strict_join(input)?; let path = PathBuf::from(safe.interop_path()); std::fs::read(&path)?` — you validated it, then threw away the safety!
+- ❌ **Accepting unsafe types in functions**: `fn process(path: &str) { boundary.strict_join(path)?; }` — validate at call site, accept `&StrictPath<_>` in signature.
+
+---
+
+**Path Construction & Leakage** (most common mistakes):
+- ❌ `std::path::Path::new(some_strict_path.interop_path()).to_path_buf()` — WTF is this? Just use `some_strict_path.interop_path()` directly or `.clone().unvirtual()` if you need ownership
+- ❌ `std::path::PathBuf::from(some_strict_path.interop_path())` — same problem; `interop_path()` already gives you `&OsStr` which is `AsRef<Path>`
+- ❌ Wrap secure types in `Path::new(..)` / `PathBuf::from(..)` when you already have the path
+- ❌ Use std `Path::join`/`parent` on leaked `StrictPath`/`VirtualPath` — use `strict_join`/`virtualpath_parent` instead
+- ❌ Performing filesystem I/O via `std::fs` on `.interop_path()` paths — use built-in helpers (`StrictPath::create_file`, `StrictPath::read_to_string`, etc.)
+
+**Validation & Policy**:
+- ❌ Validating only constants (no untrusted segment ever flows through validation)
+- ❌ Construct `PathBoundary`/`VirtualRoot` inside helpers — treat them as policy and pass them in
+- ❌ Raw path parameters in safe helpers — use types/signatures that encode guarantees
+
+**Display & Interop**:
+- ❌ Convert `StrictPath` → `VirtualPath` just to print; use `strictpath_display()` or start with `VirtualPath` for UI
+- ❌ `interop_path().as_ref()` or `as_unvirtual().interop_path()` — when adapting third-party crates, call `.interop_path()` directly; no extra `.as_ref()` dance
+- ❌ Mixing interop and display (use `*_display()` for display)
+
+**Markers & Conversions**:
+- ❌ Using `change_marker()` without authorization checks or when converting between path types — conversions preserve markers automatically; only use `change_marker()` when you need a *different* marker after verification
+- ❌ Calling `strict_join("")` or `virtual_join("")` to grab the root — use dedicated conversions (`PathBoundary::into_strictpath()`, `VirtualRoot::into_virtualpath()`)
+
+**Multi-user Services**:
+- ❌ Single‑user demo flows for multi‑user services — use per‑user `VirtualRoot`
+
+**Remember**: `interop_path()` returns `&OsStr` which is already `AsRef<Path>`. You don't need to wrap it in anything!
+
+### Quick Reference: Anti-Pattern → Fix
+
+| ❌ Bad Pattern (DO NOT DO THIS!)                         | ✅ Correct Pattern                               | Why                                               |
+| ------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------- |
+| `Path::new(path.interop_path()).to_path_buf()`          | `path.interop_path()` directly                  | Already `AsRef<Path>`; wrapping adds nothing      |
+| `PathBuf::from(path.interop_path())`                    | `path.interop_path()` or `.unvirtual()`         | Unnecessary conversion; use direct access         |
+| `Path::new(path.interop_path()).exists()`               | `path.exists()`                                 | Built-in method; no leaking needed                |
+| `println!("{}", path.interop_path().to_string_lossy())` | `println!("{}", path.strictpath_display())`     | Use display methods for user output               |
+| `fn process(path: &str)` + validate inside              | `fn process(path: &StrictPath<_>)`              | Encode safety in signature; validate once at edge |
+| `let boundary = PathBoundary::try_new(...)?`            | `let uploads_dir = PathBoundary::try_new(...)?` | Name by purpose, not type                         |
+| `leaked_path.join("child")`                             | `secure_path.strict_join("child")?`             | Never use std ops on leaked paths                 |
+| `vroot.as_unvirtual().interop_path()`                   | `vroot.interop_path()`                          | VirtualRoot has `interop_path()` directly         |
+| `path.interop_path().as_ref()`                          | `path.interop_path()`                           | Already `AsRef<Path>`; redundant `.as_ref()`      |
+| `std::fs::copy(path.interop_path(), ...)`               | `path.strict_copy(...)`                         | Use built-in I/O helpers, not raw `std::fs`       |
+
+### The Golden Rules (Memorize These!)
+
+1. **Never convert secure types back to `Path`/`PathBuf`** unless you truly need owned `PathBuf` for mutability (use `.unvirtual()`)
+2. **Make functions accept safe types** - `&StrictPath<_>` in signatures, not `&str` with validation inside
+3. **Name variables by purpose, not type** - `uploads_dir`, `config_dir`, not `boundary`, `jail`
+4. **Use the right method for the job**:
+   - Display to users → `strictpath_display()` / `virtualpath_display()`
+   - Pass to third-party APIs → `interop_path()` (already `AsRef<Path>`)
+   - I/O operations → Use built-in helpers (`.read()`, `.write()`, `.create_file()`, etc.)
+5. **Let callers control security policy** - accept `&PathBoundary<_>` parameter, don't create inside helpers
+6. **Actually validate untrusted input** - don't just validate constants (security theater!)
 
 ## Common Usage Patterns
 
@@ -197,7 +255,6 @@ for entry in WalkDir::new(safe_path.interop_path()) {
 - `PathEscapesBoundary` - User attempted directory traversal (e.g., "../../../etc/passwd")
 - `InvalidRestriction` - Cannot create/access the boundary directory  
 - `PathResolutionError` - Invalid path format or I/O error during canonicalization
-- `WindowsShortName` - Path contains DOS 8.3 short names (Windows only)
 
 **Error Pattern**:
 ```rust
@@ -382,7 +439,6 @@ StrictPathError (variants)
 - `InvalidRestriction { restriction: PathBuf, source: io::Error }`
 - `PathEscapesBoundary { attempted_path: PathBuf, restriction_boundary: PathBuf }`
 - `PathResolutionError { path: PathBuf, source: io::Error }`
-- `WindowsShortName { component, original, checked_at }` (windows)
 
 PathBoundary<Marker>
 - change_marker<NewMarker>(self) -> PathBoundary<NewMarker>

@@ -1,10 +1,30 @@
 # AGENTS.md
 
-Operational guide for AI assistants, bots, and automation working in this repository.
+Operational guide for AI assistants and automation working in this repository.
+
+## CRITICAL: Read Project Documentation FIRST
+
+**Before making ANY suggestions or implementations:**
+
+1. **Read `LLM_API_REFERENCE.md`** - Understand existing API design, patterns, and anti-patterns
+2. **Read relevant source files** - Study how existing features are implemented
+3. **Read issue discussion** - Understand the problem context and any prior discussions
+
+**NEVER propose designs without understanding:**
+- How the existing codebase works
+- What patterns are already established
+- What the actual requirements are
+
+**Failure to read documentation first wastes everyone's time and produces incorrect designs.**
 
 ## Project Overview
 
-- Purpose: Prevent directory traversal with Escape hatches:
+- Purpose: Prevent directory traversal with safe path boundaries and safe symlinks.
+- Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError` (see LLM_API_REFERENCE.md).
+- Security model: "Restrict every external path." Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
+- Foundation: Built on `soft-canonicalize` for resolution; canonicalization handles Windows 8.3 short names transparently.
+
+Escape hatches:
 - Borrow strict view from virtual with `as_unvirtual()` for shared helpers.
 - Use `.unvirtual()` and `.unstrict()` only when ownership is required; isolate in dedicated "escape hatches" sections.
 
@@ -65,10 +85,13 @@ Do not implement leaky trait impls for secure types:
 - `demos/`: real‑world demo binaries; decoupled from MSRV; `publish = false`.
 - `.github/workflows/`: CI configs; stable + MSRV split.
 - Local CI parity: `ci-local.ps1` (Windows), `ci-local.sh` (Unix/WSL).
-- `book/`: reference copy of mdBook sources for browsing on `main`; **do not edit**—see `book/README.md`.
+- **mdBook documentation (authoritative source)**:
+  - Live on branch `docs` under `docs_src/` (built to `docs/`).
+  - **For agents/LLMs**: Use `.docs/` worktree to read and edit mdBook content.
+  - Set up once: `git worktree add .docs docs` (or `git worktree add -B docs .docs origin/docs` if remote only).
+  - Read/edit: `.docs/docs_src/src/*.md` files.
+  - Preview: `cd .docs/docs_src && mdbook serve -o`.
 - Docs: `README.md`, `LLM_API_REFERENCE.md`.
-  - mdBook sources live on branch `docs` (not on `main`).
-  - Use a local Git worktree at `.docs/` to edit/serve docs side‑by‑side.
 
 ## CI Workflows (GitHub Actions)
 
@@ -187,12 +210,12 @@ PathHistory is the internal engine that performs normalization, canonicalization
   - `canonicalize_anchored(&PathBoundary)` canonicalizes with the jail as the anchor root and produces `AnchoredCanonicalized`.
   - After `boundary_check(...)`, anchor is erased when constructing `StrictPath`, keeping public surface types narrow.
 
-- Windows specifics (8.3 short‑name handling):
-  - Pre‑filter relative inputs for segments that look like DOS 8.3 short names (`PROGRA~1`) to avoid aliasing‑based escapes prior to filesystem calls. Keep this logic in the centralized validator used by `strict_join`.
+- Windows specifics:
+  - Canonicalization automatically resolves Windows 8.3 short names (e.g., `PROGRA~1` → `Program Files`). No explicit rejection needed; the mathematical proof (canonicalized path within canonicalized boundary) provides security.
   - UNC paths, ADS (`file.txt:stream`) and drive‑relative forms are normalized in PathHistory; ADS are not special‑cased beyond OS behavior, but path validation prevents escapes.
 
 - Error mapping:
-  - All I/O/canonicalization errors are wrapped as `StrictPathError::{InvalidRestriction, PathResolutionError, PathEscapesBoundary, WindowsShortName (windows)}` at the outer layer. Avoid exposing raw `io::Error` from internal steps.
+  - All I/O/canonicalization errors are wrapped as `StrictPathError::{InvalidRestriction, PathResolutionError, PathEscapesBoundary}` at the outer layer. Avoid exposing raw `io::Error` from internal steps.
 
 - Equality/Ordering/Hashing (public types):
   - `StrictPath`/`VirtualPath` Eq/Ord/Hash are based on the underlying system path; `VirtualPath` equals a `StrictPath` with the same system path within the same restriction.
@@ -237,9 +260,9 @@ String formatting rules (Rust 1.58+ captured identifiers):
 - Avoid bare `{}`; prefer captured identifiers (`format!("{value}")`, `println!("{display}")`).
 - Bind locals for repeated or long expressions; improves readability and prevents mistakes.
 
-See also mdBook pages (on `docs` branch, accessible via `.docs/` worktree):
-- Best Practices & Guidelines: `.docs/docs_src/src/best_practices.md`
-- Anti‑Patterns (Tell‑offs): `.docs/docs_src/src/anti_patterns.md`
+See also mdBook pages (access via `.docs/` worktree):
+- `.docs/docs_src/src/best_practices.md` — detailed decision matrix and patterns
+- `.docs/docs_src/src/anti_patterns.md` — common mistakes with fixes
 
 ## Documentation Guidelines
 
@@ -277,7 +300,7 @@ LLM_API_REFERENCE.md is written purely for external LLM consumption. It is usage
 - Short, copy‑pasteable recipes and explicit anti‑patterns to avoid.
 
 Non‑goals for LLM_API_REFERENCE.md:
-- Internal design details (type‑state, `PathHistory`, platform specifics) — those live in the mdBook (`.docs/docs_src/` on the `docs` branch) and source docs.
+- Internal design details (type‑state, `PathHistory`, platform specifics) — those live in the mdBook (`.docs/docs_src/src/internals.md`) and source docs.
 - Contributor guidance (coding standards, doc comment style, defensive programming) — keep that in AGENTS.md.
 
 Keep LLM_API_REFERENCE.md concise and stable. When APIs evolve, update it alongside public docs and demos; prefer linking to realistic `demos/` over embedding long examples that are hard to maintain.
@@ -292,11 +315,12 @@ Keep LLM_API_REFERENCE.md concise and stable. When APIs evolve, update it alongs
 - When demonstrating anti-patterns, keep the code runnable: capture the failure in a helper (`if let Err(e) = example() { panic!("{e}"); }`) or assert on the error instead of relying on `no_run` fences.
 - Do not use `std::fs` in visible example code unless strictly demonstrating interop via `interop_path()`; keep raw filesystem calls confined to hidden setup/cleanup.
 
-mdBook documentation system:
-- Sources live on the `docs` branch under `docs_src/` (built to `docs/`).
-- Preferred local layout: add a Git worktree at `.docs/` checked out to `docs`.
+mdBook documentation (authoritative source — NEVER use `book/` directory):
+- **Always use `.docs/` worktree** for reading and editing mdBook content.
+- Setup: `git worktree add .docs docs` (creates `.docs/` checked out to `docs` branch).
+- Read/edit: All content is in `.docs/docs_src/src/*.md` files.
 - Build locally: `cd .docs/docs_src && mdbook build`; serve: `cd .docs/docs_src && mdbook serve -o`.
-- Pages of interest: Best Practices, Anti‑Patterns, Getting Started, Features/OS directories, Archive Extractors.
+- Key pages: `.docs/docs_src/src/{best_practices,anti_patterns,getting_started,security_methodology}.md`.
 
 ### Docs Worktree (Live mdBook on `docs` branch)
 

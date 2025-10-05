@@ -234,7 +234,7 @@ jobs:
 
     - name: Run tests (latest stable, all features)
       # Run tests for the library with all features (serde, etc.). Demos build separately.
-      run: cargo test -p strict-path --all-features --verbose
+      run: cargo test -p strict-path --all-features
 
   docs:
     name: Documentation
@@ -282,4 +282,4 @@ jobs:
 
     - name: Test library with MSRV
       run: |
-        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test --locked -p strict-path --lib --verbose
+        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test --locked -p strict-path --lib
