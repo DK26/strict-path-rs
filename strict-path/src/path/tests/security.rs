@@ -286,12 +286,14 @@ fn test_symlink_escape_is_rejected() {
         .expect("Virtual paths should clamp symlink targets to virtual root");
 
     // Verify the path is clamped within the virtual root
+    // Canonicalize both paths for comparison (macOS has /var -> /private/var symlink)
     let clamped_system = clamped.interop_path();
+    let canonical_restriction = fs::canonicalize(&restriction_dir).unwrap();
     assert!(
-        AsRef::<std::path::Path>::as_ref(clamped_system).starts_with(&restriction_dir),
+        AsRef::<std::path::Path>::as_ref(clamped_system).starts_with(&canonical_restriction),
         "Virtual path should be clamped within virtual root. Got: {:?}, Expected to start with: {:?}",
         clamped_system,
-        restriction_dir
+        canonical_restriction
     );
 }
 
@@ -534,12 +536,14 @@ fn test_toctou_virtual_parent_attack() {
     match parent_result {
         Ok(Some(parent)) => {
             // New expected behavior: parent is clamped within virtual root
+            // Canonicalize both paths for comparison (macOS has /var -> /private/var symlink)
             let parent_system = parent.interop_path();
+            let canonical_restriction = std::fs::canonicalize(&restriction_dir).unwrap();
             assert!(
-                AsRef::<std::path::Path>::as_ref(parent_system).starts_with(&restriction_dir),
+                AsRef::<std::path::Path>::as_ref(parent_system).starts_with(&canonical_restriction),
                 "Parent should be clamped within virtual root. Got: {:?}, Expected to start with: {:?}",
                 parent_system,
-                restriction_dir
+                canonical_restriction
             );
         }
         Err(crate::StrictPathError::PathResolutionError { .. }) => {

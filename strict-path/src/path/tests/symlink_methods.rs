@@ -765,14 +765,15 @@ fn following_symlink_pointing_outside_vroot() {
     // EXPECTED BEHAVIOR: Symlink target should be CLAMPED to virtual root
     // interop_path() returns ALREADY CANONICALIZED &OsStr from our secure types
     // &OsStr implements AsRef<Path>, so Path::starts_with() accepts it directly
+    // Canonicalize vroot for comparison (macOS has /var -> /private/var symlink)
     let system_path = vpath.interop_path();
-    let vroot_path = td.path();
+    let canonical_vroot = std::fs::canonicalize(td.path()).unwrap();
 
     assert!(
-        AsRef::<std::path::Path>::as_ref(system_path).starts_with(vroot_path),
+        AsRef::<std::path::Path>::as_ref(system_path).starts_with(&canonical_vroot),
         "Symlink target MUST be clamped within virtual root.\nGot: {:?}\nVRoot: {:?}\nOriginal target: {:?}",
         system_path,
-        vroot_path,
+        canonical_vroot,
         external_target
     );
 
@@ -783,7 +784,7 @@ fn following_symlink_pointing_outside_vroot() {
         let external_stripped = external_target
             .strip_prefix("/")
             .unwrap_or(&external_target);
-        let expected_clamped = vroot_path.join(external_stripped);
+        let expected_clamped = canonical_vroot.join(external_stripped);
 
         assert_eq!(
             system_path, expected_clamped,
@@ -796,7 +797,7 @@ fn following_symlink_pointing_outside_vroot() {
         // On Windows, the absolute path structure is preserved differently
         // Just verify it's within vroot
         assert!(
-            AsRef::<std::path::Path>::as_ref(system_path).starts_with(vroot_path),
+            AsRef::<std::path::Path>::as_ref(system_path).starts_with(&canonical_vroot),
             "Clamped path should be within vroot on Windows"
         );
     }
