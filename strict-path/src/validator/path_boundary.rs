@@ -91,9 +91,27 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
         restriction.path().join(path.as_ref())
     };
 
-    let validated_path = PathHistory::<Raw>::new(target_path)
-        .canonicalize()?
-        .boundary_check(&restriction.path)?;
+    let canonicalized = PathHistory::<Raw>::new(target_path).canonicalize()?;
+
+    // Windows: Reject canonicalized paths that still contain 8.3 short names
+    // Short names in canonicalized output mean we cannot make security assumptions;
+    // the path doesn't exist, so we prefer to error rather than risk accepting aliased paths
+    #[cfg(windows)]
+    {
+        for comp in canonicalized.components() {
+            if let Component::Normal(name) = comp {
+                if is_potential_83_short_name(name) {
+                    return Err(StrictPathError::windows_short_name(
+                        name.to_os_string(),
+                        path.as_ref().to_path_buf(),
+                        canonicalized.to_path_buf(),
+                    ));
+                }
+            }
+        }
+    }
+
+    let validated_path = canonicalized.boundary_check(&restriction.path)?;
 
     Ok(StrictPath::new(
         Arc::new(restriction.clone()),

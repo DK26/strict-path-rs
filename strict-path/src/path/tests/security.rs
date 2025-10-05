@@ -350,18 +350,28 @@ fn test_symlink_escape_is_rejected() {
 
     let restriction: PathBoundary = PathBoundary::try_new(&restriction_dir).unwrap();
 
+    // Attempt to validate a path that goes through the symlink to outside
     let err = restriction.strict_join("link/escape.txt").unwrap_err();
     match err {
         crate::StrictPathError::PathEscapesBoundary { .. } => {}
         other => panic!("Expected PathEscapesBoundary, got {other:?}"),
     }
 
+    // VirtualRoot should CLAMP the symlink target to virtual root (new behavior in 0.4.0)
     let vroot: crate::VirtualRoot<()> = crate::VirtualRoot::try_new(&restriction_dir).unwrap();
-    let err2 = vroot.virtual_join("link/escape.txt").unwrap_err();
-    match err2 {
-        crate::StrictPathError::PathEscapesBoundary { .. } => {}
-        other => panic!("Expected PathEscapesBoundary via virtual, got {other:?}"),
-    }
+    let clamped = vroot
+        .virtual_join("link/escape.txt")
+        .expect("Virtual paths should clamp symlink targets to virtual root");
+
+    // Verify the path is clamped within the virtual root
+    let clamped_canonical = fs::canonicalize(clamped.as_unvirtual().interop_path()).unwrap();
+    let restriction_canonical = fs::canonicalize(&restriction_dir).unwrap();
+    assert!(
+        clamped_canonical.starts_with(&restriction_canonical),
+        "Virtual path should be clamped within virtual root. Got: {:?}, Expected to start with: {:?}",
+        clamped_canonical,
+        restriction_canonical
+    );
 }
 
 #[test]

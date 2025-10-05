@@ -132,7 +132,12 @@ fn test_advanced_toctou_read_race_condition() {
         }
     }
 
-    // Now, any I/O on the existing path object should fail because it re-validates.
+    // With symlink clamping (0.4.0), the swapped symlink is clamped to virtual root.
+    // The outside file path gets clamped to restriction_dir/outside/secret.txt (doesn't exist).
+    // Expected outcomes:
+    // 1. NotFound error (clamped path doesn't exist) - acceptable, shows clamping worked
+    // 2. Safe content (if symlink swap happened after validation) - acceptable
+    // 3. PathEscapesBoundary (if escape detected before clamping) - acceptable
     let result = path_object.read_to_string();
 
     match result {
@@ -147,6 +152,12 @@ fn test_advanced_toctou_read_race_condition() {
             } else {
                 panic!("Expected StrictPathError but got a different error type.");
             }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // Acceptable: symlink was clamped to virtual root, resulting in non-existent path
+            eprintln!(
+                "TOCTOU test: Clamping caused NotFound (expected with 0.4.0 clamping behavior)"
+            );
         }
         Ok(content) => {
             assert_eq!(
