@@ -135,6 +135,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 This is perfect for multi-user applications where each user should feel like they have their own filesystem.
 
+### The Critical Difference: Symlink Behavior
+
+**`StrictPath`** validates paths and **rejects** anything that escapes:
+- User input `"../../../etc/passwd"` → ❌ Error
+- Symlink pointing to `/etc/passwd` → ❌ Error (if outside boundary)
+
+**`VirtualPath`** implements true virtual filesystem and **clamps** absolute paths:
+- User input `"../../../etc/passwd"` → ✅ Clamped to `vroot/etc/passwd`
+- Symlink pointing to `/etc/passwd` → ✅ Clamped to `vroot/etc/passwd`
+
+This makes `VirtualPath` perfect for:
+- 🗜️ Archive extraction (malicious entries are safely clamped)
+- 🏢 Multi-tenant systems (users can't escape their sandbox)
+- 📦 Container-like environments (absolute paths stay inside)
+
+**Rule of thumb:** Use `StrictPath` for system resources (explicit validation), use `VirtualPath` for user sandboxes (graceful containment).
+
 ## API Summary
 
 That's really all you need to know! The core API is simple:

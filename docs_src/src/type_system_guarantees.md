@@ -278,6 +278,49 @@ assert_eq!(
 
 All the type safety benefits come at compile time with no runtime overhead!
 
+## StrictPath vs VirtualPath: Symlink Semantics
+
+One critical difference between `StrictPath` and `VirtualPath` is how they handle symlinks:
+
+### StrictPath: System Filesystem Semantics
+
+```rust
+use strict_path::StrictPath;
+
+// StrictPath follows symlinks and validates targets
+let boundary = StrictPath::with_boundary_create("system_root")?;
+
+// If "system_root/config_link" symlinks to "/etc/app.conf":
+let config = boundary.strict_join("config_link");
+// ❌ Error if target is outside boundary
+// ✅ OK if target resolves to path inside boundary
+```
+
+**Use for:** Shared system resources, config files, traditional filesystem operations
+
+### VirtualPath: Virtual Filesystem Semantics  
+
+```rust
+use strict_path::VirtualPath;
+
+// VirtualPath clamps absolute symlink targets to virtual root
+let vroot = VirtualPath::with_root("user_sandbox")?;
+
+// If "user_sandbox/config_link" symlinks to "/etc/app.conf":
+let config = vroot.virtual_join("config_link")?;
+// ✅ Always OK - target clamped to "user_sandbox/etc/app.conf"
+
+println!("Virtual: {}", config.virtualpath_display());
+// Output: /etc/app.conf (from user's perspective)
+
+println!("System: {}", config.as_unvirtual().strictpath_display());  
+// Output: user_sandbox/etc/app.conf (actually safe!)
+```
+
+**Use for:** Multi-tenant systems, archive extraction, sandboxed environments, container-like semantics
+
+**Key Insight:** In a virtual filesystem, absolute paths (whether from user input or symlink targets) are *always* relative to the virtual root. This makes `VirtualPath` perfect for untrusted inputs where you want graceful containment rather than explicit rejection.
+
 ## Common Patterns Summary
 
 1. **Validate once, use everywhere**: Create typed paths at boundaries, pass typed paths to functions
@@ -285,5 +328,6 @@ All the type safety benefits come at compile time with no runtime overhead!
 3. **Separate validation from business logic**: Keep path validation separate from file processing
 4. **Use meaningful marker names**: Markers should describe business domains, not technical implementation
 5. **Fail at compile time**: Structure your code so domain mix-ups become type errors
+6. **Choose the right semantics**: Use `StrictPath` for system operations (validation), `VirtualPath` for sandboxing (clamping)
 
 The type system becomes your ally in preventing path-related security bugs and logic errors!
