@@ -50,19 +50,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         restriction_boundary.display()
                     );
                 }
-                #[cfg(windows)]
-                StrictPathError::WindowsShortName {
-                    component,
-                    original,
-                    checked_at,
-                } => {
-                    println!(
-                        "Windows 8.3 short name '{}' rejected at '{}' for original '{}'",
-                        component.to_string_lossy(),
-                        checked_at.display(),
-                        original.display()
-                    );
-                }
             }
         }
         Ok(boundary) => {

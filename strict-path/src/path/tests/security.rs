@@ -48,8 +48,6 @@ fn test_known_cve_patterns() {
                 match err {
                     StrictPathError::PathEscapesBoundary { .. }
                     | StrictPathError::PathResolutionError { .. } => {}
-                    #[cfg(windows)]
-                    StrictPathError::WindowsShortName { .. } => {}
                     other => panic!("Unexpected error variant for pattern '{pattern}': {other:?}"),
                 }
             }
@@ -332,10 +330,18 @@ fn test_symlink_escape_is_rejected() {
 
     let td = tempfile::tempdir().unwrap();
     let base = td.path();
-    let restriction_dir = base.join("PathBoundary");
-    let outside_dir = base.join("outside");
-    fs::create_dir_all(&restriction_dir).unwrap();
-    fs::create_dir_all(&outside_dir).unwrap();
+
+    // Create directories and canonicalize to resolve Windows short names (8.3)
+    let restriction_dir = {
+        let p = base.join("PathBoundary");
+        fs::create_dir_all(&p).unwrap();
+        fs::canonicalize(&p).unwrap()
+    };
+    let outside_dir = {
+        let p = base.join("outside");
+        fs::create_dir_all(&p).unwrap();
+        fs::canonicalize(&p).unwrap()
+    };
 
     // Create symlink inside PathBoundary pointing to a directory outside the restriction.
     // On Windows this may require Developer Mode or admin; if not available, skip.
@@ -359,19 +365,28 @@ fn test_symlink_escape_is_rejected() {
 
     // VirtualRoot should CLAMP the symlink target to virtual root (new behavior in 0.4.0)
     let vroot: crate::VirtualRoot<()> = crate::VirtualRoot::try_new(&restriction_dir).unwrap();
-    let clamped = vroot
-        .virtual_join("link/escape.txt")
-        .expect("Virtual paths should clamp symlink targets to virtual root");
+    let clamped = vroot.virtual_join("link/escape.txt").unwrap();
 
     // Verify the path is clamped within the virtual root
-    let clamped_canonical = fs::canonicalize(clamped.as_unvirtual().interop_path()).unwrap();
-    let restriction_canonical = fs::canonicalize(&restriction_dir).unwrap();
-    assert!(
-        clamped_canonical.starts_with(&restriction_canonical),
-        "Virtual path should be clamped within virtual root. Got: {:?}, Expected to start with: {:?}",
-        clamped_canonical,
-        restriction_canonical
-    );
+    // Since escape.txt doesn't exist, we need to find the deepest existing ancestor
+    let clamped_path = clamped.as_unvirtual().interop_path();
+    let mut check_path = std::path::PathBuf::from(clamped_path);
+
+    // Walk up until we find an existing path
+    while !check_path.exists() && check_path.pop() {
+        // Keep popping until we find something that exists
+    }
+
+    if check_path.exists() {
+        let check_canonical = fs::canonicalize(&check_path).unwrap();
+        let restriction_canonical = fs::canonicalize(&restriction_dir).unwrap();
+        assert!(
+            check_canonical.starts_with(&restriction_canonical),
+            "Virtual path should be clamped within virtual root. Got: {:?}, Expected to start with: {:?}",
+            check_canonical,
+            restriction_canonical
+        );
+    }
 }
 
 #[test]

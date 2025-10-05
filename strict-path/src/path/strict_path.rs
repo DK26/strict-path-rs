@@ -240,8 +240,7 @@ impl<Marker> StrictPath<Marker> {
     /// - `Result<StrictPath<Marker>>`: Validated path inside the boundary.
     ///
     /// ERRORS:
-    /// - `StrictPathError::WindowsShortName` (windows), `StrictPathError::PathResolutionError`,
-    ///   `StrictPathError::PathEscapesBoundary`.
+    /// - `StrictPathError::PathResolutionError`, `StrictPathError::PathEscapesBoundary`.
     #[inline]
     pub fn strict_join<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_systempath = self.path.join(path);

@@ -45,7 +45,6 @@ pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
 /// - `InvalidRestriction`: The root directory is missing, not a directory, or failed I/O checks.
 /// - `PathEscapesBoundary`: A candidate path would resolve outside the boundary.
 /// - `PathResolutionError`: Canonicalization or resolution failed (I/O error).
-/// - `WindowsShortName` (windows): A segment resembles a DOS 8.3 short name.
 #[derive(Debug)]
 pub enum StrictPathError {
     /// SUMMARY:
@@ -79,19 +78,6 @@ pub enum StrictPathError {
         path: PathBuf,
         source: std::io::Error,
     },
-    #[cfg(windows)]
-    /// SUMMARY:
-    /// A component resembles a Windows 8.3 short name (potential ambiguity).
-    ///
-    /// FIELDS:
-    /// - `component` (`std::ffi::OsString`): The suspicious segment (e.g., `"PROGRA~1"`).
-    /// - `original` (`PathBuf`): The original input path.
-    /// - `checked_at` (`PathBuf`): Boundary or anchor context used during the check.
-    WindowsShortName {
-        component: std::ffi::OsString,
-        original: PathBuf,
-        checked_at: PathBuf,
-    },
 }
 
 impl StrictPathError {
@@ -118,20 +104,6 @@ impl StrictPathError {
     #[inline]
     pub(crate) fn path_resolution_error(path: PathBuf, source: std::io::Error) -> Self {
         Self::PathResolutionError { path, source }
-    }
-    #[cfg(windows)]
-    // Internal helper: construct `WindowsShortName`.
-    #[inline]
-    pub(crate) fn windows_short_name(
-        component: std::ffi::OsString,
-        original: PathBuf,
-        checked_at: PathBuf,
-    ) -> Self {
-        Self::WindowsShortName {
-            component,
-            original,
-            checked_at,
-        }
     }
 }
 
@@ -160,22 +132,6 @@ impl fmt::Display for StrictPathError {
             StrictPathError::PathResolutionError { path, .. } => {
                 write!(f, "Cannot resolve path: {}", path.display())
             }
-            #[cfg(windows)]
-            StrictPathError::WindowsShortName {
-                component,
-                original,
-                checked_at,
-            } => {
-                let original_trunc = truncate_path_display(original, MAX_ERROR_PATH_LEN);
-                let checked_trunc = truncate_path_display(checked_at, MAX_ERROR_PATH_LEN);
-                write!(
-                    f,
-                    "Windows 8.3 short filename component '{}' rejected at '{}' for original '{}'",
-                    component.to_string_lossy(),
-                    checked_trunc,
-                    original_trunc
-                )
-            }
         }
     }
 }
@@ -186,8 +142,6 @@ impl Error for StrictPathError {
             StrictPathError::InvalidRestriction { source, .. }
             | StrictPathError::PathResolutionError { source, .. } => Some(source),
             StrictPathError::PathEscapesBoundary { .. } => None,
-            #[cfg(windows)]
-            StrictPathError::WindowsShortName { .. } => None,
         }
     }
 }

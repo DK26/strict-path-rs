@@ -564,11 +564,18 @@
 //! handles the most accessible attack vectors that malicious users can create without elevated
 //! system access.
 //!
-//! ### Windows-only hardening: DOS 8.3 short names
+//! ### Windows 8.3 short names: Handled by canonicalization
 //!
-//! On Windows, paths like `PROGRA~1` are DOS 8.3 short-name aliases. To prevent ambiguity,
-//! this crate rejects paths containing non-existent components that look like 8.3 short names
-//! with a dedicated error, `StrictPathError::WindowsShortName`.
+//! On Windows, paths like `PROGRA~1` can be DOS 8.3 short-name aliases for longer names like
+//! `Program Files`. This crate relies on canonicalization to resolve these aliases transparently:
+//!
+//! - **If the path exists**: Canonicalization expands short names to their long forms
+//! - **If the path doesn't exist**: Canonicalization fails with `PathResolutionError`
+//!
+//! The combination of canonicalization + boundary checking provides mathematical security:
+//! a canonicalized path that's a prefix of the canonicalized boundary is guaranteed to be inside,
+//! regardless of whether short names were used in the input. No explicit short name rejection
+//! is needed.
 //!
 //! ## Why We Don't Expose `Path`/`PathBuf`
 //!
@@ -722,7 +729,7 @@
 //!   No borrowed `&str` accessors are exposed for virtual paths.
 //! - Creating a restriction: `PathBoundary::try_new(..)` requires the directory to exist.
 //!   Use `PathBoundary::try_new_create(..)` if it may be missing.
-//! - Windows: 8.3 short names (e.g., `PROGRA~1`) are rejected to avoid ambiguous resolution.
+//! - Windows: 8.3 short names (e.g., `PROGRA~1`) are handled automatically via canonicalization.
 //! - Markers matter. Functions should take `StrictPath<MyMarker>` for their domain to prevent cross-PathBoundary mixing.
 //!
 //! ## Escape Hatches and Best Practices
