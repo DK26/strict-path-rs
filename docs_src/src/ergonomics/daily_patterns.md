@@ -273,11 +273,6 @@ fn safe_file_access(
                     reason: "Attempted directory traversal"
                 }
             }
-            StrictPathError::WindowsShortName { component } => {
-                AppError::InvalidPath {
-                    reason: format!("Windows short name detected: {}", component)
-                }
-            }
             _ => AppError::ValidationFailed(e)
         })?;
     
