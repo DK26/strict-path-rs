@@ -18,6 +18,24 @@ Thanks for your interest in contributing! 🦀
 - 📝 Docs: Fix typos, add examples, improve clarity
 - 🔧 Code: Bug fixes and improvements welcome
 
+## Issue Template
+
+Copy, paste, and fill what you need. Delete unused lines:
+
+```markdown
+What: [Brief description]
+
+Why: [Problem or motivation]
+
+Idea: [Your proposed solution]
+
+Example: [Code or use case]
+
+Benefits: [Who gains, what improves]
+
+Links: [Related docs/issues]
+```
+
 ## Feature Suggestions
 
 Before suggesting features, **have your LLM agent read our [`AGENTS.md`](./AGENTS.md) and [`LLM_API_REFERENCE.md`](./LLM_API_REFERENCE.md) files** and ask it:
