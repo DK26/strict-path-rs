@@ -211,33 +211,76 @@ fn demonstrate_duality() -> Result<(), Box<dyn std::error::Error>> {
 VirtualPath<Marker> = StrictPath<Marker> + virtual display semantics
 ```
 
-## Symlinks and Virtual Paths
+## Symlinks and Virtual Paths: The Critical Difference
 
-**Important:** While `VirtualPath` **clamps** relative path escapes (`../../../`), it still **validates symlinks**:
+This is where `VirtualPath` truly shines as a **virtual filesystem**. It doesn't just clamp relative path escapes — it also **clamps absolute symlink targets**:
+
+### StrictPath: Validates Symlink Targets
 
 ```rust
-use strict_path::VirtualPath;
+use strict_path::StrictPath;
 
-fn symlink_behavior() -> Result<(), Box<dyn std::error::Error>> {
-    let vroot = VirtualPath::with_root("sandbox")?;
+fn strict_symlink_behavior() -> Result<(), Box<dyn std::error::Error>> {
+    let boundary = StrictPath::with_boundary_create("sandbox")?;
 
-    // Relative escape: CLAMPED (no error)
-    let relative_escape = vroot.virtual_join("../../../../etc/passwd")?;
-    println!("✅ Clamped: {}", relative_escape.virtualpath_display());
-
-    // Symlink escape: ERROR (same as StrictPath)
-    // If "sandbox/evil_link" -> "/etc/passwd" exists:
-    let symlink_escape = vroot.virtual_join("evil_link");
-    match symlink_escape {
-        Ok(_) => println!("Path is safe"),
-        Err(e) => println!("❌ Symlink escape rejected: {}", e),
+    // If "sandbox/config_link" symlinks to "/etc/passwd":
+    let symlink_path = boundary.strict_join("config_link");
+    match symlink_path {
+        Ok(_) => println!("✅ Symlink target is inside boundary"),
+        Err(e) => println!("❌ Symlink escapes boundary: {}", e),
     }
+    
+    // StrictPath follows the symlink and validates the *target* is inside boundary
+    // If target is outside → Error (PathEscapesBoundary)
 
     Ok(())
 }
 ```
 
-**Key point:** `VirtualPath` is **not** a "just accept anything" mode. It's a "clamp relative paths, but still enforce boundary through symlink resolution" mode.
+### VirtualPath: Clamps Symlink Targets
+
+```rust
+use strict_path::VirtualPath;
+
+fn virtual_symlink_behavior() -> Result<(), Box<dyn std::error::Error>> {
+    let vroot = VirtualPath::with_root("sandbox")?;
+
+    // If "sandbox/config_link" symlinks to "/etc/passwd":
+    let symlink_path = vroot.virtual_join("config_link")?;  // No error!
+    
+    println!("Virtual view: {}", symlink_path.virtualpath_display());
+    // Output: /etc/passwd (clamped to virtual root!)
+    
+    println!("System path: {}", symlink_path.as_unvirtual().strictpath_display());
+    // Output: sandbox/etc/passwd (safely inside boundary!)
+
+    // VirtualPath treats absolute symlink targets as *relative to the virtual root*
+    // The symlink target "/etc/passwd" becomes "sandbox/etc/passwd"
+    
+    Ok(())
+}
+```
+
+**The Key Insight:**
+
+In a **virtual filesystem** (container, chroot, sandbox), absolute paths are *always* relative to the virtual root. This applies whether the absolute path comes from:
+- User input: `vroot.virtual_join("/etc/passwd")` → clamped
+- Symlink target: `config_link -> /etc/passwd` → clamped
+
+**Why This Matters:**
+
+| Scenario                           | StrictPath Behavior | VirtualPath Behavior                 |
+| ---------------------------------- | ------------------- | ------------------------------------ |
+| User input `"../../../etc/passwd"` | ❌ Error (rejected)  | ✅ Clamped to `/etc/passwd` in vroot  |
+| Symlink `link -> /etc/passwd`      | ❌ Error if outside  | ✅ Clamped to vroot `/etc/passwd`     |
+| Archive entry `"/sensitive/data"`  | ❌ Error (rejected)  | ✅ Clamped to vroot `/sensitive/data` |
+
+**Use Cases:**
+- **Archive extraction:** Malicious archives with absolute symlinks are automatically safe
+- **Multi-tenant storage:** User A's symlink can't escape to user B's files
+- **Container-like semantics:** Perfect for sandboxed environments where `/` means "root of this container"
+
+**Key point:** `VirtualPath` implements **true virtual filesystem semantics** where absolute paths (from any source) are interpreted relative to the virtual root. This is not a "trust everything" mode — it's a mathematically consistent sandbox model.
 
 ## Real-World Example: Cloud File Storage
 

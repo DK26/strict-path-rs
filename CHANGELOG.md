@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **BREAKING**: Updated `soft-canonicalize` dependency from 0.3.6 → 0.4.0
+  - **Virtual symlink clamping**: `VirtualPath` now clamps absolute symlink targets to the virtual root instead of rejecting them
+  - This implements true virtual filesystem semantics where symlinks like `/etc/config` are interpreted as `vroot/etc/config`
+  - Perfect for multi-tenant systems and archive extractors where symlinks must stay within user sandboxes
+  - `StrictPath` behavior unchanged: continues to use system filesystem semantics and rejects escaping symlinks
+  - See [soft-canonicalize v0.4.0 release](https://github.com/DK26/soft-canonicalize/releases/tag/v0.4.0) for implementation details
+
+### Documentation
+- **Enhanced virtual path documentation**: Added detailed clamping behavior examples for:
+  - `VirtualRoot::virtual_join()` - Now documents absolute path clamping with examples
+  - `VirtualPath::virtual_join()` - Explains how absolute paths and traversal attempts are clamped
+  - `VirtualPath::virtual_symlink()` - Clarifies that both target and link paths are clamped via `virtual_join()`
+  - `VirtualPath::virtual_hard_link()` - Documents hard link clamping behavior
+  - `VirtualPath::virtual_rename()` - Explains absolute destination clamping
+  - `VirtualPath::virtual_copy()` - Documents copy destination clamping
+- **README enhancements**: 
+  - Added "Critical distinction - Symlink behavior" section comparing `StrictPath` vs `VirtualPath` symlink semantics
+  - Updated API comparison table with symlink target behavior and attack scenarios
+  - Enhanced "Best for" guidance to include multi-tenant storage use cases
+
+### Tests
+- **Comprehensive symlink clamping test suite** (742 new lines):
+  - `virtual_symlink_clamps_traversal_attempts` - Verifies `../../../` paths are clamped to root
+  - `virtual_symlink_archive_extraction_scenario` - Real-world archive extraction with absolute symlinks
+  - `following_symlink_pointing_outside_vroot` - Unix symlink escape prevention
+  - `following_junction_pointing_outside_vroot` - Windows junction escape prevention (2 tests)
+  - `virtual_join_clamps_absolute_paths_before_symlink_creation` - Security gateway validation
+  - Plus 10+ additional tests covering hard links, copy, rename, and edge cases
+- **Updated existing tests**: `test_junction_escape_is_rejected` now expects clamping for `VirtualPath` while maintaining rejection for `StrictPath`
+
 ## [0.1.0-beta.2] - 2025-10-03
 
 ### Added

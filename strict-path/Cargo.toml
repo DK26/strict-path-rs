@@ -18,7 +18,7 @@ categories = ["filesystem", "development-tools", "web-programming"]
 exclude = ["../demos/**"]
 
 [dependencies]
-soft-canonicalize = { version = "0.3.6", features = ["anchored"] }
+soft-canonicalize = { version = "0.4.0", features = ["anchored"] }
 serde = { version = "1", optional = true, default-features = false, features = [
     "alloc",
 ] }

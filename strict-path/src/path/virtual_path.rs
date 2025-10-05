@@ -282,6 +282,30 @@ impl<Marker> VirtualPath<Marker> {
 
     /// SUMMARY:
     /// Join a virtual path segment (virtual semantics) and re‑validate within the same restriction.
+    ///
+    /// DETAILS:
+    /// Applies virtual path clamping: absolute paths are interpreted relative to the virtual root,
+    /// and traversal attempts are clamped to prevent escaping the boundary. This method maintains
+    /// the security guarantee that all `VirtualPath` instances stay within their virtual root.
+    ///
+    /// PARAMETERS:
+    /// - `path` (`impl AsRef<Path>`): Path segment to join. Absolute paths are clamped to virtual root.
+    ///
+    /// RETURNS:
+    /// - `Result<VirtualPath<Marker>>`: New virtual path within the same restriction.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # let td = tempfile::tempdir().unwrap();
+    /// let vroot: VirtualRoot = VirtualRoot::try_new_create(td.path())?;
+    /// let base = vroot.virtual_join("data")?;
+    ///
+    /// // Absolute paths are clamped to virtual root
+    /// let abs = base.virtual_join("/etc/config")?;
+    /// assert_eq!(abs.virtualpath_display().to_string(), "/etc/config");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[inline]
     pub fn virtual_join<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         // Compose candidate in virtual space (do not pre-normalize lexically to preserve symlink semantics)
@@ -582,7 +606,40 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Create a symlink at this virtual location pointing to `target` (same virtual root required).
+    /// Create a symlink at `link_path` pointing to this virtual path (same virtual root required).
+    ///
+    /// DETAILS:
+    /// Both `self` (target) and `link_path` must be `VirtualPath` instances created via `virtual_join()`,
+    /// which ensures all paths are clamped to the virtual root. Absolute paths like `"/etc/config"`
+    /// passed to `virtual_join()` are automatically clamped to `vroot/etc/config`, ensuring symlinks
+    /// cannot escape the virtual root boundary.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # let td = tempfile::tempdir().unwrap();
+    /// let vroot: VirtualRoot = VirtualRoot::try_new_create(td.path())?;
+    ///
+    /// // Create target - absolute path "/etc/config" is clamped to vroot/etc/config
+    /// let target = vroot.virtual_join("/etc/config/app.conf")?;
+    /// target.create_parent_dir_all()?;
+    /// target.write(b"config data")?;
+    ///
+    /// // Create symlink - absolute path "/var/app/link" is clamped to vroot/var/app/link
+    /// let link = vroot.virtual_join("/var/app/link.conf")?;
+    /// link.create_parent_dir_all()?;
+    ///
+    /// // On Windows, symlink creation may fail without privileges - gracefully handle
+    /// if let Err(e) = target.virtual_symlink(&link) {
+    ///     // Windows ERROR_PRIVILEGE_NOT_HELD (1314) is expected without admin/dev mode
+    ///     #[cfg(windows)]
+    ///     if e.raw_os_error() == Some(1314) { return Ok(()); }
+    ///     return Err(e.into());
+    /// }
+    ///
+    /// assert_eq!(link.read_to_string()?, "config data");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn virtual_symlink(&self, link_path: &Self) -> std::io::Result<()> {
         if self.inner.boundary().path() != link_path.inner.boundary().path() {
             let err = StrictPathError::path_escapes_boundary(
@@ -596,7 +653,35 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Create a hard link at this virtual location pointing to `target` (same virtual root).
+    /// Create a hard link at `link_path` pointing to this virtual path (same virtual root required).
+    ///
+    /// DETAILS:
+    /// Both `self` (target) and `link_path` must be `VirtualPath` instances created via `virtual_join()`,
+    /// which ensures all paths are clamped to the virtual root. Absolute paths like `"/etc/data"`
+    /// passed to `virtual_join()` are automatically clamped to `vroot/etc/data`, ensuring hard links
+    /// cannot escape the virtual root boundary.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # let td = tempfile::tempdir().unwrap();
+    /// let vroot: VirtualRoot = VirtualRoot::try_new_create(td.path())?;
+    ///
+    /// // Create target - absolute path clamped to virtual root
+    /// let target = vroot.virtual_join("/shared/data.dat")?;
+    /// target.create_parent_dir_all()?;
+    /// target.write(b"shared data")?;
+    ///
+    /// // Create hard link - also clamped to virtual root
+    /// let link = vroot.virtual_join("/backup/data.dat")?;
+    /// link.create_parent_dir_all()?;
+    /// target.virtual_hard_link(&link)?;
+    ///
+    /// // Modify through link, verify through target (hard link behavior)
+    /// link.write(b"modified")?;
+    /// assert_eq!(target.read_to_string()?, "modified");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn virtual_hard_link(&self, link_path: &Self) -> std::io::Result<()> {
         if self.inner.boundary().path() != link_path.inner.boundary().path() {
             let err = StrictPathError::path_escapes_boundary(
@@ -610,8 +695,37 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Rename/move within the same virtual root. Relative destinations are siblings; absolute are from root.
-    /// Parents are not created automatically.
+    /// Rename/move within the same virtual root. Relative destinations are siblings; absolute are clamped to root.
+    ///
+    /// DETAILS:
+    /// Accepts `impl AsRef<Path>` for the destination. Absolute paths (starting with `"/"`) are
+    /// automatically clamped to the virtual root via internal `virtual_join()` call, ensuring the
+    /// destination cannot escape the virtual boundary. Relative paths are resolved as siblings.
+    /// Parent directories are not created automatically.
+    ///
+    /// PARAMETERS:
+    /// - `dest` (`impl AsRef<Path>`): Destination path. Absolute paths like `"/archive/file.txt"`
+    ///   are clamped to `vroot/archive/file.txt`.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # let td = tempfile::tempdir().unwrap();
+    /// let vroot: VirtualRoot = VirtualRoot::try_new_create(td.path())?;
+    ///
+    /// let source = vroot.virtual_join("temp/file.txt")?;
+    /// source.create_parent_dir_all()?;
+    /// source.write(b"content")?;
+    ///
+    /// // Absolute destination path is clamped to virtual root
+    /// let dest_dir = vroot.virtual_join("/archive")?;
+    /// dest_dir.create_dir_all()?;
+    /// source.virtual_rename("/archive/file.txt")?;
+    ///
+    /// let renamed = vroot.virtual_join("/archive/file.txt")?;
+    /// assert_eq!(renamed.read_to_string()?, "content");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn virtual_rename<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<()> {
         let dest_ref = dest.as_ref();
         let dest_v = if dest_ref.is_absolute() {
@@ -646,8 +760,41 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Copy within the same virtual root. Relative destinations are siblings; absolute are from root.
-    /// Parents are not created automatically. Returns bytes copied.
+    /// Copy within the same virtual root. Relative destinations are siblings; absolute are clamped to root.
+    ///
+    /// DETAILS:
+    /// Accepts `impl AsRef<Path>` for the destination. Absolute paths (starting with `"/"`) are
+    /// automatically clamped to the virtual root via internal `virtual_join()` call, ensuring the
+    /// destination cannot escape the virtual boundary. Relative paths are resolved as siblings.
+    /// Parent directories are not created automatically. Returns the number of bytes copied.
+    ///
+    /// PARAMETERS:
+    /// - `dest` (`impl AsRef<Path>`): Destination path. Absolute paths like `"/backup/file.txt"`
+    ///   are clamped to `vroot/backup/file.txt`.
+    ///
+    /// RETURNS:
+    /// - `u64`: Number of bytes copied.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # let td = tempfile::tempdir().unwrap();
+    /// let vroot: VirtualRoot = VirtualRoot::try_new_create(td.path())?;
+    ///
+    /// let source = vroot.virtual_join("data/source.txt")?;
+    /// source.create_parent_dir_all()?;
+    /// source.write(b"data to copy")?;
+    ///
+    /// // Absolute destination path is clamped to virtual root
+    /// let dest_dir = vroot.virtual_join("/backup")?;
+    /// dest_dir.create_dir_all()?;
+    /// let bytes = source.virtual_copy("/backup/copy.txt")?;
+    ///
+    /// let copied = vroot.virtual_join("/backup/copy.txt")?;
+    /// assert_eq!(copied.read_to_string()?, "data to copy");
+    /// assert_eq!(bytes, 12);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn virtual_copy<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<u64> {
         let dest_ref = dest.as_ref();
         let dest_v = if dest_ref.is_absolute() {

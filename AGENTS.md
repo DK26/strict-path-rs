@@ -65,6 +65,7 @@ Do not implement leaky trait impls for secure types:
 - `demos/`: real‑world demo binaries; decoupled from MSRV; `publish = false`.
 - `.github/workflows/`: CI configs; stable + MSRV split.
 - Local CI parity: `ci-local.ps1` (Windows), `ci-local.sh` (Unix/WSL).
+- `book/`: reference copy of mdBook sources for browsing on `main`; **do not edit**—see `book/README.md`.
 - Docs: `README.md`, `LLM_API_REFERENCE.md`.
   - mdBook sources live on branch `docs` (not on `main`).
   - Use a local Git worktree at `.docs/` to edit/serve docs side‑by‑side.
@@ -236,9 +237,9 @@ String formatting rules (Rust 1.58+ captured identifiers):
 - Avoid bare `{}`; prefer captured identifiers (`format!("{value}")`, `println!("{display}")`).
 - Bind locals for repeated or long expressions; improves readability and prevents mistakes.
 
-See also mdBook pages:
-- Best Practices & Guidelines: `docs_src/src/best_practices.md`
-- Anti‑Patterns (Tell‑offs): `docs_src/src/anti_patterns.md`
+See also mdBook pages (on `docs` branch, accessible via `.docs/` worktree):
+- Best Practices & Guidelines: `.docs/docs_src/src/best_practices.md`
+- Anti‑Patterns (Tell‑offs): `.docs/docs_src/src/anti_patterns.md`
 
 ## Documentation Guidelines
 
@@ -276,7 +277,7 @@ LLM_API_REFERENCE.md is written purely for external LLM consumption. It is usage
 - Short, copy‑pasteable recipes and explicit anti‑patterns to avoid.
 
 Non‑goals for LLM_API_REFERENCE.md:
-- Internal design details (type‑state, `PathHistory`, platform specifics) — those live in the mdBook (`docs_src/`) and source docs.
+- Internal design details (type‑state, `PathHistory`, platform specifics) — those live in the mdBook (`.docs/docs_src/` on the `docs` branch) and source docs.
 - Contributor guidance (coding standards, doc comment style, defensive programming) — keep that in AGENTS.md.
 
 Keep LLM_API_REFERENCE.md concise and stable. When APIs evolve, update it alongside public docs and demos; prefer linking to realistic `demos/` over embedding long examples that are hard to maintain.

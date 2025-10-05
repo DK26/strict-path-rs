@@ -277,14 +277,40 @@ impl<Marker> VirtualRoot<Marker> {
     /// SUMMARY:
     /// Join a candidate path to this virtual root, producing a clamped `VirtualPath`.
     ///
+    /// DETAILS:
+    /// This is the security gateway for virtual paths. Absolute paths (starting with `"/"`) are
+    /// automatically clamped to the virtual root, ensuring paths cannot escape the sandbox.
+    /// For example, `"/etc/config"` becomes `vroot/etc/config`, and traversal attempts like
+    /// `"../../../../etc/passwd"` are clamped to `vroot/etc/passwd`. This clamping behavior is
+    /// what makes the `virtual_` dimension safe for user-facing operations.
+    ///
     /// PARAMETERS:
-    /// - `candidate_path` (`AsRef<Path>`): Virtual path to resolve and clamp.
+    /// - `candidate_path` (`AsRef<Path>`): Virtual path to resolve and clamp. Absolute paths
+    ///   are interpreted relative to the virtual root, not the system root.
     ///
     /// RETURNS:
     /// - `Result<VirtualPath<Marker>>`: Clamped, validated path within the virtual root.
     ///
     /// ERRORS:
     /// - `StrictPathError::PathResolutionError`, `StrictPathError::PathEscapesBoundary`.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # let td = tempfile::tempdir().unwrap();
+    /// let vroot: VirtualRoot = VirtualRoot::try_new_create(td.path())?;
+    ///
+    /// // Absolute paths are clamped to virtual root, not system root
+    /// let path1 = vroot.virtual_join("/etc/config")?;
+    /// assert_eq!(path1.virtualpath_display().to_string(), "/etc/config");
+    ///
+    /// // Traversal attempts are also clamped
+    /// let path2 = vroot.virtual_join("../../../etc/passwd")?;
+    /// assert_eq!(path2.virtualpath_display().to_string(), "/etc/passwd");
+    ///
+    /// // Both paths are safely within the virtual root on the actual filesystem
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[inline]
     pub fn virtual_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<VirtualPath<Marker>> {
         // 1) Anchor in virtual space (clamps virtual root and resolves relative parts)

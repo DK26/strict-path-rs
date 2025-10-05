@@ -11,9 +11,28 @@ Archive extractors are vulnerable to **zip-slip attacks** where malicious archiv
 
 ## The Solution
 
-Use `PathBoundary` to restrict extraction to a specific directory. Malicious paths are automatically blocked.
+Use `PathBoundary` or `VirtualRoot` to restrict extraction to a specific directory. Malicious paths are automatically blocked.
 
-## Complete Example
+### Choosing Between PathBoundary and VirtualRoot
+
+- **Use `VirtualRoot`** for extraction pipelines - it clamps any input to the boundary, making batch extraction resilient
+- **Use `PathBoundary`** when you need strict validation and want errors on malicious paths
+
+## Recommended Patterns
+
+- ✅ Use `create_parent_dir_all()` before writes to avoid race conditions
+- ✅ Always join via `virtual_join()` or `strict_join()` - never concatenate paths manually
+- ✅ Treat absolute, UNC, drive-relative, or namespace-prefixed paths as untrusted
+- ✅ On Windows, NTFS Alternate Data Streams (ADS) like `"file.txt:stream"` are handled safely
+
+## Anti-Patterns (Don't Do This)
+
+- ❌ Building paths with `format!`/`push`/`join` on `std::path::Path` without validation
+- ❌ Stripping `"../"` by string replacement
+- ❌ Allowing absolute paths through to the OS
+- ❌ Treating encoded/unicode tricks (URL-encoded, dot lookalikes) as pre-sanitized
+
+## Complete Example with PathBoundary
 
 ```rust
 use strict_path::{PathBoundary, StrictPath};
@@ -92,6 +111,55 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Alternative: VirtualRoot for Resilient Extraction
+
+For extraction pipelines where you want to log and skip malicious entries rather than fail:
+
+```rust
+use strict_path::VirtualRoot;
+
+fn extract_all_resilient(
+    dest: &str,
+    entries: Vec<(&str, &[u8])>,
+) -> Result<usize, Box<dyn std::error::Error>> {
+    let vroot: VirtualRoot = VirtualRoot::try_new_create(dest)?;
+    let mut extracted_count = 0;
+
+    for (name, data) in entries {
+        // VirtualRoot clamps malicious paths instead of erroring
+        match vroot.virtual_join(name) {
+            Ok(vpath) => {
+                // Ensure parent directories exist (inside the boundary)
+                vpath.create_parent_dir_all()?;
+                
+                // Perform the write safely
+                vpath.write(data)?;
+                
+                println!("📦 Extracted: {} -> {}", name, vpath.virtualpath_display());
+                extracted_count += 1;
+            }
+            Err(e) => {
+                // Cleanly reject this entry, log if needed
+                println!("⚠️  Skipped malicious entry '{}': {}", name, e);
+                continue;
+            }
+        }
+    }
+    
+    Ok(extracted_count)
+}
+
+// Usage
+let entries = vec![
+    ("readme.txt", b"Safe content" as &[u8]),
+    ("../../../etc/passwd", b"Malicious"), // Skipped with log
+    ("docs/api.md", b"More safe content"),
+];
+
+let count = extract_all_resilient("extracted", entries)?;
+println!("✅ Successfully extracted {} files", count);
+```
+
 ## Key Security Features
 
 ### 1. Bounded Extraction Directory
@@ -124,13 +192,15 @@ Returning `StrictPath` ensures extracted paths are always validated.
 
 ## Attack Scenarios Prevented
 
-| Malicious Entry                   | Result                                  |
-| --------------------------------- | --------------------------------------- |
-| `../../../etc/passwd`             | ❌ Error: path escapes boundary          |
-| `..\\windows\\system32\\evil.exe` | ❌ Error: path escapes boundary          |
-| `/var/www/html/shell.php`         | ❌ Treated as relative, may still escape |
-| `legitimate/../../etc/passwd`     | ❌ Normalized and blocked                |
-| Symlink to `/etc/passwd`          | ❌ Resolved and validated                |
+| Malicious Entry                   | StrictPath Result                    | VirtualPath Result                              |
+| --------------------------------- | ------------------------------------ | ----------------------------------------------- |
+| `../../../etc/passwd`             | ❌ Error: path escapes boundary       | ✅ Clamped to vroot `/etc/passwd`                |
+| `..\\windows\\system32\\evil.exe` | ❌ Error: path escapes boundary       | ✅ Clamped to vroot `/windows/system32/evil.exe` |
+| `/var/www/html/shell.php`         | ❌ Error: absolute path rejected      | ✅ Clamped to vroot `/var/www/html/shell.php`    |
+| `legitimate/../../etc/passwd`     | ❌ Normalized and blocked             | ✅ Normalized and clamped                        |
+| Symlink to `/etc/passwd`          | ❌ Target validated, error if outside | ✅ Target clamped to vroot `/etc/passwd`         |
+
+**Note:** For archive extraction, consider using `VirtualPath` instead of `StrictPath` to gracefully clamp malicious entries rather than rejecting them. This provides defense-in-depth: even hostile archives with absolute paths or symlinks are safely contained within the extraction directory.
 
 ## Real ZIP Integration
 
@@ -303,6 +373,95 @@ fn extract_to_temp(archive_path: &str) -> Result<(TempDir, Vec<StrictPath>), Box
 // Temp directory is automatically cleaned up when TempDir is dropped
 ```
 
+## Testing Advice
+
+Test your extraction code with a malicious archive corpus:
+
+### Test Cases to Include
+
+- **Directory traversal**: `"../"`, `"..\\"`, `"legitimate/../../etc/passwd"`
+- **Absolute paths**: `"/var/www/evil"`, `"C:\\windows\\system32\\evil.exe"`
+- **Windows-specific**:
+  - UNC paths: `"\\\\?\\C:\\windows\\evil"`
+  - Drive-relative: `"C:..\\foo"`
+  - ADS streams: `"decoy.txt:..\\..\\evil.exe"`
+  - Reserved names: `"CON"`, `"PRN"`, `"AUX"`
+- **Unicode tricks**: Dot lookalikes, NFC vs NFD forms
+- **Long paths**: Paths exceeding system limits
+
+### Assertions
+
+```rust
+#[test]
+fn test_archive_extraction_safety() {
+    let boundary = PathBoundary::try_new_create("test_extract").unwrap();
+    
+    // Should succeed
+    assert!(boundary.strict_join("safe/path.txt").is_ok());
+    
+    // Should fail
+    assert!(boundary.strict_join("../../../etc/passwd").is_err());
+    assert!(boundary.strict_join("/absolute/path").is_err());
+    
+    // Cleanup
+    std::fs::remove_dir_all("test_extract").ok();
+}
+```
+
+## Behavior Notes
+
+- **Virtual joins clamp traversal** lexically to the virtual root
+- **System-facing escapes** (via symlinks/junctions) are rejected during resolution
+- **Unicode is not normalized** - NFC and NFD forms are stored as-is, both safely contained
+- **Hard links and privileged mount tricks** are outside path-level protections (see README limitations)
+
+## Using VirtualPath for Extra Safety
+
+For even safer archive extraction, consider using `VirtualPath` instead of `StrictPath`. This clamps malicious entries instead of rejecting them:
+
+```rust
+use strict_path::{VirtualRoot, VirtualPath};
+
+struct VirtualArchiveExtractor {
+    extraction_vroot: VirtualRoot,
+}
+
+impl VirtualArchiveExtractor {
+    fn new(extract_to: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let extraction_vroot = VirtualRoot::try_new_create(extract_to)?;
+        Ok(Self { extraction_vroot })
+    }
+    
+    fn extract_entry(&self, entry_path: &str, content: &[u8]) 
+        -> Result<VirtualPath, Box<dyn std::error::Error>> 
+    {
+        // Malicious paths are CLAMPED instead of rejected
+        // "../../../etc/passwd" becomes safe "vroot/etc/passwd"
+        // Absolute symlink targets are also clamped to vroot
+        let safe_path = self.extraction_vroot.virtual_join(entry_path)?;
+
+        safe_path.create_parent_dir_all()?;
+        safe_path.write(content)?;
+
+        println!("📦 Extracted: {} -> {}", 
+                 entry_path, 
+                 safe_path.virtualpath_display());
+        Ok(safe_path)
+    }
+}
+```
+
+**Why VirtualPath for archives?**
+- ✅ Hostile entries with `../../../` are clamped, not rejected
+- ✅ Absolute symlink targets (e.g., `link -> /etc/passwd`) are clamped to vroot
+- ✅ Archive extraction continues even with malicious entries
+- ✅ Defense-in-depth: every entry is safely contained
+- ✅ Perfect for untrusted archives from the internet
+
+**When to use each:**
+- **`StrictPath`:** Fail-fast validation — reject malicious archives immediately
+- **`VirtualPath`:** Graceful containment — clamp every entry to stay safe, continue extraction
+
 ## Best Practices
 
 1. **Always validate** - Never trust archive entry paths
@@ -310,6 +469,7 @@ fn extract_to_temp(archive_path: &str) -> Result<(TempDir, Vec<StrictPath>), Box
 3. **Limit extraction size** - Check total extracted size to prevent zip bombs
 4. **Filter file types** - Only extract expected file types
 5. **Use temporary storage** - Extract to temp directory first, then move to final location
+6. **Consider VirtualPath** - Use for untrusted archives to clamp rather than reject malicious entries
 
 ## Integration Tips
 

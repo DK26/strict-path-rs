@@ -284,18 +284,24 @@ Trade‑offs you can choose explicitly:
 | External APIs/webhooks/inter-service messages                                                             | `StrictPath`   | System-facing interop/I/O requires validation  | Validate on consume before touching FS           |
 | *(See the [full decision matrix](https://dk26.github.io/strict-path-rs/best_practices.html) in the book)* |                |                                                |                                                  |
 
+**Critical distinction - Symlink behavior:**
+- **`VirtualPath`:** Implements true virtual filesystem semantics. When a symlink points to `/etc/config`, that absolute path is **clamped** to `vroot/etc/config`. Perfect for multi-tenant systems where each user's `/` is actually their virtual root.
+- **`StrictPath`:** Uses system filesystem semantics. Symlinks point to their actual system targets. Best for shared system resources and admin tools.
+
 Notes that matter:
 - This isn’t StrictPath vs VirtualPath. `VirtualPath` conceptually extends `StrictPath` with a virtual "/" view; both support I/O and interop. Choose based on whether you need virtual, user-facing semantics (VirtualPath) or raw system-facing validation (StrictPath).
 - Unified helpers: Prefer dimension-specific signatures. When sharing a helper across both, accept `&StrictPath<_>` and call with `vpath.as_unvirtual()` as needed.
 
 ### At‑a‑glance: API Modes
 
-| Feature            | `Path`/`PathBuf`                            | `StrictPath`                        | `VirtualPath`                                      |
-| ------------------ | ------------------------------------------- | ----------------------------------- | -------------------------------------------------- |
-| **Security**       | None 💥                                      | Validates & rejects ✅               | Clamps any input ✅                                 |
-| **Join safety**    | Unsafe (can escape)                         | Boundary-checked                    | Boundary-clamped                                   |
-| **Example attack** | `"../../../etc/passwd"` → **System breach** | `"../../../etc/passwd"` → **Error** | `"../../../etc/passwd"` → **`/etc/passwd`** (safe) |
-| **Best for**       | Known-safe paths                            | System boundaries                   | User interfaces                                    |
+| Feature             | `Path`/`PathBuf`                            | `StrictPath`                        | `VirtualPath`                                      |
+| ------------------- | ------------------------------------------- | ----------------------------------- | -------------------------------------------------- |
+| **Security**        | None 💥                                      | Validates & rejects ✅               | Clamps any input ✅                                 |
+| **Join safety**     | Unsafe (can escape)                         | Boundary-checked                    | Boundary-clamped                                   |
+| **Symlink targets** | System paths (can escape)                   | System paths (validated)            | **Clamped to virtual root** ✅                      |
+| **Example attack**  | `"../../../etc/passwd"` → **System breach** | `"../../../etc/passwd"` → **Error** | `"../../../etc/passwd"` → **`/etc/passwd`** (safe) |
+| **Symlink attack**  | `link -> /etc/passwd` → **System breach**   | `link -> /etc/passwd` → **Error**   | `link -> /etc/passwd` → **`/etc/passwd`** (safe)   |
+| **Best for**        | Known-safe paths                            | System boundaries                   | User interfaces, multi-tenant storage              |
 
 📚 **Further Reading in the Complete Guide:**
 - **[Tutorial Series](https://dk26.github.io/strict-path-rs/tutorial/overview.html)** - 6-stage progressive guide from basics to advanced patterns

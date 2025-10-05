@@ -96,6 +96,17 @@ if !path.chars().all(|c| c.is_alphanumeric() || c == '/') { return Err("Invalid"
 - `StrictPath` = **Security Filter** — validates and rejects unsafe paths
 - `VirtualPath` = **Complete Sandbox** — clamps any input to stay safe
 
+**Critical Distinction - Symlink Behavior:**
+
+When a symlink points to an absolute path (e.g., `mylink -> /etc/passwd`):
+- **`StrictPath`:** Follows the symlink and validates the target is inside the boundary. If outside → **Error** (explicit rejection)
+- **`VirtualPath`:** Treats the absolute target as relative to the virtual root. The target `/etc/passwd` becomes `vroot/etc/passwd` → **Clamped** (graceful containment)
+
+This makes `VirtualPath` perfect for:
+- 🗜️ **Archive extraction:** Malicious absolute symlinks in ZIP/TAR files are automatically safe
+- 🏢 **Multi-tenant systems:** User A's symlinks can't escape to user B's files, even with absolute targets
+- 📦 **Container-like environments:** Implements true virtual filesystem semantics where `/` means "root of this sandbox"
+
 **The Golden Rule**: If you didn't create the path yourself, secure it first.
 
 ## Why Keep `VirtualRoot` and `PathBoundary` (Even With Sugar)

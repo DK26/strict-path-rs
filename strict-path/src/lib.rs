@@ -140,15 +140,47 @@
 //! - Web applications serving user files, document management systems
 //! - Plugin systems, template engines, user-generated content
 //! - Any case where users should see a clean "/" root and not the real filesystem structure
+//! - **Archive extraction** where symlinks with absolute targets should stay within the virtual space
+//! - **Multi-tenant systems** where each user's absolute paths are scoped to their own space
 //!
 //! **Use `PathBoundary`/`StrictPath` for shared system spaces:**
 //! - Application configuration, shared caches, system logs
 //! - Temporary directories, build outputs, asset processing
 //! - Cases where you need the real system path for interoperability or debugging
 //! - When working with existing APIs that expect system paths
+//! - Shared resources where symlinks should reflect actual system paths
 //!
-//! Both types support I/O. The key difference is the user experience: `VirtualPath` provides isolation
-//! and clean virtual paths, while `StrictPath` maintains system path semantics for shared resources.
+//! ### Key Semantic Difference: Symlink Target Interpretation
+//!
+//! The most important distinction between `VirtualPath` and `StrictPath` is how they handle
+//! **absolute paths in symlink targets**:
+//!
+//! ```text
+//! Virtual root at: /home/alice/
+//! Symlink on disk: /home/alice/mylink -> /etc/config
+//!
+//! VirtualPath behavior (virtual filesystem semantics):
+//!   - When accessing mylink, the target /etc/config is CLAMPED to /home/alice/etc/config
+//!   - In virtual space, "/" means "the root of MY virtual space," not "the system root"
+//!   - Result: Symlinks are safely contained within the virtual boundary
+//!   - Use case: Multi-tenant storage, archive extraction, user sandboxes
+//!
+//! StrictPath behavior (system filesystem semantics):
+//!   - When accessing mylink, the target /etc/config is followed to the actual system path
+//!   - In system space, "/" means "the system root"
+//!   - Result: Symlinks can point anywhere the process has access to
+//!   - Use case: System administration, shared resources, development tools
+//! ```
+//!
+//! **Why this matters:**
+//! - `VirtualPath` implements true **virtual filesystem semantics** where all absolute paths
+//!   (whether from user input or symlink targets) are relative to the virtual root
+//! - This prevents escape attacks through symlinks in untrusted archives or user content
+//! - Each tenant/user sees their own isolated filesystem, even if symlinks use absolute paths
+//!
+//! Both types support I/O. The key difference is the user experience and security model:
+//! `VirtualPath` provides isolation and clean virtual paths with clamped symlinks, while
+//! `StrictPath` maintains system path semantics for shared resources with standard symlink behavior.
 //!
 //! ## 🔑 Critical Design Decision: StrictPath vs Path/PathBuf
 //!

@@ -279,13 +279,20 @@ fn test_symlink_escape_is_rejected() {
         other => panic!("Expected PathEscapesBoundary, got {other:?}"),
     }
 
-    // Same check via VirtualRoot
+    // VirtualRoot should CLAMP the symlink target to virtual root (new behavior in 0.4.0)
     let vroot: VirtualRoot = VirtualRoot::try_new(&restriction_dir).unwrap();
-    let err2 = vroot.virtual_join("link/escape.txt").unwrap_err();
-    match err2 {
-        crate::StrictPathError::PathEscapesBoundary { .. } => {}
-        other => panic!("Expected PathEscapesBoundary via virtual, got {other:?}"),
-    }
+    let clamped = vroot
+        .virtual_join("link/escape.txt")
+        .expect("Virtual paths should clamp symlink targets to virtual root");
+
+    // Verify the path is clamped within the virtual root
+    let clamped_system = clamped.interop_path();
+    assert!(
+        AsRef::<std::path::Path>::as_ref(clamped_system).starts_with(&restriction_dir),
+        "Virtual path should be clamped within virtual root. Got: {:?}, Expected to start with: {:?}",
+        clamped_system,
+        restriction_dir
+    );
 }
 
 #[test]
@@ -386,20 +393,30 @@ fn test_junction_escape_is_rejected() {
         }
     }
 
+    // StrictPath: System filesystem semantics - junction should be rejected
     let restriction: PathBoundary = PathBoundary::try_new(&restriction_dir).unwrap();
-
     let err = restriction.strict_join("jlink/escape.txt").unwrap_err();
     match err {
         crate::StrictPathError::PathEscapesBoundary { .. } => {}
         other => panic!("Expected PathEscapesBoundary via junction, got {other:?}"),
     }
 
+    // VirtualPath: Virtual filesystem semantics - junction target is CLAMPED (v0.4.0 behavior)
+    // The junction target /outside/escape.txt is reinterpreted as vroot/outside/escape.txt
     let vroot: crate::VirtualRoot<()> = crate::VirtualRoot::try_new(&restriction_dir).unwrap();
-    let err2 = vroot.virtual_join("jlink/escape.txt").unwrap_err();
-    match err2 {
-        crate::StrictPathError::PathEscapesBoundary { .. } => {}
-        other => panic!("Expected PathEscapesBoundary via virtual junction, got {other:?}"),
-    }
+    let clamped = vroot
+        .virtual_join("jlink/escape.txt")
+        .expect("VirtualPath should clamp junction target to virtual root");
+
+    // Verify the junction was clamped within virtual root
+    let system_path = clamped.interop_path();
+    let vroot_canonical = std::fs::canonicalize(&restriction_dir).unwrap();
+    assert!(
+        AsRef::<std::path::Path>::as_ref(system_path).starts_with(&vroot_canonical),
+        "Junction target should be clamped within virtual root. Got: {:?}, Expected within: {:?}",
+        system_path,
+        vroot_canonical
+    );
 }
 
 #[test]
@@ -510,18 +527,26 @@ fn test_toctou_virtual_parent_attack() {
         }
     }
 
-    // Step 4: Now virtualpath_parent() should detect the escape and fail
+    // Step 4: With clamping behavior (soft-canonicalize 0.4.0), virtualpath_parent()
+    // should CLAMP the symlink target to virtual root instead of rejecting
     let parent_result = vfile_path.virtualpath_parent();
 
     match parent_result {
-        Err(crate::StrictPathError::PathEscapesBoundary { .. }) => {
-            // Expected - parent operation detected symlink escape
+        Ok(Some(parent)) => {
+            // New expected behavior: parent is clamped within virtual root
+            let parent_system = parent.interop_path();
+            assert!(
+                AsRef::<std::path::Path>::as_ref(parent_system).starts_with(&restriction_dir),
+                "Parent should be clamped within virtual root. Got: {:?}, Expected to start with: {:?}",
+                parent_system,
+                restriction_dir
+            );
         }
         Err(crate::StrictPathError::PathResolutionError { .. }) => {
             // Also acceptable - I/O error during symlink resolution
         }
-        Ok(_) => {
-            panic!("SECURITY FAILURE: virtualpath_parent() should have detected symlink escape!");
+        Ok(None) => {
+            panic!("SECURITY FAILURE: virtualpath_parent() returned None unexpectedly!");
         }
         Err(other) => {
             panic!("Unexpected error type: {other:?}");

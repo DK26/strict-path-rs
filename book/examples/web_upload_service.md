@@ -178,5 +178,6 @@ tokio::fs::write(file.interop_path(), content).await?;
 
 ## Next Steps
 
+- **For Axum users**: See the [Axum Web Service Tutorial](../axum_tutorial/overview.md) for a complete 3-chapter guide with project setup, static assets, and per-user storage
 - See [Multi-User Document Storage](./multi_user_storage.md) for a more complex user isolation example
 - See [Type-Safe Context Separation](./type_safe_contexts.md) to learn about using markers to prevent context mixing
