@@ -204,3 +204,192 @@ fn test_environment_variable_injection() {
         }
     }
 }
+
+/// Simulates GitHub Windows runner environment where parent directories contain 8.3 short names.
+/// This test verifies that existing paths with 8.3 names in parent dirs are handled correctly.
+#[test]
+#[cfg(windows)]
+fn test_github_runner_short_name_scenario_existing_paths() {
+    use std::process::Command;
+
+    // Create a temp directory and a subdirectory with a long name
+    let temp = tempfile::tempdir().unwrap();
+    let long_name_dir = temp
+        .path()
+        .join("very-long-directory-name-that-triggers-8dot3");
+    std::fs::create_dir_all(&long_name_dir).unwrap();
+
+    // Try to get the 8.3 short name using Windows dir command
+    let output = Command::new("cmd")
+        .args(["/C", "dir", "/X"])
+        .current_dir(temp.path())
+        .output();
+
+    let short_name = if let Ok(output) = output {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        stdout
+            .lines()
+            .find(|line| line.contains("very-long-directory-name"))
+            .and_then(|line| {
+                line.split_whitespace()
+                    .find(|s| s.contains('~') && s.len() <= 12)
+            })
+            .map(|s| s.to_string())
+    } else {
+        None
+    };
+
+    if let Some(short_name) = short_name {
+        eprintln!("Found 8.3 short name: {short_name}");
+
+        // Test 1: PathBoundary should work with the long name (path exists)
+        let boundary: PathBoundary = PathBoundary::try_new(&long_name_dir)
+            .expect("Should create boundary from existing long-named directory");
+
+        // Create a file inside
+        let test_file = long_name_dir.join("test.txt");
+        std::fs::write(&test_file, "content").unwrap();
+
+        // Test 2: strict_join with regular path should work
+        let joined = boundary
+            .strict_join("test.txt")
+            .expect("Should join to existing file");
+        assert!(joined.exists());
+
+        // Test 3: Using short name in INPUT should also work if path exists
+        // (because canonicalization will expand it)
+        let short_path = temp.path().join(&short_name).join("test.txt");
+        eprintln!("Attempting to access via short path: {short_path:?}");
+
+        // Verify the short path actually works at OS level
+        if short_path.exists() {
+            eprintln!("Short path exists at OS level, testing strict_join...");
+            // If we try to create a boundary using the short name path
+            let short_boundary_result: Result<PathBoundary, _> =
+                PathBoundary::try_new(temp.path().join(&short_name));
+            match short_boundary_result {
+                Ok(short_boundary) => {
+                    eprintln!("Created boundary via short name (canonicalization expanded it)");
+                    // Should be able to join
+                    let via_short = short_boundary.strict_join("test.txt");
+                    assert!(via_short.is_ok(), "Should handle short name in parent path");
+                }
+                Err(e) => {
+                    eprintln!("Could not create boundary via short name: {e:?}");
+                }
+            }
+        }
+    } else {
+        eprintln!("Skipping test: Could not determine 8.3 short name (might be disabled)");
+    }
+}
+
+/// Tests that non-existent paths with 8.3 short names are rejected.
+/// This simulates trying to access a path that doesn't exist, where canonicalization
+/// cannot expand the short name, creating a security risk.
+#[test]
+#[cfg(windows)]
+fn test_github_runner_nonexistent_path_with_short_name_rejected() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    // Try to join a path that looks like it has an 8.3 short name but doesn't exist
+    // Example: "NONEXIST~1/file.txt"
+    let fake_short_name_path = "ABCDEF~1/file.txt";
+
+    let result = boundary.strict_join(fake_short_name_path);
+
+    // Should be rejected because:
+    // 1. Path doesn't exist
+    // 2. Canonicalization can't expand ABCDEF~1
+    // 3. We can't verify if it's an alias
+    match result {
+        Err(StrictPathError::WindowsShortName { component, .. }) => {
+            eprintln!("Correctly rejected non-existent path with short name: {component:?}");
+            assert!(component.to_string_lossy().contains('~'));
+        }
+        Ok(p) => {
+            panic!(
+                "SECURITY FAILURE: Accepted non-existent path with short name: {:?}",
+                p
+            );
+        }
+        Err(e) => {
+            // PathResolutionError is also acceptable (path doesn't exist)
+            assert!(
+                matches!(e, StrictPathError::PathResolutionError { .. }),
+                "Expected WindowsShortName or PathResolutionError, got: {e:?}"
+            );
+        }
+    }
+}
+
+/// Tests symlink clamping with 8.3 short names in the clamped path.
+/// When a symlink points outside and gets clamped, the clamped path might not exist
+/// and could contain unexpanded 8.3 short names. This is acceptable - the path
+/// validation allows it, and the I/O operation will naturally fail.
+#[test]
+#[cfg(windows)]
+fn test_github_runner_clamped_symlink_with_short_names() {
+    use std::os::windows::fs as winfs;
+
+    let temp = tempfile::tempdir().unwrap();
+    let restriction_dir = temp.path().join("boundary");
+    let outside_dir = temp.path().join("outside");
+    std::fs::create_dir_all(&restriction_dir).unwrap();
+    std::fs::create_dir_all(&outside_dir).unwrap();
+
+    // Create a file outside
+    let outside_file = outside_dir.join("secret.txt");
+    std::fs::write(&outside_file, "secret").unwrap();
+
+    // Create symlink inside pointing outside
+    let link_inside = restriction_dir.join("link");
+    if let Err(e) = winfs::symlink_file(&outside_file, &link_inside) {
+        eprintln!("Skipping test - symlink creation failed: {e:?}");
+        return;
+    }
+
+    // Create VirtualRoot - should succeed
+    let vroot: VirtualRoot = VirtualRoot::try_new(&restriction_dir)
+        .expect("Should create VirtualRoot even if temp path has short names in parents");
+
+    // Try to access the symlink through virtual join
+    // This should succeed (clamping behavior), but the clamped path won't exist
+    let result = vroot.virtual_join("link");
+
+    match result {
+        Ok(clamped_path) => {
+            eprintln!(
+                "Symlink was clamped successfully: {}",
+                clamped_path.virtualpath_display()
+            );
+
+            // Verify it's clamped within boundary
+            assert!(clamped_path
+                .as_unvirtual()
+                .strictpath_starts_with(&restriction_dir));
+
+            // Try to read - should fail because clamped path doesn't exist
+            let read_result = clamped_path.read_to_string();
+            assert!(
+                read_result.is_err(),
+                "Reading clamped symlink should fail (doesn't exist)"
+            );
+            eprintln!("Read correctly failed: {:?}", read_result.unwrap_err());
+        }
+        Err(e) => {
+            // WindowsShortName error might occur if the clamped path has short names
+            // This is also acceptable behavior
+            eprintln!("virtual_join returned error (acceptable): {e:?}");
+            assert!(
+                matches!(
+                    e,
+                    StrictPathError::WindowsShortName { .. }
+                        | StrictPathError::PathResolutionError { .. }
+                ),
+                "Expected WindowsShortName or PathResolutionError, got: {e:?}"
+            );
+        }
+    }
+}

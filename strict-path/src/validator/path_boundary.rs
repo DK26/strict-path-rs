@@ -61,30 +61,6 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
     path: impl AsRef<Path>,
     restriction: &PathBoundary<Marker>,
 ) -> Result<StrictPath<Marker>> {
-    #[cfg(windows)]
-    {
-        let original_user_path = path.as_ref().to_path_buf();
-        if !path.as_ref().is_absolute() {
-            let mut probe = restriction.path().to_path_buf();
-            for comp in path.as_ref().components() {
-                match comp {
-                    Component::CurDir | Component::ParentDir => continue,
-                    Component::RootDir | Component::Prefix(_) => continue,
-                    Component::Normal(name) => {
-                        if is_potential_83_short_name(name) {
-                            return Err(StrictPathError::windows_short_name(
-                                name.to_os_string(),
-                                original_user_path,
-                                probe.clone(),
-                            ));
-                        }
-                        probe.push(name);
-                    }
-                }
-            }
-        }
-    }
-
     let target_path = if path.as_ref().is_absolute() {
         path.as_ref().to_path_buf()
     } else {
@@ -93,14 +69,15 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
 
     let canonicalized = PathHistory::<Raw>::new(target_path).canonicalize()?;
 
-    // Windows: Reject canonicalized paths that still contain 8.3 short names
-    // Short names in canonicalized output mean we cannot make security assumptions;
-    // the path doesn't exist, so we prefer to error rather than risk accepting aliased paths
+    // Windows: Reject paths where canonicalization couldn't expand 8.3 short names.
+    // This only happens when the path doesn't exist, creating a security risk where
+    // we cannot verify if "LONGNA~1" and "LongName" refer to the same path.
     #[cfg(windows)]
     {
         for comp in canonicalized.components() {
             if let Component::Normal(name) = comp {
                 if is_potential_83_short_name(name) {
+                    // Path doesn't exist (otherwise canonicalization would have expanded the short name)
                     return Err(StrictPathError::windows_short_name(
                         name.to_os_string(),
                         path.as_ref().to_path_buf(),
