@@ -1,8 +1,10 @@
-# Stage 5: Virtual Paths — User-Friendly Sandboxes
+# Stage 5: Virtual Paths — Containment for Sandboxes
 
-> *"Give users a clean '/' view, hide the messy system paths."*
+> *"Contain escape attempts for multi-tenant isolation and security research."*
 
-In Stage 4, you learned how to encode authorization in markers. Now you'll learn how `VirtualPath` extends `StrictPath` with **user-friendly virtual roots** — perfect for sandboxing users and showing clean paths.
+In Stage 4, you learned how to encode authorization in markers. Now you'll learn how `VirtualPath` extends `StrictPath` with **virtual filesystem semantics** — designed for scenarios where path escapes are **expected but must be controlled**.
+
+**Important**: VirtualPath is opt-in via the `virtual-path` feature. Use it only when you need **containment** (multi-tenant systems, malware sandboxes) rather than **detection** (archive extraction, file uploads).
 
 ## The Problem with StrictPath for User UX
 
@@ -410,6 +412,25 @@ The facade (virtual path) makes for better UX. The real structure (strict path) 
 - System operates on real, validated paths
 - Security boundary enforced throughout
 
+## When to Use VirtualPath vs. StrictPath
+
+### Use VirtualPath (Containment) When:
+- ✅ **Multi-tenant systems** — each user needs isolated `/` view
+- ✅ **Malware sandboxes** — observe behavior while containing escapes
+- ✅ **Archive analysis** — safely study suspicious archives in research environments
+- ✅ **Container-like plugins** — modules get their own filesystem view
+- ✅ **Security research** — simulate contained environments
+- ✅ Path escapes are **expected but must be controlled**
+
+### Use StrictPath (Detection) When:
+- ✅ **Production archive extraction** — detect malicious paths, reject compromised archives, alert users
+- ✅ **File uploads** — reject user paths with traversal attempts
+- ✅ **Config loading** — fail on untrusted paths that try to escape
+- ✅ **System resources** — logs, cache, assets with strict boundaries
+- ✅ Path escapes indicate **malicious intent** that must be detected
+
+**Key Insight for Archives**: Use StrictPath for **production extraction** (detect and reject attacks). Use VirtualPath for **research/sandboxing** (safely analyze suspicious archives while containing their behavior).
+
 ## Key Takeaways
 
 ✅ **`VirtualPath` = `StrictPath` + virtual `/` view**  
@@ -418,6 +439,7 @@ The facade (virtual path) makes for better UX. The real structure (strict path) 
 ✅ **Per-user sandboxes** — each user gets their own virtual root  
 ✅ **Markers work** — domain separation applies to virtual paths too  
 ✅ **Symlinks still validated** — not a "trust everything" mode  
+✅ **Opt-in feature** — requires `virtual-path` in `Cargo.toml`  
 
 ## The Complete Guarantee
 

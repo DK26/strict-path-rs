@@ -1,6 +1,6 @@
 # Archive Extraction with Safety
 
-Extract ZIP files and other archives safely without zip-slip vulnerabilities. This example shows how path validation automatically prevents malicious archive entries.
+Extract ZIP files and other archives safely without zip-slip vulnerabilities. This example shows how `PathBoundary` detects and rejects malicious archive entries.
 
 ## The Problem
 
@@ -9,14 +9,33 @@ Archive extractors are vulnerable to **zip-slip attacks** where malicious archiv
 - ❌ `..\\..\\windows\\system32\\evil.exe` - Escapes on Windows
 - ❌ Symlinks pointing outside the extraction directory
 
-## The Solution
+## The Solution: Choose Based on Your Use Case
 
-Use `PathBoundary` or `VirtualRoot` to restrict extraction to a specific directory. Malicious paths are automatically blocked.
+### Production Archive Extraction: Use PathBoundary to Detect Attacks
 
-### Choosing Between PathBoundary and VirtualRoot
+**Use `PathBoundary` for production archive extraction.** This detects malicious paths and allows you to:
+- Log the attack attempt
+- Reject the entire archive as compromised
+- Alert administrators
+- Take appropriate security action
 
-- **Use `VirtualRoot`** for extraction pipelines - it clamps any input to the boundary, making batch extraction resilient
-- **Use `PathBoundary`** when you need strict validation and want errors on malicious paths
+When extracting archives in production:
+- Escape attempts indicate a **malicious archive**
+- You want to **detect and reject** the archive, not silently hide the attack
+- The archive should be quarantined or deleted
+- Users/admins should be alerted to the attempted attack
+
+`PathBoundary` returns `Err(PathEscapesBoundary)` so you can handle the security event appropriately.
+
+### Research/Sandbox: Use VirtualRoot to Safely Analyze
+
+**Use `VirtualRoot` when analyzing suspicious archives in a controlled environment:**
+- Malware analysis and security research
+- Safely studying attack techniques
+- Observing malicious behavior while containing it
+- Testing archive parsing without risk
+
+In research scenarios, you **want** to see what the malicious archive tries to do, but safely contained within a virtual boundary.
 
 ## Recommended Patterns
 
@@ -111,42 +130,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## Alternative: VirtualRoot for Resilient Extraction
+## Handling Malicious Archives
 
-For extraction pipelines where you want to log and skip malicious entries rather than fail:
+When a malicious path is detected, you should:
 
 ```rust
-use strict_path::VirtualRoot;
-
-fn extract_all_resilient(
-    dest: &str,
-    entries: Vec<(&str, &[u8])>,
-) -> Result<usize, Box<dyn std::error::Error>> {
-    let vroot: VirtualRoot = VirtualRoot::try_new_create(dest)?;
-    let mut extracted_count = 0;
-
-    for (name, data) in entries {
-        // VirtualRoot clamps malicious paths instead of erroring
-        match vroot.virtual_join(name) {
-            Ok(vpath) => {
-                // Ensure parent directories exist (inside the boundary)
-                vpath.create_parent_dir_all()?;
-                
-                // Perform the write safely
-                vpath.write(data)?;
-                
-                println!("📦 Extracted: {} -> {}", name, vpath.virtualpath_display());
-                extracted_count += 1;
-            }
-            Err(e) => {
-                // Cleanly reject this entry, log if needed
-                println!("⚠️  Skipped malicious entry '{}': {}", name, e);
-                continue;
-            }
+fn extract_entry_with_security(
+    extraction_dir: &PathBoundary,
+    entry_path: &str,
+    content: &[u8],
+) -> Result<StrictPath, Box<dyn std::error::Error>> {
+    match extraction_dir.strict_join(entry_path) {
+        Ok(safe_path) => {
+            // Valid path - extract normally
+            safe_path.create_parent_dir_all()?;
+            safe_path.write(content)?;
+            Ok(safe_path)
+        }
+        Err(e) => {
+            // Malicious path detected!
+            eprintln!("🚨 SECURITY ALERT: Malicious archive entry detected!");
+            eprintln!("   Entry path: {}", entry_path);
+            eprintln!("   Error: {}", e);
+            eprintln!("   Action: Rejecting entire archive as compromised");
+            
+            // Return error to stop extraction
+            Err(format!("Archive contains malicious path: {}", entry_path).into())
         }
     }
-    
-    Ok(extracted_count)
 }
 
 // Usage

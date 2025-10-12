@@ -76,36 +76,64 @@ if !path.chars().all(|c| c.is_alphanumeric() || c == '/') { return Err("Invalid"
 
 ### Detailed Decision Matrix
 
-| Source                      | Typical Input                  | Use VirtualPath For                       | Use StrictPath For        | Notes                                                   |
-| --------------------------- | ------------------------------ | ----------------------------------------- | ------------------------- | ------------------------------------------------------- |
-| 🌐 **HTTP requests**         | URL path segments, file names  | Display/logging, safe virtual joins       | System-facing interop/I/O | Always clamp user paths via `VirtualPath::virtual_join` |
-| 🌍 **Web forms**             | Form file fields, route params | User-facing display, UI navigation        | System-facing interop/I/O | Treat all form inputs as untrusted                      |
-| ⚙️ **Configuration files**   | Paths in config                | UI display and I/O within boundary        | System-facing interop/I/O | Validate each path before I/O                           |
-| 💾 **Database content**      | Stored file paths              | Rendering paths in UI dashboards          | System-facing interop/I/O | Storage does not imply safety; validate on use          |
-| 📂 **CLI arguments**         | Command-line path args         | Pretty printing, I/O within boundary      | System-facing interop/I/O | Validate args before touching filesystem                |
-| 🔌 **External APIs**         | Webhooks, 3rd-party payloads   | Present sanitized paths to logs           | System-facing interop/I/O | Never trust external systems                            |
-| 🤖 **LLM/AI output**         | Generated file names/paths     | Display suggestions, I/O within boundary  | System-facing interop/I/O | LLM output is untrusted by default                      |
-| 📨 **Inter-service msgs**    | Queue/event payloads           | Observability output, I/O within boundary | System-facing interop/I/O | Validate on the consumer side                           |
-| 📱 **Apps (desktop/mobile)** | Drag-and-drop, file pickers    | Show picked paths in UI                   | System-facing interop/I/O | Validate selected paths before I/O                      |
-| 📦 **Archive contents**      | Entry names from ZIP/TAR       | Progress UI, virtual joins                | System-facing interop/I/O | Validate each entry to block zip-slip                   |
-| 🔧 **File format internals** | Embedded path strings          | Diagnostics, I/O within boundary          | System-facing interop/I/O | Never dereference without validation                    |
+| Source                      | Typical Input                  | Use VirtualPath For                       | Use StrictPath For                      | Notes                                                   |
+| --------------------------- | ------------------------------ | ----------------------------------------- | --------------------------------------- | ------------------------------------------------------- |
+| 🌐 **HTTP requests**         | URL path segments, file names  | Display/logging, safe virtual joins       | System-facing interop/I/O               | Always clamp user paths via `VirtualPath::virtual_join` |
+| 🌍 **Web forms**             | Form file fields, route params | User-facing display, UI navigation        | System-facing interop/I/O               | Treat all form inputs as untrusted                      |
+| ⚙️ **Configuration files**   | Paths in config                | UI display and I/O within boundary        | System-facing interop/I/O               | Validate each path before I/O                           |
+| 💾 **Database content**      | Stored file paths              | Rendering paths in UI dashboards          | System-facing interop/I/O               | Storage does not imply safety; validate on use          |
+| 📂 **CLI arguments**         | Command-line path args         | Pretty printing, I/O within boundary      | System-facing interop/I/O               | Validate args before touching filesystem                |
+| 🔌 **External APIs**         | Webhooks, 3rd-party payloads   | Present sanitized paths to logs           | System-facing interop/I/O               | Never trust external systems                            |
+| 🤖 **LLM/AI output**         | Generated file names/paths     | Display suggestions, I/O within boundary  | System-facing interop/I/O               | LLM output is untrusted by default                      |
+| 📨 **Inter-service msgs**    | Queue/event payloads           | Observability output, I/O within boundary | System-facing interop/I/O               | Validate on the consumer side                           |
+| 📱 **Apps (desktop/mobile)** | Drag-and-drop, file pickers    | Show picked paths in UI                   | System-facing interop/I/O               | Validate selected paths before I/O                      |
+| 📦 **Archive contents**      | Entry names from ZIP/TAR       | N/A (use StrictPath to detect attacks)    | Detect malicious paths, reject archives | Validate each entry; return error on escape attempts    |
+| 🔧 **File format internals** | Embedded path strings          | Diagnostics, I/O within boundary          | System-facing interop/I/O               | Never dereference without validation                    |
 
-### Security Philosophy
+### Security Philosophy: Detect vs. Contain
 
-**Think of it this way:**
-- `StrictPath` = **Security Filter** — validates and rejects unsafe paths
-- `VirtualPath` = **Complete Sandbox** — clamps any input to stay safe
+**The fundamental distinction is whether path escapes are attacks or expected behavior.**
 
-**Critical Distinction - Symlink Behavior:**
+#### StrictPath — Detect & Reject (Default, 90% of use cases)
+
+**Philosophy**: "If something tries to escape, I want to know about it"
+
+- Returns `Err(PathEscapesBoundary)` when escape is attempted
+- Use when path escapes indicate **malicious intent**:
+  - 🗜️ **Archive extraction** — detect malicious paths; reject compromised archives
+  - 📤 **File uploads** — reject user paths with traversal attempts
+  - ⚙️ **Config loading** — fail on untrusted config paths that try to escape
+  - 📝 **System resources** — logs, cache, assets with strict boundaries
+  - 🔧 **Development tools** — build systems, CLI utilities, single-user apps
+  - 🛡️ **Any security boundary** — where escapes are attacks to detect
+
+**No feature required** — always available.
+
+#### VirtualPath — Contain & Redirect (Opt-in, 10% of use cases)
+
+**Philosophy**: "Let things try to escape, but silently contain them"
+
+- Silently clamps/redirects escape attempts within the virtual boundary
+- Use when path escapes are **expected but must be controlled**:
+  - 🔬 **Malware analysis sandboxes** — observe behavior while containing escapes
+  - 🏢 **Multi-tenant systems** — each user sees isolated `/` without real paths
+  - 📦 **Container-like plugins** — modules get their own filesystem view
+  - 🧪 **Security research** — simulate contained environments for testing
+  - 👥 **User content isolation** — when users shouldn't see real system paths
+
+**Requires feature**: Enable `virtual-path` in `Cargo.toml`.
+
+#### Critical Distinction - How Escapes Are Handled
+
+When attempting to access `../../../etc/passwd`:
+- **`StrictPath`:** Returns `Err(PathEscapesBoundary)` — application can log, alert, reject
+- **`VirtualPath`:** Silently clamps to boundary — escape is contained, not reported
 
 When a symlink points to an absolute path (e.g., `mylink -> /etc/passwd`):
-- **`StrictPath`:** Follows the symlink and validates the target is inside the boundary. If outside → **Error** (explicit rejection)
-- **`VirtualPath`:** Treats the absolute target as relative to the virtual root. The target `/etc/passwd` becomes `vroot/etc/passwd` → **Clamped** (graceful containment)
+- **`StrictPath`:** Follows symlink and validates target. If outside boundary → **Error**
+- **`VirtualPath`:** Treats absolute target as relative to virtual root → **Clamped** to `vroot/etc/passwd`
 
-This makes `VirtualPath` perfect for:
-- 🗜️ **Archive extraction:** Malicious absolute symlinks in ZIP/TAR files are automatically safe
-- 🏢 **Multi-tenant systems:** User A's symlinks can't escape to user B's files, even with absolute targets
-- 📦 **Container-like environments:** Implements true virtual filesystem semantics where `/` means "root of this sandbox"
+**Common Mistake**: Using VirtualPath for archive extraction. This **hides attacks** instead of detecting them. Always use StrictPath to detect malicious paths and reject compromised archives.
 
 **The Golden Rule**: If you didn't create the path yourself, secure it first.
 
@@ -166,7 +194,9 @@ fn create_config(boundary: &PathBoundary, name: &str) -> std::io::Result<()> {
 }
 ```
 
-## Multi‑User Isolation (VirtualPath root)
+## Multi‑User Isolation (VirtualPath for Containment)
+
+**Note**: VirtualPath is opt-in via the `virtual-path` feature. Use it when you need **containment** (multi-tenant isolation, sandboxes) rather than **detection** (security boundaries).
 
 - Per‑user/tenant: for small flows, construct a root via `VirtualPath::with_root(..)` and join untrusted names with `virtual_join(..)`. For larger flows and reuse, create a `VirtualRoot` per user and call `virtual_join(..)`.
 - Share strict helpers by borrowing the strict view: `vpath.as_unvirtual()`.
@@ -182,6 +212,14 @@ fn upload(user_root: &VirtualRoot, filename: &str, bytes: &[u8]) -> std::io::Res
 // let vroot = VirtualPath::with_root(format!("./cloud/user_{user_id}"))?;
 // let vpath = vroot.virtual_join(filename)?; // same guarantees; keep VirtualRoot for reuse
 ```
+
+**When to use each for archives**:
+- **StrictPath for production archive extraction** — detect malicious paths, reject compromised archives, alert users
+- **VirtualPath for sandbox/research** — safely analyze suspicious archives by containing escapes while observing behavior
+- **StrictPath for file uploads to shared storage** — reject attacks at the security boundary
+- **StrictPath for config loading** — fail explicitly on untrusted paths that try to escape
+
+The key: use **StrictPath to detect attacks** in production; use **VirtualPath to contain behavior** in research/analysis scenarios.
 
 ## Interop & Display
 
