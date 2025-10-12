@@ -1,5 +1,8 @@
-use crate::{PathBoundary, VirtualRoot};
+use crate::PathBoundary;
+#[cfg(feature = "virtual-path")]
+use crate::VirtualRoot;
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtualpath_create_parent_dir_all_creates_chain() {
     let td = tempfile::tempdir().unwrap();
@@ -17,6 +20,7 @@ fn virtualpath_create_parent_dir_all_creates_chain() {
     assert!(root.join("a/b/c").is_dir());
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtualpath_create_parent_dir_non_recursive_fails_when_grandparents_missing() {
     let td = tempfile::tempdir().unwrap();
@@ -56,6 +60,7 @@ fn strictpath_parent_helpers_parity() {
     assert!(res.is_err());
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn root_parent_helpers_are_noops() {
     let td = tempfile::tempdir().unwrap();
@@ -85,6 +90,7 @@ fn create_dir_non_recursive_requires_parent() {
     assert!(td.path().join("p/newdir").is_dir());
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtualpath_create_dir_non_recursive_behaves_like_system() {
     let td = tempfile::tempdir().unwrap();
@@ -98,6 +104,7 @@ fn virtualpath_create_dir_non_recursive_behaves_like_system() {
     assert!(td.path().join("a/b").is_dir());
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn parent_dir_all_is_idempotent() {
     let td = tempfile::tempdir().unwrap();
@@ -108,6 +115,7 @@ fn parent_dir_all_is_idempotent() {
     assert!(td.path().join("x/y/z").is_dir());
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_semantics_for_parent_helpers() {
     let td = tempfile::tempdir().unwrap();

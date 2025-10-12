@@ -181,6 +181,7 @@ function Run-Fix {
     Write-Host "Command: $Command" -ForegroundColor Gray
     
     $startTime = Get-Date
+    $originalLocation = Get-Location
     
     try {
         Invoke-Expression $Command
@@ -199,6 +200,9 @@ function Run-Fix {
         Write-Host "WARNING: Continuing with CI checks anyway..." -ForegroundColor Yellow
         Write-Host ""
         return
+    } finally {
+        # Always restore original location, even if command failed
+        Set-Location $originalLocation
     }
 }
 
@@ -339,7 +343,7 @@ Run-Fix "Format demos" "Push-Location demos; cargo fmt --all; Pop-Location"
 Run-Fix "Clippy Fixable Issues (strict-path)" "cargo clippy -p strict-path --fix --allow-dirty --allow-staged --all-targets --all-features"
 
 # 2) Demos clippy fix with safe features only (skip heavy deps like AWS unless opted elsewhere)
-Run-Fix "Clippy Fixable Issues (demos)" "Push-Location demos; cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp'; Pop-Location"
+Run-Fix "Clippy Fixable Issues (demos)" "Push-Location demos; cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path'; Pop-Location"
 
 Run-Fix "Format (after clippy fix)" "cargo fmt --all"
 Run-Fix "Format demos (after clippy fix)" "Push-Location demos; cargo fmt --all; Pop-Location"
@@ -466,44 +470,27 @@ if ($forceFullDemoTest -or $binariesToTest.Count -gt 0) {
         $hasNasm  = [bool](Get-Command nasm -ErrorAction SilentlyContinue)
         $includeAws = $hasCmake -and $hasNasm
         if (-not $includeAws) {
-            Write-Host "WARNING: Skipping 'with-aws' demos: cmake and/or nasm not found on PATH" -ForegroundColor Yellow
+            Write-Host "WARNING: Skipping 'with-aws' feature: cmake and/or nasm not found on PATH" -ForegroundColor Yellow
         }
 
-        $featureSets = New-Object System.Collections.Generic.List[string]
-        $featureSets.Add('') | Out-Null
-        $featureSets.Add('with-zip') | Out-Null
-        $featureSets.Add('with-app-path') | Out-Null
-        $featureSets.Add('with-dirs') | Out-Null
-        $featureSets.Add('with-tempfile') | Out-Null
-        $featureSets.Add('with-rmcp') | Out-Null
-        if ($includeAws) { $featureSets.Add('with-aws') | Out-Null }
-        if ($includeAws) { $featureSets.Add('with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp') | Out-Null } else { $featureSets.Add('with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp') | Out-Null }
+        # Single combined test: compile once with all available features, fail fast
+        $allFeatures = if ($includeAws) {
+            "with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp,virtual-path"
+        } else {
+            "with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path"
+        }
 
-        foreach ($feats in $featureSets) {
-            if ($forceFullDemoTest) {
-                # Test all demos
-                if ([string]::IsNullOrEmpty($feats)) {
-                    Write-Host "==> Clippy demos with features: <none>"
-                    cargo clippy --all-targets -- -D warnings
-                    if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
-                } else {
-                    Write-Host "==> Clippy demos with features: $feats"
-                    cargo clippy --all-targets --features $feats -- -D warnings
-                    if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
-                }
-            } else {
-                # Test only specific binaries
-                foreach ($binary in $binariesToTest) {
-                    if ([string]::IsNullOrEmpty($feats)) {
-                        Write-Host "==> Clippy demo '$binary' with features: <none>"
-                        cargo clippy --bin $binary -- -D warnings
-                        if ($LASTEXITCODE -ne 0) { throw "clippy failed for binary $binary" }
-                    } else {
-                        Write-Host "==> Clippy demo '$binary' with features: $feats"
-                        cargo clippy --bin $binary --features $feats -- -D warnings
-                        if ($LASTEXITCODE -ne 0) { throw "clippy failed for binary $binary with features $feats" }
-                    }
-                }
+        if ($forceFullDemoTest) {
+            # Test all demos with all features at once
+            Write-Host "==> Clippy demos with features: $allFeatures"
+            cargo clippy --all-targets --features $allFeatures -- -D warnings
+            if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
+        } else {
+            # Test only specific binaries with all features
+            foreach ($binary in $binariesToTest) {
+                Write-Host "==> Clippy demo '$binary' with features: $allFeatures"
+                cargo clippy --bin $binary --features $allFeatures -- -D warnings
+                if ($LASTEXITCODE -ne 0) { throw "clippy failed for binary $binary" }
             }
         }
     } finally {
@@ -589,7 +576,7 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
     Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
     Run-Check-Try "MSRV Check (Rust 1.71.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose"
     Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
-    Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --verbose"
+    Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose"
     } else {
         Write-Host "WARNING: Rust 1.71.0 not installed. Installing for MSRV check..." -ForegroundColor Yellow
         try {
@@ -600,7 +587,7 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
                 Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
                 Run-Check-Try "MSRV Check (Rust 1.71.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose"
                 Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
-                Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --verbose"
+                Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose"
             } else {
                 throw "toolchain install failed"
             }

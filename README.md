@@ -29,8 +29,8 @@ Stop path attacks before they happen. This crate makes sure file paths can't esc
 - **Enables authorization architectures**: When you design markers to require authorization for construction, the compiler mathematically proves that any use of those markers went through authorization first
 - **Safe builtin I/O operations**: Complete filesystem API (read, write, create_dir, metadata, rename, copy, etc.) that eliminates the need for `.interop_path()` calls in routine operations
 - **Two modes to choose from**:
-  - **StrictPath**: Rejects bad paths with an error (good for APIs and system access guarantees)  
-  - **VirtualPath**: Clamps bad paths to safe ones (good for simulating virtual user spaces, extracting archives in isolation, etc.)
+  - **StrictPath** (default): Detects and rejects escape attempts—perfect for security boundaries where escapes are attacks (archive extraction, file uploads, config loading)
+  - **VirtualPath** (opt-in): Contains and redirects escape attempts—perfect for sandboxes where escapes are expected but must be controlled (malware analysis, multi-tenant isolation)
 - **Built on battle-tested foundations**: Uses `soft-canonicalize` which has been validated against 19+ real-world path-related CVEs
 - **Easy to use**: Drop-in replacement for standard file operations, same return values
 - **Works everywhere**: Handles platform differences so you don't have to
@@ -77,6 +77,19 @@ StrictPath::with_boundary("uploads")?
     .strict_join(user_input)?
     .write(data)?;
 ```
+
+## Features
+
+- `virtual-path` (opt-in): Enables `VirtualRoot`/`VirtualPath` and all virtual APIs. By default you get `PathBoundary`/`StrictPath` only (with full I/O).
+
+Enable in Cargo.toml:
+
+```toml
+[dependencies]
+strict-path = { version = "...", features = ["virtual-path"] }
+```
+
+Without `virtual-path`: only `PathBoundary` + `StrictPath` are available (I/O remains available); all virtual-only types and methods are removed.
 
 **The Reality**: Every web server, LLM agent, and file processor faces the same vulnerability. One unvalidated path from user input, config files, or AI responses can grant attackers full filesystem access.
 
@@ -275,21 +288,26 @@ Trade‑offs you can choose explicitly:
 
 > Golden Rule: If you didn't create the path yourself, secure it first.
 
-| Source/Input                                                                                              | Choose         | Why                                            | Notes                                            |
-| --------------------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------------- | ------------------------------------------------ |
-| HTTP/CLI args/config/LLM/DB (untrusted segments)                                                          | `StrictPath`   | Reject attacks explicitly before I/O           | Validate with `PathBoundary.strict_join(...)`    |
-| Archive contents, user uploads (user-facing UX)                                                           | `VirtualPath`  | Clamp hostile paths safely; rooted "/" display | Per-user `VirtualRoot`; use `.virtual_join(...)` |
-| UI-only path display                                                                                      | `VirtualPath`  | Show clean rooted paths                        | `virtualpath_display()`; no system leakage       |
-| Your own code/hardcoded paths                                                                             | `Path/PathBuf` | You control the value                          | Never for untrusted input                        |
-| External APIs/webhooks/inter-service messages                                                             | `StrictPath`   | System-facing interop/I/O requires validation  | Validate on consume before touching FS           |
-| *(See the [full decision matrix](https://dk26.github.io/strict-path-rs/best_practices.html) in the book)* |                |                                                |                                                  |
+| Source/Input                                                                                              | Choose         | Why                                           | Notes                                            |
+| --------------------------------------------------------------------------------------------------------- | -------------- | --------------------------------------------- | ------------------------------------------------ |
+| HTTP/CLI args/config/LLM/DB (untrusted segments)                                                          | `StrictPath`   | Detect and reject attacks explicitly          | Validate with `PathBoundary.strict_join(...)`    |
+| Archive extraction, file uploads                                                                          | `StrictPath`   | Detect malicious paths; fail on escape        | Use error handling to reject compromised files   |
+| Malware analysis sandbox, multi-tenant isolation                                                          | `VirtualPath`  | Contain escapes; observe safely               | Per-user `VirtualRoot`; use `.virtual_join(...)` |
+| UI-only path display (multi-user systems)                                                                 | `VirtualPath`  | Show clean rooted paths                       | `virtualpath_display()`; no system leakage       |
+| Your own code/hardcoded paths                                                                             | `Path/PathBuf` | You control the value                         | Never for untrusted input                        |
+| External APIs/webhooks/inter-service messages                                                             | `StrictPath`   | System-facing interop/I/O requires validation | Validate on consume before touching FS           |
+| *(See the [full decision matrix](https://dk26.github.io/strict-path-rs/best_practices.html) in the book)* |                |                                               |                                                  |
 
-**Critical distinction - Symlink behavior:**
+**Critical distinction - Detect vs. Contain:**
+- **`StrictPath` (default):** Detects escape attempts and returns `Err(PathEscapesBoundary)`. Use when path escapes indicate **malicious intent** (archive extraction, file uploads, config loading). No feature required.
+- **`VirtualPath` (opt-in):** Contains escape attempts by clamping to virtual root. Use when path escapes are **expected but must be controlled** (malware sandboxes, multi-tenant isolation). Requires `virtual-path` feature.
+
+**Symlink behavior:**
 - **`VirtualPath`:** Implements true virtual filesystem semantics. When a symlink points to `/etc/config`, that absolute path is **clamped** to `vroot/etc/config`. Perfect for multi-tenant systems where each user's `/` is actually their virtual root.
-- **`StrictPath`:** Uses system filesystem semantics. Symlinks point to their actual system targets. Best for shared system resources and admin tools.
+- **`StrictPath`:** Uses system filesystem semantics. Symlinks point to their actual system targets. Best for shared system resources and detecting malicious symlinks.
 
 Notes that matter:
-- This isn’t StrictPath vs VirtualPath. `VirtualPath` conceptually extends `StrictPath` with a virtual "/" view; both support I/O and interop. Choose based on whether you need virtual, user-facing semantics (VirtualPath) or raw system-facing validation (StrictPath).
+- `VirtualPath` conceptually extends `StrictPath` with a virtual "/" view; both support I/O and interop. Choose based on whether escapes are attacks (detect with StrictPath) or expected (contain with VirtualPath).
 - Unified helpers: Prefer dimension-specific signatures. When sharing a helper across both, accept `&StrictPath<_>` and call with `vpath.as_unvirtual()` as needed.
 
 ### At‑a‑glance: API Modes

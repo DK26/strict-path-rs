@@ -33,7 +33,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [features]
+# Opt-in virtual filesystem support (VirtualRoot, VirtualPath)
 default = []
+virtual-path = []
 # Enable serde Serialize impls (and helpers) for core types.
 serde = ["dep:serde"]
 # Convenience restriction constructors for system directories (config/data/cache)
@@ -42,3 +44,6 @@ dirs = ["dep:dirs"]
 tempfile = ["dep:tempfile"]
 # Portable application directory restrictions
 app-path = ["dep:app-path"]
+
+[package.metadata.docs.rs]
+all-features = true

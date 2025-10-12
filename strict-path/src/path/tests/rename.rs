@@ -22,6 +22,7 @@ fn strict_rename_file_in_same_boundary() {
     assert!(!boundary.strict_join("a.txt").unwrap().exists());
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_rename_file_simple() {
     let _guard = RENAME_TEST_MUTEX.lock().unwrap();
@@ -148,6 +149,7 @@ fn strict_rename_nonexistent_source() {
     assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_rename_relative_sibling_and_absolute() {
     let td = tempfile::tempdir().unwrap();
@@ -169,6 +171,7 @@ fn virtual_rename_relative_sibling_and_absolute() {
     assert_eq!(format!("{}", v3.virtualpath_display()), "/rooted.txt");
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_rename_with_parent_components_is_clamped() {
     let td = tempfile::tempdir().unwrap();
@@ -183,6 +186,7 @@ fn virtual_rename_with_parent_components_is_clamped() {
     assert_eq!(format!("{}", v2.virtualpath_display()), "/outside.txt");
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_rename_fails_when_parent_missing() {
     let td = tempfile::tempdir().unwrap();
@@ -196,6 +200,7 @@ fn virtual_rename_fails_when_parent_missing() {
     assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_rename_directory() {
     let _guard = RENAME_TEST_MUTEX.lock().unwrap();

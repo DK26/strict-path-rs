@@ -87,6 +87,7 @@ fn test_strict_path_accessors_and_manipulation() {
     assert!(!deep_root.exists());
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_virtual_path_components_and_checks() {
     let temp = tempfile::tempdir().unwrap();

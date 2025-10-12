@@ -88,6 +88,7 @@ with-tempfile = ["dep:tempfile", "strict-path/tempfile"]
 with-rmcp = ["dep:rmcp"]
 with-jwt = ["dep:hmac", "dep:sha2", "dep:base64"]
 with-database = ["dep:sqlx"]
+virtual-path = ["strict-path/virtual-path"]
 
 [[bin]]
 name = "cli_backup_tool"

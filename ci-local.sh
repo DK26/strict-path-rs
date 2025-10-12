@@ -359,7 +359,7 @@ run_fix "Format demos" "(cd demos && cargo fmt --all)"
 run_fix "Clippy Fixable Issues (strict-path)" "cargo clippy -p strict-path --fix --allow-dirty --allow-staged --all-targets --all-features"
 
 # 2) Demos clippy fix with safe features only (skip heavy deps like AWS unless opted elsewhere)
-run_fix "Clippy Fixable Issues (demos)" "(cd demos && cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp')"
+run_fix "Clippy Fixable Issues (demos)" "(cd demos && cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path')"
 
 run_fix "Format (after clippy fix)" "cargo fmt --all"
 run_fix "Format demos (after clippy fix)" "(cd demos && cargo fmt --all)"
@@ -473,12 +473,12 @@ else
     fi
 fi
 
-# Lint demos across feature matrix (we do not build/run demos in CI)
+# Lint demos with all features (we do not build/run demos in CI)
 if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]] || [[ ${#BINARIES_TO_TEST[@]} -gt 0 ]]; then
     if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]]; then
-        TEST_DESCRIPTION="Clippy Demos (matrix - ALL)"
+        TEST_DESCRIPTION="Clippy Demos (all features - ALL)"
     else
-        TEST_DESCRIPTION="Clippy Demos (matrix - SELECTIVE: $(IFS=','; echo "${BINARIES_TO_TEST[*]}"))"
+        TEST_DESCRIPTION="Clippy Demos (all features - SELECTIVE: $(IFS=','; echo "${BINARIES_TO_TEST[*]}"))"
     fi
 
     run_check "$TEST_DESCRIPTION" '
@@ -486,38 +486,26 @@ if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]] || [[ ${#BINARIES_TO_TEST[@]} -gt 0 ]
     (
         set -e
         cd demos
-        for FEATS in "" \
-                                 "with-zip" \
-                                 "with-app-path" \
-                                 "with-dirs" \
-                                 "with-tempfile" \
-                                 "with-rmcp" \
-                                 "with-aws" \
-                                 "with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp" \
-                                 "with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp"; do
-            
-            if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]]; then
-                # Test all demos
-                if [ -z "$FEATS" ]; then
-                    echo "==> Clippy demos with features: <none>"
-                    cargo clippy --all-targets -- -D warnings
-                else
-                    echo "==> Clippy demos with features: $FEATS"
-                    cargo clippy --all-targets --features "$FEATS" -- -D warnings
-                fi
-            else
-                # Test only specific binaries
-                for binary in "${BINARIES_TO_TEST[@]}"; do
-                    if [ -z "$FEATS" ]; then
-                        echo "==> Clippy demo '$binary' with features: <none>"
-                        cargo clippy --bin "$binary" -- -D warnings
-                    else
-                        echo "==> Clippy demo '$binary' with features: $FEATS"
-                        cargo clippy --bin "$binary" --features "$FEATS" -- -D warnings
-                    fi
-                done
-            fi
-        done
+        
+        # Check for heavy toolchain deps
+        if command -v cmake >/dev/null 2>&1 && command -v nasm >/dev/null 2>&1; then
+            ALL_FEATURES="with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp,virtual-path"
+        else
+            echo "⚠️  WARNING: Skipping '\''with-aws'\'' feature: cmake and/or nasm not found on PATH"
+            ALL_FEATURES="with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path"
+        fi
+        
+        if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]]; then
+            # Test all demos with all features at once
+            echo "==> Clippy demos with features: $ALL_FEATURES"
+            cargo clippy --all-targets --features "$ALL_FEATURES" -- -D warnings
+        else
+            # Test only specific binaries with all features
+            for binary in "${BINARIES_TO_TEST[@]}"; do
+                echo "==> Clippy demo '\''$binary'\'' with features: $ALL_FEATURES"
+                cargo clippy --bin "$binary" --features "$ALL_FEATURES" -- -D warnings
+            done
+        fi
     )
 '
 else
@@ -587,7 +575,7 @@ if command -v rustup &> /dev/null; then
         run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" || true
         run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose"
         run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
-        run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --locked --verbose"
+        run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose"
     else
         echo "⚠️  Rust 1.71.0 not installed. Installing for MSRV check..."
         if rustup toolchain install 1.71.0; then
@@ -596,7 +584,7 @@ if command -v rustup &> /dev/null; then
             run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features"
             run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose"
             run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
-            run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --locked --verbose"
+            run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose"
     else
         echo "❌ Failed to install Rust 1.71.0. Skipping MSRV check."
         echo "💡 To install manually: rustup toolchain install 1.71.0"

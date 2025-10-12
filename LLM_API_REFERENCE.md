@@ -11,18 +11,74 @@ Audience and usage: This page is a minimal-context, copy/paste guide for tool-ca
 
 **Core Security Promise**: If you have `StrictPath<T>` or `VirtualPath<T>`, path traversal is impossible.
 
+## Features
+
+- Feature `virtual-path` (opt-in): Enables `VirtualRoot`/`VirtualPath` and all virtual-only APIs.
+
+  - Enable in Cargo.toml:
+    ```toml
+    [dependencies]
+    strict-path = { version = "...", features = ["virtual-path"] }
+    ```
+  - When not enabled: Only `PathBoundary` + `StrictPath` are available (all I/O included). All `VirtualRoot`/`VirtualPath` APIs are removed.
+
 ## Core Security Foundation: `StrictPath`
 
 - `StrictPath<Marker>` is the core safe path type used for system-facing I/O.
 - If a function receives `&StrictPath<_>`, the path is already validated — no extra checks needed.
 - Create `StrictPath` via `PathBoundary::strict_join(..)` or borrow from `VirtualPath` via `.as_unvirtual()`.
 
-## Type Selection Guide
+## When to Use Which Type? (Critical Decision)
 
-**Choose based on use case:**
-- **User sandboxes**: `VirtualRoot`/`VirtualPath` - Clean UI paths like "/file.txt"
-- **Shared boundaries**: `PathBoundary`/`StrictPath` - System paths within validated boundaries  
-- **Multiple contexts**: Use marker types `StrictPath<UserFiles>` vs `StrictPath<ConfigFiles>`
+**The fundamental distinction is whether escapes are attacks or expected behavior:**
+
+### StrictPath — Detect & Reject (Default, 90% of use cases)
+
+**Philosophy**: "If something tries to escape, I want to know about it"
+
+Use `PathBoundary` → `StrictPath` when path escapes indicate **malicious intent**:
+
+- **Archive extraction** — Detect malicious paths; reject compromised archives
+- **File uploads** — Reject user-provided paths with traversal attempts  
+- **Config loading** — Fail on untrusted config paths that try to escape
+- **Log files, cache, assets** — Shared system resources with strict boundaries
+- **Development tools** — Build systems, CLI utilities, single-user apps
+- **Any security boundary** — Where escapes are attacks that must be detected
+
+**Key behavior**: Returns `Err(PathEscapesBoundary)` when escape is attempted.
+
+**No feature required** — `PathBoundary` and `StrictPath` are always available.
+
+### VirtualPath — Contain & Redirect (Opt-in, 10% of use cases)
+
+**Philosophy**: "Let things try to escape, but silently contain them"
+
+Use `VirtualRoot` → `VirtualPath` when path escapes are **expected but must be controlled**:
+
+- **Malware analysis sandboxes** — Observe malicious behavior while containing it
+- **Multi-tenant systems** — Each user sees isolated `/` root without real paths
+- **Container-like plugins** — Modules get their own filesystem view
+- **Security research** — Simulate contained environments for testing
+- **User content isolation** — When users shouldn't see real system paths
+
+**Key behavior**: Silently clamps/redirects escape attempts within the virtual boundary.
+
+**Requires feature** — Enable in `Cargo.toml`:
+```toml
+[dependencies]
+strict-path = { version = "...", features = ["virtual-path"] }
+```
+
+### Decision Matrix
+
+| Scenario           | Type          | Reason                      |
+| ------------------ | ------------- | --------------------------- |
+| Archive extraction | `StrictPath`  | Detect malicious paths      |
+| File uploads       | `StrictPath`  | Reject traversal attacks    |
+| Config loading     | `StrictPath`  | Fail on escape attempts     |
+| Malware sandbox    | `VirtualPath` | Contain behavior safely     |
+| Multi-tenant SaaS  | `VirtualPath` | Per-user isolation          |
+| Single-user app    | `StrictPath`  | Simple boundary enforcement |
 
 ### Marker playbook (LLM must follow)
 
@@ -273,7 +329,7 @@ match boundary.strict_join(user_input) {
 - with_boundary_create<P: AsRef<Path>>(dir_path: P) -> Result<Self>  // sugar; creates directory if missing
 - change_marker<NewMarker>(self) -> StrictPath<NewMarker>  // transform marker after authorization
 - unstrict(self) -> PathBuf  // consumes — escape hatch (avoid)
-- virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops)
+- virtualize(self) -> VirtualPath<Marker>  // upgrade to virtual view (UI ops) [feature: virtual-path]
 - strictpath_to_string_lossy(&self) -> Cow<'_, str>
 - strictpath_to_str(&self) -> Option<&str>
 - interop_path(&self) -> &OsStr  // for unavoidable third-party `AsRef<Path>` adapters only
@@ -546,7 +602,13 @@ VirtualPath<Marker>
 - exists / is_file / is_dir / metadata / read_to_string / read / write / create_file / open_file / create_dir / create_dir_all / create_parent_dir / create_parent_dir_all / remove_file / remove_dir / remove_dir_all (delegates to `StrictPath`; parents derived via virtual semantics)
 
 ### Feature-gated APIs (complete list)
+These APIs require enabling the named Cargo feature.
 These are available only when the corresponding Cargo features are enabled:
+
+- Feature `virtual-path`
+	- Types: `VirtualRoot`, `VirtualPath`
+	- Methods: All `virtual_*` and `virtualpath_*` operations, conversions to/from `VirtualRoot`/`VirtualPath`, and `StrictPath::virtualize()`
+	- When not enabled: Only `PathBoundary`/`StrictPath` are available; all I/O remains available on `StrictPath`.
 
 - Feature `dirs` (OS standard directories)
 	- PathBoundary
@@ -599,9 +661,9 @@ These are available only when the corresponding Cargo features are enabled:
 
 - Feature `serde`
 	- `impl Serialize for StrictPath` → system path string
-	- `impl Serialize for VirtualPath` → rooted virtual string (e.g., "/a/b.txt")
+	- `impl Serialize for VirtualPath` → rooted virtual string (e.g., "/a/b.txt") [feature: virtual-path]
 	- `serde_ext::WithBoundary<'_, Marker>`: `DeserializeSeed` to deserialize a `StrictPath<Marker>` with a provided `&PathBoundary<Marker>`
-	- `serde_ext::WithVirtualRoot<'_, Marker>`: `DeserializeSeed` to deserialize a `VirtualPath<Marker>` with a provided `&VirtualRoot<Marker>`
+	- `serde_ext::WithVirtualRoot<'_, Marker>`: `DeserializeSeed` to deserialize a `VirtualPath<Marker>` with a provided `&VirtualRoot<Marker>` [feature: virtual-path]
 
 Short usage rules (1-line each)
 - For user input: use `VirtualPath::virtual_join(...)` (construct a root via `VirtualPath::with_root(..)`) -> `VirtualPath`.

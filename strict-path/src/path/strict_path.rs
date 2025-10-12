@@ -106,6 +106,7 @@ impl<Marker> StrictPath<Marker> {
 
     /// SUMMARY:
     /// Convert this `StrictPath` into a user‑facing `VirtualPath`.
+    #[cfg(feature = "virtual-path")]
     #[inline]
     pub fn virtualize(self) -> crate::path::virtual_path::VirtualPath<Marker> {
         crate::path::virtual_path::VirtualPath::new(self)
@@ -685,6 +686,7 @@ impl<T: AsRef<Path>, Marker> PartialOrd<T> for StrictPath<Marker> {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 impl<Marker> PartialEq<crate::path::virtual_path::VirtualPath<Marker>> for StrictPath<Marker> {
     #[inline]
     fn eq(&self, other: &crate::path::virtual_path::VirtualPath<Marker>) -> bool {

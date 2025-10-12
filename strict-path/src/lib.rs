@@ -14,6 +14,11 @@
 //!
 //! 📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Reference](https://docs.rs/strict-path)**
 //!
+//! Feature flags
+//! - `virtual-path` (opt-in): Enables `VirtualRoot`/`VirtualPath` and all `virtual_*` APIs. By default,
+//!   only `PathBoundary`/`StrictPath` are available (with full I/O). To enable:
+//!   `strict-path = { version = "...", features = ["virtual-path"] }`.
+//!
 //! ## Quick start: one‑liners
 //!
 //! Most apps can start with these constructors and chain joins:
@@ -133,54 +138,81 @@
 //! operations from that foundation. When you call `path_boundary.strict_join("documents/file.txt")`,
 //! you're building outward from the secure boundary with validated path construction.
 //!
-//! ## When to Use Which Type
+//! ## When to Use Which Type: Detect vs. Contain
 //!
-//! **Use `VirtualRoot`/`VirtualPath` for isolation and sandboxing:**
-//! - User uploads, per-user data directories, tenant-specific storage
-//! - Web applications serving user files, document management systems
-//! - Plugin systems, template engines, user-generated content
-//! - Any case where users should see a clean "/" root and not the real filesystem structure
-//! - **Archive extraction** where symlinks with absolute targets should stay within the virtual space
-//! - **Multi-tenant systems** where each user's absolute paths are scoped to their own space
+//! **The fundamental distinction is whether path escapes are attacks or expected behavior.**
 //!
-//! **Use `PathBoundary`/`StrictPath` for shared system spaces:**
+//! ### StrictPath — Detect & Reject (Default, 90% of use cases)
+//!
+//! **Philosophy**: "If something tries to escape, I want to know about it"
+//!
+//! Use `PathBoundary`/`StrictPath` when path escapes indicate **malicious intent**:
+//! - **Archive extraction** — detect malicious paths; reject compromised archives
+//! - **File uploads** — reject user-provided paths with traversal attempts
+//! - **Config loading** — fail on untrusted config paths that try to escape
 //! - Application configuration, shared caches, system logs
 //! - Temporary directories, build outputs, asset processing
-//! - Cases where you need the real system path for interoperability or debugging
-//! - When working with existing APIs that expect system paths
-//! - Shared resources where symlinks should reflect actual system paths
+//! - Development tools, build systems, single-user applications
+//! - Any security boundary where escapes are attacks that must be detected
 //!
-//! ### Key Semantic Difference: Symlink Target Interpretation
+//! **Key behavior**: Returns `Err(PathEscapesBoundary)` when escape is attempted.
 //!
-//! The most important distinction between `VirtualPath` and `StrictPath` is how they handle
-//! **absolute paths in symlink targets**:
+//! **No feature required** — always available.
+//!
+//! ### VirtualPath — Contain & Redirect (Opt-in, 10% of use cases)
+//!
+//! **Philosophy**: "Let things try to escape, but silently contain them"
+//!
+//! Use `VirtualRoot`/`VirtualPath` when path escapes are **expected but must be controlled**:
+//! - **Malware analysis sandboxes** — observe malicious behavior while containing it
+//! - **Multi-tenant systems** — each user sees isolated `/` root without real paths
+//! - **Container-like plugins** — modules get their own filesystem view
+//! - **Security research** — simulate contained environments for testing
+//! - User content isolation where users shouldn't see real system paths
+//!
+//! **Key behavior**: Silently clamps/redirects escape attempts within the virtual boundary.
+//!
+//! **Requires feature**: Enable `virtual-path` in `Cargo.toml`.
+//!
+//! ### Key Semantic Differences: How Escapes Are Handled
+//!
+//! ```text
+//! Attempting to access: ../../../etc/passwd
+//!
+//! StrictPath behavior (detect & reject):
+//!   - Returns Err(PathEscapesBoundary)
+//!   - Application logic can log the attack, alert admins, reject the file
+//!   - Use case: Archive extraction, file uploads, config loading
+//!
+//! VirtualPath behavior (contain & redirect):
+//!   - Silently clamps to the virtual boundary (returns path within boundary)
+//!   - Escape attempt is contained, not reported as error
+//!   - Use case: Malware sandboxes, multi-tenant isolation, security research
+//! ```
+//!
+//! **Symlink target interpretation:**
 //!
 //! ```text
 //! Virtual root at: /home/alice/
 //! Symlink on disk: /home/alice/mylink -> /etc/config
 //!
-//! VirtualPath behavior (virtual filesystem semantics):
-//!   - When accessing mylink, the target /etc/config is CLAMPED to /home/alice/etc/config
-//!   - In virtual space, "/" means "the root of MY virtual space," not "the system root"
-//!   - Result: Symlinks are safely contained within the virtual boundary
-//!   - Use case: Multi-tenant storage, archive extraction, user sandboxes
+//! VirtualPath (containment):
+//!   - Target /etc/config is CLAMPED to /home/alice/etc/config
+//!   - Symlinks stay within the virtual boundary
+//!   - Use case: Multi-tenant storage, user sandboxes
 //!
-//! StrictPath behavior (system filesystem semantics):
-//!   - When accessing mylink, the target /etc/config is followed to the actual system path
-//!   - In system space, "/" means "the system root"
-//!   - Result: Symlinks can point anywhere the process has access to
-//!   - Use case: System administration, shared resources, development tools
+//! StrictPath (detection):
+//!   - Target /etc/config points to actual system path
+//!   - Returns Err(PathEscapesBoundary) if outside boundary
+//!   - Use case: System administration, shared resources
 //! ```
 //!
-//! **Why this matters:**
-//! - `VirtualPath` implements true **virtual filesystem semantics** where all absolute paths
-//!   (whether from user input or symlink targets) are relative to the virtual root
-//! - This prevents escape attacks through symlinks in untrusted archives or user content
-//! - Each tenant/user sees their own isolated filesystem, even if symlinks use absolute paths
+//! **Common mistake**: Using VirtualPath for archive extraction. This hides attacks instead of
+//! detecting them. Always use StrictPath to detect malicious paths and reject compromised archives.
 //!
-//! Both types support I/O. The key difference is the user experience and security model:
-//! `VirtualPath` provides isolation and clean virtual paths with clamped symlinks, while
-//! `StrictPath` maintains system path semantics for shared resources with standard symlink behavior.
+//! Both types support I/O. The key difference is the security model:
+//! `VirtualPath` provides containment with clamped symlinks for isolation scenarios, while
+//! `StrictPath` provides detection with error reporting for security boundaries.
 //!
 //! ## 🔑 Critical Design Decision: StrictPath vs Path/PathBuf
 //!
@@ -799,6 +831,7 @@ pub mod serde_ext {
     //!
     //! Example: Deserialize a single `VirtualPath` with context
     //! ```rust
+    //! # #[cfg(feature = "virtual-path")] {
     //! use strict_path::{VirtualPath, VirtualRoot};
     //! use strict_path::serde_ext::WithVirtualRoot;
     //! use serde::de::DeserializeSeed;
@@ -809,12 +842,12 @@ pub mod serde_ext {
     //! let vp: VirtualPath = WithVirtualRoot(&vroot).deserialize(&mut de)?;
     //! assert_eq!(vp.virtualpath_display().to_string(), "/a/b.txt");
     //! # Ok(()) }
+    //! # }
     //! ```
 
-    use crate::{
-        path::strict_path::StrictPath, path::virtual_path::VirtualPath,
-        validator::virtual_root::VirtualRoot, PathBoundary,
-    };
+    use crate::{path::strict_path::StrictPath, PathBoundary};
+    #[cfg(feature = "virtual-path")]
+    use crate::{path::virtual_path::VirtualPath, validator::virtual_root::VirtualRoot};
     use serde::de::DeserializeSeed;
     use serde::Deserialize;
 
@@ -833,8 +866,10 @@ pub mod serde_ext {
     }
 
     /// Deserialize a `VirtualPath` with virtual root context.
+    #[cfg(feature = "virtual-path")]
     pub struct WithVirtualRoot<'a, Marker>(pub &'a VirtualRoot<Marker>);
 
+    #[cfg(feature = "virtual-path")]
     impl<'a, 'de, Marker> DeserializeSeed<'de> for WithVirtualRoot<'a, Marker> {
         type Value = VirtualPath<Marker>;
         fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
@@ -849,8 +884,13 @@ pub mod serde_ext {
 
 // Public exports
 pub use error::StrictPathError;
-pub use path::{strict_path::StrictPath, virtual_path::VirtualPath};
+pub use path::strict_path::StrictPath;
 pub use validator::path_boundary::PathBoundary;
+
+#[cfg(feature = "virtual-path")]
+pub use path::virtual_path::VirtualPath;
+
+#[cfg(feature = "virtual-path")]
 pub use validator::virtual_root::VirtualRoot;
 
 /// Result type alias for this crate's operations.

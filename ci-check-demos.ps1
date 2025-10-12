@@ -274,7 +274,7 @@ if ($Full -or $Fix) {
     Write-Host "Auto-fixing common issues..." -ForegroundColor Cyan
     Run-Fix "Format demos" "Push-Location demos; cargo fmt --all; Pop-Location"
     # Use safe features for auto-fix (avoid heavy dependencies like AWS that require cmake/nasm)
-    Run-Fix "Clippy Fixable Issues (demos)" "Push-Location demos; cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp'; Pop-Location"
+    Run-Fix "Clippy Fixable Issues (demos)" "Push-Location demos; cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path'; Pop-Location"
     Run-Fix "Format demos (after clippy fix)" "Push-Location demos; cargo fmt --all; Pop-Location"
 } else {
     Write-Host "Skipping auto-fix (use -Full, -Fix or -FixChanged to enable)." -ForegroundColor Yellow
@@ -369,7 +369,7 @@ if ($FixChanged -and -not $Full -and -not $Fix) {
             try {
                 foreach ($bin in $bins) {
                     Write-Host "Clippy fix for demo bin: $bin" -ForegroundColor Blue
-                    $cmd = "cargo clippy --fix --allow-dirty --allow-staged --bin $bin --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp'"
+                    $cmd = "cargo clippy --fix --allow-dirty --allow-staged --bin $bin --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path'"
                     Invoke-Expression $cmd
                     if ($LASTEXITCODE -ne 0) { throw "clippy --fix failed for $bin" }
                 }
@@ -384,38 +384,27 @@ if ($FixChanged -and -not $Full -and -not $Fix) {
 
 ## Continue with lint-only validation below
 if ($forceFullTest) {
-    # Full clippy with feature matrix (slow but thorough)
-    Run-Check-Block "Clippy Demos (feature matrix - ALL)" {
+    # Full clippy with all features at once (fast, fail fast)
+    Run-Check-Block "Clippy Demos (all features - ALL)" {
         Push-Location demos
         try {
             $hasCmake = [bool](Get-Command cmake -ErrorAction SilentlyContinue)
             $hasNasm  = [bool](Get-Command nasm -ErrorAction SilentlyContinue)
             $includeAws = $hasCmake -and $hasNasm
             if (-not $includeAws) {
-                Write-Host "WARNING: Skipping 'with-aws' demos: cmake and/or nasm not found on PATH" -ForegroundColor Yellow
+                Write-Host "WARNING: Skipping 'with-aws' feature: cmake and/or nasm not found on PATH" -ForegroundColor Yellow
             }
 
-            $featureSets = New-Object System.Collections.Generic.List[string]
-            $featureSets.Add('') | Out-Null
-            $featureSets.Add('with-zip') | Out-Null
-            $featureSets.Add('with-app-path') | Out-Null
-            $featureSets.Add('with-dirs') | Out-Null
-            $featureSets.Add('with-tempfile') | Out-Null
-            $featureSets.Add('with-rmcp') | Out-Null
-            if ($includeAws) { $featureSets.Add('with-aws') | Out-Null }
-            if ($includeAws) { $featureSets.Add('with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp') | Out-Null } else { $featureSets.Add('with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp') | Out-Null }
-
-            foreach ($feats in $featureSets) {
-                if ([string]::IsNullOrEmpty($feats)) {
-                    Write-Host "==> Clippy demos with features: <none>"
-                    cargo clippy --all-targets -- -D warnings
-                    if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
-                } else {
-                    Write-Host "==> Clippy demos with features: $feats"
-                    cargo clippy --all-targets --features $feats -- -D warnings
-                    if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
-                }
+            # Single combined test: compile once with all available features
+            $allFeatures = if ($includeAws) {
+                "with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp,virtual-path"
+            } else {
+                "with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path"
             }
+
+            Write-Host "==> Clippy demos with features: $allFeatures"
+            cargo clippy --all-targets --features $allFeatures -- -D warnings
+            if ($LASTEXITCODE -ne 0) { throw "clippy failed" }
         } finally {
             Pop-Location
         }

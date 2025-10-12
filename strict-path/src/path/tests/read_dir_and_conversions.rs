@@ -1,5 +1,8 @@
-use crate::{PathBoundary, VirtualRoot};
+use crate::PathBoundary;
+#[cfg(feature = "virtual-path")]
+use crate::VirtualRoot;
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_strict_and_virtual_path_read_dir() {
     let temp = tempfile::tempdir().unwrap();
@@ -46,6 +49,7 @@ fn test_strict_and_virtual_path_read_dir() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_conversion_helpers_for_strict_and_virtual_path() {
     let temp = tempfile::tempdir().unwrap();

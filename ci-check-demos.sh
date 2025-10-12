@@ -302,7 +302,7 @@ if $FULL_TEST || $DO_FIX; then
     echo "🔧 Auto-fixing common issues..."
     run_fix "Format demos" "(cd demos && cargo fmt --all)"
     # Use safe features for auto-fix (avoid heavy dependencies like AWS that require cmake/nasm)
-    run_fix "Clippy Fixable Issues (demos)" "(cd demos && cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp')"
+    run_fix "Clippy Fixable Issues (demos)" "(cd demos && cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path')"
     run_fix "Format demos (after clippy fix)" "(cd demos && cargo fmt --all)"
 else
     echo "⏭️  Skipping auto-fix (use --full, --fix or --fix-changed to enable)."
@@ -360,7 +360,7 @@ if $DO_FIX_CHANGED && [[ ${#CHANGED_DEMO_FILES[@]} -gt 0 ]] && ! $FULL_TEST && !
             cd demos
             for bin in "${CHANGED_BINS[@]}"; do
                 echo "Clippy fix for demo bin: $bin"
-                cargo clippy --fix --allow-dirty --allow-staged --bin "$bin" --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp'
+                cargo clippy --fix --allow-dirty --allow-staged --bin "$bin" --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path'
             done
         )
     fi
@@ -407,46 +407,23 @@ fi
 # Lint demos - fast validation without dependencies
 if [[ "$FORCE_FULL_TEST" == "true" ]]; then
     # Full clippy with feature matrix (slow but thorough)
-    run_check "Clippy Demos (feature matrix - ALL)" '
+    run_check "Clippy Demos (all features - ALL)" '
         # Run in a subshell to avoid leaking directory changes
         (
             set -e
             cd demos
             
-            # Check for cmake and nasm for AWS features
-            HAS_CMAKE=false
-            HAS_NASM=false
-            if command -v cmake >/dev/null 2>&1; then
-                HAS_CMAKE=true
-            fi
-            if command -v nasm >/dev/null 2>&1; then
-                HAS_NASM=true
-            fi
-            INCLUDE_AWS=false
-            if $HAS_CMAKE && $HAS_NASM; then
-                INCLUDE_AWS=true
+            # Check for heavy toolchain deps
+            if command -v cmake >/dev/null 2>&1 && command -v nasm >/dev/null 2>&1; then
+                ALL_FEATURES="with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp,virtual-path"
             else
-                echo "⚠️  Skipping with-aws demos: cmake and/or nasm not found on PATH"
+                echo "⚠️  WARNING: Skipping '\''with-aws'\'' feature: cmake and/or nasm not found on PATH"
+                ALL_FEATURES="with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path"
             fi
             
-            for FEATS in "" \
-                         "with-zip" \
-                         "with-app-path" \
-                         "with-dirs" \
-                         "with-tempfile" \
-                         "with-rmcp" \
-                         $(if $INCLUDE_AWS; then echo "with-aws"; fi) \
-                         "with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp" \
-                         $(if $INCLUDE_AWS; then echo "with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp"; fi); do
-                
-                if [ -z "$FEATS" ]; then
-                    echo "==> Clippy demos with features: <none>"
-                    cargo clippy --all-targets -- -D warnings
-                else
-                    echo "==> Clippy demos with features: $FEATS"
-                    cargo clippy --all-targets --features "$FEATS" -- -D warnings
-                fi
-            done
+            # Single combined test: compile once with all available features
+            echo "==> Clippy demos with features: $ALL_FEATURES"
+            cargo clippy --all-targets --features "$ALL_FEATURES" -- -D warnings
         )
     '
 elif [[ ${#BINARIES_TO_TEST[@]} -gt 0 ]]; then

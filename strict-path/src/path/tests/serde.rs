@@ -1,9 +1,14 @@
 #[cfg(feature = "serde")]
 mod serde_tests {
-    use crate::{path::strict_path::StrictPath, path::virtual_path::VirtualPath};
-    use crate::{PathBoundary, VirtualRoot};
+    use crate::path::strict_path::StrictPath;
+    #[cfg(feature = "virtual-path")]
+    use crate::path::virtual_path::VirtualPath;
+    use crate::PathBoundary;
+    #[cfg(feature = "virtual-path")]
+    use crate::VirtualRoot;
     use serde::de::DeserializeSeed;
 
+    #[cfg(feature = "virtual-path")]
     #[test]
     fn serialize_jailed_and_virtual() {
         let td = tempfile::tempdir().unwrap();
@@ -55,6 +60,7 @@ mod serde_tests {
         );
     }
 
+    #[cfg(feature = "virtual-path")]
     #[test]
     fn deserialize_with_context_virtual() {
         let td = tempfile::tempdir().unwrap();

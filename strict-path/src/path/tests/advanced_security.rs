@@ -1,4 +1,6 @@
-use crate::{PathBoundary, StrictPathError, VirtualRoot};
+#[cfg(feature = "virtual-path")]
+use crate::VirtualRoot;
+use crate::{PathBoundary, StrictPathError};
 
 #[test]
 #[cfg(windows)]
@@ -87,6 +89,7 @@ fn test_ntfs_83_short_name_bypass_attack() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_advanced_toctou_read_race_condition() {
     let temp = tempfile::tempdir().unwrap();
@@ -379,6 +382,7 @@ fn test_short_name_patterns_handled_via_canonicalization() {
 /// When a symlink points outside and gets clamped, the clamped path might not exist
 /// and could contain unexpanded 8.3 short names. This is acceptable - the path
 /// validation allows it, and the I/O operation will naturally fail.
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_github_runner_clamped_symlink_with_short_names() {

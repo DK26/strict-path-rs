@@ -1,4 +1,6 @@
-use crate::{path::strict_path::StrictPath, PathBoundary, VirtualRoot};
+#[cfg(feature = "virtual-path")]
+use crate::VirtualRoot;
+use crate::{path::strict_path::StrictPath, PathBoundary};
 use std::path::PathBuf;
 
 #[test]
@@ -68,6 +70,7 @@ fn strict_copy_rejects_escape_outside_boundary() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_copy_file_simple() {
     let td = tempfile::tempdir().unwrap();
     let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
@@ -89,6 +92,7 @@ fn virtual_copy_file_simple() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_copy_absolute_under_root() {
     let td = tempfile::tempdir().unwrap();
     let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
@@ -117,6 +121,7 @@ fn strict_copy_fails_when_parent_missing() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_copy_fails_when_parent_missing() {
     let td = tempfile::tempdir().unwrap();
     let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
@@ -173,6 +178,7 @@ fn strict_copy_directory_is_error() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_copy_with_parent_components_is_clamped() {
     let td = tempfile::tempdir().unwrap();
     let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
@@ -200,6 +206,7 @@ fn strict_copy_overwrites_existing_destination() {
     assert_eq!(dst.read_to_string().unwrap(), "NEW");
 }
 #[test]
+#[cfg(feature = "virtual-path")]
 fn test_strict_path_display_formatting() {
     let temp = tempfile::tempdir().unwrap();
     let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
@@ -254,6 +261,7 @@ fn test_strict_path_metadata_behavior() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn test_virtual_path_metadata_behavior() {
     let temp = tempfile::tempdir().unwrap();
     let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
@@ -290,6 +298,7 @@ fn test_strict_path_remove_dir_variants() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn test_virtual_path_remove_dir_variants() {
     let temp = tempfile::tempdir().unwrap();
     let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();

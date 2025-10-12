@@ -24,6 +24,35 @@ Operational guide for AI assistants and automation working in this repository.
 - Security model: "Restrict every external path." Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
 - Foundation: Built on `soft-canonicalize` for resolution; canonicalization handles Windows 8.3 short names transparently.
 
+### StrictPath vs VirtualPath: Detect vs. Contain
+
+**Critical distinction**: Choose based on whether path escapes are attacks or expected behavior.
+
+**StrictPath (default, 90% of use cases)**: Detects and rejects escape attempts
+- Philosophy: "If something tries to escape, I want to know about it"
+- Returns `Err(PathEscapesBoundary)` when escape is attempted
+- Use cases:
+  - **Archive extraction** — detect malicious paths, reject compromised archives
+  - **File uploads** — reject user-provided paths with traversal attempts
+  - **Config loading** — fail on untrusted config paths that try to escape
+  - Shared system resources (logs, cache, assets)
+  - Development tools, build systems, single-user applications
+  - Any security boundary where escapes indicate malicious intent
+- No feature required — always available
+
+**VirtualPath (opt-in, 10% of use cases)**: Contains and redirects escape attempts
+- Philosophy: "Let things try to escape, but silently contain them"
+- Silently clamps/redirects escape attempts within the virtual boundary
+- Use cases:
+  - **Malware analysis sandboxes** — observe malicious behavior while containing it
+  - **Multi-tenant systems** — each user sees isolated `/` root without real paths
+  - **Container-like plugins** — modules get their own filesystem view
+  - **Security research** — simulate contained environments for testing
+  - User content isolation where users shouldn't see real system paths
+- Requires `virtual-path` feature in Cargo.toml
+
+**Common mistake**: Using VirtualPath for archive extraction. This is WRONG — it hides attacks instead of detecting them. Always use StrictPath to detect malicious paths and reject compromised archives.
+
 Escape hatches:
 - Borrow strict view from virtual with `as_unvirtual()` for shared helpers.
 - Use `.unvirtual()` and `.unstrict()` only when ownership is required; isolate in dedicated "escape hatches" sections.
@@ -353,6 +382,35 @@ mdBook documentation (authoritative source — NEVER use `book/` directory):
 
 Before implementing features or fixes, agents must verify against existing GitHub issues to ensure work aligns with project priorities and avoid duplication.
 
+### Communication Rules (CRITICAL)
+
+**DO NOT spam issue comments with progress updates.** Agents must communicate primarily with the user directly, not via GitHub comments.
+
+**Issue comments must be CONCISE and FOCUSED:**
+- Maximum 15 lines per comment
+- Use bullet points, not paragraphs
+- No verbose explanations or status reports
+- Link to commits/PRs instead of describing changes
+
+**Allowed GitHub interactions:**
+- **ONE initial comment** when starting work on an issue (< 10 lines, stating you're beginning)
+- **Editing that same comment** to update checkpoints (keep it concise)
+- **ONE final comment** when complete (< 15 lines: what was done + commit links)
+
+**Forbidden:**
+- Multiple progress update comments
+- Verbose explanations (save for commit messages/code comments)
+- "Awaiting guidance" or "Question for maintainer" comments without explicit user approval
+- Status reports that should be communicated directly to the user instead
+- Long-form documentation in issues (belongs in code/docs)
+
+**Preferred workflow:**
+1. Tell the user directly what you're working on
+2. Make ONE comment on the issue when you start
+3. Edit that comment with checkpoint updates as you progress
+4. Communicate all questions/blockers to the user directly
+5. Make final summary comment when complete
+
 ### Issue Verification Workflow
 
 #### Before Starting Work
@@ -363,13 +421,13 @@ Before implementing features or fixes, agents must verify against existing GitHu
 
 #### During Implementation
 - [ ] **Reference issue numbers**: Include `Fixes #N` or `Addresses #N` in commit messages
-- [ ] **Update issue progress**: Comment on implementation approach and progress
-- [ ] **Request clarification**: Ask questions if requirements are unclear
-- [ ] **Document decisions**: Explain technical choices that affect the issue
+- [ ] **Update issue progress**: Edit your initial comment with checkpoints (do not create new comments)
+- [ ] **Request clarification**: Ask the user directly; only post to issue if user approves
+- [ ] **Document decisions**: Explain technical choices in code comments or commit messages
 
 #### After Completion
 - [ ] **Verify issue resolution**: Ensure all acceptance criteria are met
-- [ ] **Update issue status**: Comment with resolution details and close if appropriate
+- [ ] **Update issue status**: Edit your initial comment with final status, or create ONE completion comment
 - [ ] **Link to implementation**: Reference PRs, commits, or documentation changes
 - [ ] **Validate in context**: Test that the fix/feature works as intended
 

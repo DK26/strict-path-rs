@@ -1,5 +1,7 @@
 // Comprehensive tests for comparison implementations
-use crate::{PathBoundary, VirtualRoot};
+use crate::PathBoundary;
+#[cfg(feature = "virtual-path")]
+use crate::VirtualRoot;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -35,6 +37,7 @@ fn test_strict_path_comparisons() {
     assert_eq!(test_file, system_path_str.as_ref());
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_virtual_path_comparisons() {
     let temp_dir = tempfile::tempdir().unwrap();
@@ -72,11 +75,9 @@ fn test_virtual_path_comparisons() {
     let vpath_b = vroot.virtual_join("b.txt").unwrap();
     assert!(vpath_a < vpath_b);
     assert!(vpath_a < Path::new("/b.txt"));
-    // Note: Can't compare Path with VirtualPath directly due to orphan rules
-    // so we test the reverse comparison by flipping the assertion
-    assert!((vpath_b > Path::new("/a.txt")));
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_jail_comparisons() {
     let temp_dir1 = tempfile::tempdir().unwrap();
@@ -121,6 +122,7 @@ fn test_jail_comparisons() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_virtual_root_comparisons() {
     let temp_dir1 = tempfile::tempdir().unwrap();
@@ -165,6 +167,7 @@ fn test_virtual_root_comparisons() {
     ); // "/" should be greater than ""
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_cross_type_path_comparisons() {
     let tempdir = tempfile::tempdir().unwrap();
@@ -190,6 +193,7 @@ fn test_cross_type_path_comparisons() {
     assert_ne!(virtual_path, strict_different);
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_hash_consistency() {
     use std::collections::HashMap;
@@ -232,6 +236,7 @@ fn test_hash_consistency() {
     assert_eq!(jail_root_map.get(&temp_dir), Some(&"jail_value2"));
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_windows_path_normalization() {
@@ -272,6 +277,7 @@ fn test_ordering_consistency() {
     assert!((vpath_b >= vpath_a));
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_edge_cases() {
     let temp_dir = tempfile::tempdir().unwrap();

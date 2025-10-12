@@ -2,6 +2,7 @@ use crate::PathBoundary;
 use std::fs;
 use std::io::{Read, Write};
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_virtual_path_join_and_parent() {
     let temp = tempfile::tempdir().unwrap();
@@ -33,6 +34,7 @@ fn test_virtual_path_join_and_parent() {
     assert!(parent_none.is_none());
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_virtual_path_pathbuf_methods() {
     let temp = tempfile::tempdir().unwrap();
@@ -91,6 +93,7 @@ fn test_strict_path_create_file() {
     assert_eq!(content, "hello strict");
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_virtual_path_create_file() {
     let temp = tempfile::tempdir().unwrap();
@@ -109,6 +112,7 @@ fn test_virtual_path_create_file() {
     assert_eq!(content, "virtual summary");
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(unix)] // Symlinks work reliably on Unix systems
 fn test_virtual_path_symlink_edge_cases() {
@@ -193,6 +197,7 @@ fn test_virtual_path_symlink_edge_cases() {
     );
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_virtual_path_windows_symlink_edge_cases() {

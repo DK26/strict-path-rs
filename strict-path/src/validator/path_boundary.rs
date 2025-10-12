@@ -123,6 +123,7 @@ impl<Marker> Ord for PathBoundary<Marker> {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 impl<M1, M2> PartialEq<crate::validator::virtual_root::VirtualRoot<M2>> for PathBoundary<M1> {
     #[inline]
     fn eq(&self, other: &crate::validator::virtual_root::VirtualRoot<M2>) -> bool {
@@ -463,6 +464,7 @@ impl<Marker> PathBoundary<Marker> {
 
     /// SUMMARY:
     /// Convert this boundary into a `VirtualRoot` for virtual path operations.
+    #[cfg(feature = "virtual-path")]
     #[inline]
     pub fn virtualize(self) -> crate::VirtualRoot<Marker> {
         crate::VirtualRoot {

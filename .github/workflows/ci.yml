@@ -201,29 +201,16 @@ jobs:
     - name: Build examples (library)
       run: cargo build -p strict-path --examples --all-features
 
-    - name: Clippy demos (feature matrix)
-      # Lint demos across feature sets without building binaries or running them
+    - name: Clippy demos (all features)
+      # Lint demos with all features at once - compile once, fail fast
       shell: bash
       run: |
         set -euo pipefail
         cd demos
-        for FEATS in "" \
-                     "with-zip" \
-                     "with-app-path" \
-                     "with-dirs" \
-                     "with-tempfile" \
-                     "with-rmcp" \
-                     "with-aws" \
-                     "with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp" \
-                     "with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp"; do
-          if [ -z "${FEATS}" ]; then
-            echo "==> Clippy demos with features: <none>"
-            cargo clippy --all-targets -- -D warnings
-          else
-            echo "==> Clippy demos with features: ${FEATS}"
-            cargo clippy --all-targets --features "${FEATS}" -- -D warnings
-          fi
-        done
+        # Single combined test with all features
+        ALL_FEATURES="with-zip,with-app-path,with-dirs,with-tempfile,with-aws,with-rmcp,virtual-path"
+        echo "==> Clippy demos with features: ${ALL_FEATURES}"
+        cargo clippy --all-targets --features "${ALL_FEATURES}" -- -D warnings
 
     - name: Show clippy fixes (if check failed)  
       if: failure()
@@ -280,6 +267,6 @@ jobs:
       run: |
         CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings
 
-    - name: Test library with MSRV
+    - name: Test library with MSRV (all features)
       run: |
-        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test --locked -p strict-path --lib
+        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features

@@ -10,5 +10,7 @@ mod rename;
 mod security;
 mod serde;
 mod symlink_methods;
+#[cfg(feature = "virtual-path")]
 mod virtual_display;
+#[cfg(feature = "virtual-path")]
 mod virtual_path_accessors;

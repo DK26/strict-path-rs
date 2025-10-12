@@ -14,7 +14,9 @@
 //! **Status:** These tests will FAIL until the soft-canonicalize patch is applied.
 //! See `ANCHORED_SYMLINK_CLAMPING_PROPOSAL.md` for detailed design rationale.
 
-use crate::{PathBoundary, StrictPathError, VirtualRoot};
+#[cfg(feature = "virtual-path")]
+use crate::VirtualRoot;
+use crate::{PathBoundary, StrictPathError};
 
 #[cfg(windows)]
 fn symlink_permission_denied(err: &std::io::Error) -> bool {
@@ -159,6 +161,7 @@ fn strict_hard_link_rejects_escape_targets() {
     ));
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_symlink_helpers_create_links_within_root() {
     let td = tempfile::tempdir().unwrap();
@@ -191,6 +194,7 @@ fn virtual_symlink_helpers_create_links_within_root() {
     assert!(root_link.exists());
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_hard_link_helpers_create_links_within_root() {
     let td = tempfile::tempdir().unwrap();
@@ -223,6 +227,7 @@ fn virtual_hard_link_helpers_create_links_within_root() {
     assert_eq!(root_link.read_to_string().unwrap(), "ok");
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_symlink_clamps_absolute_paths_to_virtual_root() {
     // Test that absolute paths in virtual context are clamped to virtual root
@@ -351,6 +356,7 @@ fn virtual_symlink_archive_extraction_scenario() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_hard_link_clamps_absolute_paths() {
     // Test hard link clamping behavior similar to symlinks
@@ -380,6 +386,7 @@ fn virtual_hard_link_clamps_absolute_paths() {
     assert_eq!(target_path.read_to_string().unwrap(), "modified data");
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_join_clamps_absolute_paths_before_symlink_creation() {
     // Critical test: verify that absolute paths passed to virtual_join() are clamped to virtual root
@@ -450,6 +457,7 @@ fn virtual_join_clamps_absolute_paths_before_symlink_creation() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn virtual_symlink_relative_paths_work_correctly() {
     // Test that relative paths in virtual symlinks behave correctly

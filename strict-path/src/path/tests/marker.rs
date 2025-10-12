@@ -1,5 +1,9 @@
-use crate::path::{strict_path::StrictPath, virtual_path::VirtualPath};
-use crate::{PathBoundary, VirtualRoot};
+use crate::path::strict_path::StrictPath;
+#[cfg(feature = "virtual-path")]
+use crate::path::virtual_path::VirtualPath;
+use crate::PathBoundary;
+#[cfg(feature = "virtual-path")]
+use crate::VirtualRoot;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -86,6 +90,7 @@ fn test_try_into_boundary_changes_marker() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn test_virtual_root_marker_conversion() {
     #[derive(Clone)]
     struct VaultRoot;
@@ -144,6 +149,7 @@ fn test_change_marker_preserves_strict_path_semantics() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn test_change_marker_preserves_virtual_view() {
     #[derive(Clone)]
     struct GuestWorkspace;
@@ -313,6 +319,7 @@ fn test_strict_path_change_marker_with_joins() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn test_virtual_root_change_marker() {
     // Test VirtualRoot::change_marker
     #[derive(Clone)]
@@ -336,6 +343,7 @@ fn test_virtual_root_change_marker() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn test_virtual_path_change_marker() {
     // Test VirtualPath::change_marker
     #[derive(Clone)]

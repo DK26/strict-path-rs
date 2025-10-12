@@ -1,8 +1,11 @@
-use crate::{PathBoundary, StrictPathError, VirtualRoot};
+#[cfg(feature = "virtual-path")]
+use crate::VirtualRoot;
+use crate::{PathBoundary, StrictPathError};
 use std::path::{Component, Path};
 use std::sync::Arc;
 use std::thread;
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_known_cve_patterns() {
     let temp = tempfile::tempdir().unwrap();
@@ -88,6 +91,7 @@ fn test_known_cve_patterns() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_unicode_edge_cases() {
     let temp = tempfile::tempdir().unwrap();
@@ -117,6 +121,7 @@ fn test_unicode_edge_cases() {
 }
 
 // Unicode normalization: both NFC and NFD forms should remain contained.
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_unicode_normalization_forms_are_contained() {
     let td = tempfile::tempdir().unwrap();
@@ -141,6 +146,7 @@ fn test_unicode_normalization_forms_are_contained() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_concurrent_validator_usage() {
     let temp = tempfile::tempdir().unwrap();
@@ -168,6 +174,7 @@ fn test_concurrent_validator_usage() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_long_path_handling() {
     let temp = tempfile::tempdir().unwrap();
@@ -201,6 +208,7 @@ fn test_long_path_handling() {
     );
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_windows_specific_attacks() {
@@ -251,6 +259,7 @@ fn test_windows_specific_attacks() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(unix)]
 fn test_symlink_escape_is_rejected() {
@@ -295,6 +304,7 @@ fn test_symlink_escape_is_rejected() {
     );
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(unix)]
 fn test_relative_symlink_escape_is_rejected() {
@@ -322,6 +332,7 @@ fn test_relative_symlink_escape_is_rejected() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_symlink_escape_is_rejected() {
@@ -389,6 +400,7 @@ fn test_symlink_escape_is_rejected() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_junction_escape_is_rejected() {
@@ -446,6 +458,7 @@ fn test_junction_escape_is_rejected() {
     );
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_toctou_symlink_parent_attack() {
     // TOCTOU = Time-of-Check-Time-of-Use attack
@@ -510,6 +523,7 @@ fn test_toctou_symlink_parent_attack() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_toctou_virtual_parent_attack() {
     // Same TOCTOU attack but for VirtualPath
@@ -586,6 +600,7 @@ fn test_toctou_virtual_parent_attack() {
 // Black-box: Simulate a Zip Slip-style extraction routine using VirtualRoot
 // to map archive entry names to safe jailed paths. Ensure traversal-style
 // entries are rejected and nothing is written outside the restriction.
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_zip_slip_style_extraction() {
     let td = tempfile::tempdir().unwrap();
@@ -647,6 +662,7 @@ fn test_zip_slip_style_extraction() {
 }
 
 // TAR-like extraction semantics: handle ./, leading /, and deep ../ entries.
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_tar_slip_style_extraction() {
     let td = tempfile::tempdir().unwrap();
@@ -690,6 +706,7 @@ fn test_tar_slip_style_extraction() {
 }
 
 // White-box: Windows namespace escapes should be rejected by virtual join.
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_windows_unc_and_verbatim_escape_rejected() {
@@ -716,6 +733,7 @@ fn test_windows_unc_and_verbatim_escape_rejected() {
 }
 
 // White-box: Windows drive-relative paths (e.g., "C:..\\foo") must not enable escape.
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_windows_drive_relative_rejected() {
@@ -739,6 +757,7 @@ fn test_windows_drive_relative_rejected() {
 // White-box: Hard-link behavior demonstration (expected limitation).
 // If a hard link inside the PathBoundary points to a file outside, writes will
 // affect the outside target. This test documents the behavior.
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(unix)]
 fn test_hard_link_inside_to_outside_documents_limitation() {
@@ -779,6 +798,7 @@ fn test_hard_link_inside_to_outside_documents_limitation() {
         .strictpath_starts_with(restriction.interop_path()));
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_mixed_separators_and_encoded_inputs() {
     let td = tempfile::tempdir().unwrap();
@@ -813,6 +833,7 @@ fn test_mixed_separators_and_encoded_inputs() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(unix)]
 fn test_non_utf8_component_handling() {
@@ -834,6 +855,7 @@ fn test_non_utf8_component_handling() {
         .strictpath_starts_with(vroot.interop_path()));
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_super_deep_traversal_clamps_to_root() {
     let td = tempfile::tempdir().unwrap();
@@ -847,6 +869,7 @@ fn test_super_deep_traversal_clamps_to_root() {
     assert_eq!(vp.virtualpath_display().to_string(), "/a/b");
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_windows_trailing_dots_spaces() {
@@ -866,6 +889,7 @@ fn test_windows_trailing_dots_spaces() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_windows_ads_and_reserved_names() {
@@ -896,6 +920,7 @@ fn test_windows_ads_and_reserved_names() {
 }
 
 // White-box: Windows NT path prefix variants should be clamped to the restriction.
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_windows_nt_prefix_variants_clamped() {
@@ -928,6 +953,7 @@ fn test_windows_nt_prefix_variants_clamped() {
 }
 
 // Black-box: Unicode dot lookalikes should not be treated as traversal; ensure clamping.
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_unicode_dot_lookalike_does_not_traverse() {
     let td = tempfile::tempdir().unwrap();
@@ -963,6 +989,7 @@ fn test_unicode_dot_lookalike_does_not_traverse() {
 }
 
 // White-box: Embedded NUL should not enable escapes. We don't perform I/O here.
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_embedded_nulls_are_not_exploitable() {
     use std::ffi::{OsStr, OsString};
@@ -993,6 +1020,7 @@ fn test_embedded_nulls_are_not_exploitable() {
     }
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_winrar_ads_traversal_payload_is_clamped() {
@@ -1056,6 +1084,7 @@ fn test_winrar_ads_traversal_payload_is_clamped() {
     );
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 #[cfg(windows)]
 fn test_winrar_like_edge_cases() {

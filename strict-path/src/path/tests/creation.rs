@@ -34,6 +34,7 @@ fn test_strict_path_debug() {
     assert!(debug_str.contains("StrictPath"));
 }
 
+#[cfg(feature = "virtual-path")]
 #[test]
 fn test_virtual_path_as_unvirtual_strict_path() {
     use crate::validator::virtual_root::VirtualRoot;
