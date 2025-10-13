@@ -217,7 +217,8 @@ Run-Check-Block "Format Check (strict-path)" {
     }
 }
 
-Run-Check "Clippy Lint (strict-path)" "cargo clippy -p strict-path --all-targets --all-features -- -D warnings"
+Run-Check "Clippy Lint (strict-path, all features)" "cargo clippy -p strict-path --all-targets --all-features -- -D warnings"
+Run-Check "Clippy Lint (strict-path, no features)" "cargo clippy -p strict-path --all-targets --no-default-features -- -D warnings"
 
 # Check documentation generation (no compilation of code, just docs)
 $env:RUSTDOCFLAGS = "-D warnings"

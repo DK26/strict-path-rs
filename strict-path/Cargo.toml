@@ -47,3 +47,13 @@ app-path = ["dep:app-path"]
 
 [package.metadata.docs.rs]
 all-features = true
+
+[[example]]
+name = "user_virtual_root"
+path = "examples/user_virtual_root.rs"
+required-features = ["virtual-path"]
+
+[[example]]
+name = "vroot_one_liner"
+path = "examples/vroot_one_liner.rs"
+required-features = ["virtual-path"]

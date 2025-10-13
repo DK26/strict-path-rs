@@ -377,6 +377,9 @@ run_check "Format Check" '
     fi
 '
 
+# Ensure library lints cleanly with NO features as well
+run_check "Clippy Lint (no features)" "cargo clippy -p strict-path --all-targets --no-default-features -- -D warnings"
+
 run_check "Format Check demos" '
     set -e
     # Run in a subshell to avoid leaking directory changes
@@ -575,6 +578,7 @@ if command -v rustup &> /dev/null; then
         run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" || true
         run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose"
         run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
+        run_check_try "MSRV Clippy Lint (no features)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
         run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose"
     else
         echo "⚠️  Rust 1.71.0 not installed. Installing for MSRV check..."
@@ -584,6 +588,7 @@ if command -v rustup &> /dev/null; then
             run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features"
             run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose"
             run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
+            run_check_try "MSRV Clippy Lint (no features)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
             run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose"
     else
         echo "❌ Failed to install Rust 1.71.0. Skipping MSRV check."

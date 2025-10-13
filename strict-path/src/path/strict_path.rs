@@ -59,6 +59,7 @@ impl<Marker> StrictPath<Marker> {
         }
     }
 
+    #[cfg(feature = "virtual-path")]
     #[inline]
     pub(crate) fn boundary(&self) -> &crate::PathBoundary<Marker> {
         &self.boundary

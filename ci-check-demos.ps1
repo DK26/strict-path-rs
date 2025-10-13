@@ -269,6 +269,9 @@ if ($rustFiles.Count -gt 0) {
 Write-Host "SUCCESS: All file encoding checks passed!" -ForegroundColor Green
 Write-Host ""
 
+# Preflight: ensure library lints cleanly with no features
+Run-Check "Library Clippy Lint (no features)" "cargo clippy -p strict-path --all-targets --no-default-features -- -D warnings"
+
 # Auto-fix is optional to avoid compilation in smart mode
 if ($Full -or $Fix) {
     Write-Host "Auto-fixing common issues..." -ForegroundColor Cyan

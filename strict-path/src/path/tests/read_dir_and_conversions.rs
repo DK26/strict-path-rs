@@ -1,3 +1,4 @@
+#[cfg(feature = "virtual-path")]
 use crate::PathBoundary;
 #[cfg(feature = "virtual-path")]
 use crate::VirtualRoot;

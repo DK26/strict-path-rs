@@ -1,8 +1,12 @@
 #[cfg(feature = "virtual-path")]
 use crate::VirtualRoot;
+#[cfg(feature = "virtual-path")]
 use crate::{PathBoundary, StrictPathError};
+#[cfg(feature = "virtual-path")]
 use std::path::{Component, Path};
+#[cfg(feature = "virtual-path")]
 use std::sync::Arc;
+#[cfg(feature = "virtual-path")]
 use std::thread;
 
 #[cfg(feature = "virtual-path")]

@@ -77,6 +77,7 @@ RUST_VERSION=$(rustc --version)
 echo "🦀 Rust version: $RUST_VERSION"
 echo
 
+
 run_check() {
     local name="$1"
     local command="$2"
@@ -296,6 +297,9 @@ fi
 
 echo "🎉 All file encoding checks passed!"
 echo
+
+# Preflight: ensure library lints cleanly with no features
+run_check "Library Clippy Lint (no features)" "cargo clippy -p strict-path --all-targets --no-default-features -- -D warnings"
 
 # Auto-fix is optional to avoid compilation in smart mode
 if $FULL_TEST || $DO_FIX; then

@@ -365,6 +365,7 @@ impl<Marker> PathBoundary<Marker> {
     }
 
     /// Internal: returns the canonicalized PathHistory of the PathBoundary directory for boundary checks.
+    #[cfg(feature = "virtual-path")]
     #[inline]
     pub(crate) fn stated_path(&self) -> &PathHistory<((Raw, Canonicalized), Exists)> {
         &self.path

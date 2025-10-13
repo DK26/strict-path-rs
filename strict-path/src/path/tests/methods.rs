@@ -1,4 +1,5 @@
 use crate::PathBoundary;
+#[cfg(feature = "virtual-path")]
 use std::fs;
 use std::io::{Read, Write};
 

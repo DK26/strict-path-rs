@@ -187,7 +187,8 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - Do not bypass: never call std fs ops on raw `Path`/`PathBuf` built from untrusted input.
 - Marker types prevent mixing distinct restrictions at compile time: use when you have multiple storage areas.
 - We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an unavoidable third-party API expects `AsRef<Path>`, pass `.interop_path()`.
-	(`PathBoundary` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
+	Note: `.interop_path()` returns `&OsStr`, which already satisfies `AsRef<Path>` — you do not need to wrap it in `Path::new(..)` or `PathBuf::from(..)`.
+	For roots/policy types, use `PathBoundary::interop_path()` and `VirtualRoot::interop_path()` similarly. These types intentionally do not implement `AsRef<Path>` either; interop is explicit via the dedicated method.
 - Interop doesn't require `.unstrict()`: prefer `.interop_path()` for those third-party adapters; call `.unstrict()` only when an owned `PathBuf` is strictly required.
 - Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
 	clamping or restriction checks. Use `strict_join` / `virtualpath_parent` instead.

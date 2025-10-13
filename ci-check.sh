@@ -221,7 +221,8 @@ run_check "Format Check (strict-path)" '
     fi
 '
 
-run_check "Clippy Lint (strict-path)" "cargo clippy -p strict-path --all-targets --all-features -- -D warnings"
+run_check "Clippy Lint (strict-path, all features)" "cargo clippy -p strict-path --all-targets --all-features -- -D warnings"
+run_check "Clippy Lint (strict-path, no features)" "cargo clippy -p strict-path --all-targets --no-default-features -- -D warnings"
 
 # Check documentation generation (no compilation of code, just docs)
 run_check "Documentation Check (strict-path)" "RUSTDOCFLAGS='-D warnings' cargo doc -p strict-path --no-deps --document-private-items --all-features"

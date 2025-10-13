@@ -24,16 +24,20 @@
 //! Most apps can start with these constructors and chain joins:
 //!
 //! ```rust
-//! # use strict_path::{StrictPath, VirtualPath};
+//! # use strict_path::StrictPath;
+//! # #[cfg(feature = "virtual-path")]
+//! # use strict_path::VirtualPath;
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Use temporary directories in doctests so paths exist
 //! let d1 = tempfile::tempdir()?;
 //! let sp: StrictPath = StrictPath::with_boundary(d1.path())?    // validated strict root
 //!     .strict_join("users/alice.txt")?;                        // stays inside root
 //!
+//! # #[cfg(feature = "virtual-path")] {
 //! let d2 = tempfile::tempdir()?;
 //! let vp: VirtualPath = VirtualPath::with_root(d2.path())?      // virtual root "/"
 //!     .virtual_join("assets/logo.png")?;                       // clamped to root
+//! # }
 //! // Create the file before inspecting/removing it in the example
 //! sp.create_parent_dir_all()?;
 //! sp.write("hello")?;
@@ -219,7 +223,9 @@
 //! **The Key Principle: Use `StrictPath` when you DON'T control the path source**
 //!
 //! ```rust
-//! # use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+//! # use strict_path::{PathBoundary, StrictPath};
+//! # #[cfg(feature = "virtual-path")]
+//! # use strict_path::{VirtualRoot, VirtualPath};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // ✅ USE StrictPath - External/untrusted input (you don't control the source)
 //! // Encode guarantees in the signature: pass the boundary and the untrusted segment
@@ -231,6 +237,7 @@
 //!
 //! // ✅ USE VirtualRoot - External/untrusted input for user-facing paths
 //! // Encode guarantees in the signature: pass the virtual root and the untrusted segment
+//! # #[cfg(feature = "virtual-path")]
 //! fn process_upload(uploads: &VirtualRoot, user_filename: &str) -> Result<(), Box<dyn std::error::Error>> {
 //!     let safe_file: VirtualPath = uploads.virtual_join(user_filename)?;  // Sandbox!
 //!     safe_file.write(b"data")?;
@@ -268,9 +275,11 @@
 //! ### Example: Isolation vs Shared System Space
 //!
 //! ```rust
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "virtual-path")]
+//! # {
 //! use strict_path::{StrictPath, VirtualPath};
 //!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // ISOLATION: User upload directory - users see clean "/" paths
 //! // Note: `.with_root()` requires the directory to already exist. Use
 //! // `.with_root_create()` if you want it to be created automatically.
@@ -290,12 +299,13 @@
 //! let cache_root: StrictPath = StrictPath::with_boundary("app_cache")?;
 //! let cache_file: StrictPath = cache_root.strict_join("build/output.json")?;
 //!
-//! // Developer sees: "app_cache/build/output.json" (real system path)  
+//! // Developer sees: "app_cache/build/output.json" (real system path)
 //! println!("System path: {}", cache_file.strictpath_display());
 //! cache_file.create_parent_dir_all()?;
 //! cache_file.write(b"cache data")?;
 //!
 //! # user_root.remove_dir_all().ok(); cache_root.remove_dir_all().ok();
+//! # }
 //! # Ok(()) }
 //! ```
 //!
@@ -318,7 +328,9 @@
 //!
 //!
 //! ```rust
-//! use strict_path::{StrictPath, VirtualPath};
+//! use strict_path::StrictPath;
+//! # #[cfg(feature = "virtual-path")]
+//! # use strict_path::VirtualPath;
 //!
 //! // Write ONE function that works with both types
 //! fn process_file(path: &StrictPath) -> std::io::Result<String> {
@@ -327,9 +339,16 @@
 //!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let jpath: StrictPath = StrictPath::with_boundary("./data")?.strict_join("config.toml")?;
-//! let vpath: VirtualPath = VirtualPath::with_root("./data")?.virtual_join("config.toml")?;
+//! let jpath: StrictPath = StrictPath::with_boundary("./data")?.strict_join("config.toml")?;
+//! # #[cfg(feature = "virtual-path")]
+//! # let vpath: VirtualPath = VirtualPath::with_root("./data")?.virtual_join("config.toml")?;
+//! # #[cfg(feature = "virtual-path")]
+//! # let vpath: VirtualPath = VirtualPath::with_root("./data")?.virtual_join("config.toml")?;
 //!
 //! let _ = process_file(&jpath)?;               // StrictPath
+//! # #[cfg(feature = "virtual-path")]
+//! process_file(vpath.as_unvirtual())?; // VirtualPath -> borrow strict view explicitly
+//! # #[cfg(feature = "virtual-path")]
 //! process_file(vpath.as_unvirtual())?; // VirtualPath -> borrow strict view explicitly
 //! # Ok(()) }
 //! ```
@@ -427,9 +446,10 @@
 //! ### Examples: Encode Guarantees in Signatures
 //!
 //! ```rust
-//! # use strict_path::VirtualPath;
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Cloud storage per-user PathBoundary
+//! # #[cfg(feature = "virtual-path")]
+//! # {
+//! use strict_path::VirtualPath;
 //! let user_id = 42u32;
 //! let root = format!("./cloud_user_{user_id}");
 //! let vp_root: VirtualPath = VirtualPath::with_root_create(&root)?;
@@ -446,12 +466,15 @@
 //!
 //! # // Cleanup
 //! # vp_root.remove_dir_all().ok();
+//! # }
 //! # Ok(()) }
 //! ```
 //!
 //! ```rust
-//! # use strict_path::VirtualPath;
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "virtual-path")]
+//! # {
+//! # use strict_path::VirtualPath;
 //! // Web/E-mail templates resolved in a user-scoped virtual root
 //! # let user_id = 7u32;
 //! let tpl_root = format!("./tpl_space_{user_id}");
@@ -461,15 +484,18 @@
 //! let _ = render(&tpl);
 //!
 //! # templates.remove_dir_all().ok();
+//! # }
 //! # Ok(()) }
 //! ```
 //!
 //! ## Quickstart: User-Facing Virtual Paths (with signatures)
 //!
 //! ```rust
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "virtual-path")]
+//! # {
 //! use strict_path::VirtualPath;
 //!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // 1. Create a virtual root (sugar), which corresponds to a real directory.
 //! let root = VirtualPath::with_root_create("user_data")?;
 //!
@@ -487,6 +513,7 @@
 //! assert!(virtual_path.exists());
 //!
 //! root.remove_dir_all()?;
+//! # }
 //! # Ok(())
 //! # }
 //! ```
@@ -509,9 +536,11 @@
 //!
 //! ### Example: Display vs Debug
 //! ```rust
-//! # use strict_path::{VirtualRoot, VirtualPath};
-//!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "virtual-path")]
+//! # {
+//! # use strict_path::VirtualPath;
+//!
 //! let vp_root: VirtualPath = VirtualPath::with_root_create("vp_demo")?;
 //! let vp: VirtualPath = vp_root.virtual_join("users/alice/report.txt")?;
 //!
@@ -525,6 +554,7 @@
 //! assert!(dbg.contains("virtual"));
 //!
 //! # vp_root.remove_dir_all().ok();
+//! # }
 //! # Ok(()) }
 //! ```
 //!
@@ -542,7 +572,9 @@
 //! Use marker types to prevent paths from different restrictions from being used interchangeably.
 //!
 //! ```rust
-//! use strict_path::{PathBoundary, StrictPath, VirtualPath};
+//! use strict_path::{PathBoundary, StrictPath};
+//! # #[cfg(feature = "virtual-path")]
+//! # use strict_path::VirtualPath;
 //!
 //! struct StaticAssets;
 //! struct UserUploads;
@@ -552,18 +584,27 @@
 //! }
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "virtual-path")]
 //! # let css_root: VirtualPath<StaticAssets> = VirtualPath::with_root_create("assets")?;
+//! # #[cfg(feature = "virtual-path")]
 //! # let css_pre: VirtualPath<StaticAssets> = css_root.virtual_join("style.css")?;
-//! # css_pre.create_parent_dir_all()?; css_pre.write("body{}")?;
+//! # #[cfg(feature = "virtual-path")]
+//! # css_pre.create_parent_dir_all()?;
+//! # #[cfg(feature = "virtual-path")]
+//! # css_pre.write("body{}")?;
+//! # #[cfg(feature = "virtual-path")]
 //! # let uploads_root: VirtualPath<UserUploads> = VirtualPath::with_root_create("uploads")?;
-//! let css_file: VirtualPath<StaticAssets> =
-//!     VirtualPath::with_root("assets")?.virtual_join("style.css")?;
-//! let avatar_file: VirtualPath<UserUploads> =
-//!     VirtualPath::with_root("uploads")?.virtual_join("avatar.jpg")?;
-//!
+//! # #[cfg(feature = "virtual-path")]
+//! # let css_file: VirtualPath<StaticAssets> =
+//! #     VirtualPath::with_root("assets")?.virtual_join("style.css")?;
+//! # #[cfg(feature = "virtual-path")]
+//! # let avatar_file: VirtualPath<UserUploads> =
+//! #     VirtualPath::with_root("uploads")?.virtual_join("avatar.jpg")?;
+//! # #[cfg(feature = "virtual-path")]
 //! serve_asset(css_file.as_unvirtual())?; // ✅ Correct type
-//! // serve_asset(avatar_file.as_unvirtual())?; // ❌ Compile error: wrong marker type!
-//! # css_root.remove_dir_all().ok(); uploads_root.remove_dir_all().ok();
+//! # // serve_asset(avatar_file.as_unvirtual())?; // ❌ Compile error: wrong marker type!
+//! # #[cfg(feature = "virtual-path")]
+//! # { css_root.remove_dir_all().ok(); uploads_root.remove_dir_all().ok(); }
 //! # Ok(())
 //! # }
 //! ```
@@ -662,10 +703,12 @@
 //! assert_eq!(renamed.read_to_string()?, "ok");
 //!
 //! // Virtual (user-facing): clamp + validate destination before rename
+//! # #[cfg(feature = "virtual-path")] {
 //! let v = renamed.clone().virtualize();
 //! v.virtual_rename("app.archived")?;
 //! let v2 = boundary.strict_join("logs/app.archived")?.virtualize();
 //! assert!(v2.exists());
+//! # }
 //! # Ok(()) }
 //! ```
 //!
@@ -686,12 +729,14 @@
 //! assert_eq!(dst.read_to_string()?, "copy me");
 //!
 //! // Virtual (user-facing): clamp + validate destination before copy
+//! # #[cfg(feature = "virtual-path")] {
 //! let v = dst.clone().virtualize();
 //! let bytes = v.virtual_copy("c.txt")?; // sibling within the same virtual parent
 //! assert_eq!(bytes, "copy me".len() as u64);
 //! let vcopy = boundary.strict_join("docs/c.txt")?.virtualize();
 //! assert!(vcopy.exists());
 //! assert_eq!(vcopy.read_to_string()?, "copy me");
+//! # }
 //! # Ok(()) }
 //! ```
 //!
@@ -774,7 +819,7 @@
 //! # use strict_path::PathBoundary;
 //! # fn external_api<P: AsRef<std::path::Path>>(_p: P) {}
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let restriction = PathBoundary::try_new_create("./safe")?;
+//! let restriction: PathBoundary = PathBoundary::try_new_create("./safe")?;
 //! let jp = restriction.strict_join("file.txt")?;
 //!
 //! // Preferred: borrow as &OsStr (implements AsRef<Path>)
@@ -782,9 +827,15 @@
 //!
 //! // Escape hatches (use sparingly):
 //! let owned: std::path::PathBuf = jp.clone().unstrict();
+//! # #[cfg(feature = "virtual-path")]
+//! # {
+//! # #[cfg(feature = "virtual-path")]
+//! # {
 //! let v: strict_path::VirtualPath = jp.clone().virtualize();
 //! let back: strict_path::StrictPath = v.clone().unvirtual();
 //! let owned_again: std::path::PathBuf = v.unvirtual().unstrict();
+//! # }
+//! # }
 //! # // Cleanup created PathBoundary directory for doctest hygiene
 //! # let root_cleanup: strict_path::StrictPath = strict_path::StrictPath::with_boundary("./safe")?;
 //! # root_cleanup.remove_dir_all().ok();

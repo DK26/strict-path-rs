@@ -2,7 +2,9 @@
 //
 // Demonstrates concise, chained operations for quick tasks
 
-use strict_path::{PathBoundary, VirtualRoot};
+use strict_path::PathBoundary;
+#[cfg(feature = "virtual-path")]
+use strict_path::VirtualRoot;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== One-Liner Patterns ===");
@@ -22,11 +24,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("-> File exists: {exists}");
 
     // 3. VirtualRoot file write - one-liner
-    let tmp_dir = tempfile::tempdir()?;
-    VirtualRoot::<()>::try_new(&tmp_dir)?
-        .virtual_join("simple.txt")?
-        .write("VirtualRoot content")?;
-    println!("-> VirtualRoot file write in one line");
+    #[cfg(feature = "virtual-path")]
+    {
+        let tmp_dir = tempfile::tempdir()?;
+        VirtualRoot::<()>::try_new(&tmp_dir)?
+            .virtual_join("simple.txt")?
+            .write("VirtualRoot content")?;
+        println!("-> VirtualRoot file write in one line");
+    }
 
     // 4. Custom marker type - one-liner
     struct Demo;

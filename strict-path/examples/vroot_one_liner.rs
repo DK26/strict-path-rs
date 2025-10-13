@@ -2,6 +2,8 @@
 //
 // Create a virtual root and immediately operate on a user-facing path.
 
+#![cfg(feature = "virtual-path")]
+
 use strict_path::VirtualRoot;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

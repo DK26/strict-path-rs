@@ -3,6 +3,7 @@ use crate::PathBoundary;
 #[cfg(feature = "virtual-path")]
 use crate::VirtualRoot;
 use std::fs;
+#[cfg(feature = "virtual-path")]
 use std::path::{Path, PathBuf};
 
 #[test]
@@ -256,6 +257,7 @@ fn test_windows_path_normalization() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn test_ordering_consistency() {
     let temp_dir = tempfile::tempdir().unwrap();
     let vroot: VirtualRoot = VirtualRoot::try_new_create(temp_dir.path()).unwrap();

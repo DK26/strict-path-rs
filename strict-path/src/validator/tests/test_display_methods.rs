@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod display_methods_tests {
-    use crate::{PathBoundary, VirtualRoot};
+    use crate::PathBoundary;
+    #[cfg(feature = "virtual-path")]
+    use crate::VirtualRoot;
 
     #[test]
     fn test_restriction_path_strictpath_display() {
@@ -22,6 +24,7 @@ mod display_methods_tests {
     }
 
     #[test]
+    #[cfg(feature = "virtual-path")]
     fn test_virtual_root_display() {
         let temp = tempfile::tempdir().unwrap();
         let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
@@ -41,6 +44,7 @@ mod display_methods_tests {
     }
 
     #[test]
+    #[cfg(feature = "virtual-path")]
     fn test_display_methods_consistency() {
         let temp = tempfile::tempdir().unwrap();
         let temp_dir: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
@@ -57,6 +61,7 @@ mod display_methods_tests {
     }
 
     #[test]
+    #[cfg(feature = "virtual-path")]
     fn test_virtualroot_unvirtual() {
         let temp = tempfile::tempdir().unwrap();
 

@@ -275,6 +275,7 @@ fn virtual_symlink_clamps_absolute_paths_to_virtual_root() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_symlink_clamps_traversal_attempts() {
     // Test that path traversal attempts are clamped to virtual root
     let td = tempfile::tempdir().unwrap();
@@ -304,6 +305,7 @@ fn virtual_symlink_clamps_traversal_attempts() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_symlink_archive_extraction_scenario() {
     // Real-world scenario: extracting an archive with absolute symlinks
     let td = tempfile::tempdir().unwrap();
@@ -457,8 +459,8 @@ fn virtual_join_clamps_absolute_paths_before_symlink_creation() {
     }
 }
 
-#[cfg(feature = "virtual-path")]
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_symlink_relative_paths_work_correctly() {
     // Test that relative paths in virtual symlinks behave correctly
     let td = tempfile::tempdir().unwrap();
@@ -487,6 +489,7 @@ fn virtual_symlink_relative_paths_work_correctly() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_hard_link_with_absolute_paths_clamped_to_vroot() {
     // Critical test: verify that absolute paths passed to virtual_join() are clamped
     // before hard link creation, ensuring links stay within the sandbox
@@ -551,6 +554,7 @@ fn virtual_hard_link_with_absolute_paths_clamped_to_vroot() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_copy_with_absolute_paths_clamped_to_vroot() {
     // Test that virtual_copy() properly clamps absolute destination paths
     let td = tempfile::tempdir().unwrap();
@@ -592,6 +596,7 @@ fn virtual_copy_with_absolute_paths_clamped_to_vroot() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_rename_with_absolute_paths_clamped_to_vroot() {
     // Test that virtual_rename() properly clamps absolute destination paths
     let td = tempfile::tempdir().unwrap();
@@ -633,6 +638,7 @@ fn virtual_rename_with_absolute_paths_clamped_to_vroot() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_join_with_traversal_attempts_clamps_to_root() {
     // Test that directory traversal attempts with ../ are clamped to virtual root
     let td = tempfile::tempdir().unwrap();
@@ -675,6 +681,7 @@ fn virtual_join_with_traversal_attempts_clamps_to_root() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_symlink_from_root_with_absolute_target() {
     // Test VirtualRoot::virtual_symlink with absolute paths in virtual space
     let td = tempfile::tempdir().unwrap();
@@ -706,6 +713,7 @@ fn virtual_symlink_from_root_with_absolute_target() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn virtual_hard_link_from_root_with_absolute_target() {
     // Test VirtualRoot::virtual_hard_link with absolute paths in virtual space
     let td = tempfile::tempdir().unwrap();
@@ -739,6 +747,7 @@ fn virtual_hard_link_from_root_with_absolute_target() {
 }
 
 #[test]
+#[cfg(feature = "virtual-path")]
 fn following_symlink_pointing_outside_vroot() {
     // This test verifies clamping behavior when reading a symlink that points outside the virtual root
     // Scenario: Archive extractor extracts a symlink with absolute target
@@ -824,7 +833,7 @@ fn following_symlink_pointing_outside_vroot() {
 }
 
 #[test]
-#[cfg(windows)]
+#[cfg(all(windows, feature = "virtual-path"))]
 fn following_junction_pointing_outside_vroot() {
     // Test junction clamping on Windows (junctions don't require admin privileges)
     // Expected: Junction to absolute path is clamped to virtual root
@@ -892,7 +901,7 @@ fn following_junction_pointing_outside_vroot() {
 }
 
 #[test]
-#[cfg(windows)]
+#[cfg(all(windows, feature = "virtual-path"))]
 fn following_junction_with_relative_escape() {
     // Test junction clamping with absolute target (appears relative but resolves absolute)
     // Expected: Junction target is clamped to virtual root

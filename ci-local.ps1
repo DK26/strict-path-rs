@@ -377,6 +377,7 @@ Run-Check-Block "Format Check (demos)" {
 }
 # Lint and tests on the latest installed Rust toolchain
 Run-Check "Clippy Lint" "cargo clippy --all-targets --all-features -- -D warnings"
+Run-Check "Clippy Lint (no features)" "cargo clippy -p strict-path --all-targets --no-default-features -- -D warnings"
 # Build library examples to ensure examples compile
 Run-Check "Build library examples" "cargo build -p strict-path --examples --all-features"
 
@@ -576,6 +577,7 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
     Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
     Run-Check-Try "MSRV Check (Rust 1.71.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose"
     Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
+    Run-Check-Try "MSRV Clippy Lint (no features)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
     Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose"
     } else {
         Write-Host "WARNING: Rust 1.71.0 not installed. Installing for MSRV check..." -ForegroundColor Yellow
@@ -587,6 +589,7 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
                 Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
                 Run-Check-Try "MSRV Check (Rust 1.71.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose"
                 Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
+                Run-Check-Try "MSRV Clippy Lint (no features)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
                 Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose"
             } else {
                 throw "toolchain install failed"

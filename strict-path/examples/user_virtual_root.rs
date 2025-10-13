@@ -4,6 +4,8 @@
 // their own directory. All user-visible paths are virtual ("/docs/x.txt").
 // I/O happens via VirtualPath methods; no shared StrictPath namespace.
 
+#![cfg(feature = "virtual-path")]
+
 use strict_path::{VirtualPath, VirtualRoot};
 
 #[derive(Clone, Copy)]
@@ -51,4 +53,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(not(feature = "virtual-path"))]
+fn main() {
+    eprintln!("This example requires the 'virtual-path' feature.");
+    eprintln!("Run with: cargo run --example user_virtual_root --features virtual-path");
 }

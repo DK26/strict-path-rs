@@ -106,8 +106,11 @@ jobs:
         echo ""
         echo "To fix locally, run: cargo fmt --all"
 
-    - name: Run clippy
+    - name: Run clippy (all features)
       run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Run clippy (no features)
+      run: cargo clippy -p strict-path --all-targets --no-default-features -- -D warnings
 
     - name: Enforce doctest/lint suppression policy
       shell: bash
@@ -266,6 +269,10 @@ jobs:
     - name: Run clippy with MSRV (library only)
       run: |
         CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings
+
+    - name: Run clippy with MSRV (no features)
+      run: |
+        CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings
 
     - name: Test library with MSRV (all features)
       run: |
