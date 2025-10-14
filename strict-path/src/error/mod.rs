@@ -42,16 +42,16 @@ pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
 /// leaking unbounded path data into messages (we truncate long displays).
 ///
 /// VARIANTS:
-/// - `InvalidRestriction`: The root directory is missing, not a directory, or failed I/O checks.
+/// - `InvalidRestriction`: The boundary directory is missing, not a directory, or failed I/O checks.
 /// - `PathEscapesBoundary`: A candidate path would resolve outside the boundary.
 /// - `PathResolutionError`: Canonicalization or resolution failed (I/O error).
 #[derive(Debug)]
 pub enum StrictPathError {
     /// SUMMARY:
-    /// The PathBoundary root is invalid (missing, not a directory, or I/O error).
+    /// The boundary directory is invalid (missing, not a directory, or I/O error).
     ///
     /// FIELDS:
-    /// - `restriction` (`PathBuf`): The attempted root path.
+    /// - `restriction` (`PathBuf`): The attempted boundary path.
     /// - `source` (`std::io::Error`): Underlying OS error that explains why the
     ///   restriction is invalid.
     InvalidRestriction {

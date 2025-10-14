@@ -316,7 +316,7 @@
 //! where you need safety while maintaining system-level path semantics (logs, configs, caches).
 //!
 //! **`VirtualPath` acts like a complete sandbox** - it encapsulates the filtering (via the underlying
-//! `StrictPath`) while presenting a virtualized, user-friendly view where the PathBoundary root appears as "/".
+//! `StrictPath`) while presenting a virtualized, user-friendly view where the boundary appears as "/".
 //! Users can specify any path they want, and it gets automatically clamped to stay safe. Perfect for
 //! **isolation scenarios** where you want to hide the underlying filesystem structure from users
 //! (uploads, per-user directories, tenant storage).
@@ -532,7 +532,7 @@
 //! - No implicit `Display` on `VirtualPath`. Use the explicit wrapper: `vpath.virtualpath_display()`
 //!   to show a rooted, forward‑slashed virtual path (e.g., "/a/b.txt").
 //! - `Debug` for `VirtualPath` is developer‑facing and verbose (derived): it includes the inner
-//!   `StrictPath` (system path and PathBoundary root) and the virtual view for diagnostics.
+//!   `StrictPath` (system path and boundary) and the virtual view for diagnostics.
 //!
 //! ### Example: Display vs Debug
 //! ```rust

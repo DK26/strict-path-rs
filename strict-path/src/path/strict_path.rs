@@ -142,24 +142,42 @@ impl<Marker> StrictPath<Marker> {
     /// EXAMPLE:
     /// ```rust
     /// # use strict_path::{PathBoundary, StrictPath};
+    /// # use std::io;
+    /// # struct UserFiles;
     /// # struct ReadOnly;
     /// # struct ReadWrite;
     /// # let boundary_dir = std::env::temp_dir().join("strict-path-change-marker-example");
-    /// # std::fs::create_dir_all(&boundary_dir)?;
+    /// # std::fs::create_dir_all(&boundary_dir.join("logs"))?;
     /// # let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
-    /// // Simulated authorization: verify user can write before granting write access
-    /// fn authorize_write_access(user_id: &str, path: StrictPath<ReadOnly>) -> Option<StrictPath<ReadWrite>> {
+    /// #
+    /// // Verify user can write before granting write access
+    /// fn authorize_write_access(
+    ///     user_id: &str,
+    ///     path: StrictPath<(UserFiles, ReadOnly)>
+    /// ) -> Result<StrictPath<(UserFiles, ReadWrite)>, &'static str> {
     ///     if user_id == "admin" {
-    ///         Some(path.change_marker())  // ✅ Only after checking permissions
+    ///         Ok(path.change_marker())  // ✅ Transform after authorization check
     ///     } else {
-    ///         None  // ❌ User lacks write permission
+    ///         Err("insufficient permissions")  // ❌ User lacks write permission
     ///     }
     /// }
     ///
-    /// let read_only_path: StrictPath<ReadOnly> = boundary.strict_join("logs/app.log")?.change_marker();
-    /// let read_write_path = authorize_write_access("admin", read_only_path).expect("authorized");
-    /// assert_eq!(read_write_path.strictpath_display().to_string(),
-    ///            boundary.strict_join("logs/app.log")?.strictpath_display().to_string());
+    /// // Function requiring write permission - enforces type safety at compile time
+    /// fn write_log_entry(path: StrictPath<(UserFiles, ReadWrite)>, content: &str) -> io::Result<()> {
+    ///     path.write(content.as_bytes())
+    /// }
+    ///
+    /// // Start with read-only access
+    /// let read_only_path: StrictPath<(UserFiles, ReadOnly)> =
+    ///     boundary.strict_join("logs/app.log")?.change_marker();
+    ///
+    /// // Elevate permissions after authorization
+    /// let read_write_path = authorize_write_access("admin", read_only_path)
+    ///     .expect("user must have sufficient permissions");
+    ///
+    /// // Now we can call functions requiring write access
+    /// write_log_entry(read_write_path, "Application started")?;
+    /// #
     /// # std::fs::remove_dir_all(&boundary_dir)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -465,7 +483,7 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Recursively create all missing directories up to the immediate parent. `Ok(())` at root.
+    /// Recursively create all missing directories up to the immediate parent. `Ok(())` at boundary.
     pub fn create_parent_dir_all(&self) -> std::io::Result<()> {
         match self.strictpath_parent() {
             Ok(Some(parent)) => parent.create_dir_all(),
