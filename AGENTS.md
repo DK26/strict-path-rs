@@ -304,6 +304,70 @@ See also mdBook pages (access via `.docs/` worktree):
 - Lead with sugar for ergonomics in simple flows; demonstrate policy types for reuse, serde context, OS dirs, and temp RAII.
 - For multi‑user flows, prefer `VirtualRoot`/`VirtualPath`; for shared strict logic, borrow `as_unvirtual()`.
 
+### README.md and mdBook Code Examples: Validation Requirements
+
+**Critical Rule**: All code examples in `README.md` and mdBook (`.docs/docs_src/src/*.md`) must be validated by automated tests.
+
+**README.md validation**:
+- All code examples in `README.md` must have corresponding tests in `strict-path/src/tests/readme_examples.rs`
+- Tests must exactly match README examples (same code, same flow, same results)
+- If you fix compilation errors in tests, **update README.md to match the working code**
+- Do not include test scaffolding (cleanup, setup) in README unless it teaches something
+- Feature-gated examples (`#[cfg(feature = "virtual-path")]`) should be hidden in tests but visible as comments in README
+
+**Test naming convention**:
+- Test function names should be descriptive: `readme_policy_types_example`, `readme_one_liner_sugar_example`
+- One test per major README section/example block
+
+**Synchronization workflow**:
+1. When adding/changing README examples, add/update corresponding test in `readme_examples.rs`
+2. When fixing test compilation errors, update README.md with the corrected code
+3. Run `cargo test -p strict-path readme_examples --all-features` to validate
+4. Examples must be complete and copy-pasteable (no `...` placeholders or incomplete flows)
+
+**mdBook validation** (future):
+- mdBook examples should eventually be extracted and tested similarly
+- For now, ensure mdBook examples follow the same principles as README examples
+- Prefer linking to validated demos over embedding untested code in mdBook
+
+**Anti-patterns to avoid**:
+- ❌ README shows `#[cfg(feature = "virtual-path")] { }` in visible code — hide cfg blocks with `#` comment prefix
+- ❌ Incomplete examples that can't be compiled (missing imports, missing file creation)
+- ❌ Tests diverge from README (different APIs, different flow, different behavior)
+- ❌ README uses `unreachable!()` but tests use `panic!()` — keep consistent
+
+**Test file structure example**:
+```rust
+// strict-path/src/tests/readme_examples.rs
+
+#[test]
+fn readme_policy_types_example() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::PathBoundary;
+    #[cfg(feature = "virtual-path")]
+    use crate::VirtualRoot;
+
+    // Copy exact code from README.md here
+    let uploads_boundary: crate::PathBoundary = PathBoundary::try_new_create("./uploads")?;
+    // ... rest of example ...
+    
+    // Add assertions to verify behavior
+    assert_eq!(contents, "file contents");
+    
+    // Cleanup (not shown in README)
+    uploads_boundary.into_strictpath()?.remove_dir_all().ok();
+    Ok(())
+}
+```
+
+**Validation commands**:
+```bash
+# Run README tests only
+cargo test -p strict-path readme_examples --all-features
+
+# Run all tests (includes README tests)
+cargo test -p strict-path --all-features
+```
+
 ### Rustdoc formatting rules (prevent invalid HTML and broken links)
 
 To keep `cargo doc` green with `-D warnings`:

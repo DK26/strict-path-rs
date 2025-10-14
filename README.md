@@ -66,12 +66,13 @@ let uploads_boundary = PathBoundary::try_new_create("./uploads")?;
 let user_file = uploads_boundary.strict_join("documents/report.pdf")?;
 
 // 3. Safe I/O operations - guaranteed within boundary
+user_file.create_parent_dir_all()?;
 user_file.write(b"file contents")?;
 let contents = user_file.read_to_string()?;
 
 // 4. Escape attempts are detected and rejected
 match uploads_boundary.strict_join("../../etc/passwd") {
-    Ok(_) => unreachable!("Escapes are caught!"),
+    Ok(_) => panic!("Escapes should be caught!"),
     Err(e) => println!("Attack blocked: {e}"), // PathEscapesBoundary error
 }
 
@@ -90,9 +91,12 @@ use strict_path::{StrictPath, VirtualPath};
 // Concise form - boundary created inline
 let config_file = StrictPath::with_boundary_create("./config")?
     .strict_join("app.toml")?;
+config_file.write(b"settings")?;
 
 let asset = VirtualPath::with_root_create("./public")?
     .virtual_join("images/logo.png")?;
+asset.create_parent_dir_all()?;
+asset.write(b"logo data")?;
 ```
 
 > 📖 **New to strict-path?** Start with the **[Tutorial: Stage 1 - The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/stage1_basic_promise.html)** to learn the core concepts step-by-step.
@@ -105,13 +109,17 @@ let asset = VirtualPath::with_root_create("./public")?
 > "One does not simply walk into /etc/passwd."
 
 ```rust
+use strict_path::StrictPath;
+
+let user_input = "../../../etc/passwd";
+
 // ❌ This single line can destroy your server
-std::fs::write(user_input, data)?;  // user_input = "../../../etc/passwd"
+// std::fs::write(user_input, data)?;
 
 // ✅ This single line makes it mathematically impossible  
-StrictPath::with_boundary("uploads")?
-    .strict_join(user_input)?
-    .write(data)?;
+let boundary = StrictPath::with_boundary_create("uploads")?;
+let result = boundary.strict_join(user_input);
+// Returns Err(PathEscapesBoundary) - attack blocked!
 ```
 
 ## Features
