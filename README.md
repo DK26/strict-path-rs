@@ -76,13 +76,10 @@ match uploads_boundary.strict_join("../../etc/passwd") {
 }
 
 // Virtual filesystem for multi-tenant isolation (requires "virtual-path" feature)
-#[cfg(feature = "virtual-path")]
-{
-    let tenant_vroot = VirtualRoot::try_new_create("./tenant_data")?;
-    let tenant_file = tenant_vroot.virtual_join("../../../sensitive")?;
-    // Escape attempt is silently clamped - stays within tenant_data
-    println!("Virtual path: {}", tenant_file.virtualpath_display()); // Shows: "/sensitive"
-}
+let tenant_vroot = VirtualRoot::try_new_create("./tenant_data")?;
+let tenant_file = tenant_vroot.virtual_join("../../../sensitive")?;
+// Escape attempt is silently clamped - stays within tenant_data
+println!("Virtual path: {}", tenant_file.virtualpath_display()); // Shows: "/sensitive"
 ```
 
 ### One-liner sugar (quick prototyping)
@@ -94,11 +91,8 @@ use strict_path::{StrictPath, VirtualPath};
 let config_file = StrictPath::with_boundary_create("./config")?
     .strict_join("app.toml")?;
 
-#[cfg(feature = "virtual-path")]
-{
-    let asset = VirtualPath::with_root_create("./public")?
-        .virtual_join("images/logo.png")?;
-}
+let asset = VirtualPath::with_root_create("./public")?
+    .virtual_join("images/logo.png")?;
 ```
 
 > 📖 **New to strict-path?** Start with the **[Tutorial: Stage 1 - The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/stage1_basic_promise.html)** to learn the core concepts step-by-step.
