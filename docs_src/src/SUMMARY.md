@@ -23,6 +23,12 @@
 
 ---
 
+# Quick Reference
+
+- [Examples by Mode (Visual Guide)](./examples_by_mode.md)
+
+---
+
 # Real-World Examples
 
 - [Examples Overview](./examples/overview.md)
@@ -50,9 +56,14 @@
 
 ---
 
-# Best Practices
+# Best Practices & Patterns
 
-- [Guidelines & Patterns](./best_practices.md)
+- [Quick Reference Guide](./best_practices.md)
+  - [Why Naive Approaches Fail](./best_practices/why_naive_approaches_fail.md)
+  - [Real-World Patterns](./best_practices/real_world_patterns.md)
+  - [Common Operations](./best_practices/common_operations.md)
+  - [Policy & Reuse](./best_practices/policy_and_reuse.md)
+  - [Authorization Architecture](./best_practices/authorization_architecture.md)
 - [Common Mistakes to Avoid](./anti_patterns.md)
 
 ---

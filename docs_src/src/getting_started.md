@@ -4,7 +4,7 @@
 
 Have you ever worried about users trying to access files they shouldn't? Like when someone enters `../../../etc/passwd` to try to escape from a safe directory? That's called a "directory traversal" attack, and it's surprisingly common.
 
-**strict-path** solves this problem by creating path boundaries - safe boundaries that paths cannot escape from. It comes in two modes: StrictPath (via PathBoundary) which is a path proven to have passed a validation filter, and VirtualPath (via VirtualRoot) which you could think of it like a sandboxed file path.
+**strict-path strictly enforces path boundaries to prevent directory traversal attacks.** It creates safe boundaries that paths cannot escape from. It comes in two modes: StrictPath (via PathBoundary) which detects and rejects escape attempts, and VirtualPath (via VirtualRoot) which contains and redirects escape attempts within a virtual sandbox.
 
 ## Why Should You Care?
 
