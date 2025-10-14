@@ -184,7 +184,7 @@
                         <h1 id="getting-started-with-strict-path"><a class="header" href="#getting-started-with-strict-path">Getting Started with strict-path</a></h1>
 <h2 id="what-is-strict-path"><a class="header" href="#what-is-strict-path">What is strict-path?</a></h2>
 <p>Have you ever worried about users trying to access files they shouldn't? Like when someone enters <code>../../../etc/passwd</code> to try to escape from a safe directory? That's called a "directory traversal" attack, and it's surprisingly common.</p>
-<p><strong>strict-path</strong> solves this problem by creating path boundaries - safe boundaries that paths cannot escape from. It comes in two modes: StrictPath (via PathBoundary) which is a path proven to have passed a validation filter, and VirtualPath (via VirtualRoot) which you could think of it like a sandboxed file path.</p>
+<p><strong>strict-path strictly enforces path boundaries to prevent directory traversal attacks.</strong> It creates safe boundaries that paths cannot escape from. It comes in two modes: StrictPath (via PathBoundary) which detects and rejects escape attempts, and VirtualPath (via VirtualRoot) which contains and redirects escape attempts within a virtual sandbox.</p>
 <h2 id="why-should-you-care"><a class="header" href="#why-should-you-care">Why Should You Care?</a></h2>
 <p>Directory traversal vulnerabilities are everywhere:</p>
 <ul>
@@ -293,6 +293,24 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     Ok(())
 }</code></pre></pre>
 <p>This is perfect for multi-user applications where each user should feel like they have their own filesystem.</p>
+<h3 id="the-critical-difference-symlink-behavior"><a class="header" href="#the-critical-difference-symlink-behavior">The Critical Difference: Symlink Behavior</a></h3>
+<p><strong><code>StrictPath</code></strong> validates paths and <strong>rejects</strong> anything that escapes:</p>
+<ul>
+<li>User input <code>"../../../etc/passwd"</code> → ❌ Error</li>
+<li>Symlink pointing to <code>/etc/passwd</code> → ❌ Error (if outside boundary)</li>
+</ul>
+<p><strong><code>VirtualPath</code></strong> implements true virtual filesystem and <strong>clamps</strong> absolute paths:</p>
+<ul>
+<li>User input <code>"../../../etc/passwd"</code> → ✅ Clamped to <code>vroot/etc/passwd</code></li>
+<li>Symlink pointing to <code>/etc/passwd</code> → ✅ Clamped to <code>vroot/etc/passwd</code></li>
+</ul>
+<p>This makes <code>VirtualPath</code> perfect for:</p>
+<ul>
+<li>🗜️ Archive extraction (malicious entries are safely clamped)</li>
+<li>🏢 Multi-tenant systems (users can't escape their sandbox)</li>
+<li>📦 Container-like environments (absolute paths stay inside)</li>
+</ul>
+<p><strong>Rule of thumb:</strong> Use <code>StrictPath</code> for system resources (explicit validation), use <code>VirtualPath</code> for user sandboxes (graceful containment).</p>
 <h2 id="api-summary"><a class="header" href="#api-summary">API Summary</a></h2>
 <p>That's really all you need to know! The core API is simple:</p>
 <h3 id="creating-safe-boundaries"><a class="header" href="#creating-safe-boundaries">Creating Safe Boundaries</a></h3>

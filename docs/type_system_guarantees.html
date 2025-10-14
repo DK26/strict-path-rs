@@ -432,6 +432,42 @@ assert_eq!(
 );
 <span class="boring">}</span></code></pre></pre>
 <p>All the type safety benefits come at compile time with no runtime overhead!</p>
+<h2 id="strictpath-vs-virtualpath-symlink-semantics"><a class="header" href="#strictpath-vs-virtualpath-symlink-semantics">StrictPath vs VirtualPath: Symlink Semantics</a></h2>
+<p>One critical difference between <code>StrictPath</code> and <code>VirtualPath</code> is how they handle symlinks:</p>
+<h3 id="strictpath-system-filesystem-semantics"><a class="header" href="#strictpath-system-filesystem-semantics">StrictPath: System Filesystem Semantics</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+// StrictPath follows symlinks and validates targets
+let boundary = StrictPath::with_boundary_create("system_root")?;
+
+// If "system_root/config_link" symlinks to "/etc/app.conf":
+let config = boundary.strict_join("config_link");
+// ❌ Error if target is outside boundary
+// ✅ OK if target resolves to path inside boundary
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Use for:</strong> Shared system resources, config files, traditional filesystem operations</p>
+<h3 id="virtualpath-virtual-filesystem-semantics"><a class="header" href="#virtualpath-virtual-filesystem-semantics">VirtualPath: Virtual Filesystem Semantics</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualPath;
+
+// VirtualPath clamps absolute symlink targets to virtual root
+let vroot = VirtualPath::with_root("user_sandbox")?;
+
+// If "user_sandbox/config_link" symlinks to "/etc/app.conf":
+let config = vroot.virtual_join("config_link")?;
+// ✅ Always OK - target clamped to "user_sandbox/etc/app.conf"
+
+println!("Virtual: {}", config.virtualpath_display());
+// Output: /etc/app.conf (from user's perspective)
+
+println!("System: {}", config.as_unvirtual().strictpath_display());  
+// Output: user_sandbox/etc/app.conf (actually safe!)
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Use for:</strong> Multi-tenant systems, archive extraction, sandboxed environments, container-like semantics</p>
+<p><strong>Key Insight:</strong> In a virtual filesystem, absolute paths (whether from user input or symlink targets) are <em>always</em> relative to the virtual root. This makes <code>VirtualPath</code> perfect for untrusted inputs where you want graceful containment rather than explicit rejection.</p>
 <h2 id="common-patterns-summary"><a class="header" href="#common-patterns-summary">Common Patterns Summary</a></h2>
 <ol>
 <li><strong>Validate once, use everywhere</strong>: Create typed paths at boundaries, pass typed paths to functions</li>
@@ -439,6 +475,7 @@ assert_eq!(
 <li><strong>Separate validation from business logic</strong>: Keep path validation separate from file processing</li>
 <li><strong>Use meaningful marker names</strong>: Markers should describe business domains, not technical implementation</li>
 <li><strong>Fail at compile time</strong>: Structure your code so domain mix-ups become type errors</li>
+<li><strong>Choose the right semantics</strong>: Use <code>StrictPath</code> for system operations (validation), <code>VirtualPath</code> for sandboxing (clamping)</li>
 </ol>
 <p>The type system becomes your ally in preventing path-related security bugs and logic errors!</p>
 

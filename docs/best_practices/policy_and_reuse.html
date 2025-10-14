@@ -1,0 +1,596 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Policy &amp; Reuse - The Complete StrictPath Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Comprehensive guide to strict-path: Type-safe path boundaries preventing directory traversal attacks">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/best_practices/policy_and_reuse.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="policy--reuse-patterns"><a class="header" href="#policy--reuse-patterns">Policy &amp; Reuse Patterns</a></h1>
+<blockquote>
+<p><em>Why VirtualRoot and PathBoundary matter for correctness, performance, and maintainability.</em></p>
+</blockquote>
+<p>The sugar constructors (<code>StrictPath::with_boundary(..)</code>, <code>VirtualPath::with_root(..)</code>) are great for simple flows, but the root/boundary types still matter as your code grows. This chapter explains when and why to use them.</p>
+<hr />
+<h2 id="the-core-insight"><a class="header" href="#the-core-insight">The Core Insight</a></h2>
+<p><strong>Roots/boundaries represent security policy</strong> (the restriction), while paths represent validated values within that policy.</p>
+<p>This separation enables:</p>
+<ul>
+<li><strong>Policy reuse</strong> without repeated validation</li>
+<li><strong>Clear function signatures</strong> that encode guarantees</li>
+<li><strong>Performance optimization</strong> through canonicalization caching</li>
+<li><strong>Better testing</strong> with injectable boundaries</li>
+<li><strong>Explicit deserialization</strong> with serde seeds</li>
+</ul>
+<hr />
+<h2 id="policy-reuse-and-separation-of-concerns"><a class="header" href="#policy-reuse-and-separation-of-concerns">Policy Reuse and Separation of Concerns</a></h2>
+<h3 id="anti-pattern-reconstructing-policy"><a class="header" href="#anti-pattern-reconstructing-policy">Anti-Pattern: Reconstructing Policy</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+// ❌ BAD: Reconstructing boundary for every file
+fn process_files(base_path: &amp;str, filenames: &amp;[String]) -&gt; std::io::Result&lt;()&gt; {
+    for name in filenames {
+        let boundary = PathBoundary::try_new(base_path)?; // Repeated canonicalization!
+        let file = boundary.strict_join(name)?;
+        file.write(b"data")?;
+    }
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Problems:</strong></p>
+<ul>
+<li>Canonicalizes the same base path repeatedly (performance waste)</li>
+<li>Hides policy choice inside the helper (reviewability issue)</li>
+<li>Hard to test with different boundaries (testability issue)</li>
+</ul>
+<h3 id="better-policy-reuse"><a class="header" href="#better-policy-reuse">Better: Policy Reuse</a></h3>
+<pre><pre class="playground"><code class="language-rust">use strict_path::PathBoundary;
+
+// ✅ GOOD: Construct policy once, reuse everywhere
+fn process_files(boundary: &amp;PathBoundary, filenames: &amp;[String]) -&gt; std::io::Result&lt;()&gt; {
+    for name in filenames {
+        let file = boundary.strict_join(name)?; // Reuses canonicalized boundary
+        file.write(b"data")?;
+    }
+    Ok(())
+}
+
+// Usage: Policy choice explicit at call site
+fn main() -&gt; std::io::Result&lt;()&gt; {
+    let uploads = PathBoundary::try_new("./uploads")?;
+    let files = vec!["a.txt".to_string(), "b.txt".to_string()];
+    
+    process_files(&amp;uploads, &amp;files)?; // Clear what boundary is being used
+    Ok(())
+}</code></pre></pre>
+<p><strong>Benefits:</strong></p>
+<ul>
+<li>Canonicalizes once, reuses for all operations</li>
+<li>Policy choice visible at call site</li>
+<li>Easy to inject test boundaries</li>
+<li>Reviewers see security decisions explicitly</li>
+</ul>
+<p><strong>Key insight</strong>: Don't construct boundaries inside helpers — boundary choice is policy; encoding it at call sites improves reviewability and testing.</p>
+<hr />
+<h2 id="clear-function-signatures-stronger-guarantees"><a class="header" href="#clear-function-signatures-stronger-guarantees">Clear Function Signatures (Stronger Guarantees)</a></h2>
+<p>Two canonical patterns make intent obvious:</p>
+<h3 id="pattern-1-accept-validated-path"><a class="header" href="#pattern-1-accept-validated-path">Pattern 1: Accept Validated Path</a></h3>
+<p><strong>When to use</strong>: Validation already happened at the call site.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+fn write_report(report_file: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; {
+    // Guaranteed: path is already validated
+    // No validation needed inside this function
+    report_file.write(b"report data")
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Benefits:</strong></p>
+<ul>
+<li>Function signature proves validation happened</li>
+<li>No redundant validation inside</li>
+<li>Clear contract: "I only accept validated paths"</li>
+</ul>
+<h3 id="pattern-2-accept-boundary--segment"><a class="header" href="#pattern-2-accept-boundary--segment">Pattern 2: Accept Boundary + Segment</a></h3>
+<p><strong>When to use</strong>: Validation happens inside the helper.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn load_config(config_dir: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Result&lt;String&gt; {
+    // Validation happens inside this function
+    config_dir.strict_join(name)?.read_to_string()
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Benefits:</strong></p>
+<ul>
+<li>Helper performs validation explicitly</li>
+<li>Reuses provided boundary (no policy choice inside)</li>
+<li>Clear contract: "I validate against your boundary"</li>
+</ul>
+<h3 id="usage-example-patterns-in-context"><a class="header" href="#usage-example-patterns-in-context">Usage Example: Patterns in Context</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+fn example_workflow() -&gt; std::io::Result&lt;()&gt; {
+    let reports_dir = PathBoundary::try_new("reports")?;
+    let config_dir = PathBoundary::try_new("config")?;
+    
+    // Pattern 1: Validation at call site
+    let report = reports_dir.strict_join("q4_2025.pdf")?;
+    write_report(&amp;report)?; // Function knows it's validated
+    
+    // Pattern 2: Validation inside helper
+    let settings = load_config(&amp;config_dir, "app.toml")?;
+    
+    Ok(())
+}
+
+fn write_report(report_file: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; {
+    report_file.write(b"report data")
+}
+
+fn load_config(config_dir: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Result&lt;String&gt; {
+    config_dir.strict_join(name)?.read_to_string()
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Key insight</strong>: Signatures prevent helpers from "picking a root" silently, making security rules visible in code review.</p>
+<hr />
+<h2 id="contextual-deserialization-serde"><a class="header" href="#contextual-deserialization-serde">Contextual Deserialization (Serde)</a></h2>
+<p><code>StrictPath</code>/<code>VirtualPath</code> <strong>can't</strong> implement blanket <code>Deserialize</code> safely—they need runtime context (the boundary/root) to validate.</p>
+<h3 id="the-problem"><a class="header" href="#the-problem">The Problem</a></h3>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct Config {
+    name: String,
+    // path: StrictPath, // ❌ Won't compile - no context for validation!
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="solution-1-deserialize-then-validate"><a class="header" href="#solution-1-deserialize-then-validate">Solution 1: Deserialize Then Validate</a></h3>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct RawConfig {
+    name: String,
+    path: String, // Deserialize as string first
+}
+
+fn load_safe_config(json: &amp;str) -&gt; Result&lt;StrictPath, Box&lt;dyn std::error::Error&gt;&gt; {
+    let config_dir = PathBoundary::try_new("./configs")?;
+    
+    // 1. Deserialize raw data
+    let raw: RawConfig = serde_json::from_str(json)?;
+    
+    // 2. Validate against boundary
+    let safe_path = config_dir.strict_join(&amp;raw.path)?;
+    
+    Ok(safe_path)
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="solution-2-serde-seeds-advanced"><a class="header" href="#solution-2-serde-seeds-advanced">Solution 2: Serde Seeds (Advanced)</a></h3>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(feature = "serde")]
+use strict_path::{PathBoundary, StrictPath, serde_ext};
+
+#[cfg(feature = "serde")]
+fn deserialize_with_seed(
+    json: &amp;str,
+    boundary: &amp;PathBoundary
+) -&gt; Result&lt;StrictPath, Box&lt;dyn std::error::Error&gt;&gt; {
+    // Seed provides validation context
+    let seed = serde_ext::WithBoundary(boundary);
+    let safe_path: StrictPath = serde_json::from_str(json)?;
+    Ok(safe_path)
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Key insight</strong>: Deserialization is explicit and auditable—where did the policy come from? What are we validating against?</p>
+<hr />
+<h2 id="performance-and-canonicalization"><a class="header" href="#performance-and-canonicalization">Performance and Canonicalization</a></h2>
+<p>Canonicalize the root once; strict/virtual joins reuse that canonicalized state.</p>
+<h3 id="performance-anti-pattern"><a class="header" href="#performance-anti-pattern">Performance Anti-Pattern</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn slow_approach(files: &amp;[String]) -&gt; std::io::Result&lt;()&gt; {
+    // ❌ SLOW: Canonicalizes base path 1000 times
+    for name in files {
+        let boundary = PathBoundary::try_new("./data")?; // Filesystem call every time!
+        let _file = boundary.strict_join(name)?;
+    }
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="performance-optimization"><a class="header" href="#performance-optimization">Performance Optimization</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn fast_approach(files: &amp;[String]) -&gt; std::io::Result&lt;()&gt; {
+    // ✅ FAST: Canonicalizes base path once, reuses for all joins
+    let boundary = PathBoundary::try_new("./data")?; // Single filesystem call
+    
+    for name in files {
+        let _file = boundary.strict_join(name)?; // Reuses canonical state
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="benchmark-comparison"><a class="header" href="#benchmark-comparison">Benchmark Comparison</a></h3>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn benchmark_comparison() -&gt; std::io::Result&lt;()&gt; {
+    let files: Vec&lt;String&gt; = (0..1000).map(|i| format!("file{i}.txt")).collect();
+    
+    // Slow: ~1000 canonicalization calls
+    for name in &amp;files {
+        let boundary = PathBoundary::try_new("./data")?;
+        let _ = boundary.strict_join(name)?;
+    }
+    
+    // Fast: 1 canonicalization call + 1000 cheap joins
+    let boundary = PathBoundary::try_new("./data")?;
+    for name in &amp;files {
+        let _ = boundary.strict_join(name)?;
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Performance benefit</strong>: Virtual joins use anchored canonicalization to apply virtual semantics safely and consistently without repeated filesystem calls.</p>
+<hr />
+<h2 id="auditability-and-testing"><a class="header" href="#auditability-and-testing">Auditability and Testing</a></h2>
+<p>Centralizing policy in a root value simplifies logging, tracing, and tests.</p>
+<h3 id="testable-helper"><a class="header" href="#testable-helper">Testable Helper</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+// Easy to inject test boundaries
+fn save_user_data(
+    uploads_dir: &amp;PathBoundary,
+    filename: &amp;str,
+    data: &amp;[u8]
+) -&gt; std::io::Result&lt;()&gt; {
+    let file = uploads_dir.strict_join(filename)?;
+    file.create_parent_dir_all()?;
+    file.write(data)
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="testing-with-injected-boundaries"><a class="header" href="#testing-with-injected-boundaries">Testing with Injected Boundaries</a></h3>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_with_temp_boundary() -&gt; std::io::Result&lt;()&gt; {
+        // Create test boundary
+        let temp_dir = std::env::temp_dir().join("test_uploads");
+        std::fs::create_dir_all(&amp;temp_dir)?;
+        let boundary = PathBoundary::try_new(&amp;temp_dir)?;
+        
+        // Test with injected boundary
+        save_user_data(&amp;boundary, "test.txt", b"data")?;
+        
+        // Verify
+        let file = boundary.strict_join("test.txt")?;
+        assert_eq!(file.read()?, b"data");
+        
+        // Cleanup
+        std::fs::remove_dir_all(&amp;temp_dir)?;
+        Ok(())
+    }
+    
+    #[test]
+    fn test_rejects_escapes() {
+        let boundary = PathBoundary::try_new(".").unwrap();
+        
+        // Verify security properties
+        assert!(save_user_data(&amp;boundary, "../../../etc/passwd", b"data").is_err());
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Testing benefits:</strong></p>
+<ul>
+<li>Pass <code>&amp;boundary</code> into helpers for easy mocking</li>
+<li>Test with different boundaries (temp dirs, test fixtures)</li>
+<li>Verify security properties with escape attempt tests</li>
+<li>No need to mock filesystem for unit tests</li>
+</ul>
+<p><strong>Debug verbosity</strong>: <code>VirtualPath::Debug</code> is intentionally verbose (system path + virtual view + restriction root + marker) to aid audits and troubleshooting.</p>
+<hr />
+<h2 id="when-not-to-use-policy-types"><a class="header" href="#when-not-to-use-policy-types">When Not to Use Policy Types</a></h2>
+<p>If your flow is small, local, and won't be reused, the sugar constructors are perfectly fine:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+// ✅ Fine for simple, one-off operations
+fn quick_write() -&gt; std::io::Result&lt;()&gt; {
+    let file = StrictPath::with_boundary_create("./temp")?
+        .strict_join("quick.txt")?;
+    file.write(b"data")
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Rule of thumb</strong>: Start with sugar; upgrade to <code>PathBoundary</code>/<code>VirtualRoot</code> when you need:</p>
+<ul>
+<li>Policy reuse across multiple operations</li>
+<li>Performance optimization (many joins against same root)</li>
+<li>Serde integration with contextual deserialization</li>
+<li>Testability with injectable boundaries</li>
+<li>Shared helpers that accept boundaries</li>
+</ul>
+<hr />
+<h2 id="summary-when-to-use-what"><a class="header" href="#summary-when-to-use-what">Summary: When to Use What</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Scenario</th><th>Use Sugar Constructor</th><th>Use Policy Type</th></tr></thead><tbody>
+<tr><td><strong>One-off file operation</strong></td><td>✅ <code>with_boundary()</code></td><td>Optional</td></tr>
+<tr><td><strong>Multiple joins against root</strong></td><td>⚠️ Suboptimal</td><td>✅ <code>PathBoundary</code></td></tr>
+<tr><td><strong>Reusable helper functions</strong></td><td>❌ Hidden policy choice</td><td>✅ Accept <code>&amp;PathBoundary</code></td></tr>
+<tr><td><strong>Performance-critical loops</strong></td><td>❌ Repeated canonicalization</td><td>✅ Canonicalize once</td></tr>
+<tr><td><strong>Serde deserialization</strong></td><td>❌ No validation context</td><td>✅ Use serde seeds</td></tr>
+<tr><td><strong>Testing with mock boundaries</strong></td><td>❌ Hard to inject</td><td>✅ Pass <code>&amp;PathBoundary</code> param</td></tr>
+<tr><td><strong>Simple scripts/prototypes</strong></td><td>✅ Quick and ergonomic</td><td>Optional</td></tr>
+</tbody></table>
+</div>
+<hr />
+<h2 id="learn-more"><a class="header" href="#learn-more">Learn More</a></h2>
+<ul>
+<li><strong><a href="../best_practices.html">Best Practices Overview →</a></strong> - Core guidelines and decision matrices</li>
+<li><strong><a href="./real_world_patterns.html">Real-World Patterns →</a></strong> - Production examples showing policy reuse</li>
+<li><strong><a href="./common_operations.html">Common Operations →</a></strong> - How to use paths after validation</li>
+<li><strong><a href="./authorization_architecture.html">Authorization Patterns →</a></strong> - Markers for compile-time authorization</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../best_practices/common_operations.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../best_practices/authorization_architecture.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../best_practices/common_operations.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../best_practices/authorization_architecture.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

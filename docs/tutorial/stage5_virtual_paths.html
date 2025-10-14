@@ -181,11 +181,12 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="stage-5-virtual-paths--user-friendly-sandboxes"><a class="header" href="#stage-5-virtual-paths--user-friendly-sandboxes">Stage 5: Virtual Paths — User-Friendly Sandboxes</a></h1>
+                        <h1 id="stage-5-virtual-paths--containment-for-sandboxes"><a class="header" href="#stage-5-virtual-paths--containment-for-sandboxes">Stage 5: Virtual Paths — Containment for Sandboxes</a></h1>
 <blockquote>
-<p><em>"Give users a clean '/' view, hide the messy system paths."</em></p>
+<p><em>"Contain escape attempts for multi-tenant isolation and security research."</em></p>
 </blockquote>
-<p>In Stage 4, you learned how to encode authorization in markers. Now you'll learn how <code>VirtualPath</code> extends <code>StrictPath</code> with <strong>user-friendly virtual roots</strong> — perfect for sandboxing users and showing clean paths.</p>
+<p>In Stage 4, you learned how to encode authorization in markers. Now you'll learn how <code>VirtualPath</code> extends <code>StrictPath</code> with <strong>virtual filesystem semantics</strong> — designed for scenarios where path escapes are <strong>expected but must be controlled</strong>.</p>
+<p><strong>Important</strong>: VirtualPath is opt-in via the <code>virtual-path</code> feature. Use it only when you need <strong>containment</strong> (multi-tenant systems, malware sandboxes) rather than <strong>detection</strong> (archive extraction, file uploads).</p>
 <h2 id="the-problem-with-strictpath-for-user-ux"><a class="header" href="#the-problem-with-strictpath-for-user-ux">The Problem with StrictPath for User UX</a></h2>
 <p><code>StrictPath</code> is perfect for system operations, but it exposes real filesystem paths:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -380,31 +381,72 @@ fn demonstrate_duality() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt
 </span><span class="boring">fn main() {
 </span>VirtualPath&lt;Marker&gt; = StrictPath&lt;Marker&gt; + virtual display semantics
 <span class="boring">}</span></code></pre></pre>
-<h2 id="symlinks-and-virtual-paths"><a class="header" href="#symlinks-and-virtual-paths">Symlinks and Virtual Paths</a></h2>
-<p><strong>Important:</strong> While <code>VirtualPath</code> <strong>clamps</strong> relative path escapes (<code>../../../</code>), it still <strong>validates symlinks</strong>:</p>
+<h2 id="symlinks-and-virtual-paths-the-critical-difference"><a class="header" href="#symlinks-and-virtual-paths-the-critical-difference">Symlinks and Virtual Paths: The Critical Difference</a></h2>
+<p>This is where <code>VirtualPath</code> truly shines as a <strong>virtual filesystem</strong>. It doesn't just clamp relative path escapes — it also <strong>clamps absolute symlink targets</strong>:</p>
+<h3 id="strictpath-validates-symlink-targets"><a class="header" href="#strictpath-validates-symlink-targets">StrictPath: Validates Symlink Targets</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use strict_path::VirtualPath;
+</span>use strict_path::StrictPath;
 
-fn symlink_behavior() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let vroot = VirtualPath::with_root("sandbox")?;
+fn strict_symlink_behavior() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let boundary = StrictPath::with_boundary_create("sandbox")?;
 
-    // Relative escape: CLAMPED (no error)
-    let relative_escape = vroot.virtual_join("../../../../etc/passwd")?;
-    println!("✅ Clamped: {}", relative_escape.virtualpath_display());
-
-    // Symlink escape: ERROR (same as StrictPath)
-    // If "sandbox/evil_link" -&gt; "/etc/passwd" exists:
-    let symlink_escape = vroot.virtual_join("evil_link");
-    match symlink_escape {
-        Ok(_) =&gt; println!("Path is safe"),
-        Err(e) =&gt; println!("❌ Symlink escape rejected: {}", e),
+    // If "sandbox/config_link" symlinks to "/etc/passwd":
+    let symlink_path = boundary.strict_join("config_link");
+    match symlink_path {
+        Ok(_) =&gt; println!("✅ Symlink target is inside boundary"),
+        Err(e) =&gt; println!("❌ Symlink escapes boundary: {}", e),
     }
+    
+    // StrictPath follows the symlink and validates the *target* is inside boundary
+    // If target is outside → Error (PathEscapesBoundary)
 
     Ok(())
 }
 <span class="boring">}</span></code></pre></pre>
-<p><strong>Key point:</strong> <code>VirtualPath</code> is <strong>not</strong> a "just accept anything" mode. It's a "clamp relative paths, but still enforce boundary through symlink resolution" mode.</p>
+<h3 id="virtualpath-clamps-symlink-targets"><a class="header" href="#virtualpath-clamps-symlink-targets">VirtualPath: Clamps Symlink Targets</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualPath;
+
+fn virtual_symlink_behavior() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let vroot = VirtualPath::with_root("sandbox")?;
+
+    // If "sandbox/config_link" symlinks to "/etc/passwd":
+    let symlink_path = vroot.virtual_join("config_link")?;  // No error!
+    
+    println!("Virtual view: {}", symlink_path.virtualpath_display());
+    // Output: /etc/passwd (clamped to virtual root!)
+    
+    println!("System path: {}", symlink_path.as_unvirtual().strictpath_display());
+    // Output: sandbox/etc/passwd (safely inside boundary!)
+
+    // VirtualPath treats absolute symlink targets as *relative to the virtual root*
+    // The symlink target "/etc/passwd" becomes "sandbox/etc/passwd"
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>The Key Insight:</strong></p>
+<p>In a <strong>virtual filesystem</strong> (container, chroot, sandbox), absolute paths are <em>always</em> relative to the virtual root. This applies whether the absolute path comes from:</p>
+<ul>
+<li>User input: <code>vroot.virtual_join("/etc/passwd")</code> → clamped</li>
+<li>Symlink target: <code>config_link -&gt; /etc/passwd</code> → clamped</li>
+</ul>
+<p><strong>Why This Matters:</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Scenario</th><th>StrictPath Behavior</th><th>VirtualPath Behavior</th></tr></thead><tbody>
+<tr><td>User input <code>"../../../etc/passwd"</code></td><td>❌ Error (rejected)</td><td>✅ Clamped to <code>/etc/passwd</code> in vroot</td></tr>
+<tr><td>Symlink <code>link -&gt; /etc/passwd</code></td><td>❌ Error if outside</td><td>✅ Clamped to vroot <code>/etc/passwd</code></td></tr>
+<tr><td>Archive entry <code>"/sensitive/data"</code></td><td>❌ Error (rejected)</td><td>✅ Clamped to vroot <code>/sensitive/data</code></td></tr>
+</tbody></table>
+</div>
+<p><strong>Use Cases:</strong></p>
+<ul>
+<li><strong>Archive extraction:</strong> Malicious archives with absolute symlinks are automatically safe</li>
+<li><strong>Multi-tenant storage:</strong> User A's symlink can't escape to user B's files</li>
+<li><strong>Container-like semantics:</strong> Perfect for sandboxed environments where <code>/</code> means "root of this container"</li>
+</ul>
+<p><strong>Key point:</strong> <code>VirtualPath</code> implements <strong>true virtual filesystem semantics</strong> where absolute paths (from any source) are interpreted relative to the virtual root. This is not a "trust everything" mode — it's a mathematically consistent sandbox model.</p>
 <h2 id="real-world-example-cloud-file-storage"><a class="header" href="#real-world-example-cloud-file-storage">Real-World Example: Cloud File Storage</a></h2>
 <pre><pre class="playground"><code class="language-rust">use strict_path::{VirtualPath, VirtualRoot};
 
@@ -526,13 +568,33 @@ fn process_document(doc: &amp;VirtualPath&lt;UserDocuments&gt;) -&gt; std::io::R
 <li>System operates on real, validated paths</li>
 <li>Security boundary enforced throughout</li>
 </ul>
+<h2 id="when-to-use-virtualpath-vs-strictpath"><a class="header" href="#when-to-use-virtualpath-vs-strictpath">When to Use VirtualPath vs. StrictPath</a></h2>
+<h3 id="use-virtualpath-containment-when"><a class="header" href="#use-virtualpath-containment-when">Use VirtualPath (Containment) When:</a></h3>
+<ul>
+<li>✅ <strong>Multi-tenant systems</strong> — each user needs isolated <code>/</code> view</li>
+<li>✅ <strong>Malware sandboxes</strong> — observe behavior while containing escapes</li>
+<li>✅ <strong>Archive analysis</strong> — safely study suspicious archives in research environments</li>
+<li>✅ <strong>Container-like plugins</strong> — modules get their own filesystem view</li>
+<li>✅ <strong>Security research</strong> — simulate contained environments</li>
+<li>✅ Path escapes are <strong>expected but must be controlled</strong></li>
+</ul>
+<h3 id="use-strictpath-detection-when"><a class="header" href="#use-strictpath-detection-when">Use StrictPath (Detection) When:</a></h3>
+<ul>
+<li>✅ <strong>Production archive extraction</strong> — detect malicious paths, reject compromised archives, alert users</li>
+<li>✅ <strong>File uploads</strong> — reject user paths with traversal attempts</li>
+<li>✅ <strong>Config loading</strong> — fail on untrusted paths that try to escape</li>
+<li>✅ <strong>System resources</strong> — logs, cache, assets with strict boundaries</li>
+<li>✅ Path escapes indicate <strong>malicious intent</strong> that must be detected</li>
+</ul>
+<p><strong>Key Insight for Archives</strong>: Use StrictPath for <strong>production extraction</strong> (detect and reject attacks). Use VirtualPath for <strong>research/sandboxing</strong> (safely analyze suspicious archives while containing their behavior).</p>
 <h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
 <p>✅ <strong><code>VirtualPath</code> = <code>StrictPath</code> + virtual <code>/</code> view</strong><br />
 ✅ <strong>Clamping behavior</strong> — escapes are contained, not rejected<br />
 ✅ <strong>User-friendly display</strong> — show clean paths in UIs<br />
 ✅ <strong>Per-user sandboxes</strong> — each user gets their own virtual root<br />
 ✅ <strong>Markers work</strong> — domain separation applies to virtual paths too<br />
-✅ <strong>Symlinks still validated</strong> — not a "trust everything" mode</p>
+✅ <strong>Symlinks still validated</strong> — not a "trust everything" mode<br />
+✅ <strong>Opt-in feature</strong> — requires <code>virtual-path</code> in <code>Cargo.toml</code></p>
 <h2 id="the-complete-guarantee"><a class="header" href="#the-complete-guarantee">The Complete Guarantee</a></h2>
 <blockquote>
 <p><strong>If you have a <code>VirtualPath&lt;Marker&gt;</code>, the compiler guarantees:</strong></p>

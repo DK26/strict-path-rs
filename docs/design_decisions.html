@@ -257,6 +257,136 @@ let content = path.read_to_string()?;                        // Built-in secure 
 <li><strong>Human-friendly</strong> - Developers understand the security implications at a glance</li>
 </ul>
 <p>Remember: <strong>Security-critical crates should prioritize correctness over ergonomics</strong>. A slightly more verbose API that prevents vulnerabilities is infinitely better than an elegant API that's easy to misuse.</p>
+<hr />
+<h2 id="comparison-with-alternatives"><a class="header" href="#comparison-with-alternatives">Comparison with Alternatives</a></h2>
+<p>Understanding how <code>strict-path</code> compares to other path-handling solutions helps you choose the right tool for your needs.</p>
+<h3 id="strict-path-vs-soft-canonicalize"><a class="header" href="#strict-path-vs-soft-canonicalize">strict-path vs soft-canonicalize</a></h3>
+<p><code>soft-canonicalize</code> is the foundation that <code>strict-path</code> builds upon. Think of it as the difference between a low-level graphics library and a game engine.</p>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th><code>strict-path</code></th><th><code>soft-canonicalize</code></th></tr></thead><tbody>
+<tr><td><strong>Level</strong></td><td>High-level security API</td><td>Low-level path resolution</td></tr>
+<tr><td><strong>Purpose</strong></td><td>Enforce boundaries + authorization</td><td>Normalize &amp; canonicalize paths</td></tr>
+<tr><td><strong>Returns</strong></td><td><code>StrictPath&lt;Marker&gt;</code> / <code>VirtualPath&lt;Marker&gt;</code> with compile-time guarantees</td><td><code>PathBuf</code></td></tr>
+<tr><td><strong>I/O operations</strong></td><td>Complete filesystem API (read, write, rename, copy, etc.)</td><td>Not included (just path resolution)</td></tr>
+<tr><td><strong>Boundary enforcement</strong></td><td>Built-in: <code>strict_join()</code> / <code>virtual_join()</code> validate against boundaries</td><td>Manual: you implement checks yourself</td></tr>
+<tr><td><strong>Authorization</strong></td><td>Compile-time marker proofs (type system verifies auth)</td><td>Not applicable</td></tr>
+<tr><td><strong>Use case</strong></td><td>Application-level security (validate external paths, enforce policies)</td><td>Building custom path security logic</td></tr>
+<tr><td><strong>Complexity</strong></td><td>High-level, opinionated (fewer decisions to make)</td><td>Low-level, flexible (more control, more responsibility)</td></tr>
+</tbody></table>
+</div>
+<p><strong>When to use <code>strict-path</code>:</strong></p>
+<ul>
+<li>✅ You need comprehensive path security out of the box</li>
+<li>✅ You want compile-time guarantees about path boundaries</li>
+<li>✅ You're validating paths from external sources (HTTP, CLI, LLM, config)</li>
+<li>✅ You want authorization encoded in types</li>
+<li>✅ You prefer opinionated security over custom logic</li>
+</ul>
+<p><strong>When to use <code>soft-canonicalize</code>:</strong></p>
+<ul>
+<li>✅ You're building custom path security abstractions</li>
+<li>✅ You need just canonicalization without boundary enforcement</li>
+<li>✅ You want maximum flexibility to design your own security model</li>
+<li>✅ You're implementing path comparison/deduplication logic</li>
+<li>✅ You need canonicalization for non-existing paths</li>
+</ul>
+<p><strong>Example: The Relationship</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// soft-canonicalize: low-level resolution
+use soft_canonicalize::soft_canonicalize;
+let resolved = soft_canonicalize("config/../data/file.txt")?;
+// You get: PathBuf - now manually check if it's within bounds
+
+// strict-path: high-level security (uses soft-canonicalize internally)
+use strict_path::StrictPath;
+let safe_path = StrictPath::with_boundary("data")?
+    .strict_join("../file.txt")?;  // Returns Err if outside "data"
+safe_path.read_to_string()?;       // Built-in secure I/O
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h3 id="strict-path-vs-path_absolutize"><a class="header" href="#strict-path-vs-path_absolutize">strict-path vs path_absolutize</a></h3>
+<p><code>path_absolutize</code> offers different security philosophies. Understanding these differences is critical for choosing the right approach.</p>
+<div class="table-wrapper"><table><thead><tr><th>Feature</th><th><code>strict-path</code></th><th><code>path_absolutize::absolutize_virtually</code></th></tr></thead><tbody>
+<tr><td><strong>Escape handling</strong></td><td><strong>StrictPath:</strong> Returns <code>Err(PathEscapesBoundary)</code><br><strong>VirtualPath:</strong> Silently clamps to boundary</td><td>Returns <code>Err</code> on escape attempts (rejection model only)</td></tr>
+<tr><td><strong>Symlink resolution</strong></td><td><strong>Full filesystem-based</strong> - Follows symlinks, resolves targets</td><td><strong>Lexical only</strong> - Does NOT follow symlinks (faster but less accurate)</td></tr>
+<tr><td><strong>Security model</strong></td><td><strong>Two modes:</strong><br>1. Detect escapes (StrictPath)<br>2. Contain escapes (VirtualPath)</td><td><strong>One mode:</strong> Reject invalid paths</td></tr>
+<tr><td><strong>Canonicalization</strong></td><td>Full canonicalization (resolves <code>.</code>, <code>..</code>, symlinks, Windows short names)</td><td>Lexical normalization (string manipulation, no filesystem I/O)</td></tr>
+<tr><td><strong>Authorization</strong></td><td>Compile-time marker proofs</td><td>Not applicable</td></tr>
+<tr><td><strong>I/O operations</strong></td><td>Complete built-in API</td><td>Not included</td></tr>
+<tr><td><strong>Use when</strong></td><td>Security boundaries where symlinks exist or accuracy is critical</td><td>Performance-critical paths where symlinks are guaranteed not to exist</td></tr>
+</tbody></table>
+</div>
+<p><strong>Critical Distinction: Symlink Behavior</strong></p>
+<p>The symlink handling difference is <strong>security-critical</strong>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Setup: Create symlink that escapes boundary
+// /safe/link -&gt; /etc/passwd
+
+// path_absolutize (lexical only - DANGEROUS if symlinks exist):
+use path_absolutize::Absolutize;
+let abs = Path::new("/safe/link").absolutize_virtually("/safe")?;
+// Result: /safe/link (string looks safe, but symlink escapes!)
+// Reading this symlink gives you /etc/passwd content!
+
+// strict-path StrictPath (filesystem-based - SAFE):
+use strict_path::PathBoundary;
+let boundary = PathBoundary::try_new("/safe")?;
+let validated = boundary.strict_join("link")?;  // Follows symlink, sees target is /etc/passwd
+// Result: Err(PathEscapesBoundary) - attack detected!
+
+// strict-path VirtualPath (filesystem-based with clamping):
+use strict_path::VirtualRoot;
+let vroot = VirtualRoot::try_new("/safe")?;
+let contained = vroot.virtual_join("link")?;  // Follows symlink, clamps target to /safe/etc/passwd
+// Result: Ok - target rewritten to stay within boundary, user sees "/etc/passwd" in virtual space
+<span class="boring">}</span></code></pre></pre>
+<p><strong>When lexical (path_absolutize) is safe:</strong></p>
+<ul>
+<li>✅ You can <strong>guarantee</strong> no symlinks exist in your paths</li>
+<li>✅ Performance is critical and you've validated the environment</li>
+<li>✅ You control all path creation (e.g., build artifacts, codegen)</li>
+</ul>
+<p><strong>When filesystem-based (strict-path) is required:</strong></p>
+<ul>
+<li>✅ Any possibility of symlinks existing</li>
+<li>✅ Handling user-provided paths (HTTP, CLI, config, archives)</li>
+<li>✅ Security is more important than performance</li>
+<li>✅ You need to detect attacks (escapes are malicious)</li>
+<li>✅ You need to contain escapes (multi-tenant isolation)</li>
+</ul>
+<p><strong>Performance vs Security Trade-off:</strong></p>
+<ul>
+<li><strong>Lexical resolution (path_absolutize):</strong> ~10-100x faster (no filesystem I/O), but vulnerable to symlink attacks</li>
+<li><strong>Filesystem-based (strict-path):</strong> Slower (requires stat calls), but mathematically secure against symlink escapes</li>
+</ul>
+<p><strong>Which One Should You Use?</strong></p>
+<p>Ask yourself: <strong>"Can I guarantee no symlinks will ever exist in these paths?"</strong></p>
+<ul>
+<li><strong>No / Not sure</strong> → Use <code>strict-path</code> (security over performance)</li>
+<li><strong>Yes, absolutely certain</strong> → Consider <code>path_absolutize</code> (performance)</li>
+<li><strong>Need to detect attacks</strong> → Use <code>strict-path</code> with <code>StrictPath</code></li>
+<li><strong>Need to contain escapes</strong> → Use <code>strict-path</code> with <code>VirtualPath</code> (unique to this crate)</li>
+</ul>
+<hr />
+<h3 id="decision-matrix-choosing-the-right-tool"><a class="header" href="#decision-matrix-choosing-the-right-tool">Decision Matrix: Choosing the Right Tool</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Scenario</th><th>Choose</th><th>Rationale</th></tr></thead><tbody>
+<tr><td>Web server serving user-requested files</td><td><code>strict-path</code> (StrictPath)</td><td>Symlinks may exist, escapes are attacks</td></tr>
+<tr><td>LLM agent file operations</td><td><code>strict-path</code> (StrictPath)</td><td>AI-generated paths are untrusted, need boundary enforcement</td></tr>
+<tr><td>Archive extraction (Zip, TAR)</td><td><code>strict-path</code> (StrictPath)</td><td>Archives may contain malicious symlinks (Zip Slip attacks)</td></tr>
+<tr><td>Multi-tenant cloud storage</td><td><code>strict-path</code> (VirtualPath)</td><td>Each user needs isolated virtual filesystem</td></tr>
+<tr><td>Build system artifacts</td><td><code>path_absolutize</code> OR <code>soft-canonicalize</code></td><td>You control creation, no symlinks, performance matters</td></tr>
+<tr><td>Custom security abstractions</td><td><code>soft-canonicalize</code></td><td>Build your own policy on stable foundation</td></tr>
+<tr><td>Path comparison/deduplication</td><td><code>soft-canonicalize</code></td><td>Just need canonicalization, no boundary enforcement</td></tr>
+</tbody></table>
+</div>
+<p><strong>Bottom Line:</strong></p>
+<ul>
+<li><strong>Need high-level security?</strong> → <code>strict-path</code></li>
+<li><strong>Need low-level building blocks?</strong> → <code>soft-canonicalize</code></li>
+<li><strong>Need fast lexical paths in controlled environments?</strong> → <code>path_absolutize</code> (but be careful!)</li>
+<li><strong>Not sure?</strong> → Start with <code>strict-path</code> and optimize later if needed</li>
+</ul>
 
                     </main>
 

@@ -182,7 +182,7 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="archive-extraction-with-safety"><a class="header" href="#archive-extraction-with-safety">Archive Extraction with Safety</a></h1>
-<p>Extract ZIP files and other archives safely without zip-slip vulnerabilities. This example shows how path validation automatically prevents malicious archive entries.</p>
+<p>Extract ZIP files and other archives safely without zip-slip vulnerabilities. This example shows how <code>PathBoundary</code> detects and rejects malicious archive entries.</p>
 <h2 id="the-problem"><a class="header" href="#the-problem">The Problem</a></h2>
 <p>Archive extractors are vulnerable to <strong>zip-slip attacks</strong> where malicious archives contain entries like:</p>
 <ul>
@@ -190,13 +190,32 @@
 <li>❌ <code>..\\..\\windows\\system32\\evil.exe</code> - Escapes on Windows</li>
 <li>❌ Symlinks pointing outside the extraction directory</li>
 </ul>
-<h2 id="the-solution"><a class="header" href="#the-solution">The Solution</a></h2>
-<p>Use <code>PathBoundary</code> or <code>VirtualRoot</code> to restrict extraction to a specific directory. Malicious paths are automatically blocked.</p>
-<h3 id="choosing-between-pathboundary-and-virtualroot"><a class="header" href="#choosing-between-pathboundary-and-virtualroot">Choosing Between PathBoundary and VirtualRoot</a></h3>
+<h2 id="the-solution-choose-based-on-your-use-case"><a class="header" href="#the-solution-choose-based-on-your-use-case">The Solution: Choose Based on Your Use Case</a></h2>
+<h3 id="production-archive-extraction-use-pathboundary-to-detect-attacks"><a class="header" href="#production-archive-extraction-use-pathboundary-to-detect-attacks">Production Archive Extraction: Use PathBoundary to Detect Attacks</a></h3>
+<p><strong>Use <code>PathBoundary</code> for production archive extraction.</strong> This detects malicious paths and allows you to:</p>
 <ul>
-<li><strong>Use <code>VirtualRoot</code></strong> for extraction pipelines - it clamps any input to the boundary, making batch extraction resilient</li>
-<li><strong>Use <code>PathBoundary</code></strong> when you need strict validation and want errors on malicious paths</li>
+<li>Log the attack attempt</li>
+<li>Reject the entire archive as compromised</li>
+<li>Alert administrators</li>
+<li>Take appropriate security action</li>
 </ul>
+<p>When extracting archives in production:</p>
+<ul>
+<li>Escape attempts indicate a <strong>malicious archive</strong></li>
+<li>You want to <strong>detect and reject</strong> the archive, not silently hide the attack</li>
+<li>The archive should be quarantined or deleted</li>
+<li>Users/admins should be alerted to the attempted attack</li>
+</ul>
+<p><code>PathBoundary</code> returns <code>Err(PathEscapesBoundary)</code> so you can handle the security event appropriately.</p>
+<h3 id="researchsandbox-use-virtualroot-to-safely-analyze"><a class="header" href="#researchsandbox-use-virtualroot-to-safely-analyze">Research/Sandbox: Use VirtualRoot to Safely Analyze</a></h3>
+<p><strong>Use <code>VirtualRoot</code> when analyzing suspicious archives in a controlled environment:</strong></p>
+<ul>
+<li>Malware analysis and security research</li>
+<li>Safely studying attack techniques</li>
+<li>Observing malicious behavior while containing it</li>
+<li>Testing archive parsing without risk</li>
+</ul>
+<p>In research scenarios, you <strong>want</strong> to see what the malicious archive tries to do, but safely contained within a virtual boundary.</p>
 <h2 id="recommended-patterns"><a class="header" href="#recommended-patterns">Recommended Patterns</a></h2>
 <ul>
 <li>✅ Use <code>create_parent_dir_all()</code> before writes to avoid race conditions</li>
@@ -286,41 +305,33 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     
     Ok(())
 }</code></pre></pre>
-<h2 id="alternative-virtualroot-for-resilient-extraction"><a class="header" href="#alternative-virtualroot-for-resilient-extraction">Alternative: VirtualRoot for Resilient Extraction</a></h2>
-<p>For extraction pipelines where you want to log and skip malicious entries rather than fail:</p>
+<h2 id="handling-malicious-archives"><a class="header" href="#handling-malicious-archives">Handling Malicious Archives</a></h2>
+<p>When a malicious path is detected, you should:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use strict_path::VirtualRoot;
-
-fn extract_all_resilient(
-    dest: &amp;str,
-    entries: Vec&lt;(&amp;str, &amp;[u8])&gt;,
-) -&gt; Result&lt;usize, Box&lt;dyn std::error::Error&gt;&gt; {
-    let vroot: VirtualRoot = VirtualRoot::try_new_create(dest)?;
-    let mut extracted_count = 0;
-
-    for (name, data) in entries {
-        // VirtualRoot clamps malicious paths instead of erroring
-        match vroot.virtual_join(name) {
-            Ok(vpath) =&gt; {
-                // Ensure parent directories exist (inside the boundary)
-                vpath.create_parent_dir_all()?;
-                
-                // Perform the write safely
-                vpath.write(data)?;
-                
-                println!("📦 Extracted: {} -&gt; {}", name, vpath.virtualpath_display());
-                extracted_count += 1;
-            }
-            Err(e) =&gt; {
-                // Cleanly reject this entry, log if needed
-                println!("⚠️  Skipped malicious entry '{}': {}", name, e);
-                continue;
-            }
+</span>fn extract_entry_with_security(
+    extraction_dir: &amp;PathBoundary,
+    entry_path: &amp;str,
+    content: &amp;[u8],
+) -&gt; Result&lt;StrictPath, Box&lt;dyn std::error::Error&gt;&gt; {
+    match extraction_dir.strict_join(entry_path) {
+        Ok(safe_path) =&gt; {
+            // Valid path - extract normally
+            safe_path.create_parent_dir_all()?;
+            safe_path.write(content)?;
+            Ok(safe_path)
+        }
+        Err(e) =&gt; {
+            // Malicious path detected!
+            eprintln!("🚨 SECURITY ALERT: Malicious archive entry detected!");
+            eprintln!("   Entry path: {}", entry_path);
+            eprintln!("   Error: {}", e);
+            eprintln!("   Action: Rejecting entire archive as compromised");
+            
+            // Return error to stop extraction
+            Err(format!("Archive contains malicious path: {}", entry_path).into())
         }
     }
-    
-    Ok(extracted_count)
 }
 
 // Usage
@@ -365,14 +376,15 @@ println!("✅ Successfully extracted {} files", count);
 <span class="boring">}</span></code></pre></pre>
 <p>Returning <code>StrictPath</code> ensures extracted paths are always validated.</p>
 <h2 id="attack-scenarios-prevented"><a class="header" href="#attack-scenarios-prevented">Attack Scenarios Prevented</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Malicious Entry</th><th>Result</th></tr></thead><tbody>
-<tr><td><code>../../../etc/passwd</code></td><td>❌ Error: path escapes boundary</td></tr>
-<tr><td><code>..\\windows\\system32\\evil.exe</code></td><td>❌ Error: path escapes boundary</td></tr>
-<tr><td><code>/var/www/html/shell.php</code></td><td>❌ Treated as relative, may still escape</td></tr>
-<tr><td><code>legitimate/../../etc/passwd</code></td><td>❌ Normalized and blocked</td></tr>
-<tr><td>Symlink to <code>/etc/passwd</code></td><td>❌ Resolved and validated</td></tr>
+<div class="table-wrapper"><table><thead><tr><th>Malicious Entry</th><th>StrictPath Result</th><th>VirtualPath Result</th></tr></thead><tbody>
+<tr><td><code>../../../etc/passwd</code></td><td>❌ Error: path escapes boundary</td><td>✅ Clamped to vroot <code>/etc/passwd</code></td></tr>
+<tr><td><code>..\\windows\\system32\\evil.exe</code></td><td>❌ Error: path escapes boundary</td><td>✅ Clamped to vroot <code>/windows/system32/evil.exe</code></td></tr>
+<tr><td><code>/var/www/html/shell.php</code></td><td>❌ Error: absolute path rejected</td><td>✅ Clamped to vroot <code>/var/www/html/shell.php</code></td></tr>
+<tr><td><code>legitimate/../../etc/passwd</code></td><td>❌ Normalized and blocked</td><td>✅ Normalized and clamped</td></tr>
+<tr><td>Symlink to <code>/etc/passwd</code></td><td>❌ Target validated, error if outside</td><td>✅ Target clamped to vroot <code>/etc/passwd</code></td></tr>
 </tbody></table>
 </div>
+<p><strong>Note:</strong> For archive extraction, consider using <code>VirtualPath</code> instead of <code>StrictPath</code> to gracefully clamp malicious entries rather than rejecting them. This provides defense-in-depth: even hostile archives with absolute paths or symlinks are safely contained within the extraction directory.</p>
 <h2 id="real-zip-integration"><a class="header" href="#real-zip-integration">Real ZIP Integration</a></h2>
 <p>With the <code>zip</code> crate:</p>
 <pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, StrictPath};
@@ -575,6 +587,53 @@ fn test_archive_extraction_safety() {
 <li><strong>Unicode is not normalized</strong> - NFC and NFD forms are stored as-is, both safely contained</li>
 <li><strong>Hard links and privileged mount tricks</strong> are outside path-level protections (see README limitations)</li>
 </ul>
+<h2 id="using-virtualpath-for-extra-safety"><a class="header" href="#using-virtualpath-for-extra-safety">Using VirtualPath for Extra Safety</a></h2>
+<p>For even safer archive extraction, consider using <code>VirtualPath</code> instead of <code>StrictPath</code>. This clamps malicious entries instead of rejecting them:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{VirtualRoot, VirtualPath};
+
+struct VirtualArchiveExtractor {
+    extraction_vroot: VirtualRoot,
+}
+
+impl VirtualArchiveExtractor {
+    fn new(extract_to: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        let extraction_vroot = VirtualRoot::try_new_create(extract_to)?;
+        Ok(Self { extraction_vroot })
+    }
+    
+    fn extract_entry(&amp;self, entry_path: &amp;str, content: &amp;[u8]) 
+        -&gt; Result&lt;VirtualPath, Box&lt;dyn std::error::Error&gt;&gt; 
+    {
+        // Malicious paths are CLAMPED instead of rejected
+        // "../../../etc/passwd" becomes safe "vroot/etc/passwd"
+        // Absolute symlink targets are also clamped to vroot
+        let safe_path = self.extraction_vroot.virtual_join(entry_path)?;
+
+        safe_path.create_parent_dir_all()?;
+        safe_path.write(content)?;
+
+        println!("📦 Extracted: {} -&gt; {}", 
+                 entry_path, 
+                 safe_path.virtualpath_display());
+        Ok(safe_path)
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why VirtualPath for archives?</strong></p>
+<ul>
+<li>✅ Hostile entries with <code>../../../</code> are clamped, not rejected</li>
+<li>✅ Absolute symlink targets (e.g., <code>link -&gt; /etc/passwd</code>) are clamped to vroot</li>
+<li>✅ Archive extraction continues even with malicious entries</li>
+<li>✅ Defense-in-depth: every entry is safely contained</li>
+<li>✅ Perfect for untrusted archives from the internet</li>
+</ul>
+<p><strong>When to use each:</strong></p>
+<ul>
+<li><strong><code>StrictPath</code>:</strong> Fail-fast validation — reject malicious archives immediately</li>
+<li><strong><code>VirtualPath</code>:</strong> Graceful containment — clamp every entry to stay safe, continue extraction</li>
+</ul>
 <h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
 <ol>
 <li><strong>Always validate</strong> - Never trust archive entry paths</li>
@@ -582,6 +641,7 @@ fn test_archive_extraction_safety() {
 <li><strong>Limit extraction size</strong> - Check total extracted size to prevent zip bombs</li>
 <li><strong>Filter file types</strong> - Only extract expected file types</li>
 <li><strong>Use temporary storage</strong> - Extract to temp directory first, then move to final location</li>
+<li><strong>Consider VirtualPath</strong> - Use for untrusted archives to clamp rather than reject malicious entries</li>
 </ol>
 <h2 id="integration-tips"><a class="header" href="#integration-tips">Integration Tips</a></h2>
 <h3 id="with-web-uploads"><a class="header" href="#with-web-uploads">With Web Uploads</a></h3>

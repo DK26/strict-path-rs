@@ -1,0 +1,836 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Common Operations - The Complete StrictPath Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Comprehensive guide to strict-path: Type-safe path boundaries preventing directory traversal attacks">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/best_practices/common_operations.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="common-operations-guide"><a class="header" href="#common-operations-guide">Common Operations Guide</a></h1>
+<blockquote>
+<p><em>Complete reference for all path operations with strict-path.</em></p>
+</blockquote>
+<p>This chapter provides comprehensive examples for every operation you'll need when working with validated paths. Always use dimension-specific methods—never use <code>std::path</code> methods on leaked paths.</p>
+<hr />
+<h2 id="joins"><a class="header" href="#joins">Joins</a></h2>
+<p><strong>Purpose</strong>: Combine a boundary/root with an untrusted segment to create a validated path.</p>
+<h3 id="basic-joins"><a class="header" href="#basic-joins">Basic Joins</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+fn join_examples(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    // Single join
+    let file = boundary.strict_join("docs/readme.md")?;
+    
+    // Join with slash or backslash - both work
+    let file2 = boundary.strict_join("docs\\readme.md")?;
+    
+    // Multi-segment path
+    let deep = boundary.strict_join("a/b/c/d/file.txt")?;
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="chained-joins"><a class="header" href="#chained-joins">Chained Joins</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+fn chained_joins(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    // Navigate through directories
+    let level1 = boundary.strict_join("level1")?;
+    let level2 = level1.strict_join("level2")?;
+    let file = level2.strict_join("file.txt")?;
+    
+    // Or go up and down
+    let sibling = level2
+        .strictpath_parent().unwrap()
+        .strict_join("sibling/file.txt")?;
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="joining-discovered-names"><a class="header" href="#joining-discovered-names">Joining Discovered Names</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+fn discover_and_join(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;Vec&lt;StrictPath&gt;&gt; {
+    let mut files = Vec::new();
+    
+    // Walk directory
+    for entry in boundary.read_dir()? {
+        let entry = entry?;
+        let name = entry.file_name();
+        
+        // IMPORTANT: Re-validate each discovered name
+        let validated = boundary.strict_join(&amp;name.to_string_lossy())?;
+        files.push(validated);
+    }
+    
+    Ok(files)
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Key rules:</strong></p>
+<ul>
+<li>Always validate untrusted segments with <code>strict_join()</code> or <code>virtual_join()</code></li>
+<li>Re-validate discovered directory names before using them</li>
+<li>Never use <code>std::path::Path::join()</code> on untrusted input</li>
+</ul>
+<hr />
+<h2 id="parents-and-ancestors"><a class="header" href="#parents-and-ancestors">Parents and Ancestors</a></h2>
+<p><strong>Purpose</strong>: Navigate up the directory tree safely.</p>
+<h3 id="getting-parent-directory"><a class="header" href="#getting-parent-directory">Getting Parent Directory</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+fn parent_examples(file: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; {
+    // Get parent directory
+    if let Some(parent) = file.strictpath_parent() {
+        println!("Parent: {}", parent.strictpath_display());
+        
+        // Create parent if needed
+        parent.create_dir_all()?;
+    } else {
+        println!("At boundary root");
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="walking-up-to-root"><a class="header" href="#walking-up-to-root">Walking Up to Root</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+fn walk_to_root(file: &amp;StrictPath) {
+    let mut current = Some(file.clone());
+    let mut level = 0;
+    
+    while let Some(path) = current {
+        println!("Level {}: {}", level, path.strictpath_display());
+        current = path.strictpath_parent();
+        level += 1;
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="finding-ancestor-with-specific-name"><a class="header" href="#finding-ancestor-with-specific-name">Finding Ancestor with Specific Name</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+fn find_ancestor(file: &amp;StrictPath, target_name: &amp;str) -&gt; Option&lt;StrictPath&gt; {
+    let mut current = Some(file.clone());
+    
+    while let Some(path) = current {
+        if path.strictpath_display().to_string().ends_with(target_name) {
+            return Some(path);
+        }
+        current = path.strictpath_parent();
+    }
+    
+    None
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Key insight</strong>: <code>strictpath_parent()</code> returns <code>None</code> at the boundary root—you can't escape upward.</p>
+<hr />
+<h2 id="file-name-and-extension-operations"><a class="header" href="#file-name-and-extension-operations">File Name and Extension Operations</a></h2>
+<p><strong>Purpose</strong>: Modify path components while staying within the boundary.</p>
+<h3 id="changing-file-names"><a class="header" href="#changing-file-names">Changing File Names</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+fn filename_operations(file: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; {
+    // Change filename (keeps directory and extension)
+    let renamed = file.strictpath_with_file_name("newname.txt")?;
+    
+    // Change just the stem (keeps extension)
+    let new_stem = file.strictpath_with_file_name("report")?
+        .strictpath_with_extension(
+            file.strictpath_extension().unwrap_or("txt")
+        )?;
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="changing-extensions"><a class="header" href="#changing-extensions">Changing Extensions</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+fn extension_operations(file: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; {
+    // Change extension
+    let markdown = file.strictpath_with_extension("md")?;
+    let json = file.strictpath_with_extension("json")?;
+    
+    // Remove extension
+    let no_ext = file.strictpath_with_extension("")?;
+    
+    // Add extension if missing
+    let with_ext = if file.strictpath_extension().is_none() {
+        file.strictpath_with_extension("txt")?
+    } else {
+        file.clone()
+    };
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="combining-operations"><a class="header" href="#combining-operations">Combining Operations</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+fn combined_operations(file: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; {
+    // Change both filename and extension
+    let transformed = file
+        .strictpath_with_file_name("report")?
+        .strictpath_with_extension("pdf")?;
+    
+    // Add timestamp to filename
+    let timestamp = "2025-10-14";
+    let current_name = file.strictpath_file_stem().unwrap_or("file");
+    let timestamped = file.strictpath_with_file_name(
+        format!("{}_{}", current_name, timestamp)
+    )?.strictpath_with_extension(
+        file.strictpath_extension().unwrap_or("txt")
+    )?;
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="rename-and-move-operations"><a class="header" href="#rename-and-move-operations">Rename and Move Operations</a></h2>
+<p><strong>Purpose</strong>: Move files/directories while staying within the boundary.</p>
+<h3 id="simple-rename-same-directory"><a class="header" href="#simple-rename-same-directory">Simple Rename (Same Directory)</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+fn simple_rename(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    let current = boundary.strict_join("logs/app.log")?;
+    current.write(b"log data")?;
+    
+    // Rename returns the new path
+    let renamed = current.strict_rename("logs/app.old")?;
+    
+    assert!(renamed.exists());
+    assert!(!current.exists()); // Original path no longer exists
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="move-to-different-directory"><a class="header" href="#move-to-different-directory">Move to Different Directory</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+fn move_file(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    let source = boundary.strict_join("temp/file.txt")?;
+    source.write(b"data")?;
+    
+    // Create destination directory first
+    let dest_dir = boundary.strict_join("archive")?;
+    dest_dir.create_dir_all()?;
+    
+    // Move to new directory
+    let moved = source.strict_rename("archive/file.txt")?;
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="rename-with-parent-directory-creation"><a class="header" href="#rename-with-parent-directory-creation">Rename with Parent Directory Creation</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn rename_with_mkdir(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    let file = boundary.strict_join("data.txt")?;
+    file.write(b"content")?;
+    
+    // Rename to path in subdirectory (create if needed)
+    let new_path = boundary.strict_join("backups/2025/data.txt")?;
+    if let Some(parent) = new_path.strictpath_parent() {
+        parent.create_dir_all()?;
+    }
+    
+    let renamed = file.strict_rename("backups/2025/data.txt")?;
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="virtual-rename-clean-paths"><a class="header" href="#virtual-rename-clean-paths">Virtual Rename (Clean Paths)</a></h3>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(feature = "virtual-path")]
+use strict_path::VirtualRoot;
+
+#[cfg(feature = "virtual-path")]
+fn virtual_rename_example(vroot: &amp;VirtualRoot) -&gt; std::io::Result&lt;()&gt; {
+    let file = vroot.virtual_join("uploads/photo.jpg")?;
+    file.write(b"image data")?;
+    
+    // Virtual rename - user sees clean paths
+    let renamed = file.virtual_rename("uploads/photo_2025.jpg")?;
+    
+    println!("User sees: {}", renamed.virtualpath_display());
+    // Output: "/uploads/photo_2025.jpg"
+    
+    println!("System path: {}", renamed.as_unvirtual().strictpath_display());
+    // Output: actual filesystem path
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="deletion-operations"><a class="header" href="#deletion-operations">Deletion Operations</a></h2>
+<p><strong>Purpose</strong>: Remove files and directories safely.</p>
+<h3 id="delete-single-file"><a class="header" href="#delete-single-file">Delete Single File</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn delete_file(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    let file = boundary.strict_join("temp/cache.tmp")?;
+    
+    // Check existence before deleting
+    if file.exists() {
+        file.remove_file()?;
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="delete-empty-directory"><a class="header" href="#delete-empty-directory">Delete Empty Directory</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn delete_empty_dir(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    let dir = boundary.strict_join("temp/empty")?;
+    
+    // Only works if directory is empty
+    if dir.exists() &amp;&amp; dir.metadata()?.is_dir() {
+        dir.remove_dir()?;
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="recursive-directory-deletion"><a class="header" href="#recursive-directory-deletion">Recursive Directory Deletion</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn delete_directory_tree(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    let dir = boundary.strict_join("temp/data")?;
+    
+    // Removes directory and ALL contents recursively
+    if dir.exists() {
+        dir.remove_dir_all()?;
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="safe-cleanup-with-validation"><a class="header" href="#safe-cleanup-with-validation">Safe Cleanup with Validation</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn safe_cleanup(boundary: &amp;PathBoundary, path: &amp;str) -&gt; std::io::Result&lt;()&gt; {
+    // Validate path first
+    match boundary.strict_join(path) {
+        Ok(safe_path) =&gt; {
+            if safe_path.exists() {
+                if safe_path.metadata()?.is_dir() {
+                    safe_path.remove_dir_all()?;
+                } else {
+                    safe_path.remove_file()?;
+                }
+                println!("Deleted: {}", safe_path.strictpath_display());
+            }
+            Ok(())
+        },
+        Err(e) =&gt; {
+            eprintln!("🚨 Invalid path, refusing to delete: {e}");
+            Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, e))
+        }
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Safety note</strong>: Always validate paths before deletion. Never delete based on untrusted input without validation.</p>
+<hr />
+<h2 id="metadata-inspection"><a class="header" href="#metadata-inspection">Metadata Inspection</a></h2>
+<p><strong>Purpose</strong>: Query file/directory properties without reading contents.</p>
+<h3 id="basic-metadata"><a class="header" href="#basic-metadata">Basic Metadata</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+use std::time::SystemTime;
+
+fn inspect_metadata(file: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; {
+    let meta = file.metadata()?;
+    
+    // File type checks
+    println!("Is file: {}", meta.is_file());
+    println!("Is directory: {}", meta.is_dir());
+    println!("Is symlink: {}", meta.file_type().is_symlink());
+    
+    // Size and permissions
+    println!("Size: {} bytes", meta.len());
+    println!("Read-only: {}", meta.permissions().readonly());
+    
+    // Timestamps
+    if let Ok(modified) = meta.modified() {
+        let duration = SystemTime::now().duration_since(modified).unwrap();
+        println!("Modified {} seconds ago", duration.as_secs());
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="conditional-operations-based-on-metadata"><a class="header" href="#conditional-operations-based-on-metadata">Conditional Operations Based on Metadata</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+fn cleanup_empty_files(file: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; {
+    let meta = file.metadata()?;
+    
+    if meta.is_file() &amp;&amp; meta.len() == 0 {
+        println!("Empty file, removing: {}", file.strictpath_display());
+        file.remove_file()?;
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="finding-files-by-criteria"><a class="header" href="#finding-files-by-criteria">Finding Files by Criteria</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+fn find_large_files(boundary: &amp;PathBoundary, min_size: u64) -&gt; std::io::Result&lt;Vec&lt;StrictPath&gt;&gt; {
+    let mut large_files = Vec::new();
+    
+    for entry in boundary.read_dir()? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let path = boundary.strict_join(&amp;name.to_string_lossy())?;
+        
+        if let Ok(meta) = path.metadata() {
+            if meta.is_file() &amp;&amp; meta.len() &gt; min_size {
+                large_files.push(path);
+            }
+        }
+    }
+    
+    Ok(large_files)
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="copy-operations"><a class="header" href="#copy-operations">Copy Operations</a></h2>
+<p><strong>Purpose</strong>: Duplicate files while preserving validation.</p>
+<h3 id="simple-copy"><a class="header" href="#simple-copy">Simple Copy</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn simple_copy(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    let source = boundary.strict_join("docs/original.txt")?;
+    let dest = boundary.strict_join("docs/copy.txt")?;
+    
+    // Returns number of bytes copied
+    let bytes_copied = source.copy(&amp;dest)?;
+    println!("Copied {bytes_copied} bytes");
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="copy-with-overwrite-protection"><a class="header" href="#copy-with-overwrite-protection">Copy with Overwrite Protection</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn copy_if_not_exists(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    let source = boundary.strict_join("docs/original.txt")?;
+    let dest = boundary.strict_join("docs/backup.txt")?;
+    
+    if !dest.exists() {
+        source.copy(&amp;dest)?;
+        println!("Copied to {}", dest.strictpath_display());
+    } else {
+        println!("Destination already exists, skipping");
+    }
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="copy-to-different-directory"><a class="header" href="#copy-to-different-directory">Copy to Different Directory</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn copy_to_archive(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
+    let source = boundary.strict_join("docs/report.pdf")?;
+    
+    // Create backup directory
+    let backup_dir = boundary.strict_join("backups/2025")?;
+    backup_dir.create_dir_all()?;
+    
+    // Copy to backup location
+    let dest = boundary.strict_join("backups/2025/report.pdf")?;
+    source.copy(&amp;dest)?;
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="comprehensive-example-file-management"><a class="header" href="#comprehensive-example-file-management">Comprehensive Example: File Management</a></h2>
+<p>Putting it all together—a complete file management function:</p>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+use std::time::{SystemTime, Duration};
+
+fn manage_user_file(
+    uploads_dir: &amp;PathBoundary,
+    filename: &amp;str
+) -&gt; Result&lt;FileInfo, Box&lt;dyn std::error::Error&gt;&gt; {
+    // 1. Validate path
+    let file = uploads_dir.strict_join(filename)?;
+    
+    // 2. Check existence
+    if !file.exists() {
+        return Err("File not found".into());
+    }
+    
+    // 3. Get metadata
+    let meta = file.metadata()?;
+    
+    // 4. Archive old files
+    if should_archive(&amp;meta)? {
+        let archive_dir = uploads_dir.strict_join("archive")?;
+        archive_dir.create_dir_all()?;
+        
+        let archived = file.strict_rename(&amp;format!("archive/{filename}"))?;
+        
+        // 5. Compress large files
+        if meta.len() &gt; 10_000_000 {
+            compress_file(&amp;archived)?;
+        }
+        
+        return Ok(FileInfo {
+            path: archived.strictpath_display().to_string(),
+            status: FileStatus::Archived,
+            size: meta.len(),
+        });
+    }
+    
+    Ok(FileInfo {
+        path: file.strictpath_display().to_string(),
+        status: FileStatus::Active,
+        size: meta.len(),
+    })
+}
+
+fn should_archive(meta: &amp;std::fs::Metadata) -&gt; std::io::Result&lt;bool&gt; {
+    let modified = meta.modified()?;
+    let age = SystemTime::now().duration_since(modified)
+        .unwrap_or(Duration::ZERO);
+    
+    Ok(age &gt; Duration::from_secs(30 * 24 * 60 * 60)) // 30 days
+}
+
+fn compress_file(_file: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; {
+    // Compression implementation
+    Ok(())
+}
+
+#[derive(Debug)]
+struct FileInfo {
+    path: String,
+    status: FileStatus,
+    size: u64,
+}
+
+#[derive(Debug)]
+enum FileStatus {
+    Active,
+    Archived,
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="key-principles"><a class="header" href="#key-principles">Key Principles</a></h2>
+<p><strong>Always use dimension-specific methods:</strong></p>
+<ul>
+<li>Use <code>strict_join()</code> / <code>virtual_join()</code> for joins</li>
+<li>Use <code>strictpath_parent()</code> / <code>virtualpath_parent()</code> for parents</li>
+<li>Use <code>strictpath_with_*()</code> / <code>virtualpath_with_*()</code> for modifications</li>
+<li><strong>Never</strong> use <code>std::path</code> methods on leaked paths</li>
+</ul>
+<p><strong>Handle errors explicitly:</strong></p>
+<ul>
+<li>Path operations can fail (permissions, disk full, invalid paths)</li>
+<li>Use <code>?</code> operator or explicit <code>match</code> for error handling</li>
+<li>Log security incidents when paths escape boundaries</li>
+</ul>
+<p><strong>Check before destructive operations:</strong></p>
+<ul>
+<li>Use <code>.exists()</code> before deletion</li>
+<li>Use <code>.metadata()</code> to check file vs. directory</li>
+<li>Create parent directories with <code>.create_dir_all()</code> before moves</li>
+</ul>
+<p><strong>Validate discovered paths:</strong></p>
+<ul>
+<li>Re-validate directory entries with <code>strict_join()</code> / <code>virtual_join()</code></li>
+<li>Don't trust filesystem listings—validate before use</li>
+</ul>
+<hr />
+<h2 id="learn-more"><a class="header" href="#learn-more">Learn More</a></h2>
+<ul>
+<li><strong><a href="../best_practices.html">Best Practices Overview →</a></strong> - Core guidelines and decision matrices</li>
+<li><strong><a href="./real_world_patterns.html">Real-World Patterns →</a></strong> - Production-ready examples</li>
+<li><strong><a href="./policy_and_reuse.html">Policy &amp; Reuse →</a></strong> - When to use VirtualRoot/PathBoundary</li>
+<li><strong><a href="./authorization_architecture.html">Authorization Patterns →</a></strong> - Compile-time authorization</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../best_practices/real_world_patterns.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../best_practices/policy_and_reuse.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../best_practices/real_world_patterns.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../best_practices/policy_and_reuse.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

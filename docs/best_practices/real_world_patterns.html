@@ -1,0 +1,607 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Real-World Patterns - The Complete StrictPath Guide</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Comprehensive guide to strict-path: Type-safe path boundaries preventing directory traversal attacks">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Complete StrictPath Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/best_practices/real_world_patterns.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="real-world-patterns"><a class="header" href="#real-world-patterns">Real-World Patterns</a></h1>
+<blockquote>
+<p><em>Production-ready examples showing how to use strict-path in common scenarios.</em></p>
+</blockquote>
+<p>This chapter provides complete, copy-pasteable examples for typical use cases. Each pattern includes error handling, best practices, and explanations.</p>
+<hr />
+<h2 id="llm-agent-file-manager"><a class="header" href="#llm-agent-file-manager">LLM Agent File Manager</a></h2>
+<p><strong>Challenge</strong>: LLM-generated paths are untrusted by definition—they could suggest anything from legitimate filenames to sophisticated traversal attacks.</p>
+<p><strong>Solution</strong>: Use <code>StrictPath</code> to detect and reject escape attempts explicitly.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+// Encode guarantees in signature: pass workspace directory boundary and untrusted request
+async fn llm_file_operation(
+    workspace_dir: &amp;PathBoundary,
+    request: &amp;LlmRequest
+) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
+    // LLM could suggest anything: "../../../etc/passwd", "C:/Windows/System32", etc.
+    let safe_path = workspace_dir.strict_join(&amp;request.filename)?; // ✅ Attack = Error
+
+    match request.operation.as_str() {
+        "write" =&gt; {
+            safe_path.create_parent_dir_all()?;
+            safe_path.write(&amp;request.content)?;
+        },
+        "read" =&gt; {
+            return Ok(safe_path.read_to_string()?);
+        },
+        "delete" =&gt; {
+            safe_path.remove_file()?;
+        },
+        _ =&gt; return Err("Invalid operation".into()),
+    }
+    Ok(format!("File {} processed safely", safe_path.strictpath_display()))
+}
+
+// Stub types
+struct LlmRequest {
+    filename: String,
+    operation: String,
+    content: Vec&lt;u8&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Key points:</strong></p>
+<ul>
+<li>Pass <code>&amp;PathBoundary</code> into the helper—boundary choice is policy</li>
+<li>Reject escape attempts explicitly with <code>?</code> operator</li>
+<li>Use <code>strictpath_display()</code> for system-facing output</li>
+<li>Create parent directories explicitly when needed</li>
+</ul>
+<hr />
+<h2 id="archive-extraction-detect-vs-contain"><a class="header" href="#archive-extraction-detect-vs-contain">Archive Extraction: Detect vs. Contain</a></h2>
+<p><strong>Critical distinction</strong>: Choose the right tool based on whether escapes are attacks or expected behavior.</p>
+<h3 id="pattern-1-detect-malicious-archives-production"><a class="header" href="#pattern-1-detect-malicious-archives-production">Pattern 1: Detect Malicious Archives (Production)</a></h3>
+<p><strong>When to use</strong>: Production archive extraction where malicious paths indicate a compromised archive.</p>
+<p><strong>Solution</strong>: Use <code>StrictPath</code> to detect and reject compromised archives:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn extract_zip_strict(
+    zip_entries: impl IntoIterator&lt;Item = (String, Vec&lt;u8&gt;)&gt;
+) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let extract_dir = PathBoundary::try_new_create("./extracted")?;
+    
+    for (name, data) in zip_entries {
+        // Malicious names like "../../../etc/passwd" return Error
+        match extract_dir.strict_join(&amp;name) {
+            Ok(safe_path) =&gt; {
+                safe_path.create_parent_dir_all()?;
+                safe_path.write(&amp;data)?;
+            },
+            Err(e) =&gt; {
+                eprintln!("🚨 Malicious path detected: {name}");
+                eprintln!("Error: {e}");
+                return Err(format!("Archive contains malicious path: {name}").into());
+            }
+        }
+    }
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Benefits:</strong></p>
+<ul>
+<li>Detects compromised archives immediately</li>
+<li>Allows logging and alerting on attacks</li>
+<li>Fails fast—doesn't partially extract malicious content</li>
+<li>Users know their archive was rejected</li>
+</ul>
+<h3 id="pattern-2-sandbox-suspicious-archives-researchanalysis"><a class="header" href="#pattern-2-sandbox-suspicious-archives-researchanalysis">Pattern 2: Sandbox Suspicious Archives (Research/Analysis)</a></h3>
+<p><strong>When to use</strong>: Malware analysis, security research, or safely inspecting untrusted archives.</p>
+<p><strong>Solution</strong>: Use <code>VirtualPath</code> to contain escape attempts while observing behavior:</p>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(feature = "virtual-path")]
+use strict_path::VirtualPath;
+
+#[cfg(feature = "virtual-path")]
+fn extract_zip_sandbox(
+    zip_entries: impl IntoIterator&lt;Item = (String, Vec&lt;u8&gt;)&gt;
+) -&gt; std::io::Result&lt;()&gt; {
+    let extract_root = VirtualPath::with_root_create("./sandbox")?;
+    
+    for (name, data) in zip_entries {
+        // Hostile names like "../../../etc/passwd" → "/etc/passwd" (safely clamped)
+        let vpath = extract_root.virtual_join(&amp;name)?;
+        
+        println!("Entry: {name}");
+        println!("  Virtual path: {}", vpath.virtualpath_display());
+        println!("  System path: {}", vpath.as_unvirtual().strictpath_display());
+        
+        vpath.create_parent_dir_all()?;
+        vpath.write(&amp;data)?;
+    }
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Benefits:</strong></p>
+<ul>
+<li>Escapes are contained—observe malicious behavior safely</li>
+<li>See what paths the archive <em>tried</em> to write</li>
+<li>Perfect for forensic analysis</li>
+<li>No partial extraction issues</li>
+</ul>
+<h3 id="when-to-use-which"><a class="header" href="#when-to-use-which">When to Use Which</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Scenario</th><th>Use Pattern 1 (StrictPath)</th><th>Use Pattern 2 (VirtualPath)</th></tr></thead><tbody>
+<tr><td><strong>Production extraction</strong></td><td>✅ Detect attacks</td><td>❌ Hides attacks</td></tr>
+<tr><td><strong>File uploads</strong></td><td>✅ Reject at boundary</td><td>❌ Hides attacks</td></tr>
+<tr><td><strong>Malware analysis</strong></td><td>❌ Can't observe behavior</td><td>✅ Safe observation</td></tr>
+<tr><td><strong>Security research</strong></td><td>❌ Escapes prevent analysis</td><td>✅ Contained escapes</td></tr>
+<tr><td><strong>User-facing services</strong></td><td>✅ Users know it's malicious</td><td>❌ Silently "fixes" it</td></tr>
+</tbody></table>
+</div>
+<p><strong>Rule of thumb</strong>: Use <code>StrictPath</code> (detect) for production; use <code>VirtualPath</code> (contain) for research/analysis.</p>
+<hr />
+<h2 id="web-file-server"><a class="header" href="#web-file-server">Web File Server</a></h2>
+<p><strong>Challenge</strong>: Prevent directory traversal attacks while serving static files, and ensure user uploads can't be served as static assets.</p>
+<p><strong>Solution</strong>: Use marker types to enforce domain separation at compile time.</p>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+struct StaticFiles;    // CSS, JS, images
+struct UserUploads;    // User documents
+
+async fn serve_static(
+    static_dir: &amp;PathBoundary&lt;StaticFiles&gt;,
+    path: &amp;str
+) -&gt; Result&lt;Response, Box&lt;dyn std::error::Error&gt;&gt; {
+    let safe_path = static_dir.strict_join(path)?; // ✅ "../../../" → Error
+    Ok(Response::new(safe_path.read()?))
+}
+
+// Function signature prevents bypass - no validation needed inside!
+async fn serve_file(safe_path: &amp;StrictPath&lt;StaticFiles&gt;) -&gt; Response {
+    Response::new(safe_path.read().unwrap_or_default())
+}
+
+// This function CANNOT accept UserUploads paths - compile error!
+fn handle_request(
+    static_files_dir: &amp;PathBoundary&lt;StaticFiles&gt;,
+    user_uploads_dir: &amp;PathBoundary&lt;UserUploads&gt;,
+    request_path: &amp;str
+) -&gt; Result&lt;Response, Box&lt;dyn std::error::Error&gt;&gt; {
+    let static_file = static_files_dir.strict_join(request_path)?;
+    let _response = serve_file(&amp;static_file); // ✅ Works
+    
+    let user_file = user_uploads_dir.strict_join(request_path)?;
+    // serve_file(&amp;user_file); // ❌ Compile error: wrong domain!
+    
+    Ok(Response::new(Vec::new()))
+}
+
+// Stub types
+struct Response { data: Vec&lt;u8&gt; }
+impl Response {
+    fn new(data: Vec&lt;u8&gt;) -&gt; Self { Response { data } }
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Key benefits:</strong></p>
+<ul>
+<li>Marker types prevent cross-domain mix-ups at compile time</li>
+<li>Function signatures encode security requirements</li>
+<li>No runtime validation needed when types guarantee safety</li>
+<li>Refactoring changes propagate through type system</li>
+</ul>
+<hr />
+<h2 id="configuration-manager"><a class="header" href="#configuration-manager">Configuration Manager</a></h2>
+<p><strong>Challenge</strong>: Load configuration files safely when the filename comes from user input or external sources.</p>
+<p><strong>Solution</strong>: Validate config file paths before loading; encode validation state in function signatures.</p>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+struct UserConfigs;
+
+fn load_user_config(
+    config_dir: &amp;PathBoundary&lt;UserConfigs&gt;,
+    config_name: &amp;str
+) -&gt; Result&lt;Config, Box&lt;dyn std::error::Error&gt;&gt; {
+    let config_file = config_dir.strict_join(config_name)?;
+    
+    // Use built-in I/O helpers
+    let content = config_file.read_to_string()?;
+    Ok(serde_json::from_str(&amp;content)?)
+}
+
+fn save_user_config(
+    config_file: &amp;StrictPath&lt;UserConfigs&gt;,
+    config: &amp;Config
+) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Function signature guarantees path is already validated
+    let json = serde_json::to_string_pretty(config)?;
+    config_file.write(json.as_bytes())?;
+    Ok(())
+}
+
+// Stub types
+struct Config { setting: String }
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Pattern notes:</strong></p>
+<ul>
+<li>Pass <code>&amp;PathBoundary</code> when validation is needed in the helper</li>
+<li>Pass <code>&amp;StrictPath</code> when validation already happened at call site</li>
+<li>Use built-in I/O methods to avoid <code>.interop_path()</code> calls</li>
+<li>Marker types document which config directory is being accessed</li>
+</ul>
+<hr />
+<h2 id="multi-tenant-cloud-storage"><a class="header" href="#multi-tenant-cloud-storage">Multi-Tenant Cloud Storage</a></h2>
+<p><strong>Challenge</strong>: Each user needs isolated storage where they can't access other users' files, and paths should look clean (no system paths exposed).</p>
+<p><strong>Solution</strong>: Use <code>VirtualPath</code> to create per-user isolated filesystems with clean rooted paths.</p>
+<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(feature = "virtual-path")]
+use strict_path::{VirtualRoot, VirtualPath};
+
+#[cfg(feature = "virtual-path")]
+async fn handle_upload(
+    user_root: &amp;VirtualRoot,
+    filename: &amp;str,
+    bytes: &amp;[u8]
+) -&gt; std::io::Result&lt;()&gt; {
+    // User can request ANY path - always safely contained
+    let vpath = user_root.virtual_join(filename)?;
+    
+    vpath.create_parent_dir_all()?;
+    vpath.write(bytes)?;
+    
+    // Show user-friendly path
+    println!("Saved: {}", vpath.virtualpath_display());
+    // Output: "Saved: /documents/report.pdf"
+    // (Real path: storage/user_42/documents/report.pdf)
+    
+    Ok(())
+}
+
+#[cfg(feature = "virtual-path")]
+async fn handle_download(
+    user_root: &amp;VirtualRoot,
+    filename: &amp;str
+) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    let vpath = user_root.virtual_join(filename)?;
+    
+    // Share strict helper logic by borrowing
+    vpath.as_unvirtual().read()
+}
+
+#[cfg(feature = "virtual-path")]
+fn setup_user_storage(user_id: u64) -&gt; Result&lt;VirtualRoot, Box&lt;dyn std::error::Error&gt;&gt; {
+    let user_root = VirtualRoot::try_new_create(format!("storage/user_{user_id}"))?;
+    Ok(user_root)
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Isolation benefits:</strong></p>
+<ul>
+<li>Users see clean paths like <code>/documents/report.pdf</code></li>
+<li>Real path hidden: <code>storage/user_42/documents/report.pdf</code></li>
+<li>Escape attempts silently contained within user's boundary</li>
+<li>Each user's <code>/</code> is their own root—complete isolation</li>
+<li>Share strict helpers with <code>as_unvirtual()</code> borrowing</li>
+</ul>
+<hr />
+<h2 id="common-quick-patterns"><a class="header" href="#common-quick-patterns">Common Quick Patterns</a></h2>
+<h3 id="validate--write"><a class="header" href="#validate--write">Validate + Write</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn write_file(boundary: &amp;PathBoundary, name: &amp;str, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
+    let safe_path = boundary.strict_join(name)?;
+    safe_path.create_parent_dir_all()?;
+    safe_path.write(data)
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="validate--read"><a class="header" href="#validate--read">Validate + Read</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn read_file(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Result&lt;String&gt; {
+    boundary.strict_join(name)?.read_to_string()
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="directory-walking-with-validation"><a class="header" href="#directory-walking-with-validation">Directory Walking with Validation</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+
+fn process_directory(base_dir: &amp;PathBoundary) -&gt; std::io::Result&lt;Vec&lt;StrictPath&gt;&gt; {
+    let mut paths = Vec::new();
+    
+    // Walk the directory
+    for entry in base_dir.read_dir()? {
+        let entry = entry?;
+        let name = entry.file_name();
+        
+        // Re-validate each discovered name before use
+        let safe_path = base_dir.strict_join(&amp;name.to_string_lossy())?;
+        paths.push(safe_path);
+    }
+    
+    Ok(paths)
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="error-handling-with-security-logging"><a class="header" href="#error-handling-with-security-logging">Error Handling with Security Logging</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPathError};
+
+fn robust_file_access(
+    boundary: &amp;PathBoundary,
+    filename: &amp;str
+) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
+    match boundary.strict_join(filename) {
+        Ok(safe_path) =&gt; {
+            match safe_path.read_to_string() {
+                Ok(content) =&gt; Ok(content),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound =&gt; {
+                    // File doesn't exist - create default
+                    safe_path.write(b"default content")?;
+                    Ok("default content".to_string())
+                },
+                Err(e) =&gt; Err(e.into()),
+            }
+        },
+        Err(StrictPathError::PathEscapesBoundary { .. }) =&gt; {
+            // Log security incident
+            eprintln!("🚨 Path escape attempt: {filename}");
+            Err("Invalid path".into())
+        },
+        Err(e) =&gt; Err(e.into()),
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="learn-more"><a class="header" href="#learn-more">Learn More</a></h2>
+<ul>
+<li><strong><a href="../best_practices.html">Best Practices Overview →</a></strong> - Core guidelines and decision matrices</li>
+<li><strong><a href="./common_operations.html">Common Operations →</a></strong> - Complete operation examples (joins, rename, delete, etc.)</li>
+<li><strong><a href="./policy_and_reuse.html">Policy &amp; Reuse →</a></strong> - When and why to use VirtualRoot/PathBoundary</li>
+<li><strong><a href="./authorization_architecture.html">Authorization Patterns →</a></strong> - Compile-time authorization with markers</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../best_practices/why_naive_approaches_fail.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../best_practices/common_operations.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../best_practices/why_naive_approaches_fail.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../best_practices/common_operations.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+        <script>
+            window.playground_line_numbers = true;
+        </script>
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

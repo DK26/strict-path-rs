@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Guidelines &amp; Patterns - The Complete StrictPath Guide</title>
+        <title>Quick Reference Guide - The Complete StrictPath Guide</title>
 
 
         <!-- Custom HTML head -->
@@ -182,186 +182,160 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="best-practices--guidelines"><a class="header" href="#best-practices--guidelines">Best Practices &amp; Guidelines</a></h1>
-<p>This page distills how to use strict-path correctly and ergonomically. Pair it with the Anti‑Patterns page for tell‑offs to avoid.</p>
-<h2 id="why-every-simple-solution-fails"><a class="header" href="#why-every-simple-solution-fails">Why Every "Simple" Solution Fails</a></h2>
-<p>The path security rabbit hole is deeper than you think. Here's why every naive approach creates new vulnerabilities:</p>
-<h3 id="approach-1-just-check-for-"><a class="header" href="#approach-1-just-check-for-">Approach 1: "Just check for <code>../</code>"</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>if path.contains("../") { return Err("Invalid path"); }
-// ✅ Blocks: "../../../etc/passwd"
-// ❌ Bypassed by: "..%2F..%2F..%2Fetc%2Fpasswd" (URL encoding)
-// ❌ Bypassed by: "....//....//etc//passwd" (double encoding)
-// ❌ Bypassed by: "..\\..\\..\etc\passwd" (Windows separators)
-<span class="boring">}</span></code></pre></pre>
-<h3 id="approach-2-use-canonicalize-then-check"><a class="header" href="#approach-2-use-canonicalize-then-check">Approach 2: "Use canonicalize() then check"</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let canonical = fs::canonicalize(path)?;
-if !canonical.starts_with("/safe/") { return Err("Escape attempt"); }
-// ✅ Blocks: Most directory traversal
-// ❌ CVE-2022-21658: Race condition - symlink created between canonicalize and check
-// ❌ CVE-2019-9855: Windows 8.3 names ("PROGRA~1" → "Program Files")
-// ❌ Fails on non-existent files (can't canonicalize what doesn't exist)
-<span class="boring">}</span></code></pre></pre>
-<h3 id="approach-3-normalize-the-path-first"><a class="header" href="#approach-3-normalize-the-path-first">Approach 3: "Normalize the path first"</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let normalized = path.replace("\\", "/").replace("../", "");
-// ✅ Blocks: Basic traversal
-// ❌ Bypassed by: "....//" → "../" after one replacement
-// ❌ CVE-2020-12279: Unicode normalization attacks
-// ❌ CVE-2017-17793: NTFS Alternate Data Streams ("file.txt:hidden")
-// ❌ Misses absolute path replacement: "/etc/passwd" completely replaces base
-<span class="boring">}</span></code></pre></pre>
-<h3 id="approach-4-use-a-allowlist-of-safe-characters"><a class="header" href="#approach-4-use-a-allowlist-of-safe-characters">Approach 4: "Use a allowlist of safe characters"</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>if !path.chars().all(|c| c.is_alphanumeric() || c == '/') { return Err("Invalid"); }
-// ✅ Blocks: Most special characters
-// ❌ Still vulnerable to: "/etc/passwd" (absolute path replacement)
-// ❌ Too restrictive: blocks legitimate files like "report-2025.pdf"
-// ❌ CVE-2025-8088: Misses platform-specific issues (Windows UNC, device names)
-<span class="boring">}</span></code></pre></pre>
-<h3 id="approach-5-combine-multiple-checks"><a class="header" href="#approach-5-combine-multiple-checks">Approach 5: "Combine multiple checks"</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Check for ../, canonicalize, validate prefix, sanitize chars...
-// ✅ Blocks: Many attack vectors
-// ❌ Complex = Buggy: 20+ edge cases, hard to maintain
-// ❌ Platform-specific gaps: Windows vs Unix behavior differences  
-// ❌ Performance cost: Multiple filesystem calls per validation
-// ❌ Future CVEs: New attack vectors require updating every check
-<span class="boring">}</span></code></pre></pre>
-<h3 id="the-fundamental-problem"><a class="header" href="#the-fundamental-problem">The Fundamental Problem</a></h3>
-<p><strong>Each "fix" creates new attack surface.</strong> Path security isn't a single problem—it's a class of problems that interact in complex ways. You need:</p>
-<ol>
-<li><strong>Encoding normalization</strong> (but not breaking legitimate files)</li>
-<li><strong>Symlink resolution</strong> (but preventing race conditions)</li>
-<li><strong>Platform consistency</strong> (Windows ≠ Unix ≠ Web)</li>
-<li><strong>Boundary enforcement</strong> (mathematical, not string-based)</li>
-<li><strong>Future-proof design</strong> (resistant to new attack vectors)</li>
-</ol>
-<p><strong>This is why strict-path exists.</strong> We solved this problem class once, correctly, so you don't have to.</p>
-<h2 id="pick-the-right-type"><a class="header" href="#pick-the-right-type">Pick The Right Type</a></h2>
-<h3 id="quick-decision-guide"><a class="header" href="#quick-decision-guide">Quick Decision Guide</a></h3>
+<blockquote>
+<p><em>Your complete guide to using strict-path correctly and ergonomically.</em></p>
+</blockquote>
+<p>This page provides the <strong>essential decision matrices, core principles, and quick references</strong> for daily use. For deeper dives, we've split detailed content into focused chaptersâ€”each covering a single topic so you can digest one concept at a time.</p>
+<hr />
+<h2 id="ðŸš-focused-chapters-deep-dives"><a class="header" href="#ðŸš-focused-chapters-deep-dives">ðŸ“š Focused Chapters (Deep Dives)</a></h2>
+<p>For detailed explanations and comprehensive examples, see these focused chapters:</p>
 <ul>
-<li><strong>External/untrusted segments</strong> (HTTP/DB/manifest/LLM/archive entry):
+<li><strong><a href="./best_practices/why_naive_approaches_fail.html">Why Naive Approaches Fail â†’</a></strong> - The 5 broken approaches and why path security is hard</li>
+<li><strong><a href="./best_practices/real_world_patterns.html">Real-World Patterns â†’</a></strong> - Production-ready examples you can copy-paste (LLM agents, archives, web servers, config, multi-tenant)</li>
+<li><strong><a href="./best_practices/common_operations.html">Common Operations â†’</a></strong> - Complete reference for joins, parents, renames, deletion, metadata, copy operations</li>
+<li><strong><a href="./best_practices/policy_and_reuse.html">Policy &amp; Reuse â†’</a></strong> - When to use VirtualRoot/PathBoundary types vs sugar constructors (performance, testing, serde)</li>
+<li><strong><a href="./best_practices/authorization_architecture.html">Authorization Architecture â†’</a></strong> - Compile-time authorization with marker types (basic auth, permissions, dynamic elevation)</li>
+</ul>
+<p><strong>Start here for fundamentals, then jump to focused chapters when you need details.</strong></p>
+<hr />
+<h2 id="why-strict-path-exists-tldr"><a class="header" href="#why-strict-path-exists-tldr">Why strict-path Exists (TL;DR)</a></h2>
+<p><strong>Path security isn't one problemâ€”it's a class of interacting problems.</strong> Every "simple" approach (check for <code>../</code>, canonicalize then check, normalize, allowlist chars, combine checks) creates new attack surface:</p>
 <ul>
-<li>UI/virtual flows: start with <code>VirtualPath::with_root(..).virtual_join(..)</code> for clamped joins and user‑facing display. For reuse across many joins, keep either the virtual root path value (<code>let root = VirtualPath::with_root(..)?;</code>) or a <code>VirtualRoot</code> and call <code>virtual_join(..)</code> — both take <code>&amp;self</code> and return a new <code>VirtualPath</code> (no ownership taken).</li>
-<li>System flows: start with <code>StrictPath::with_boundary(..).strict_join(..)</code> to reject unsafe joins and for system display. For reuse across many joins, keep a <code>PathBoundary</code> and call <code>strict_join(..)</code>.</li>
+<li>Encoding bypasses (URL encoding, double encoding, Unicode normalization)</li>
+<li>Race conditions (TOCTOU with symlinks: CVE-2022-21658)</li>
+<li>Platform gaps (Windows 8.3 names, UNC paths, ADS: CVE-2019-9855, CVE-2017-17793)</li>
+<li>Performance costs (repeated filesystem calls)</li>
+<li>Future CVEs (new attack vectors require updating every check)</li>
 </ul>
-</li>
-<li><strong>Internal/trusted paths</strong> (hardcoded/CLI/env): use <code>Path</code>/<code>PathBuf</code>; only validate when combining with untrusted segments.</li>
+<p><strong>strict-path solved this problem class once, correctly, so you don't have to.</strong></p>
+<p>â†’ <strong><a href="./best_practices/why_naive_approaches_fail.html">Full analysis with CVE examples â†’</a></strong></p>
+<hr />
+<h2 id="pick-the-right-type-quick-reference"><a class="header" href="#pick-the-right-type-quick-reference">Pick The Right Type (Quick Reference)</a></h2>
+<h3 id="30-second-decision-guide"><a class="header" href="#30-second-decision-guide">30-Second Decision Guide</a></h3>
+<p><strong>External/untrusted segments</strong> (HTTP, DB, manifests, LLM output, archive entries):</p>
+<ul>
+<li><strong>Detection (90% of cases):</strong> <code>StrictPath::with_boundary(..).strict_join(..)</code> â€” detects escapes, rejects attacks</li>
+<li><strong>Containment (10% of cases):</strong> <code>VirtualPath::with_root(..).virtual_join(..)</code> â€” silently clamps escapes, isolates users</li>
 </ul>
-<h3 id="detailed-decision-matrix"><a class="header" href="#detailed-decision-matrix">Detailed Decision Matrix</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Source</th><th>Typical Input</th><th>Use VirtualPath For</th><th>Use StrictPath For</th><th>Notes</th></tr></thead><tbody>
-<tr><td>🌐 <strong>HTTP requests</strong></td><td>URL path segments, file names</td><td>Display/logging, safe virtual joins</td><td>System-facing interop/I/O</td><td>Always clamp user paths via <code>VirtualPath::virtual_join</code></td></tr>
-<tr><td>🌍 <strong>Web forms</strong></td><td>Form file fields, route params</td><td>User-facing display, UI navigation</td><td>System-facing interop/I/O</td><td>Treat all form inputs as untrusted</td></tr>
-<tr><td>⚙️ <strong>Configuration files</strong></td><td>Paths in config</td><td>UI display and I/O within boundary</td><td>System-facing interop/I/O</td><td>Validate each path before I/O</td></tr>
-<tr><td>💾 <strong>Database content</strong></td><td>Stored file paths</td><td>Rendering paths in UI dashboards</td><td>System-facing interop/I/O</td><td>Storage does not imply safety; validate on use</td></tr>
-<tr><td>📂 <strong>CLI arguments</strong></td><td>Command-line path args</td><td>Pretty printing, I/O within boundary</td><td>System-facing interop/I/O</td><td>Validate args before touching filesystem</td></tr>
-<tr><td>🔌 <strong>External APIs</strong></td><td>Webhooks, 3rd-party payloads</td><td>Present sanitized paths to logs</td><td>System-facing interop/I/O</td><td>Never trust external systems</td></tr>
-<tr><td>🤖 <strong>LLM/AI output</strong></td><td>Generated file names/paths</td><td>Display suggestions, I/O within boundary</td><td>System-facing interop/I/O</td><td>LLM output is untrusted by default</td></tr>
-<tr><td>📨 <strong>Inter-service msgs</strong></td><td>Queue/event payloads</td><td>Observability output, I/O within boundary</td><td>System-facing interop/I/O</td><td>Validate on the consumer side</td></tr>
-<tr><td>📱 <strong>Apps (desktop/mobile)</strong></td><td>Drag-and-drop, file pickers</td><td>Show picked paths in UI</td><td>System-facing interop/I/O</td><td>Validate selected paths before I/O</td></tr>
-<tr><td>📦 <strong>Archive contents</strong></td><td>Entry names from ZIP/TAR</td><td>Progress UI, virtual joins</td><td>System-facing interop/I/O</td><td>Validate each entry to block zip-slip</td></tr>
-<tr><td>🔧 <strong>File format internals</strong></td><td>Embedded path strings</td><td>Diagnostics, I/O within boundary</td><td>System-facing interop/I/O</td><td>Never dereference without validation</td></tr>
+<p><strong>Internal/trusted paths</strong> (hardcoded, CLI, env): Use <code>Path</code>/<code>PathBuf</code>; only validate when combining with untrusted segments.</p>
+<p><strong>For policy reuse across many joins:</strong> Keep a <code>PathBoundary</code> or <code>VirtualRoot</code> and call <code>strict_join(..)</code>/<code>virtual_join(..)</code> repeatedly.</p>
+<h3 id="decision-matrix-by-source"><a class="header" href="#decision-matrix-by-source">Decision Matrix by Source</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Source</th><th>Typical Input</th><th>Default Choice</th><th>Notes</th></tr></thead><tbody>
+<tr><td>ðŸŒ <strong>HTTP/Web</strong></td><td>URL segments, form fields</td><td>VirtualPath or StrictPath</td><td>VirtualPath for UI display, StrictPath for system I/O</td></tr>
+<tr><td>âš™ï¸ <strong>Config/DB</strong></td><td>Paths in config/database</td><td>StrictPath</td><td>Storage â‰  safety; validate on use</td></tr>
+<tr><td>ðŸ“‚ <strong>CLI/External APIs</strong></td><td>Args, webhooks, payloads</td><td>StrictPath</td><td>Never trust external input</td></tr>
+<tr><td>ðŸ¤– <strong>LLM/AI</strong></td><td>Generated paths/filenames</td><td>StrictPath</td><td>LLM output is untrusted by default</td></tr>
+<tr><td>ðŸ“¦ <strong>Archives</strong></td><td>ZIP/TAR entry names</td><td><strong>StrictPath ONLY</strong></td><td>Detect malicious paths, reject bad archives</td></tr>
+<tr><td>ðŸ¢ <strong>Multi-tenant</strong></td><td>Per-user file operations</td><td>VirtualPath</td><td>Isolate users with virtual roots</td></tr>
 </tbody></table>
 </div>
-<h3 id="security-philosophy"><a class="header" href="#security-philosophy">Security Philosophy</a></h3>
-<p><strong>Think of it this way:</strong></p>
+<h3 id="security-philosophy-detect-vs-contain"><a class="header" href="#security-philosophy-detect-vs-contain">Security Philosophy: Detect vs. Contain</a></h3>
+<p><strong>The fundamental distinction: Are path escapes attacks or expected behavior?</strong></p>
+<h4 id="strictpath-â-detect--reject-default-90"><a class="header" href="#strictpath-â-detect--reject-default-90">StrictPath â€” Detect &amp; Reject (Default, 90%)</a></h4>
 <ul>
-<li><code>StrictPath</code> = <strong>Security Filter</strong> — validates and rejects unsafe paths</li>
-<li><code>VirtualPath</code> = <strong>Complete Sandbox</strong> — clamps any input to stay safe</li>
+<li><strong>Philosophy</strong>: "If it tries to escape, I want to know"</li>
+<li><strong>Returns:</strong> <code>Err(PathEscapesBoundary)</code> on escape attempts</li>
+<li><strong>Use for:</strong> Archives, file uploads, config loading, security boundaries</li>
+<li><strong>Always available</strong> (no feature flag)</li>
 </ul>
-<p><strong>The Golden Rule</strong>: If you didn't create the path yourself, secure it first.</p>
-<h2 id="why-keep-virtualroot-and-pathboundary-even-with-sugar"><a class="header" href="#why-keep-virtualroot-and-pathboundary-even-with-sugar">Why Keep <code>VirtualRoot</code> and <code>PathBoundary</code> (Even With Sugar)</a></h2>
-<p>The sugar constructors (<code>StrictPath::with_boundary(..)</code>, <code>VirtualPath::with_root(..)</code>) are great for simple flows, but the root/boundary types still matter for correctness, reuse, and ergonomics as your code grows.</p>
+<h4 id="virtualpath-â-contain--redirect-opt-in-10"><a class="header" href="#virtualpath-â-contain--redirect-opt-in-10">VirtualPath â€” Contain &amp; Redirect (Opt-in, 10%)</a></h4>
 <ul>
-<li>
-<p>Policy reuse and separation of concerns</p>
+<li><strong>Philosophy</strong>: "Let it try to escape, but silently contain it"</li>
+<li><strong>Behavior:</strong> Silently clamps escapes within boundary</li>
+<li><strong>Use for:</strong> Multi-tenant systems, malware sandboxes, security research, user isolation</li>
+<li><strong>Requires:</strong> <code>virtual-path</code> feature in <code>Cargo.toml</code></li>
+</ul>
+<h4 id="how-they-differ"><a class="header" href="#how-they-differ">How They Differ</a></h4>
+<p>Attempting <code>../../../etc/passwd</code>:</p>
 <ul>
-<li>Roots/boundaries represent the security policy (the restriction) while paths represent validated values within that policy.</li>
-<li>Construct once, reuse everywhere: join many untrusted segments against the same <code>&amp;PathBoundary</code>/<code>&amp;VirtualRoot</code> without re‑choosing policy.</li>
-<li>Don’t construct boundaries inside helpers — boundary choice is policy; encoding it at call sites improves reviewability and testing.</li>
+<li><strong>StrictPath</strong>: <code>Err(PathEscapesBoundary)</code> â†’ log, alert, reject</li>
+<li><strong>VirtualPath</strong>: Silently clamped to boundary â†’ contained, not reported</li>
 </ul>
-</li>
-<li>
-<p>Clear function signatures (stronger guarantees)</p>
+<p>Symlink to <code>/etc/passwd</code>:</p>
 <ul>
-<li>Two canonical patterns that make intent obvious:
+<li><strong>StrictPath</strong>: Follows, validates target â†’ <strong>Error</strong> if outside boundary</li>
+<li><strong>VirtualPath</strong>: Treats as relative â†’ clamped to <code>vroot/etc/passwd</code></li>
+</ul>
+<p><strong>Critical Rule</strong>: Use <strong>StrictPath for archives</strong> to detect attacks. VirtualPath hides them.</p>
+<p><strong>Golden Rule</strong>: If you didn't create the path yourself, secure it first.</p>
+<p>â†’ <strong><a href="./best_practices/real_world_patterns.html#archive-extraction-detect-vs-contain">Full comparison with examples â†’</a></strong></p>
+<hr />
+<h2 id="when-to-use-policy-types-vs-sugar"><a class="header" href="#when-to-use-policy-types-vs-sugar">When to Use Policy Types vs. Sugar</a></h2>
+<p><strong>Sugar constructors</strong> (<code>StrictPath::with_boundary(..)</code>, <code>VirtualPath::with_root(..)</code>) are great for simple, one-off operations.</p>
+<p><strong>Policy types</strong> (<code>PathBoundary</code>, <code>VirtualRoot</code>) matter when you need:</p>
 <ul>
-<li>Take <code>&amp;StrictPath&lt;_&gt;</code> / <code>&amp;VirtualPath&lt;_&gt;</code> when the call site has already validated the input.</li>
-<li>Take <code>&amp;PathBoundary&lt;_&gt;</code> / <code>&amp;VirtualRoot&lt;_&gt;</code> plus the untrusted segment when the helper performs validation.</li>
+<li><strong>Policy reuse</strong> (canonicalize once, join many times)</li>
+<li><strong>Performance</strong> (1 canonicalization vs 1000 in loops)</li>
+<li><strong>Testability</strong> (inject test boundaries)</li>
+<li><strong>Serde integration</strong> (contextual deserialization)</li>
+<li><strong>Clear signatures</strong> (encode guarantees in types)</li>
 </ul>
-</li>
-<li>These signatures prevent helpers from “picking a root” silently and make security rules visible in code review.</li>
-</ul>
-</li>
-<li>
-<p>Contextual deserialization (serde)</p>
-<ul>
-<li><code>StrictPath</code>/<code>VirtualPath</code> can’t implement a blanket <code>Deserialize</code> safely — they need runtime context (the boundary/root) to validate.</li>
-<li>The serde seeds live on the context types: <code>serde_ext::WithBoundary(&amp;boundary)</code> and <code>serde_ext::WithVirtualRoot(&amp;vroot)</code>.</li>
-<li>This makes deserialization explicit and auditable: where did the policy come from? what are we validating against?</li>
-</ul>
-</li>
-<li>
-<p>Interop and trait boundaries</p>
-<ul>
-<li>We intentionally do not implement <code>AsRef&lt;Path&gt;</code> on path types; this prevents leaking raw paths into APIs without review.</li>
-<li>Roots/boundaries do implement <code>AsRef&lt;Path&gt;</code> so you can discover/walk directories at the root while keeping joins validated.</li>
-<li>Display stays explicit: system display via <code>strictpath_display()</code>, virtual display via <code>virtualpath_display()</code>.</li>
-</ul>
-</li>
-<li>
-<p>OS directories and RAII helpers</p>
-<ul>
-<li>Discovery helpers (<code>try_new_os_*</code>, feature <code>dirs</code>) and temporary roots (<code>try_new_temp*</code>, feature <code>tempfile</code>) are on the root types.</li>
-<li>Sugar constructors build on these — you can still start simple and “upgrade” to explicit roots when needed.</li>
-</ul>
-</li>
-<li>
-<p>Performance and canonicalization</p>
-<ul>
-<li>Canonicalize the root once; strict/virtual joins reuse that canonicalized state.</li>
-<li>Virtual joins use anchored canonicalization to apply virtual semantics safely and consistently.</li>
-</ul>
-</li>
-<li>
-<p>Auditability and testing</p>
-<ul>
-<li>Centralizing the policy in a root value simplifies logging, tracing, and tests (e.g., pass <code>&amp;vroot</code> into helpers).</li>
-<li>Debug for <code>VirtualPath</code> is intentionally verbose (system path + virtual view + restriction root) to aid audits.</li>
-</ul>
-</li>
-</ul>
-<p>When not to use them: if your flow is small and local, the sugar constructors are perfectly fine. Start with sugar; keep <code>PathBoundary</code>/<code>VirtualRoot</code> handy for policy reuse, serde, and shared helpers.</p>
-<h2 id="encode-guarantees-in-signatures"><a class="header" href="#encode-guarantees-in-signatures">Encode Guarantees In Signatures</a></h2>
-<ul>
-<li>Helpers that touch the filesystem must encode safety:
-<ul>
-<li>Accept <code>&amp;StrictPath&lt;_&gt;</code> or <code>&amp;VirtualPath&lt;_&gt;</code> directly, or</li>
-<li>Accept <code>&amp;PathBoundary&lt;_&gt;</code> / <code>&amp;VirtualRoot&lt;_&gt;</code> + the untrusted segment.</li>
-</ul>
-</li>
-<li>Don’t construct boundaries/roots inside helpers — boundary choice is policy.</li>
-</ul>
+<p><strong>Quick Example:</strong></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use strict_path::{PathBoundary, StrictPath, VirtualRoot, VirtualPath};
+</span>use strict_path::PathBoundary;
 
-fn save_to_storage(p: &amp;StrictPath) -&gt; std::io::Result&lt;()&gt; { p.write("ok") }
-fn load_from_storage(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { p.read_to_string() }
+// âŒ SLOW: 1000 canonicalizations
+for name in files {
+    let boundary = PathBoundary::try_new(base)?;
+    boundary.strict_join(name)?;
+}
 
-fn create_config(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Result&lt;()&gt; {
-  boundary.strict_join(name)?.write("cfg")
+// âœ… FAST: 1 canonicalization
+let boundary = PathBoundary::try_new(base)?;
+for name in files {
+    boundary.strict_join(name)?; // Reuses canonical state
 }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="multiuser-isolation-virtualpath-root"><a class="header" href="#multiuser-isolation-virtualpath-root">Multi‑User Isolation (VirtualPath root)</a></h2>
+<p><strong>Rule of thumb</strong>: Start with sugar; upgrade to policy types when you need reuse, performance, or testing.</p>
+<p>â†’ <strong><a href="./best_practices/policy_and_reuse.html">Full guide with benchmarks, serde patterns, and testing examples â†’</a></strong></p>
+<hr />
+<h2 id="encode-guarantees-in-function-signatures"><a class="header" href="#encode-guarantees-in-function-signatures">Encode Guarantees In Function Signatures</a></h2>
+<p>Helpers that touch the filesystem must encode safety in their signatures:</p>
+<p><strong>Two canonical patterns:</strong></p>
+<ol>
+<li><strong>Accept validated path</strong> when validation already happened: <code>fn save(p: &amp;StrictPath) -&gt; io::Result&lt;()&gt;</code></li>
+<li><strong>Accept boundary + segment</strong> when validation happens inside: <code>fn load(b: &amp;PathBoundary, name: &amp;str) -&gt; io::Result&lt;String&gt;</code></li>
+</ol>
+<p><strong>Don't construct boundaries/roots inside helpers</strong> â€” boundary choice is policy; make it explicit at call sites.</p>
+<p>â†’ <strong><a href="./best_practices/policy_and_reuse.html#clear-function-signatures-stronger-guarantees">Full patterns with examples â†’</a></strong></p>
+<hr />
+<h2 id="multiâuser-isolation-virtualpath"><a class="header" href="#multiâuser-isolation-virtualpath">Multiâ€‘User Isolation (VirtualPath)</a></h2>
+<p><strong>VirtualPath</strong> (opt-in via <code>virtual-path</code> feature) is for <strong>containment scenarios</strong>: multi-tenant systems, malware sandboxes, security research.</p>
 <ul>
-<li>Per‑user/tenant: for small flows, construct a root via <code>VirtualPath::with_root(..)</code> and join untrusted names with <code>virtual_join(..)</code>. For larger flows and reuse, create a <code>VirtualRoot</code> per user and call <code>virtual_join(..)</code>.</li>
+<li><strong>Per-user</strong>: Create <code>VirtualRoot</code> per user, call <code>virtual_join(..)</code> for all operations</li>
+<li><strong>Share helpers</strong>: Borrow strict view with <code>vpath.as_unvirtual()</code></li>
+<li><strong>Use for</strong>: Multi-tenant isolation, observing malicious behavior safely</li>
+</ul>
+<p><strong>NOT for</strong>: Archive extraction (use StrictPath to detect attacks, not hide them)</p>
+<p>â†’ <strong><a href="./best_practices/real_world_patterns.html#multi-tenant-cloud-storage">Full multi-tenant example â†’</a></strong></p>
+<hr />
+<h2 id="interop--display"><a class="header" href="#interop--display">Interop &amp; Display</a></h2>
+<p><strong>Interop</strong> (pass to <code>AsRef&lt;Path&gt;</code> APIs): <code>path.interop_path()</code> â€” no allocations</p>
+<p><strong>Display:</strong></p>
+<ul>
+<li>System paths: <code>strictpath_display()</code> on <code>PathBoundary</code>/<code>StrictPath</code></li>
+<li>User-facing: <code>virtualpath_display()</code> on <code>VirtualPath</code></li>
+</ul>
+<p><strong>Never</strong>: <code>interop_path().to_string_lossy()</code> for display</p>
+<hr />
+<h2 id="directory-discovery-vs-validation"><a class="header" href="#directory-discovery-vs-validation">Directory Discovery vs Validation</a></h2>
+<p><strong>Discovery</strong> (walking): Use <code>.read_dir()</code>, collect names via <code>entry.file_name()</code></p>
+<p><strong>Validation</strong>: Re-join discovered names through <code>strict_join</code>/<code>virtual_join</code> before I/O</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>for entry in boundary.read_dir()? {
+    let name = entry?.file_name();
+    let validated = boundary.strict_join(&amp;name.to_string_lossy())?; // Validate!
+    // Now safe to use validated path
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Don't validate constants</strong> like <code>"."</code> â€” only validate untrusted segments.</p>
+<hr />
+<h2 id="multiâuser-isolation-virtualpath-for-containment"><a class="header" href="#multiâuser-isolation-virtualpath-for-containment">Multiâ€‘User Isolation (VirtualPath for Containment)</a></h2>
+<p><strong>Note</strong>: VirtualPath is opt-in via the <code>virtual-path</code> feature. Use it when you need <strong>containment</strong> (multi-tenant isolation, sandboxes) rather than <strong>detection</strong> (security boundaries).</p>
+<ul>
+<li>Perâ€‘user/tenant: for small flows, construct a root via <code>VirtualPath::with_root(..)</code> and join untrusted names with <code>virtual_join(..)</code>. For larger flows and reuse, create a <code>VirtualRoot</code> per user and call <code>virtual_join(..)</code>.</li>
 <li>Share strict helpers by borrowing the strict view: <code>vpath.as_unvirtual()</code>.</li>
 </ul>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -376,140 +350,152 @@ fn create_config(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Res
 // let vroot = VirtualPath::with_root(format!("./cloud/user_{user_id}"))?;
 // let vpath = vroot.virtual_join(filename)?; // same guarantees; keep VirtualRoot for reuse
 <span class="boring">}</span></code></pre></pre>
-<h2 id="interop--display"><a class="header" href="#interop--display">Interop &amp; Display</a></h2>
+<p><strong>When to use each for archives</strong>:</p>
+<ul>
+<li><strong>StrictPath for production archive extraction</strong> â€” detect malicious paths, reject compromised archives, alert users</li>
+<li><strong>VirtualPath for sandbox/research</strong> â€” safely analyze suspicious archives by containing escapes while observing behavior</li>
+<li><strong>StrictPath for file uploads to shared storage</strong> â€” reject attacks at the security boundary</li>
+<li><strong>StrictPath for config loading</strong> â€” fail explicitly on untrusted paths that try to escape</li>
+</ul>
+<p>The key: use <strong>StrictPath to detect attacks</strong> in production; use <strong>VirtualPath to contain behavior</strong> in research/analysis scenarios.</p>
+<h2 id="interop--display-1"><a class="header" href="#interop--display-1">Interop &amp; Display</a></h2>
 <ul>
 <li>Interop (pass into <code>AsRef&lt;Path&gt;</code> APIs): <code>path.interop_path()</code> (no allocations).</li>
 <li>Display:
 <ul>
-<li>System‑facing: <code>strictpath_display()</code> on <code>PathBoundary</code>/<code>StrictPath</code></li>
-<li>User‑facing: <code>virtualpath_display()</code> on <code>VirtualPath</code></li>
+<li>Systemâ€‘facing: <code>strictpath_display()</code> on <code>PathBoundary</code>/<code>StrictPath</code></li>
+<li>Userâ€‘facing: <code>virtualpath_display()</code> on <code>VirtualPath</code></li>
 </ul>
 </li>
 <li>Never use <code>interop_path().to_string_lossy()</code> for display.</li>
 </ul>
-<h2 id="directory-discovery-vs-validation"><a class="header" href="#directory-discovery-vs-validation">Directory Discovery vs Validation</a></h2>
+<h2 id="directory-discovery-vs-validation-1"><a class="header" href="#directory-discovery-vs-validation-1">Directory Discovery vs Validation</a></h2>
 <ul>
-<li>Discovery (walking): call <code>boundary.read_dir()</code> (or <code>vroot.read_dir()</code>), collect names via <code>entry.file_name()</code>, then re‑join with <code>strict_join</code>/<code>virtual_join</code> to validate before I/O.</li>
+<li>Discovery (walking): call <code>boundary.read_dir()</code> (or <code>vroot.read_dir()</code>), collect names via <code>entry.file_name()</code>, then reâ€‘join with <code>strict_join</code>/<code>virtual_join</code> to validate before I/O.</li>
 <li>Validation: join those relatives via <code>boundary.strict_join(..)</code> or <code>vroot.virtual_join(..)</code> before I/O. For small flows without a reusable root, you can construct via <code>StrictPath::with_boundary(..)</code> or <code>VirtualPath::with_root(..)</code> and then join.</li>
-<li>Don’t validate constants like <code>"."</code>; only validate untrusted segments.</li>
+<li>Donâ€™t validate constants like <code>"."</code>; only validate untrusted segments.</li>
 </ul>
-<h2 id="operations-use-explicit-methods"><a class="header" href="#operations-use-explicit-methods">Operations (Use Explicit Methods)</a></h2>
+<h2 id="common-operations-quick-reference"><a class="header" href="#common-operations-quick-reference">Common Operations (Quick Reference)</a></h2>
+<p>Always use <strong>dimension-specific methods</strong> (<code>strict_*</code> / <code>virtualpath_*</code>). Never use <code>std::path</code> methods on leaked paths.</p>
+<p><strong>Available operations:</strong></p>
 <ul>
-<li>Joins: <code>strict_join(..)</code> / <code>virtual_join(..)</code></li>
-<li>Parents: <code>strictpath_parent()</code> / <code>virtualpath_parent()</code></li>
-<li>With file name/ext: <code>strictpath_with_file_name()</code> / <code>virtualpath_with_file_name()</code>, etc.</li>
-<li>Rename/move: <code>strict_rename(..)</code> / <code>virtual_rename(..)</code></li>
-<li>Deletion: <code>remove_file()</code> / <code>remove_dir()</code> / <code>remove_dir_all()</code></li>
-<li>Metadata: <code>metadata()</code> (inspect filesystem info without leaking boundaries)</li>
-<li>Avoid std <code>Path::join</code>/<code>parent</code> on leaked paths — they ignore strict/virtual semantics.</li>
+<li><strong>Joins</strong>: <code>strict_join(..)</code> / <code>virtual_join(..)</code> â€” validate and combine paths</li>
+<li><strong>Parents</strong>: <code>strictpath_parent()</code> / <code>virtualpath_parent()</code> â€” navigate up directory tree</li>
+<li><strong>Filenames</strong>: <code>strictpath_with_file_name(..)</code> / <code>strictpath_with_extension(..)</code> â€” modify names/extensions</li>
+<li><strong>Rename</strong>: <code>strict_rename(..)</code> / <code>virtual_rename(..)</code> â€” move/rename within boundary</li>
+<li><strong>Deletion</strong>: <code>.remove_file()</code>, <code>.remove_dir()</code>, <code>.remove_dir_all()</code> â€” safe deletion</li>
+<li><strong>Metadata</strong>: <code>.metadata()</code>, <code>.exists()</code>, <code>.is_file()</code>, <code>.is_dir()</code> â€” inspect properties</li>
+<li><strong>Copy</strong>: <code>.copy(&amp;dest)</code> â€” duplicate files</li>
+<li><strong>I/O</strong>: <code>.read()</code>, <code>.read_to_string()</code>, <code>.write()</code>, <code>.create_file()</code> â€” file operations</li>
 </ul>
-<p>Example (rename):</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::{PathBoundary, StrictPath, VirtualPath};
-
-fn rotate_log(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;()&gt; {
-    let current = boundary.strict_join("logs/app.log")?;
-    current.create_parent_dir_all()?;
-  current.write("ok")?;
-
-    // Strict rename within same directory
-    let rotated = current.strict_rename("logs/app.old")?;
-    assert!(rotated.exists());
-
-    // Virtual rename (user-facing path)
-    let vp = rotated.clone().virtualize();
-    let vp2 = vp.virtual_rename("app.archived")?;
-    assert!(vp2.exists());
-    Ok(())
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="naming-from-agentsmd"><a class="header" href="#naming-from-agentsmd">Naming (from AGENTS.md)</a></h2>
+<p>â†’ <strong><a href="./best_practices/common_operations.html">Complete operations guide with examples â†’</a></strong></p>
+<h2 id="naming-conventions"><a class="header" href="#naming-conventions">Naming Conventions</a></h2>
+<p><strong>Variables reflect domain, not type:</strong></p>
 <ul>
-<li>Variables reflect domain, not type:
-<ul>
-<li>Good: <code>config_dir</code>, <code>uploads_root</code>, <code>archive_src</code>, <code>mirror_src</code>, <code>user_vroot</code></li>
-<li>Bad: <code>boundary</code>, <code>jail</code>, <code>source_</code> prefix</li>
+<li>âœ… Good: <code>config_dir</code>, <code>uploads_root</code>, <code>archive_src</code>, <code>tenant_vroot</code></li>
+<li>âŒ Bad: <code>boundary</code>, <code>jail</code>, <code>source_</code> prefix, <code>_path</code> suffix</li>
 </ul>
-</li>
-<li>Keep names consistent with the directory they represent (e.g., <code>archive_src</code> for <code>./archive_src</code>).</li>
-</ul>
-<h2 id="do--dont"><a class="header" href="#do--dont">Do / Don’t</a></h2>
+<p><strong>Keep names consistent</strong> with the directory they represent.</p>
+<hr />
+<h2 id="do--donât"><a class="header" href="#do--donât">Do / Donâ€™t</a></h2>
 <ul>
 <li>Do: validate once at the boundary, pass types through helpers.</li>
-<li>Do: use <code>VirtualRoot</code> for per‑user isolation; borrow strict view for shared helpers.</li>
+<li>Do: use <code>VirtualRoot</code> for perâ€‘user isolation; borrow strict view for shared helpers.</li>
 <li>Do: prefer <code>impl AsRef&lt;Path&gt;</code> in helper params where you forward to validation.</li>
-<li>Don’t: wrap secure types in <code>Path::new</code>/<code>PathBuf::from</code>.</li>
-<li>Don’t: use <code>interop_path().as_ref()</code> or <code>as_unvirtual().interop_path()</code> (use <code>interop_path()</code> directly).</li>
-<li>Don’t: use lossy strings for display or comparisons.</li>
+<li>Donâ€™t: wrap secure types in <code>Path::new</code>/<code>PathBuf::from</code>.</li>
+<li>Donâ€™t: use <code>interop_path().as_ref()</code> or <code>as_unvirtual().interop_path()</code> (use <code>interop_path()</code> directly).</li>
+<li>Donâ€™t: use lossy strings for display or comparisons.</li>
 </ul>
 <h2 id="testing--doctests"><a class="header" href="#testing--doctests">Testing &amp; Doctests</a></h2>
 <ul>
-<li>Make doctests encode guarantees (signatures) and use the explicit ops.</li>
-<li>Create temporary roots via <code>PathBoundary::try_new_create(..)</code> / <code>VirtualRoot::try_new_create(..)</code> in setup; clean up afterwards. Or use the sugar constructors for tests: <code>StrictPath::with_boundary_create(..)</code> / <code>VirtualPath::with_root_create(..)</code>.</li>
-<li>For archive/HTTP examples, prefer offline simulations with deterministic inputs.</li>
+<li>Encode guarantees in function signatures</li>
+<li>Use <code>*_create</code> constructors for temp directories in tests</li>
+<li>Prefer offline simulations with deterministic inputs</li>
+<li>Clean up test directories after tests</li>
 </ul>
-<h2 id="quick-patterns"><a class="header" href="#quick-patterns">Quick Patterns</a></h2>
+<hr />
+<h2 id="learn-more"><a class="header" href="#learn-more">Learn More</a></h2>
+<p>All detailed content has been moved to focused chapters for digestibility:</p>
+<p><strong>Core Concepts:</strong></p>
 <ul>
-<li>Validate + write:</li>
+<li><strong><a href="./best_practices/why_naive_approaches_fail.html">Why Naive Approaches Fail â†’</a></strong> - 5 broken approaches with CVE examples</li>
+<li><strong><a href="./best_practices/real_world_patterns.html">Real-World Patterns â†’</a></strong> - Production-ready examples:
+<ul>
+<li>LLM Agent File Manager</li>
+<li>Archive Extraction (detect vs contain patterns)</li>
+<li>Web File Server with marker types</li>
+<li>Configuration Manager</li>
+<li>Multi-Tenant Cloud Storage</li>
 </ul>
+</li>
+</ul>
+<p><strong>Practical Guides:</strong></p>
+<ul>
+<li><strong><a href="./best_practices/common_operations.html">Common Operations â†’</a></strong> - Complete reference for joins, parents, rename, delete, metadata, copy</li>
+<li><strong><a href="./best_practices/policy_and_reuse.html">Policy &amp; Reuse â†’</a></strong> - When to use VirtualRoot/PathBoundary vs sugar (performance, testing, serde)</li>
+</ul>
+<p><strong>Advanced Topics:</strong></p>
+<ul>
+<li><strong><a href="./best_practices/authorization_architecture.html">Authorization Architecture â†’</a></strong> - Compile-time authorization with marker types</li>
+</ul>
+<hr />
+<h2 id="quick-reference-card"><a class="header" href="#quick-reference-card">Quick Reference Card</a></h2>
+<h3 id="type-selection-30-seconds"><a class="header" href="#type-selection-30-seconds">Type Selection (30 seconds)</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Input Source</th><th>Default Choice</th><th>Notes</th></tr></thead><tbody>
+<tr><td>HTTP/Web/LLM/Archives</td><td><code>StrictPath</code></td><td>Detect attacks, reject bad input</td></tr>
+<tr><td>Multi-tenant isolation</td><td><code>VirtualPath</code></td><td>Contain per-user, clean UI paths</td></tr>
+<tr><td>Trusted/hardcoded</td><td><code>Path/PathBuf</code></td><td>Only validate when mixing untrusted</td></tr>
+</tbody></table>
+</div>
+<h3 id="sugar-vs-policy-types"><a class="header" href="#sugar-vs-policy-types">Sugar vs Policy Types</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Need</th><th>Use</th></tr></thead><tbody>
+<tr><td>One-off operation</td><td>Sugar: <code>with_boundary(..)</code> / <code>with_root(..)</code></td></tr>
+<tr><td>Reuse, performance, test</td><td>Policy: <code>PathBoundary</code> / <code>VirtualRoot</code></td></tr>
+</tbody></table>
+</div>
+<h3 id="core-operations"><a class="header" href="#core-operations">Core Operations</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>fn write(boundary: &amp;PathBoundary, name: &amp;str, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
-    let sp = boundary.strict_join(name)?;
-    sp.create_parent_dir_all()?;
-    sp.write(data)
-}
+</span>// Validate
+let file = boundary.strict_join("path")?;
+
+// I/O
+file.write(b"data")?;
+let content = file.read_to_string()?;
+
+// Metadata
+if file.exists() &amp;&amp; file.metadata()?.len() &gt; 0 { }
+
+// Rename/Move
+let renamed = file.strict_rename("newpath")?;
+
+// Display
+println!("System: {}", file.strictpath_display());
+println!("User: {}", vpath.virtualpath_display()); // VirtualPath only
 <span class="boring">}</span></code></pre></pre>
+<h3 id="do--dont-checklist"><a class="header" href="#do--dont-checklist">Do / Don't Checklist</a></h3>
+<p>âœ… <strong>DO:</strong></p>
 <ul>
-<li>Validate archive entry:</li>
+<li>Validate untrusted segments before I/O</li>
+<li>Pass <code>&amp;StrictPath</code> / <code>&amp;VirtualPath</code> to encode guarantees</li>
+<li>Use dimension-specific methods (<code>strict_*</code> / <code>virtualpath_*</code>)</li>
+<li>Call <code>interop_path()</code> only for <code>AsRef&lt;Path&gt;</code> APIs</li>
+<li>Name variables by domain (<code>uploads_root</code>, <code>config_dir</code>)</li>
 </ul>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn extract(vroot: &amp;VirtualRoot, entry: &amp;str, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
-    let vp = vroot.virtual_join(entry)?;
-    vp.create_parent_dir_all()?;
-    vp.write(data)
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="ergonomics-cheatsheet"><a class="header" href="#ergonomics-cheatsheet">Ergonomics Cheatsheet</a></h2>
+<p>âŒ <strong>DON'T:</strong></p>
 <ul>
-<li>
-<p>Built-in I/O: prefer <code>StrictPath</code>/<code>VirtualPath</code> methods over exposing raw <code>Path</code></p>
-</li>
-<li>
-<p>Interop: use <code>interop_path()</code> when passing into <code>AsRef&lt;Path&gt;</code> APIs (no allocations)</p>
-</li>
-<li>
-<p>Avoid anti-patterns: never wrap secure types in <code>Path::new()</code> / <code>PathBuf::from()</code></p>
-</li>
-<li>
-<p>Function signatures: encode policy via marker types in <code>StrictPath&lt;MyMarker&gt;</code> / <code>VirtualPath&lt;MyMarker&gt;</code></p>
-</li>
-<li>
-<p>Equality/ordering: rely on the types’ derived semantics; don’t convert to strings for comparison</p>
-</li>
-<li>
-<p>Escape hatch (borrow): <code>as_unvirtual()</code>; ownership conversions: <code>virtualize()</code> / <code>unvirtual()</code> / <code>unstrict()</code> (use sparingly)</p>
-</li>
-<li>
-<p>Share logic across strict/virtual:</p>
-</li>
+<li>Wrap secure types in <code>Path::new()</code> / <code>PathBuf::from()</code></li>
+<li>Use <code>std::path</code> methods on leaked paths</li>
+<li>Use <code>interop_path()</code> for display (use <code>*_display()</code>)</li>
+<li>Construct boundaries inside helpers</li>
+<li>Validate constants like <code>"."</code> (only untrusted segments)</li>
 </ul>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn consume_strict(p: &amp;StrictPath) -&gt; std::io::Result&lt;String&gt; { p.read_to_string() }
-fn consume_virtual(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { consume_strict(p.as_unvirtual()) }
-<span class="boring">}</span></code></pre></pre>
-<p>See the dedicated Ergonomics section for deeper guidance:</p>
-<ul>
-<li>Overview: ./ergonomics/overview.md</li>
-<li>Interop vs Display: ./ergonomics/interop_display.md</li>
-<li>Function Signatures: ./ergonomics/signatures.md</li>
-<li>Escape Hatches: ./ergonomics/escape_hatches.md</li>
-<li>Equality &amp; Ordering: ./ergonomics/equality_ordering.md</li>
-<li>Naming: ./ergonomics/naming.md</li>
-</ul>
+<hr />
+<h2 id="anti-patterns-reference"><a class="header" href="#anti-patterns-reference">Anti-Patterns Reference</a></h2>
+<p>For detailed anti-patterns and fixes, see: <strong><a href="../anti_patterns.html">Anti-Patterns Guide â†’</a></strong></p>
+<hr />
+<p>That's it! This page is your quick reference. Dive into the focused chapters when you need details.</p>
+<p>For source-level API documentation: <strong><a href="../../strict_path/index.html">API Reference (strict-path crate docs) â†’</a></strong></p>
 
                     </main>
 
@@ -519,7 +505,7 @@ fn consume_virtual(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { co
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="anti_patterns.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="best_practices/why_naive_approaches_fail.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -533,7 +519,7 @@ fn consume_virtual(p: &amp;VirtualPath) -&gt; std::io::Result&lt;String&gt; { co
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="anti_patterns.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="best_practices/why_naive_approaches_fail.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
