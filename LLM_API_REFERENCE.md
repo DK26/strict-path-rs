@@ -1,6 +1,10 @@
 # strict-path — LLM API Reference 
 
-**Security-first path handling**: Prevent directory traversal with type-safe boundaries.
+**Strictly enforce path boundaries to prevent directory traversal attacks.**
+
+- `PathBoundary` — defines the containment boundary
+- `StrictPath` — paths strictly validated to stay within the boundary
+- Every operation is STRICTLY validated. No exceptions, no escapes.
 
 Audience and usage: This page is a minimal-context, copy/paste guide for tool-calling LLMs. Prefer the bullets and short recipes here; link to README and mdBook for longer explanations.
 

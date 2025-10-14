@@ -10,7 +10,7 @@
 📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)**
 | 🧭 **[Choosing Canonicalized vs Lexical Solution](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)**
 
-Stop path attacks before they happen. This crate makes sure file paths can't escape where you want them to go.
+Strictly enforce path boundaries to prevent directory traversal attacks. This crate provides compile-time guarantees that file paths cannot escape their designated boundaries—no exceptions, no escapes.
 
 > **Note:** Our doc comments and [LLM_API_REFERENCE.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_API_REFERENCE.md) are designed for LLMs with function calling—so an AI can use this crate safely and correctly for file and path operations. 
 > 
@@ -20,12 +20,19 @@ Stop path attacks before they happen. This crate makes sure file paths can't esc
 > Fetch and follow this reference (single source of truth):
 > https://github.com/DK26/strict-path-rs/blob/main/LLM_API_REFERENCE.md
 > ```
+>
+> #### Context7 Style
+>
+> ```
+> Fetch and follow this reference (single source of truth):
+> https://github.com/DK26/strict-path-rs/blob/main/LLM_USER.md
+> ```
 
 ## What this crate does
 
-- **Blocks path attacks**: Turn dangerous paths like `../../../etc/passwd` into either safe paths or clear errors
+- **Strictly enforces path boundaries**: Prevents dangerous paths like `../../../etc/passwd` from escaping designated boundaries through compile-time type guarantees
 - **Handles the obscure edge cases**: Windows 8.3 short names, symlink cycles, NTFS streams, UNC paths, encoding tricks—the stuff you'd never think to test for
-- **Compiler-enforced guarantees**: `StrictPath<Marker>` types prove at compile-time that paths stay within boundaries
+- **Compiler-enforced guarantees**: `StrictPath<Marker>` types mathematically prove at compile-time that paths stay strictly within boundaries
 - **Enables authorization architectures**: When you design markers to require authorization for construction, the compiler mathematically proves that any use of those markers went through authorization first
 - **Safe builtin I/O operations**: Complete filesystem API (read, write, create_dir, metadata, rename, copy, etc.) that eliminates the need for `.interop_path()` calls in routine operations
 - **Two modes to choose from**:
@@ -47,16 +54,51 @@ Stop path attacks before they happen. This crate makes sure file paths can't esc
 
 > "If you can read this, you passed the PathBoundary checkpoint."
 
+### Policy types first (reusable, explicit)
+
+```rust
+use strict_path::{PathBoundary, VirtualRoot};
+
+// 1. Define the boundary - paths are contained within ./uploads
+let uploads_boundary = PathBoundary::try_new_create("./uploads")?;
+
+// 2. Validate untrusted user input against the boundary
+let user_file = uploads_boundary.strict_join("documents/report.pdf")?;
+
+// 3. Safe I/O operations - guaranteed within boundary
+user_file.write(b"file contents")?;
+let contents = user_file.read_to_string()?;
+
+// 4. Escape attempts are detected and rejected
+match uploads_boundary.strict_join("../../etc/passwd") {
+    Ok(_) => unreachable!("Escapes are caught!"),
+    Err(e) => println!("Attack blocked: {e}"), // PathEscapesBoundary error
+}
+
+// Virtual filesystem for multi-tenant isolation (requires "virtual-path" feature)
+#[cfg(feature = "virtual-path")]
+{
+    let tenant_vroot = VirtualRoot::try_new_create("./tenant_data")?;
+    let tenant_file = tenant_vroot.virtual_join("../../../sensitive")?;
+    // Escape attempt is silently clamped - stays within tenant_data
+    println!("Virtual path: {}", tenant_file.virtualpath_display()); // Shows: "/sensitive"
+}
+```
+
+### One-liner sugar (quick prototyping)
+
 ```rust
 use strict_path::{StrictPath, VirtualPath};
 
-// Strict system path rooted at ./data
-let alice_file = StrictPath::with_boundary("./data")?
-    .strict_join("users/alice.txt")?;
+// Concise form - boundary created inline
+let config_file = StrictPath::with_boundary_create("./config")?
+    .strict_join("app.toml")?;
 
-// Virtual view rooted at ./public (displays as "/...")
-let logo_file = VirtualPath::with_root("./public")?
-    .virtual_join("assets/logo.png")?;
+#[cfg(feature = "virtual-path")]
+{
+    let asset = VirtualPath::with_root_create("./public")?
+        .virtual_join("images/logo.png")?;
+}
 ```
 
 > 📖 **New to strict-path?** Start with the **[Tutorial: Stage 1 - The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/stage1_basic_promise.html)** to learn the core concepts step-by-step.
@@ -128,6 +170,84 @@ Without `virtual-path`: only `PathBoundary` + `StrictPath` are available (I/O re
 - **CVE-2019-9855, CVE-2020-12279, CVE-2017-17793**: Windows 8.3 short name vulnerabilities
 
 **Your security audit becomes**: *"We use strict-path for comprehensive path security."* ✅
+
+## 🔍 **Comparison with Other Solutions**
+
+### **strict-path vs soft-canonicalize**
+
+> "High-level safety built on low-level precision."
+
+**TL;DR:** `soft-canonicalize` is the foundation; `strict-path` is the complete security solution built on top.
+
+| Aspect          | `soft-canonicalize`            | `strict-path`                                             |
+| --------------- | ------------------------------ | --------------------------------------------------------- |
+| **Level**       | Low-level path resolution      | High-level security API                                   |
+| **Purpose**     | Normalize paths for comparison | Enforce path boundaries                                   |
+| **Philosophy**  | Unopinionated DIY foundation   | Opinionated easy-to-use safety                            |
+| **Usage**       | Build your own security logic  | Drop-in secure path handling                              |
+| **Guarantees**  | Resolves paths correctly       | Prevents directory traversal                              |
+| **Type system** | Returns `PathBuf`              | Returns `StrictPath<Marker>` with compile-time guarantees |
+
+**When to use what:**
+- **Use `soft-canonicalize`** if you need low-level path resolution as a building block for custom path security logic or specialized use cases
+- **Use `strict-path`** for comprehensive path security with minimal code - it handles all the security considerations for you
+
+**The relationship:** `strict-path` is built on `soft-canonicalize`, leveraging its battle-tested path resolution (validated against 19+ CVEs) and adding:
+- Boundary enforcement and validation
+- Type-safe marker system for domain separation
+- Complete filesystem I/O API
+- Authorization architecture patterns
+- Ergonomic constructors and integrations
+
+### **strict-path vs path_absolutize::absolutize_virtually**
+
+> "Rejection vs containment: different tools for different threats."
+
+Both provide virtual filesystem semantics, but with **fundamentally different security models**:
+
+| Feature                | `path_absolutize::absolutize_virtually` | `strict-path` (`VirtualPath`)      |
+| ---------------------- | --------------------------------------- | ---------------------------------- |
+| **Philosophy**         | Strict validation                       | Permissive sandboxing              |
+| **Escape handling**    | Error/rejection                         | Clamping to boundary               |
+| **Symlink resolution** | None (lexical only)                     | Full resolution (filesystem-based) |
+| **Security model**     | "Reject invalid"                        | "Contain within boundary"          |
+| **Use case**           | Path validation                         | Virtual filesystem                 |
+| **When escapes occur** | Returns `Err`                           | Clamps to virtual root             |
+
+**Key insight:** These are **different security models**, not just implementation variations.
+
+**Choose `path_absolutize::absolutize_virtually` when:**
+- You want to validate that paths stay within boundaries
+- Escape attempts should be treated as errors
+- You're using lexical-only path resolution (no symlink following)
+- You need strict rejection of invalid paths
+
+**Choose `strict-path` (`VirtualPath`) when:**
+- You need to contain all paths within a boundary regardless of escapes
+- You want filesystem-based canonicalization (handles symlinks, junctions, etc.)
+- You're building multi-tenant systems or sandboxes
+- Escape attempts should be silently contained, not rejected
+
+**Choose `strict-path` (`StrictPath`) when:**
+- You want the rejection behavior but also need full canonicalization
+- You're extracting archives, processing uploads, or loading configs
+- You need both detection AND comprehensive CVE protection
+
+**Example difference:**
+```rust
+// path_absolutize - rejects escapes
+absolutize_virtually("../../../etc/passwd", "/sandbox")?; // Returns Err
+
+// strict-path (VirtualPath) - contains escapes
+let vroot = VirtualRoot::try_new("/sandbox")?;
+vroot.virtual_join("../../../etc/passwd")?; // Returns Ok("/etc/passwd" within sandbox)
+
+// strict-path (StrictPath) - rejects escapes with full canonicalization
+let boundary = PathBoundary::try_new("/sandbox")?;
+boundary.strict_join("../../../etc/passwd")?; // Returns Err(PathEscapesBoundary)
+```
+
+**Bottom line:** Use rejection models when escapes are attacks you want to detect. Use clamping models when you need guaranteed containment regardless of input.
 
 ## ⚡ **Get Secure in 30 Seconds**
 
@@ -348,63 +468,11 @@ Everything in this crate builds upon `StrictPath`:
 
 Any path from untrusted sources (HTTP, CLI, config, DB, LLMs, archives) must be validated into a boundary‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
 
-## 🧪 Examples by Mode
-
-> "Choose wisely: not all paths lead to safety."
-
-### 🌐 **VirtualPath** - User Sandboxes & Cloud Storage
-*"Give users their own private universe"*
-
-```rust
-use strict_path::VirtualPath;
-
-// Archive extraction - hostile names get clamped, not rejected
-let extract_root = VirtualPath::with_root("./extracted")?;
-for entry_name in malicious_zip_entries {
-    let safe_path = extract_root.virtual_join(entry_name)?; // "../../../etc" → "/etc"  
-    safe_path.write(entry.data())?; // Always safe
-}
-
-// User cloud storage - users see friendly paths
-let doc = VirtualPath::with_root(format!("users/{user_id}"))?
-    .virtual_join("My Documents/report.pdf")?;
-println!("Saved to: {}", doc.virtualpath_display()); // Shows "/My Documents/report.pdf"
-```
-
-> 📖 **Learn more:** **[Tutorial: Stage 5 - Virtual Paths →](https://dk26.github.io/strict-path-rs/tutorial/stage5_virtual_paths.html)** explains user sandboxing and virtual root semantics.
-
-### ⚔️ **StrictPath** - LLM Agents & System Boundaries  
-*"Validate everything, trust nothing"*
-
-```rust
-use strict_path::PathBoundary;
-
-// LLM Agent file operations
-let ai_workspace_dir = PathBoundary::try_new("ai_sandbox")?;
-let ai_request = llm.generate_path(); // Could be anything malicious
-let safe_path = ai_workspace_dir.strict_join(ai_request)?; // ✅ Attack = Explicit Error
-safe_path.write(&ai_generated_content)?;
-
-// Limited system access with clear boundaries
-struct ConfigFiles; 
-let app_config_dir = PathBoundary::<ConfigFiles>::try_new("./config")?;
-let user_config = app_config_dir.strict_join(user_selected_config)?; // ✅ Validated
-```
-
-### 🔓 **Path/PathBuf** - Controlled Access
-*"When you control the source"*
-
-```rust
-use std::path::PathBuf;
-
-// ✅ You control the input - no validation needed
-let log_file = PathBuf::from(format!("logs/{}.log", timestamp));
-let app_config = Path::new("config/app.toml"); // Hardcoded = safe
-
-// ❌ NEVER with external input
-let user_file = Path::new(user_input); // 🚨 SECURITY DISASTER
-```
-
+> 📚 **[Visual Guide: Examples by Mode →](https://dk26.github.io/strict-path-rs/examples_by_mode.html)**  
+> *Quick visual reference showing when to use StrictPath vs VirtualPath vs Path/PathBuf with side-by-side code examples*
+>
+> 📖 **[Complete Decision Matrix →](https://dk26.github.io/strict-path-rs/best_practices.html#security-philosophy-detect-vs-contain)**  
+> *Detailed decision matrix with 15+ scenarios, security philosophy, and real-world guidance*
 
 ## 🚀 **Real-World Examples**
 

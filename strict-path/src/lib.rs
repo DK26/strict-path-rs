@@ -1,6 +1,6 @@
 //! # strict-path
 //!
-//! Prevent directory traversal with cross-platform, CVE-hardened path restriction and safe symlinks.
+//! Strictly enforce path boundaries to prevent directory traversal attacks.
 //!
 //! This crate is not a thin wrapper over `std::path` or a naive path comparison.
 //! It performs full normalization/canonicalization and boundary enforcement with:
