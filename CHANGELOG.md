@@ -7,26 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-beta.3] - 2025-10-14
+
 ### Changed
-- **BREAKING**: Updated `soft-canonicalize` dependency from 0.3.6 → 0.4.0
-  - **Virtual symlink clamping**: `VirtualPath` now clamps absolute symlink targets to the virtual root instead of rejecting them
-  - This implements true virtual filesystem semantics where symlinks like `/etc/config` are interpreted as `vroot/etc/config`
-  - Perfect for multi-tenant systems and archive extractors where symlinks must stay within user sandboxes
-  - `StrictPath` behavior unchanged: continues to use system filesystem semantics and rejects escaping symlinks
-  - See [soft-canonicalize v0.4.0 release](https://github.com/DK26/soft-canonicalize/releases/tag/v0.4.0) for implementation details
+- **BREAKING**: `VirtualPath` and `VirtualRoot` now require the `virtual-path` feature (closes #19)
+  - `StrictPath` and `PathBoundary` remain always available (the core 90% use case)
+  - **Philosophy shift**: StrictPath is for *detecting* escape attempts (archive extraction, file uploads, config loading), VirtualPath is for *containing* escape attempts (sandboxes, multi-tenant systems)
+  - To enable virtual paths: `strict-path = { version = "...", features = ["virtual-path"] }`
+  - **Rationale**: Making VirtualPath opt-in teaches the correct mental model (detect vs. contain) and reduces binary size for users who don't need containment semantics
+- **BREAKING**: Updated `soft-canonicalize` dependency from 0.3.6 → 0.4.5 (addresses #18)
+  - **0.4.0**: Virtual symlink clamping - `VirtualPath` now clamps absolute symlink targets to the virtual root instead of rejecting them
+    - Implements true virtual filesystem semantics where symlinks like `/etc/config` are interpreted as `vroot/etc/config`
+    - Perfect for multi-tenant systems and archive extractors where symlinks must stay within user sandboxes
+    - `StrictPath` behavior unchanged: continues to use system filesystem semantics and rejects escaping symlinks
+  - **0.4.1**: Critical bug fix for anchored canonicalization symlink clamping - properly preserves path structure when clamping escaped symlinks (fixed strict-path CI failures)
+  - **0.4.2-0.4.5**: Documentation improvements, performance optimizations, enhanced Windows path handling, `dunce` feature for simplified Windows paths
+  - See [soft-canonicalize CHANGELOG](https://github.com/DK26/soft-canonicalize-rs/blob/main/CHANGELOG.md) for complete details
+
+- **Removed Windows 8.3 short name rejection**: Previous approach was too aggressive and broke legitimate paths on GitHub runners
+  - Canonicalization already expands short names for existing paths (security via soft-canonicalize)
+  - Non-existent paths are handled by subsequent I/O operations failing naturally
 
 ### Documentation
-- **Enhanced virtual path documentation**: Added detailed clamping behavior examples for:
-  - `VirtualRoot::virtual_join()` - Now documents absolute path clamping with examples
-  - `VirtualPath::virtual_join()` - Explains how absolute paths and traversal attempts are clamped
-  - `VirtualPath::virtual_symlink()` - Clarifies that both target and link paths are clamped via `virtual_join()`
-  - `VirtualPath::virtual_hard_link()` - Documents hard link clamping behavior
-  - `VirtualPath::virtual_rename()` - Explains absolute destination clamping
-  - `VirtualPath::virtual_copy()` - Documents copy destination clamping
-- **README enhancements**: 
-  - Added "Critical distinction - Symlink behavior" section comparing `StrictPath` vs `VirtualPath` symlink semantics
+- **Major documentation reorganization** (closes #24, #21, #20):
+  - **README.md**: Lead with StrictPath (detect & reject), introduce VirtualPath as opt-in containment feature
+  - **Added "Choosing Between Types" decision guide**: 
+    - **Use StrictPath (default)**: Archive extraction, file uploads, config loading, any security boundary where escapes are attacks
+    - **Use VirtualPath (opt-in)**: Malware sandboxes, multi-tenant isolation, container-like plugins, security research
+  - **Key distinction**: Error on escape (StrictPath) vs. silently contain (VirtualPath)
+- **Enhanced LLM documentation** (closes #23, #17):
+  - Added comparison with `path_absolutize::absolutize_virtually` to `LLM_API_REFERENCE.md`
+  - Clarified difference between strict-path (high-level security) and soft-canonicalize (low-level foundation)
+  - Updated terminology throughout: "path bounded at" instead of "path rooted at" for StrictPath
+- **Fixed smelly doc examples** (closes #14):
+  - Fixed `.change_marker()` example to use tuple markers `(UserFiles, ReadOnly/ReadWrite)` and demonstrate proper authorization flow
+  - Removed meaningless `assert_eq!` that didn't prove marker transformation
+  - Fixed `.expect()` message to reflect actual error condition
+  - Audited and fixed `Ok(())` usage in doctests (properly hidden with `#`)
+  - Fixed "root" vs "boundary" terminology confusion in doc comments
+- **New comprehensive user guide**: Added `LLM_USER.md` with Context7-compatible documentation
+- **mdBook improvements** (closes #7, #8, #9, #10):
+  - Split `best_practices.md` into 5 focused chapters: `why_naive_approaches_fail.md`, `real_world_patterns.md`, `common_operations.md`, `policy_and_reuse.md`, `authorization_architecture.md`
+  - Added comparison tables (strict-path vs soft-canonicalize, vs path_absolutize) to `design_decisions.md`
+  - Added explicit CVE coverage with 4 detailed examples in `security_methodology.md`
+  - Moved mdBook to separate `docs` branch with `.docs/` worktree for independent documentation maintenance
+  - **lib.rs docs streamlined**: Reduced from 928 to 243 lines (74% reduction), focused on gateway role with heavy linking to comprehensive mdBook guide
+- **Enhanced virtual path documentation**:
+  - Added detailed clamping behavior examples for `VirtualRoot::virtual_join()`, `VirtualPath::virtual_join()`, `VirtualPath::virtual_symlink()`, `VirtualPath::virtual_hard_link()`, `VirtualPath::virtual_rename()`, `VirtualPath::virtual_copy()`
+  - Added "Critical distinction - Symlink behavior" section comparing StrictPath vs VirtualPath symlink semantics
   - Updated API comparison table with symlink target behavior and attack scenarios
-  - Enhanced "Best for" guidance to include multi-tenant storage use cases
+
+### Added
+- **README.md example validation** (closes #6):
+  - All README.md code examples now have corresponding tests in `strict-path/src/tests/readme_examples.rs`
+  - Tests ensure README examples compile, run, and produce expected behavior
+  - Prevents documentation rot by validating examples in CI
+- **Enhanced CI validation**:
+  - Added no-features clippy validation (`cargo clippy --no-default-features`) to ensure library compiles cleanly without any features
+  - Library now validates with no features, default features, and all features
+  - Proper `#[cfg(feature = "virtual-path")]` guards throughout codebase
+- **Issue management templates** (closes #12):
+  - Added LLM-friendly issue template in `CONTRIBUTING.md`
+  - Clear, concise format for bug reports, feature requests, and documentation issues
 
 ### Tests
 - **Comprehensive symlink clamping test suite** (742 new lines):
@@ -37,6 +79,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `virtual_join_clamps_absolute_paths_before_symlink_creation` - Security gateway validation
   - Plus 10+ additional tests covering hard links, copy, rename, and edge cases
 - **Updated existing tests**: `test_junction_escape_is_rejected` now expects clamping for `VirtualPath` while maintaining rejection for `StrictPath`
+- **Added GitHub runner simulation tests**: Validate 8.3 short name behavior without needing remote CI
+
+### Performance
+- **CI optimization** (closes #19):
+  - Replaced feature matrix testing (8-10 separate clippy runs) with single combined test
+  - Faster compilation, faster failure detection, simpler logs
+  - CI builds ~40-60% faster
+  - Updated: `ci-local.ps1`, `ci-local.sh`, `ci-check-demos.ps1`, `ci-check-demos.sh`, `.github/workflows/ci.yml`
 
 ## [0.1.0-beta.2] - 2025-10-03
 

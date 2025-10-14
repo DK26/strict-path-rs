@@ -255,7 +255,7 @@ boundary.strict_join("../../../etc/passwd")?; // Returns Err(PathEscapesBoundary
 
 ```toml
 [dependencies]
-strict-path = "0.1.0-beta.2"
+strict-path = "0.1.0-beta.3"
 ```
 
 ```rust
