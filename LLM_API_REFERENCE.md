@@ -194,8 +194,9 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 	Note: `.interop_path()` returns `&OsStr`, which already satisfies `AsRef<Path>` — you do not need to wrap it in `Path::new(..)` or `PathBuf::from(..)`.
 	For roots/policy types, use `PathBoundary::interop_path()` and `VirtualRoot::interop_path()` similarly. These types intentionally do not implement `AsRef<Path>` either; interop is explicit via the dedicated method.
 - Interop doesn't require `.unstrict()`: prefer `.interop_path()` for those third-party adapters; call `.unstrict()` only when an owned `PathBuf` is strictly required.
-- Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
-	clamping or restriction checks. Use `strict_join` / `virtualpath_parent` instead.
+- `.interop_path()` returns `&OsStr` (which is `AsRef<Path>`), not `&Path` — use it directly for external APIs.
+- Never wrap `.interop_path()` in `Path::new()` to use `Path::join`/`parent` — they bypass security checks. Use `strict_join` / `virtualpath_parent` instead.
+- After `.unstrict()` (explicit escape hatch), you own a `PathBuf` and can do whatever you need.
 - Do not convert `StrictPath` -> `VirtualPath` just to print; for UI flows start with `VirtualPath::with_root(..).virtual_join(..)` and keep a `VirtualPath`.
 
 ### Feature semantics (when enabled)
@@ -213,12 +214,13 @@ If you're only validating constants or immediately converting back to unsafe pat
 
 ---
 
-**Path Construction & Leakage** (most common mistakes):
-- ❌ `std::path::Path::new(some_strict_path.interop_path()).to_path_buf()` — WTF is this? Just use `some_strict_path.interop_path()` directly or `.clone().unvirtual()` if you need ownership
-- ❌ `std::path::PathBuf::from(some_strict_path.interop_path())` — same problem; `interop_path()` already gives you `&OsStr` which is `AsRef<Path>`
-- ❌ Wrap secure types in `Path::new(..)` / `PathBuf::from(..)` when you already have the path
-- ❌ Use std `Path::join`/`parent` on leaked `StrictPath`/`VirtualPath` — use `strict_join`/`virtualpath_parent` instead
+**Path Construction & Interop** (most common mistakes):
+- ❌ `Path::new(path.interop_path()).join(untrusted)` — wrapping `.interop_path()` to use std path operations bypasses all security
+- ❌ `PathBuf::from(path.interop_path()).join(untrusted)` — same problem; defeats the entire purpose of validation
+- ❌ `Path::new(path.interop_path()).to_path_buf()` — `.interop_path()` is already `AsRef<Path>`; no wrapping needed
 - ❌ Performing filesystem I/O via `std::fs` on `.interop_path()` paths — use built-in helpers (`StrictPath::create_file`, `StrictPath::read_to_string`, etc.)
+
+**Key insight**: `.interop_path()` returns `&OsStr` which is `AsRef<Path>` — pass it directly to external APIs. Never wrap it in `Path::new()` or `PathBuf::from()` to perform path operations; that defeats all security. After `.unstrict()` (explicit escape hatch), you own a `PathBuf` and can do whatever you need.
 
 **Validation & Policy**:
 - ❌ Validating only constants (no untrusted segment ever flows through validation)
@@ -249,15 +251,17 @@ If you're only validating constants or immediately converting back to unsafe pat
 | `println!("{}", path.interop_path().to_string_lossy())` | `println!("{}", path.strictpath_display())`     | Use display methods for user output               |
 | `fn process(path: &str)` + validate inside              | `fn process(path: &StrictPath<_>)`              | Encode safety in signature; validate once at edge |
 | `let boundary = PathBoundary::try_new(...)?`            | `let uploads_dir = PathBoundary::try_new(...)?` | Name by purpose, not type                         |
-| `leaked_path.join("child")`                             | `secure_path.strict_join("child")?`             | Never use std ops on leaked paths                 |
+| `Path::new(path.interop_path()).join("child")`          | `path.strict_join("child")?`                    | Wrapping `.interop_path()` bypasses all security  |
 | `vroot.as_unvirtual().interop_path()`                   | `vroot.interop_path()`                          | VirtualRoot has `interop_path()` directly         |
 | `path.interop_path().as_ref()`                          | `path.interop_path()`                           | Already `AsRef<Path>`; redundant `.as_ref()`      |
 | `std::fs::copy(path.interop_path(), ...)`               | `path.strict_copy(...)`                         | Use built-in I/O helpers, not raw `std::fs`       |
 
 ### The Golden Rules (Memorize These!)
 
-1. **Never convert secure types back to `Path`/`PathBuf`** unless you truly need owned `PathBuf` for mutability (use `.unvirtual()`)
-2. **Make functions accept safe types** - `&StrictPath<_>` in signatures, not `&str` with validation inside
+1. **`.interop_path()` returns `&OsStr` (already `AsRef<Path>`)** — pass directly to external APIs, never wrap in `Path::new()`
+2. **Never wrap `.interop_path()` to use std path operations** — that defeats all security; use `strict_join`, `virtualpath_parent`, etc.
+3. **`.unstrict()` is the escape hatch** — after calling it, you own a `PathBuf` and leave the safety guarantees
+4. **Make functions accept safe types** - `&StrictPath<_>` in signatures, not `&str` with validation inside
 3. **Name variables by purpose, not type** - `uploads_dir`, `config_dir`, not `boundary`, `jail`
 4. **Use the right method for the job**:
    - Display to users → `strictpath_display()` / `virtualpath_display()`
@@ -677,8 +681,8 @@ Short usage rules (1-line each)
 - Marker types prevent mixing distinct path boundaries at compile time: use when you have multiple storage areas.
 - We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an unavoidable third-party API expects `AsRef<Path>`, pass `.interop_path()`.
 	(`PathBoundary` and `VirtualRoot` do implement `AsRef<Path>` for convenience at the root level.)
-- Interop doesn’t require `.unstrict()`: prefer `.interop_path()` for those third-party adapters; call `.unstrict()` only when an owned `PathBuf` is strictly required.
-- Avoid std `Path::join`/`Path::parent` on leaked paths — they do not apply virtual-root
+- Interop doesn't require `.unstrict()`: prefer `.interop_path()` for those third-party adapters; call `.unstrict()` only when an owned `PathBuf` is strictly required.
+- `.interop_path()` returns `&OsStr` — never wrap it in `Path::new()` to use `Path::join`/`parent`; that bypasses all security. Use `strict_*` / `virtual_*` operations instead.
 	clamping or path boundary checks. Use `strict_join` / `virtualpath_parent` instead.
  - Do not convert `StrictPath` -> `VirtualPath` just to print; for UI flows start with `VirtualPath::with_root(..).virtual_join(..)` and keep a `VirtualPath`.
  - `*_to_string_lossy()` returns `Cow<'_, str>`; call `.into_owned()` only when an owned `String` is required.
@@ -750,7 +754,7 @@ Equality/Ordering/Hashing
 
 ## Pitfalls (And How To Avoid)
 - Do not expose raw `Path`/`PathBuf` from `StrictPath`/`VirtualPath`. We do not implement `AsRef<Path>`. Prefer crate I/O or `.interop_path()` where `AsRef<Path>` is accepted, or explicit escape hatches when unavoidable.
-- Use restriction-aware joins/parents; never call std `Path::join` on a leaked path.
+- Use restriction-aware joins/parents; never wrap `.interop_path()` in `Path::new()` to use std path operations.
 - Virtual strings are rooted. Use `virtualpath_display()` for UI/logging.
 - Use `PathBoundary::try_new_create(..)` when the restriction directory might not exist.
 - Symlinks/junctions to outside: paths that traverse a symlink or junction inside the restriction to a location outside the restriction are rejected at validation time with `StrictPathError::PathEscapesBoundary`.
@@ -758,7 +762,7 @@ Equality/Ordering/Hashing
 Common anti-patterns (LLM quick check)
 - Passing strings to `AsRef<Path>`-only APIs: avoid. Use crate I/O helpers or explicit escape hatches; for `AsRef<Path>`-accepting APIs, use `.interop_path()`.
 - Converting `StrictPath` -> `VirtualPath` only for display: **ANTI-PATTERN** `strict_path.clone().virtualize()` for virtual display - if you need virtual semantics, start with `VirtualRoot`/`VirtualPath` from the beginning.
-- Using `Path::join`/`Path::parent` on leaked paths: use `strictpath_*` / `virtualpath_*` ops.
+- Wrapping `.interop_path()` in `Path::new()` to use `Path::join`/`Path::parent`: use `strict_*` / `virtual_*` operations instead.
 - Forcing ownership: avoid `.into_owned()` on `Cow` unless an owned `String` is required.
 - Bare `{}` in format strings: prefer captured identifiers like `"{path}"` (bind a short local if needed).
 

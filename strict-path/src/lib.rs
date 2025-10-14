@@ -115,10 +115,12 @@
 //!
 //! ## Critical Anti-Patterns
 //!
-//! - **NEVER wrap our types in `Path::new()` or `PathBuf::from()`** — defeats all security
-//! - **NEVER use std `Path::join`** on leaked paths — can escape boundaries
-//! - **Use `.interop_path()` directly** for external APIs — no need for `.as_ref()`
+//! - **NEVER wrap `.interop_path()` in `Path::new()` or `PathBuf::from()`** — defeats all security
+//! - **NEVER use std path operations on untrusted input** — use `.strict_join()`, not `Path::new().join()`
+//! - **Use `.interop_path()` directly** for external APIs — it's already `AsRef<Path>`, no wrapping needed
 //! - **Use proper display methods** — `.strictpath_display()` not `.interop_path().to_string_lossy()`
+//!
+//! Note: `.interop_path()` returns `&OsStr` (which is `AsRef<Path>`). After `.unstrict()` (explicit escape hatch), you own a `PathBuf` and can do whatever you need.
 //!
 //! **[→ See full anti-patterns list](https://dk26.github.io/strict-path-rs/anti_patterns.html)**
 //!

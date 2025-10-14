@@ -54,14 +54,14 @@ println!("user sees: {}", doc.virtualpath_display());
   - `PathResolutionError` — resolution/canonicalization failure
   - `PathEscapesBoundary` — attempted traversal or symlink/junction escape
 
-## Do / Don’t
+## Do / Don't
 
 - Do: `boundary.strict_join(user_input)` or `vroot.virtual_join(user_input)`.
 - Do: pass `&StrictPath<_>`/`&VirtualPath<_>` into helpers; or pass policy roots + segment.
 - Do: use `*_display()` for users; `.interop_path()` only for `AsRef<Path>` adapters.
-- Don’t: `Path::join(user_input)` or `parent()` on leaked paths.
-- Don’t: Convert back to `PathBuf` and call `std::fs::*` on untrusted input.
-- Don’t: Construct boundaries/roots inside helpers; inject policy via parameters.
+- Don't: wrap `.interop_path()` in `Path::new()` or `PathBuf::from()` — it's already `AsRef<Path>`.
+- Don't: use std path operations (`Path::join`, `Path::parent`) on untrusted input — use `.strict_join()` instead.
+- Don't: Construct boundaries/roots inside helpers; inject policy via parameters.
 
 ## Quick recipes
 
@@ -180,7 +180,7 @@ Use these when writing or generating code. Names make the dimension explicit.
 
 ## Golden rules (memorize these)
 
-1) Never call `Path::join`/`parent` on untrusted or leaked paths; always use `strict_*` / `virtual_*` operations.
+1) Never wrap `.interop_path()` in `Path::new()` to use `Path::join`/`parent`; always use `strict_*` / `virtual_*` operations instead.
 2) Validate every external segment with `strict_join`/`virtual_join` at the boundary. Accept `&StrictPath<_>`/`&VirtualPath<_>` in downstream functions.
 3) Don’t convert secure types back to `Path`/`PathBuf` for I/O; prefer crate I/O. Use `interop_path()` only when a library insists on `AsRef<Path>`.
 4) Use explicit display methods. Do not format secure types directly.
@@ -465,7 +465,7 @@ src.strict_hard_link(&dst)?; // io::Result<()>
 
 - Anti‑pattern: validate constants only → Fix: validate actual untrusted segments.
 - Anti‑pattern: `std::fs::*` on `interop_path()` → Fix: prefer crate I/O (`read`, `write`, …).
-- Anti‑pattern: `Path::join` on leaked secure types → Fix: use `strict_join`/`virtual_join`.
+- Anti‑pattern: wrapping `.interop_path()` in `Path::new()` to use `Path::join` → Fix: use `strict_join`/`virtual_join` instead.
 - Anti‑pattern: convert `StrictPath`→`VirtualPath` just to print → Fix: use `strictpath_display()`; start with virtual if you need virtual UX.
 - Anti‑pattern: `strict_join("")` / `virtual_join("")` to get the root → Fix: use `into_strictpath()` / `into_virtualpath()`.
 - Anti‑pattern: `interop_path().as_ref()` or wrapping `interop_path()` in `Path::new`/`PathBuf::from` → Fix: pass `interop_path()` directly to APIs accepting `AsRef<Path>`.

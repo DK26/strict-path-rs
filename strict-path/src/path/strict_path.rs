@@ -251,7 +251,8 @@ impl<Marker> StrictPath<Marker> {
     /// Join a path segment and re-validate against the boundary.
     ///
     /// NOTE:
-    /// Never call `Path::join` on a leaked system path (e.g., from `interop_path()` or `unstrict()`); always re-validate through this method.
+    /// Never wrap `.interop_path()` in `Path::new()` to use `Path::join()` — that defeats all security. Always use this method.
+    /// After `.unstrict()` (explicit escape hatch), you own a `PathBuf` and can do whatever you need.
     ///
     /// PARAMETERS:
     /// - `path` (`AsRef<Path>`): Segment or absolute path to validate.

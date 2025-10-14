@@ -200,7 +200,7 @@ Avoid generic names like `boundary`, `jail`, or type-based suffixes. This applie
   - Display: `strictpath_display()` (system) / `virtualpath_display()` (virtual).
 - Explicit operations by dimension:
   - `strict_join`/`virtual_join`, `strictpath_parent`/`virtualpath_parent`, `strictpath_with_*`/`virtualpath_with_*`.
-  - Do not use std `Path::join`/`parent` on leaked paths.
+  - `.interop_path()` returns `&OsStr` (already `AsRef<Path>`) — never wrap it in `Path::new()` to use std path operations.
 - Escape hatches only where needed:
   - Prefer borrowing: `vpath.as_unvirtual()` to pass `&StrictPath`.
   - Avoid `.unvirtual()`/`.unstrict()` unless ownership is required; isolate in dedicated “escape hatches” sections.
@@ -274,7 +274,7 @@ Escape hatches:
 - Performing filesystem I/O via `std::fs` on `.interop_path()` paths instead of the built-in strict helpers (e.g., `StrictPath::create_file`, `StrictPath::read_to_string`).
 - `interop_path().as_ref()` or `as_unvirtual().interop_path()` — when adapting third-party crates, call `.interop_path()` directly; no extra `.as_ref()` dance.
 - Mixing interop and display (use `*_display()` for display).
-- Using std path ops on leaked values (`join`/`parent`).
+- Wrapping `.interop_path()` in `Path::new()` or `PathBuf::from()` to use std path operations.
 - Raw path parameters in safe helpers — use types/signatures that encode guarantees.
 - Single‑user demo flows for multi‑user services — use per‑user `VirtualRoot`.
 - Calling `strict_join("")` or `virtual_join("")` to grab the root. Prefer the dedicated conversions (`PathBoundary::into_strictpath()`, `VirtualRoot::into_virtualpath()`) so empty segments never creep into reviewer-approved flows.
@@ -282,7 +282,9 @@ Escape hatches:
 
 Path handling rules (very important):
 - Do not expose raw `Path`/`PathBuf` from `StrictPath`/`VirtualPath` in public APIs or examples.
-- Avoid std path methods on leaked paths; always use the explicit strict/virtual variants.
+- `.interop_path()` returns `&OsStr` (already `AsRef<Path>`) — pass directly to external APIs, never wrap in `Path::new()` or `PathBuf::from()`.
+- Never wrap `.interop_path()` to use std path operations — that defeats all security. Use dimension-specific operations instead.
+- `.unstrict()` is the explicit escape hatch — after calling it, you own a `PathBuf` and leave safety guarantees.
 - Stay in one dimension per flow; if you need the other, upgrade/downgrade explicitly.
 
 String formatting rules (Rust 1.58+ captured identifiers):
@@ -553,7 +555,7 @@ When creating issues, ensure they include:
 
 - Examples:
   - Compile and run (doctests or `cargo run --example ...`); no `#[allow(..)]`.
-  - Use domain‑based variable names and explicit strict/virtual API calls; never ad‑hoc std path ops on leaked values.
+  - Use domain‑based variable names and explicit strict/virtual API calls; never wrap `.interop_path()` to use std path operations.
   - Demonstrate discovery vs. validation patterns clearly.
 - Tests:
   - Library: thorough unit/integration tests for new behavior (e.g., rename semantics across strict/virtual, cross‑platform differences).
@@ -620,7 +622,7 @@ Guidelines:
 - Do: validate untrusted segments via `strict_join`/`virtual_join`.
 - Do: pass `&StrictPath`/`&VirtualPath` into helpers; or pass boundaries/roots + segment.
 - Do: use explicit operations and display helpers.
-- Don’t: wrap secure types in std paths or use std ops on leaked values.
+- Don't: wrap `.interop_path()` in `Path::new()` or `PathBuf::from()` to use std path operations — that defeats all security.
 - Don’t: validate constants “just to use the API”.
 
 ---
