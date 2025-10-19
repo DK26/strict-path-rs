@@ -1,6 +1,7 @@
 mod advanced_security;
 mod create_parent;
 mod creation;
+mod cve_2025_11001;
 mod filesystem;
 mod marker;
 mod method_coverage;
