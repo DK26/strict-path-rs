@@ -410,14 +410,11 @@ impl<Marker> PathBoundary<Marker> {
     /// Create a symbolic link at `link_path` pointing to this boundary's directory.
     ///
     /// PARAMETERS:
-    /// - `link_path` (&`StrictPath<Marker>`): Destination for the symlink, within the same boundary.
+    /// - `link_path` (`impl AsRef<Path>`): Destination for the symlink, within the same boundary.
     ///
     /// RETURNS:
     /// - `io::Result<()>`: Mirrors std semantics.
-    pub fn strict_symlink(
-        &self,
-        link_path: &crate::path::strict_path::StrictPath<Marker>,
-    ) -> std::io::Result<()> {
+    pub fn strict_symlink<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
         let root = self
             .clone()
             .into_strictpath()
@@ -430,10 +427,7 @@ impl<Marker> PathBoundary<Marker> {
     /// Create a hard link at `link_path` pointing to this boundary's directory.
     ///
     /// PARAMETERS and RETURNS mirror `strict_symlink`.
-    pub fn strict_hard_link(
-        &self,
-        link_path: &crate::path::strict_path::StrictPath<Marker>,
-    ) -> std::io::Result<()> {
+    pub fn strict_hard_link<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
         let root = self
             .clone()
             .into_strictpath()
@@ -449,10 +443,7 @@ impl<Marker> PathBoundary<Marker> {
     /// - Windows-only and behind the `junctions` crate feature.
     /// - Junctions are directory-only.
     #[cfg(all(windows, feature = "junctions"))]
-    pub fn strict_junction(
-        &self,
-        link_path: &crate::path::strict_path::StrictPath<Marker>,
-    ) -> std::io::Result<()> {
+    pub fn strict_junction<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
         let root = self
             .clone()
             .into_strictpath()

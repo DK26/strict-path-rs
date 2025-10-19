@@ -620,18 +620,18 @@ impl<Marker> VirtualPath<Marker> {
     /// # let td = tempfile::tempdir().unwrap();
     /// let vroot: VirtualRoot = VirtualRoot::try_new_create(td.path())?;
     ///
-    /// // Create target - absolute path "/etc/config" is clamped to vroot/etc/config
+    /// // Create target file
     /// let target = vroot.virtual_join("/etc/config/app.conf")?;
     /// target.create_parent_dir_all()?;
     /// target.write(b"config data")?;
     ///
-    /// // Create symlink - absolute path "/var/app/link" is clamped to vroot/var/app/link
-    /// let link = vroot.virtual_join("/var/app/link.conf")?;
+    /// // Ensure link parent directory exists (Windows requires this for symlink creation)
+    /// let link = vroot.virtual_join("/links/config.link")?;
     /// link.create_parent_dir_all()?;
     ///
-    /// // On Windows, symlink creation may fail without privileges - gracefully handle
-    /// if let Err(e) = target.virtual_symlink(&link) {
-    ///     // Windows ERROR_PRIVILEGE_NOT_HELD (1314) is expected without admin/dev mode
+    /// // Create symlink - may fail on Windows without Developer Mode/admin privileges
+    /// if let Err(e) = target.virtual_symlink("/links/config.link") {
+    ///     // Skip test if we don't have symlink privileges (Windows ERROR_PRIVILEGE_NOT_HELD = 1314)
     ///     #[cfg(windows)]
     ///     if e.raw_os_error() == Some(1314) { return Ok(()); }
     ///     return Err(e.into());
@@ -640,16 +640,36 @@ impl<Marker> VirtualPath<Marker> {
     /// assert_eq!(link.read_to_string()?, "config data");
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn virtual_symlink(&self, link_path: &Self) -> std::io::Result<()> {
-        if self.inner.boundary().path() != link_path.inner.boundary().path() {
-            let err = StrictPathError::path_escapes_boundary(
-                link_path.inner.path().to_path_buf(),
-                self.inner.boundary().path().to_path_buf(),
-            );
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
-        }
+    pub fn virtual_symlink<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
+        let link_ref = link_path.as_ref();
+        let validated_link = if link_ref.is_absolute() {
+            match self.virtual_join(link_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        } else {
+            // Resolve as sibling
+            let parent = match self.virtualpath_parent() {
+                Ok(Some(p)) => p,
+                Ok(None) => match self
+                    .inner
+                    .boundary()
+                    .clone()
+                    .virtualize()
+                    .into_virtualpath()
+                {
+                    Ok(root) => root,
+                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                },
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            };
+            match parent.virtual_join(link_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        };
 
-        self.inner.strict_symlink(&link_path.inner)
+        self.inner.strict_symlink(validated_link.inner.path())
     }
 
     /// SUMMARY:
@@ -667,31 +687,53 @@ impl<Marker> VirtualPath<Marker> {
     /// # let td = tempfile::tempdir().unwrap();
     /// let vroot: VirtualRoot = VirtualRoot::try_new_create(td.path())?;
     ///
-    /// // Create target - absolute path clamped to virtual root
+    /// // Create target file
     /// let target = vroot.virtual_join("/shared/data.dat")?;
     /// target.create_parent_dir_all()?;
     /// target.write(b"shared data")?;
     ///
-    /// // Create hard link - also clamped to virtual root
+    /// // Ensure link parent directory exists (Windows requires this for hard link creation)
     /// let link = vroot.virtual_join("/backup/data.dat")?;
     /// link.create_parent_dir_all()?;
-    /// target.virtual_hard_link(&link)?;
     ///
-    /// // Modify through link, verify through target (hard link behavior)
+    /// // Create hard link
+    /// target.virtual_hard_link("/backup/data.dat")?;
+    ///
+    /// // Read through link path, verify through target (hard link behavior)
     /// link.write(b"modified")?;
     /// assert_eq!(target.read_to_string()?, "modified");
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn virtual_hard_link(&self, link_path: &Self) -> std::io::Result<()> {
-        if self.inner.boundary().path() != link_path.inner.boundary().path() {
-            let err = StrictPathError::path_escapes_boundary(
-                link_path.inner.path().to_path_buf(),
-                self.inner.boundary().path().to_path_buf(),
-            );
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
-        }
+    pub fn virtual_hard_link<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
+        let link_ref = link_path.as_ref();
+        let validated_link = if link_ref.is_absolute() {
+            match self.virtual_join(link_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        } else {
+            // Resolve as sibling
+            let parent = match self.virtualpath_parent() {
+                Ok(Some(p)) => p,
+                Ok(None) => match self
+                    .inner
+                    .boundary()
+                    .clone()
+                    .virtualize()
+                    .into_virtualpath()
+                {
+                    Ok(root) => root,
+                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                },
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            };
+            match parent.virtual_join(link_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        };
 
-        self.inner.strict_hard_link(&link_path.inner)
+        self.inner.strict_hard_link(validated_link.inner.path())
     }
 
     /// SUMMARY:
@@ -701,16 +743,39 @@ impl<Marker> VirtualPath<Marker> {
     /// - Windows-only and behind the `junctions` feature.
     /// - Directory-only semantics; both paths must share the same virtual root.
     #[cfg(all(windows, feature = "junctions"))]
-    pub fn virtual_junction(&self, link_path: &Self) -> std::io::Result<()> {
-        if self.inner.boundary().path() != link_path.inner.boundary().path() {
-            let err = StrictPathError::path_escapes_boundary(
-                link_path.inner.path().to_path_buf(),
-                self.inner.boundary().path().to_path_buf(),
-            );
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
-        }
+    pub fn virtual_junction<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
+        // Mirror virtual semantics used by symlink/hard-link helpers:
+        // - Absolute paths are interpreted in the VIRTUAL namespace and clamped to this root
+        // - Relative paths are resolved as siblings (or from the virtual root when at root)
+        let link_ref = link_path.as_ref();
+        let validated_link = if link_ref.is_absolute() {
+            match self.virtual_join(link_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        } else {
+            let parent = match self.virtualpath_parent() {
+                Ok(Some(p)) => p,
+                Ok(None) => match self
+                    .inner
+                    .boundary()
+                    .clone()
+                    .virtualize()
+                    .into_virtualpath()
+                {
+                    Ok(root) => root,
+                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                },
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            };
+            match parent.virtual_join(link_ref) {
+                Ok(p) => p,
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        };
 
-        self.inner.strict_junction(&link_path.inner)
+        // Delegate to strict helper after validating link location in virtual space
+        self.inner.strict_junction(validated_link.inner.path())
     }
 
     /// SUMMARY:

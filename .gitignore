@@ -27,3 +27,6 @@ Cargo.lock
 .github/instructions/memory.instruction.md
 # Local docs worktree (branch: docs)
 .docs/
+
+# Agents
+.claude

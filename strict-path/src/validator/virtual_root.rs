@@ -201,32 +201,47 @@ impl<Marker> VirtualRoot<Marker> {
 
     /// SUMMARY:
     /// Create a symbolic link at `link_path` pointing to this root's underlying directory.
-    pub fn virtual_symlink(
-        &self,
-        link_path: &crate::path::virtual_path::VirtualPath<Marker>,
-    ) -> std::io::Result<()> {
+    ///
+    /// DETAILS:
+    /// `link_path` is interpreted in the virtual dimension and resolved via `virtual_join()`
+    /// so that absolute virtual paths ("/links/a") are clamped within this virtual root and
+    /// relative paths are resolved relative to the virtual root.
+    pub fn virtual_symlink<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
+        // Resolve the link location in virtual space first (clamps/anchors under this root)
+        let link_ref = link_path.as_ref();
+        let validated_link = self
+            .virtual_join(link_ref)
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
+        // Obtain the strict target for the root directory
         let root = self
             .root
             .clone()
             .into_strictpath()
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
 
-        root.strict_symlink(link_path.as_unvirtual())
+        root.strict_symlink(validated_link.as_unvirtual().path())
     }
 
     /// SUMMARY:
     /// Create a hard link at `link_path` pointing to this root's underlying directory.
-    pub fn virtual_hard_link(
-        &self,
-        link_path: &crate::path::virtual_path::VirtualPath<Marker>,
-    ) -> std::io::Result<()> {
+    ///
+    /// DETAILS:
+    /// The link location is resolved via `virtual_join()` to clamp/anchor within this root.
+    /// Note: Most platforms forbid directory hard links; expect an error from the OS.
+    pub fn virtual_hard_link<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
+        let link_ref = link_path.as_ref();
+        let validated_link = self
+            .virtual_join(link_ref)
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
         let root = self
             .root
             .clone()
             .into_strictpath()
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
 
-        root.strict_hard_link(link_path.as_unvirtual())
+        root.strict_hard_link(validated_link.as_unvirtual().path())
     }
 
     /// SUMMARY:
@@ -235,17 +250,19 @@ impl<Marker> VirtualRoot<Marker> {
     /// DETAILS:
     /// - Windows-only and behind the `junctions` feature.
     #[cfg(all(windows, feature = "junctions"))]
-    pub fn virtual_junction(
-        &self,
-        link_path: &crate::path::virtual_path::VirtualPath<Marker>,
-    ) -> std::io::Result<()> {
+    pub fn virtual_junction<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
+        let link_ref = link_path.as_ref();
+        let validated_link = self
+            .virtual_join(link_ref)
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
         let root = self
             .root
             .clone()
             .into_strictpath()
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
 
-        root.strict_junction(link_path.as_unvirtual())
+        root.strict_junction(validated_link.as_unvirtual().path())
     }
 
     /// SUMMARY:

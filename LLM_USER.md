@@ -27,7 +27,8 @@ Strict (detect & reject):
 use strict_path::{PathBoundary, StrictPath};
 
 let uploads: PathBoundary = PathBoundary::try_new_create("uploads")?;
-let avatar: StrictPath = uploads.strict_join("users/alice/avatar.png")?;
+let username = "alice";
+let avatar: StrictPath = uploads.strict_join(format!("users/{username}/avatar.png"))?;
 avatar.create_parent_dir_all()?;
 avatar.write(b"<png>")?;
 println!("stored: {}", avatar.strictpath_display());
@@ -245,7 +246,8 @@ let root_boundary = PathBoundary::try_new_create("assets")?;
 let root_path = root_boundary.into_strictpath()?; // preferred
 
 // Virtual root as a path value (feature: virtual-path)
-let vroot = strict_path::VirtualRoot::try_new_create("tenants/acme")?;
+let tenant_id = "acme";
+let vroot = strict_path::VirtualRoot::try_new_create(format!("tenants/{tenant_id}"))?;
 let vroot_path = vroot.into_virtualpath()?; // preferred
 ```
 
@@ -402,7 +404,8 @@ fn process_bytes<M>(p: &StrictPath<M>) -> std::io::Result<Vec<u8>> {
 let strict = boundary.strict_join("a.txt")?;
 let _ = process_bytes(&strict)?;
 
-let vroot = strict_path::VirtualPath::with_root_create("users/alice")?; // feature: virtual-path
+let user_id = "alice";
+let vroot = strict_path::VirtualPath::with_root_create(format!("users/{user_id}"))?; // feature: virtual-path
 let vfile = vroot.virtual_join("docs/a.txt")?;
 let _ = process_bytes(vfile.as_unvirtual())?; // borrow strict view
 ```
@@ -470,6 +473,3 @@ src.strict_hard_link(&dst)?; // io::Result<()>
 - Anti‑pattern: `strict_join("")` / `virtual_join("")` to get the root → Fix: use `into_strictpath()` / `into_virtualpath()`.
 - Anti‑pattern: `interop_path().as_ref()` or wrapping `interop_path()` in `Path::new`/`PathBuf::from` → Fix: pass `interop_path()` directly to APIs accepting `AsRef<Path>`.
 - Anti‑pattern: validate then immediately convert back to unsafe types and call `std::fs` → Fix: keep using crate I/O on the secure types; only use `interop_path()` for adapters.
-
-
-

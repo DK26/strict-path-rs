@@ -6,9 +6,10 @@ Operational guide for AI assistants and automation working in this repository.
 
 **Before making ANY suggestions or implementations:**
 
-1. **Read `LLM_API_REFERENCE.md`** - Understand existing API design, patterns, and anti-patterns
-2. **Read relevant source files** - Study how existing features are implemented
-3. **Read issue discussion** - Understand the problem context and any prior discussions
+1. **Check MCP Memory Server** - Read user preferences, frustrations, and project context stored in memory
+2. **Read `LLM_API_REFERENCE.md`** - Understand existing API design, patterns, and anti-patterns
+3. **Read relevant source files** - Study how existing features are implemented
+4. **Read issue discussion** - Understand the problem context and any prior discussions
 
 **NEVER propose designs without understanding:**
 - How the existing codebase works
@@ -16,6 +17,35 @@ Operational guide for AI assistants and automation working in this repository.
 - What the actual requirements are
 
 **Failure to read documentation first wastes everyone's time and produces incorrect designs.**
+
+## CRITICAL: UNDERSTAND BEFORE CHANGING
+
+**ABSOLUTE REQUIREMENT: Before making ANY code changes, you MUST:**
+
+1. **READ the code you're about to change** - Never modify code you haven't read and understood
+2. **UNDERSTAND the implementation** - Know what it does, how it works, and why it exists
+3. **COMPREHEND the patterns** - Understand the design decisions and conventions used
+4. **VERIFY your understanding** - Make sure you grasp the full context before proceeding
+
+**This is NON-NEGOTIABLE:**
+- Making changes without understanding the existing code is unacceptable
+- Modifying code you haven't reviewed completely pisses off the user
+- Code comprehension ALWAYS comes before code modification
+- If you don't understand it, you don't change it - period
+
+**Workflow for ANY code change:**
+1. **FIRST:** Read and understand the existing implementation
+2. **SECOND:** Analyze the patterns, conventions, and design decisions
+3. **THIRD:** Only after full comprehension, propose or make changes
+4. **NEVER:** Skip straight to modifications without understanding
+
+**Failure to follow this requirement will:**
+- Break existing functionality
+- Violate established patterns
+- Frustrate the maintainer
+- Result in rejected contributions
+
+**Remember:** Understanding code is not optional - it's the foundation of any change.
 
 ## Project Overview
 
@@ -173,6 +203,11 @@ When naming variables, treat `VirtualRoot` and `PathBoundary` as representations
 - If a variable represents a file, name it by its domain and purpose (e.g., `profile_file`, `config_file`, `avatar_file`).
 - If a variable represents a directory/root, name it by its domain and role (e.g., `user_uploads_root`, `public_assets_root`, `config_dir`, `archive_src`).
 Avoid generic names like `boundary`, `jail`, or type-based suffixes. This applies to all boundaries, roots, and path values—use descriptive, context-rich names that reflect their role in the application, not their type.
+
+Per-user VirtualRoot construction (web/multi-tenant best practice):
+- Construct roots with a trusted identifier segment, e.g.: `let user_uploads_root: VirtualRoot<UserUploads> = VirtualRoot::try_new_create(format!("uploads/{user_id}"))?;`.
+- Treat `user_id`/`tenant_id` as identifiers, not paths. Do not pass raw user strings containing separators; sanitize or map to a slug first.
+- Do not use a single global `VirtualRoot` for all users; create one per user/tenant and pass it where needed (avoid constructing inside helpers).
 
 ### Marker Naming Rules
 

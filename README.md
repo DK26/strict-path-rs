@@ -77,7 +77,8 @@ match uploads_boundary.strict_join("../../etc/passwd") {
 }
 
 // Virtual filesystem for multi-tenant isolation (requires "virtual-path" feature)
-let tenant_vroot = VirtualRoot::try_new_create("./tenant_data")?;
+let tenant_id = "alice";
+let tenant_vroot = VirtualRoot::try_new_create(format!("./tenant_data/{tenant_id}"))?;
 let tenant_file = tenant_vroot.virtual_join("../../../sensitive")?;
 // Escape attempt is silently clamped - stays within tenant_data
 println!("Virtual path: {}", tenant_file.virtualpath_display()); // Shows: "/sensitive"
@@ -97,6 +98,51 @@ let asset = VirtualPath::with_root_create("./public")?
     .virtual_join("images/logo.png")?;
 asset.create_parent_dir_all()?;
 asset.write(b"logo data")?;
+```
+
+## Typical Workflow
+
+- Establish a root (policy type): `PathBoundary` for strict detection, or `VirtualRoot` for virtual containment.
+- Accept safe types in internal APIs: `&StrictPath<Marker>` / `&VirtualPath<Marker>`.
+- Validate any untrusted input (CLI, config, DB, user I/O) via `strict_join`/`virtual_join` before any I/O.
+
+Strict link creation (hard link)
+```rust
+use strict_path::PathBoundary;
+
+// 1) Establish boundary
+let boundary: PathBoundary = PathBoundary::try_new_create("./link_demo")?;
+
+// 2) Validate target path from untrusted input
+let target = boundary.strict_join("data/target.txt")?;
+target.create_parent_dir_all()?;
+target.write(b"hello")?;
+
+// 3) Create a sibling hard link (simple, no extra dirs)
+target.strict_hard_link("alias.txt")?; // mirrors std::fs::hard_link
+
+let alias = boundary.strict_join("data/alias.txt")?;
+assert_eq!(alias.read_to_string()?, "hello");
+```
+
+Virtual link creation (hard link)
+```rust
+use strict_path::VirtualRoot;
+
+// 1) Establish virtual root (per tenant)
+let tenant_id = "tenant42";
+let vroot: VirtualRoot = VirtualRoot::try_new_create(format!("./vlink_demo/{tenant_id}"))?;
+
+// 2) Validate target in virtual space (absolute is clamped to root)
+let vtarget = vroot.virtual_join("/data/target.txt")?;
+vtarget.create_parent_dir_all()?;
+vtarget.write(b"hi")?;
+
+// 3) Create a sibling hard link (virtual semantics)
+vtarget.virtual_hard_link("alias.txt")?;
+
+let valias = vroot.virtual_join("/data/alias.txt")?;
+assert_eq!(valias.read_to_string()?, "hi");
 ```
 
 > 📖 **New to strict-path?** Start with the **[Tutorial: Stage 1 - The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/stage1_basic_promise.html)** to learn the core concepts step-by-step.
@@ -615,7 +661,8 @@ fn process_upload(user_file: &StrictPath<UserFiles>) -> Result<()> { /* ... */ }
 
 // Create context-specific roots
 let public_assets_root: VirtualRoot<WebAssets> = VirtualRoot::try_new("public")?;
-let user_uploads_root: VirtualRoot<UserFiles> = VirtualRoot::try_new("uploads")?;
+let user_id = "alice";
+let user_uploads_root: VirtualRoot<UserFiles> = VirtualRoot::try_new(format!("uploads/{user_id}"))?;
 
 let css_file: VirtualPath<WebAssets> = public_assets_root.virtual_join("app.css")?;
 let report_file: VirtualPath<UserFiles> = user_uploads_root.virtual_join("report.pdf")?;
@@ -660,7 +707,8 @@ println!("Path: {}", user_uploads_dir.strictpath_display());
 
 // For virtual flows, prefer `VirtualPath` and borrow strict view when needed:
 use strict_path::VirtualPath;
-let user_uploads_vroot = VirtualPath::with_root("./uploads")?; // user uploads root
+let user_id = "alice";
+let user_uploads_vroot = VirtualPath::with_root(format!("./uploads/{user_id}"))?; // per-user uploads root
 let profile_avatar_file = user_uploads_vroot.virtual_join("profile/avatar.png")?; // file by domain role
 println!("Virtual: {}", profile_avatar_file.virtualpath_display());
 println!("System: {}", profile_avatar_file.as_unvirtual().strictpath_display());

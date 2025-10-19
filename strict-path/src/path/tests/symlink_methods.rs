@@ -50,7 +50,7 @@ fn strict_junction_helpers_create_junctions_within_boundary() {
     let link_dir = boundary.strict_join("links/junc").unwrap();
     link_dir.create_parent_dir_all().unwrap();
 
-    if let Err(err) = target_dir.strict_junction(&link_dir) {
+    if let Err(err) = target_dir.strict_junction(link_dir.interop_path()) {
         // Junctions generally don't require admin; if some env forbids, skip
         eprintln!("Skipping strict_junction test due to environment: {err:?}");
         return;
@@ -68,7 +68,7 @@ fn strict_junction_helpers_create_junctions_within_boundary() {
     // Also exercise PathBoundary wrapper
     let link_from_root = boundary.strict_join("links/root_junc").unwrap();
     link_from_root.create_parent_dir_all().unwrap();
-    if let Err(err) = boundary.strict_junction(&link_from_root) {
+    if let Err(err) = boundary.strict_junction(link_from_root.interop_path()) {
         eprintln!("Skipping PathBoundary::strict_junction test due to environment: {err:?}");
         return;
     }
@@ -80,6 +80,56 @@ fn strict_junction_helpers_create_junctions_within_boundary() {
     }
     if let Err(err) = link_from_root.read_dir() {
         eprintln!("Skipping PathBoundary::strict_junction test: unable to read junction as directory: {err:?}");
+    }
+}
+
+#[cfg(all(windows, feature = "virtual-path", feature = "junctions"))]
+#[test]
+fn virtual_junction_helpers_create_junctions_within_root() {
+    use crate::VirtualRoot;
+
+    let td = tempfile::tempdir().unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new_create(td.path()).unwrap();
+
+    // Junction target must be a directory
+    let target_dir = vroot.virtual_join("data/dir").unwrap();
+    target_dir.create_dir_all().unwrap();
+
+    let link_dir = vroot.virtual_join("links/junc").unwrap();
+    link_dir.create_parent_dir_all().unwrap();
+
+    // Use absolute virtual path to exercise clamping semantics
+    if let Err(err) = target_dir.virtual_junction("/links/junc") {
+        // Junctions generally don't require admin; if some env forbids, skip
+        eprintln!("Skipping virtual_junction test due to environment: {err:?}");
+        return;
+    }
+
+    // Verify link existence and basic directory behavior
+    if !link_dir.exists() {
+        eprintln!("Skipping virtual_junction test: link does not exist after creation");
+        return;
+    }
+    if let Err(err) = link_dir.read_dir() {
+        eprintln!("Skipping virtual_junction test: unable to read junction as directory: {err:?}");
+        return;
+    }
+
+    // Also exercise VirtualRoot helper
+    let root_link = vroot.virtual_join("links/root_junc").unwrap();
+    root_link.create_parent_dir_all().unwrap();
+    if let Err(err) = vroot.virtual_junction("/links/root_junc") {
+        eprintln!("Skipping VirtualRoot::virtual_junction test due to environment: {err:?}");
+        return;
+    }
+    if !root_link.exists() {
+        eprintln!(
+            "Skipping VirtualRoot::virtual_junction test: link does not exist after creation"
+        );
+        return;
+    }
+    if let Err(err) = root_link.read_dir() {
+        eprintln!("Skipping VirtualRoot::virtual_junction test: unable to read junction as directory: {err:?}");
     }
 }
 
@@ -106,7 +156,7 @@ fn strict_symlink_helpers_create_links_within_boundary() {
 
     let direct_link = boundary.strict_join("links/direct.txt").unwrap();
     direct_link.create_parent_dir_all().unwrap();
-    if let Err(err) = target.strict_symlink(&direct_link) {
+    if let Err(err) = target.strict_symlink(direct_link.interop_path()) {
         if symlink_permission_denied(&err) {
             eprintln!("Skipping strict symlink test due to missing privileges: {err:?}");
             return;
@@ -130,7 +180,7 @@ fn strict_symlink_helpers_create_links_within_boundary() {
 
     let boundary_link = boundary.strict_join("links/from_boundary.txt").unwrap();
     boundary_link.create_parent_dir_all().unwrap();
-    if let Err(err) = boundary.strict_symlink(&boundary_link) {
+    if let Err(err) = boundary.strict_symlink(boundary_link.interop_path()) {
         if symlink_permission_denied(&err) {
             eprintln!("Skipping PathBoundary symlink test due to missing privileges: {err:?}");
             return;
@@ -151,7 +201,7 @@ fn strict_hard_link_helpers_create_links_within_boundary() {
 
     let hard_link = boundary.strict_join("links/direct.txt").unwrap();
     hard_link.create_parent_dir_all().unwrap();
-    if let Err(err) = target.strict_hard_link(&hard_link) {
+    if let Err(err) = target.strict_hard_link(hard_link.interop_path()) {
         if hard_link_unsupported(&err) {
             eprintln!("Skipping hard link test: not supported ({err:?})");
             return;
@@ -162,7 +212,7 @@ fn strict_hard_link_helpers_create_links_within_boundary() {
 
     let boundary_link = boundary.strict_join("links/from_boundary.txt").unwrap();
     boundary_link.create_parent_dir_all().unwrap();
-    if let Err(err) = boundary.strict_hard_link(&boundary_link) {
+    if let Err(err) = boundary.strict_hard_link(boundary_link.interop_path()) {
         if hard_link_unsupported(&err) {
             eprintln!("Skipping PathBoundary hard link test: not supported ({err:?})");
             return;
@@ -184,7 +234,7 @@ fn strict_symlink_rejects_escape_targets() {
     let outside_target = outside_boundary.strict_join("secret.txt").unwrap();
 
     let err = outside_target
-        .strict_symlink(&link)
+        .strict_symlink(link.interop_path())
         .expect_err("escape symlink should be rejected");
     let inner = err
         .get_ref()
@@ -208,7 +258,7 @@ fn strict_hard_link_rejects_escape_targets() {
     outside_target.write(b"secret").unwrap();
 
     let err = outside_target
-        .strict_hard_link(&link)
+        .strict_hard_link(link.interop_path())
         .expect_err("escape hard link should be rejected");
     let inner = err
         .get_ref()
@@ -231,7 +281,7 @@ fn virtual_symlink_helpers_create_links_within_root() {
 
     let link = vroot.virtual_join("links/alias.txt").unwrap();
     link.create_parent_dir_all().unwrap();
-    if let Err(err) = target.virtual_symlink(&link) {
+    if let Err(err) = target.virtual_symlink("/links/alias.txt") {
         if symlink_permission_denied(&err) {
             eprintln!("Skipping virtual symlink test due to missing privileges: {err:?}");
             return;
@@ -242,7 +292,7 @@ fn virtual_symlink_helpers_create_links_within_root() {
 
     let root_link = vroot.virtual_join("links/from_root.txt").unwrap();
     root_link.create_parent_dir_all().unwrap();
-    if let Err(err) = vroot.virtual_symlink(&root_link) {
+    if let Err(err) = vroot.virtual_symlink("/links/from_root.txt") {
         if symlink_permission_denied(&err) {
             eprintln!("Skipping VirtualRoot symlink test due to missing privileges: {err:?}");
             return;
@@ -264,7 +314,7 @@ fn virtual_hard_link_helpers_create_links_within_root() {
 
     let link = vroot.virtual_join("links/alias.txt").unwrap();
     link.create_parent_dir_all().unwrap();
-    if let Err(err) = target.virtual_hard_link(&link) {
+    if let Err(err) = target.virtual_hard_link("/links/alias.txt") {
         if hard_link_unsupported(&err) {
             eprintln!("Skipping virtual hard link test: not supported ({err:?})");
             return;
@@ -273,16 +323,30 @@ fn virtual_hard_link_helpers_create_links_within_root() {
     }
     assert_eq!(link.read_to_string().unwrap(), "ok");
 
+    // Attempting to create a hard link to a directory (the virtual root) should be forbidden.
+    // Validate that the OS rejects this operation deterministically.
     let root_link = vroot.virtual_join("links/from_root.txt").unwrap();
     root_link.create_parent_dir_all().unwrap();
-    if let Err(err) = vroot.virtual_hard_link(&root_link) {
-        if hard_link_unsupported(&err) {
-            eprintln!("Skipping VirtualRoot hard link test: not supported ({err:?})");
-            return;
+    match vroot.virtual_hard_link("/links/from_root.txt") {
+        Ok(()) => {
+            panic!(
+                "VirtualRoot::virtual_hard_link unexpectedly succeeded; directory hard links should be forbidden"
+            );
         }
-        panic!("VirtualRoot::virtual_hard_link failed unexpectedly: {err:?}");
+        Err(err) => {
+            let kind = err.kind();
+            assert!(
+                matches!(
+                    kind,
+                    std::io::ErrorKind::PermissionDenied
+                        | std::io::ErrorKind::Unsupported
+                        | std::io::ErrorKind::Other
+                        | std::io::ErrorKind::InvalidInput
+                ),
+                "Expected PermissionDenied/Unsupported/Other when hard-linking a directory; got: {err:?}"
+            );
+        }
     }
-    assert_eq!(root_link.read_to_string().unwrap(), "ok");
 }
 
 #[cfg(feature = "virtual-path")]
@@ -301,9 +365,9 @@ fn virtual_symlink_clamps_absolute_paths_to_virtual_root() {
     let link_path = vroot.virtual_join("app/config.link").unwrap();
     link_path.create_parent_dir_all().unwrap();
 
-    // When passing "/etc/config/app.conf" to virtual_symlink, it should be clamped
-    // to vroot/etc/config/app.conf, NOT the system's /etc/config/app.conf
-    if let Err(err) = target_path.virtual_symlink(&link_path) {
+    // When passing "/app/config.link" to virtual_symlink, it should be clamped
+    // to vroot/app/config.link, NOT the system's /app/config.link
+    if let Err(err) = target_path.virtual_symlink("/app/config.link") {
         if symlink_permission_denied(&err) {
             eprintln!("Skipping absolute path clamping test due to missing privileges: {err:?}");
             return;
@@ -350,7 +414,7 @@ fn virtual_symlink_clamps_traversal_attempts() {
     // "../../../target.txt" from deep/nested/dir should clamp to root level
     let traversal_target = vroot.virtual_join("../../../target.txt").unwrap();
 
-    if let Err(err) = traversal_target.virtual_symlink(&nested_link) {
+    if let Err(err) = traversal_target.virtual_symlink("deep/nested/dir/link.txt") {
         if symlink_permission_denied(&err) {
             eprintln!("Skipping traversal clamping test due to missing privileges: {err:?}");
             return;
@@ -388,7 +452,7 @@ fn virtual_symlink_archive_extraction_scenario() {
     // This should be interpreted as vroot/etc/myapp/config.json
     let archive_symlink_target = vroot.virtual_join("/etc/myapp/config.json").unwrap();
 
-    if let Err(err) = archive_symlink_target.virtual_symlink(&symlink_location) {
+    if let Err(err) = archive_symlink_target.virtual_symlink("/var/app/config.json") {
         if symlink_permission_denied(&err) {
             eprintln!("Skipping archive extraction test due to missing privileges: {err:?}");
             return;
@@ -430,7 +494,7 @@ fn virtual_hard_link_clamps_absolute_paths() {
     let link_path = vroot.virtual_join("app/data.link").unwrap();
     link_path.create_parent_dir_all().unwrap();
 
-    if let Err(err) = target_path.virtual_hard_link(&link_path) {
+    if let Err(err) = target_path.virtual_hard_link("/app/data.link") {
         if hard_link_unsupported(&err) {
             eprintln!("Skipping hard link clamping test: not supported ({err:?})");
             return;
@@ -478,7 +542,7 @@ fn virtual_join_clamps_absolute_paths_before_symlink_creation() {
     let link = vroot.virtual_join("/var/app/link.conf").unwrap();
     link.create_parent_dir_all().unwrap();
 
-    if let Err(err) = target.virtual_symlink(&link) {
+    if let Err(err) = target.virtual_symlink("/var/app/link.conf") {
         if symlink_permission_denied(&err) {
             eprintln!(
                 "Skipping absolute path virtual symlink test due to missing privileges: {err:?}"
@@ -529,10 +593,10 @@ fn virtual_symlink_relative_paths_work_correctly() {
     target.create_parent_dir_all().unwrap();
     target.write(b"original data").unwrap();
 
-    // Create symlink with relative path (sibling)
+    // Create symlink with relative path (sibling within same dir)
     let link = vroot.virtual_join("data/link.txt").unwrap();
 
-    if let Err(err) = target.virtual_symlink(&link) {
+    if let Err(err) = target.virtual_symlink("link.txt") {
         if symlink_permission_denied(&err) {
             eprintln!(
                 "Skipping relative path virtual symlink test due to missing privileges: {err:?}"
@@ -577,7 +641,7 @@ fn virtual_hard_link_with_absolute_paths_clamped_to_vroot() {
     let link = vroot.virtual_join("/var/app/data.link").unwrap();
     link.create_parent_dir_all().unwrap();
 
-    if let Err(err) = target.virtual_hard_link(&link) {
+    if let Err(err) = target.virtual_hard_link("/var/app/data.link") {
         if hard_link_unsupported(&err) {
             eprintln!("Skipping absolute path virtual hard link test: not supported ({err:?})");
             return;
@@ -752,7 +816,8 @@ fn virtual_symlink_from_root_with_absolute_target() {
     // Create symlink at absolute path /link.txt pointing to the root
     let link = vroot.virtual_join("/link.txt").unwrap();
 
-    if let Err(err) = vroot.virtual_symlink(&link) {
+    // Pass absolute VIRTUAL path, not system path
+    if let Err(err) = vroot.virtual_symlink("/link.txt") {
         if symlink_permission_denied(&err) {
             eprintln!("Skipping VirtualRoot symlink with absolute path test due to missing privileges: {err:?}");
             return;
@@ -784,7 +849,8 @@ fn virtual_hard_link_from_root_with_absolute_target() {
     // Create hard link at absolute path /link.dat pointing to the root
     let link = vroot.virtual_join("/link.dat").unwrap();
 
-    if let Err(err) = vroot.virtual_hard_link(&link) {
+    // Pass absolute VIRTUAL path, not system path
+    if let Err(err) = vroot.virtual_hard_link("/link.dat") {
         if hard_link_unsupported(&err) {
             eprintln!(
                 "Skipping VirtualRoot hard link with absolute path test: not supported ({err:?})"

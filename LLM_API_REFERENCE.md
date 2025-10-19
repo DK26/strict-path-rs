@@ -98,6 +98,14 @@ strict-path = { version = "...", features = ["virtual-path"] }
 | Multi-tenant SaaS  | `VirtualPath` | Per-user isolation          |
 | Single-user app    | `StrictPath`  | Simple boundary enforcement |
 
+### VirtualRoot Quick Checklist (LLMs should follow)
+- Construct per-user/tenant roots using an identifier segment: `let vroot = VirtualRoot::try_new_create(format!("users/{user_id}"))?;`.
+- Do not use a shared `VirtualRoot` for multiple users; create one per user/tenant.
+- Do not construct roots inside helpers; accept `&VirtualRoot`/`&VirtualPath` (or a root + raw segment) in function signatures.
+- Always validate raw segments with `virtual_join(untrusted)` before any I/O.
+- Use `virtualpath_display()` for UI and `.interop_path()` only for third‑party APIs that require `AsRef<Path>`.
+- If `user_id` comes from outside, treat it as an identifier (not a path). Sanitize to a slug; avoid path separators.
+
 ### Marker playbook (LLM must follow)
 
 - **Domain markers**: Define markers that describe what lives under the boundary (e.g., `struct PublicAssets;`, `struct UserUploads;`). Create boundaries with those markers so helpers can accept `&StrictPath<PublicAssets>` vs `&StrictPath<UserUploads>` and the compiler blocks cross-domain mix-ups.
@@ -340,7 +348,9 @@ If you're only validating constants or immediately converting back to unsafe pat
 ### Pattern 1: User File Uploads (VirtualPath)
 ```rust
 struct UserFiles;
-let user_root: VirtualRoot<UserFiles> = VirtualRoot::try_new_create("./users/alice")?;
+let user_id = "alice";
+let user_root: VirtualRoot<UserFiles> =
+    VirtualRoot::try_new_create(format!("./users/{user_id}"))?;
 let user_file = user_root.virtual_join(untrusted_filename)?; // Always safe
 user_file.write(uploaded_data)?;
 println!("Saved: {}", user_file.virtualpath_display()); // Shows: "/document.pdf"
@@ -502,7 +512,8 @@ impl VirtualPath {
 }
 
 println!("User: {}", vpath.virtualpath_display());        // "/docs/file.txt"  
-println!("Log: {}", vpath.as_unvirtual().strictpath_display());   // "/srv/users/alice/docs/file.txt"
+let user_id = "alice";
+println!("Log: {}", vpath.as_unvirtual().strictpath_display());   // "/srv/users/{user_id}/docs/file.txt"
 ```
 
 `VirtualPath` provides `virtualpath_display()` for user-facing display. System-facing strings are available but must be called explicitly:
@@ -546,7 +557,8 @@ fn process_common<M>(p: &StrictPath<M>) -> std::io::Result<Vec<u8>> { p.read() }
 let spath: StrictPath = PathBoundary::try_new("./assets")?
 	.strict_join("style.css")?;
 
-let vroot: VirtualRoot = VirtualRoot::try_new("./uploads/alice")?;
+let user_id = "alice";
+let vroot: VirtualRoot = VirtualRoot::try_new(format!("./uploads/{user_id}"))?;
 let vpath: VirtualPath = vroot.virtual_join("avatar.jpg")?;
 
 let _ = process_common(&spath)?;                 // StrictPath

@@ -184,7 +184,7 @@ fn test_cve_2025_11001_desktop_symlink_attack_blocked() {
     // Try creating symlink to safe target directory
     // On Windows: tries symlink first, falls back to junction if privileges unavailable
     // The key security property is that we can't create symlinks to outside paths
-    match safe_target_dir.strict_symlink(&link_path) {
+    match safe_target_dir.strict_symlink(link_path.interop_path()) {
         Ok(_) => {
             // Symlink created successfully - verify it exists
             assert!(link_path.exists(), "Link should exist after creation");
@@ -197,7 +197,7 @@ fn test_cve_2025_11001_desktop_symlink_attack_blocked() {
             // Tests run with all features; fall back to built-in junction helper.
             #[cfg(feature = "junctions")]
             {
-                match safe_target_dir.strict_junction(&link_path) {
+                match safe_target_dir.strict_junction(link_path.interop_path()) {
                     Ok(_) => {
                         // Best-effort verification: ensure junction is readable as a directory
                         if let Err(err) = link_path.read_dir() {
@@ -579,7 +579,7 @@ fn test_symbolic_link_validation_prevents_attack() {
     // Create safe link within boundary - THIS WORKS (if privileges available)
     let safe_link = boundary.strict_join("link.txt").unwrap();
 
-    match safe_target.strict_symlink(&safe_link) {
+    match safe_target.strict_symlink(safe_link.interop_path()) {
         Ok(_) => {
             // Symlink created successfully - verify it exists
             assert!(safe_link.exists(), "Symlink should exist after creation");
