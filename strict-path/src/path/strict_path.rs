@@ -536,6 +536,43 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Create a Windows NTFS directory junction at `link_path` pointing to this path.
+    ///
+    /// DETAILS:
+    /// - Windows-only and behind the `junctions` crate feature.
+    /// - Junctions are directory-only. This call will fail if the target is not a directory.
+    /// - Both `self` (target) and `link_path` must be within the same `PathBoundary`.
+    /// - Parents for `link_path` are not created automatically; call `create_parent_dir_all()` first.
+    ///
+    /// RETURNS:
+    /// - `io::Result<()>`: Mirrors OS semantics (and `junction` crate behavior).
+    ///
+    /// ERRORS:
+    /// - Returns an error if boundaries differ, the target is not a directory, or the OS call fails.
+    #[cfg(all(windows, feature = "junctions"))]
+    pub fn strict_junction(&self, link_path: &Self) -> std::io::Result<()> {
+        if self.boundary.path() != link_path.boundary.path() {
+            let err = StrictPathError::path_escapes_boundary(
+                link_path.path().to_path_buf(),
+                self.boundary.path().to_path_buf(),
+            );
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
+        }
+
+        // Validate target is a directory (junctions are directory-only)
+        let meta = std::fs::metadata(self.path())?;
+        if !meta.is_dir() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "junction targets must be directories",
+            ));
+        }
+
+        // Call into the junction crate directly; do not add extra helpers.
+        junction::create(self.path(), link_path.path())
+    }
+
+    /// SUMMARY:
     /// Rename/move within the same boundary. Relative destinations are siblings; absolute are validated.
     /// Parents are not created automatically.
     pub fn strict_rename<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<()> {
@@ -663,6 +700,8 @@ fn create_windows_symlink(src: &Path, link: &Path) -> std::io::Result<()> {
         Err(err) => Err(err),
     }
 }
+
+// Note: No separate helper for junction creation by design — keep surface minimal
 
 impl<Marker> PartialEq for StrictPath<Marker> {
     #[inline]

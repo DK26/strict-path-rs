@@ -443,6 +443,25 @@ impl<Marker> PathBoundary<Marker> {
     }
 
     /// SUMMARY:
+    /// Create a Windows NTFS directory junction at `link_path` pointing to this boundary's directory.
+    ///
+    /// DETAILS:
+    /// - Windows-only and behind the `junctions` crate feature.
+    /// - Junctions are directory-only.
+    #[cfg(all(windows, feature = "junctions"))]
+    pub fn strict_junction(
+        &self,
+        link_path: &crate::path::strict_path::StrictPath<Marker>,
+    ) -> std::io::Result<()> {
+        let root = self
+            .clone()
+            .into_strictpath()
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
+        root.strict_junction(link_path)
+    }
+
+    /// SUMMARY:
     /// Read directory entries under the boundary directory (discovery only).
     #[inline]
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {

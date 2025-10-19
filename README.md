@@ -125,12 +125,23 @@ let result = boundary.strict_join(user_input);
 ## Features
 
 - `virtual-path` (opt-in): Enables `VirtualRoot`/`VirtualPath` and all virtual APIs. By default you get `PathBoundary`/`StrictPath` only (with full I/O).
+- `junctions` (Windows-only, opt-in): Enables built-in NTFS directory junction helpers:
+    - `StrictPath::strict_junction`, `PathBoundary::strict_junction`
+    - `VirtualPath::virtual_junction`, `VirtualRoot::virtual_junction`
+    - Junctions are directory-only. Parents aren’t created automatically. Same-boundary rules apply.
 
 Enable in Cargo.toml:
 
 ```toml
 [dependencies]
 strict-path = { version = "...", features = ["virtual-path"] }
+```
+
+Windows junction helpers:
+
+```toml
+[dependencies]
+strict-path = { version = "...", features = ["junctions"] }
 ```
 
 Without `virtual-path`: only `PathBoundary` + `StrictPath` are available (I/O remains available); all virtual-only types and methods are removed.
@@ -172,6 +183,22 @@ Without `virtual-path`: only `PathBoundary` + `StrictPath` are available (I/O re
 - **CVE-2019-9855, CVE-2020-12279, CVE-2017-17793**: Windows 8.3 short name vulnerabilities
 
 **Your security audit becomes**: *"We use strict-path for comprehensive path security."* ✅
+## I/O Equivalence (use these instead of std::fs)
+
+Short, one-to-one mapping so you don’t reach for `std::fs` with `.interop_path()`:
+
+- Directory listing: `std::fs::read_dir` → `StrictPath::read_dir` / `VirtualPath::read_dir`
+- Read file: `std::fs::read`/`read_to_string` → `StrictPath::read`/`read_to_string`
+- Write file: `std::fs::write` → `StrictPath::write`
+- Open/create: `File::open`/`File::create` → `StrictPath::open_file`/`create_file`
+- Mkdir: `create_dir`/`create_dir_all` → `StrictPath::create_dir`/`create_dir_all`
+- Remove: `remove_file`/`remove_dir`/`remove_dir_all` → `StrictPath::{remove_file, remove_dir, remove_dir_all}`
+- Move/copy: `rename`/`copy` → `StrictPath::strict_rename`/`strict_copy`
+- Links: `hard_link`/`symlink_*` → `StrictPath::strict_hard_link`/`strict_symlink`
+- Windows junctions: manual junction calls → `StrictPath::strict_junction` (feature = "junctions")
+
+Golden rule: use `.interop_path()` only for third‑party `AsRef<Path>` APIs you cannot wrap.
+
 
 ## 🔍 **Comparison with Other Solutions**
 

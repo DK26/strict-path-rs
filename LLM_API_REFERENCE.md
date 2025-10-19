@@ -26,6 +26,20 @@ Audience and usage: This page is a minimal-context, copy/paste guide for tool-ca
     ```
   - When not enabled: Only `PathBoundary` + `StrictPath` are available (all I/O included). All `VirtualRoot`/`VirtualPath` APIs are removed.
 
+- Feature `junctions` (Windows-only, opt-in): Enables built-in NTFS junction helpers
+
+	- What you get when enabled (Windows):
+		- `StrictPath::strict_junction(&self, link_path: &Self) -> io::Result<()>`
+		- `PathBoundary::strict_junction(&self, link_path: &StrictPath<_>) -> io::Result<()>`
+		- `VirtualPath::virtual_junction(&self, link_path: &Self) -> io::Result<()>`
+		- `VirtualRoot::virtual_junction(&self, link_path: &VirtualPath<_>) -> io::Result<()>`
+	- Notes: Junctions are directory-only. Parents are not created automatically. Same-boundary rules apply.
+	- Enable in Cargo.toml (Windows):
+		```toml
+		[dependencies]
+		strict-path = { version = "...", features = ["junctions"] }
+		```
+
 ## Core Security Foundation: `StrictPath`
 
 - `StrictPath<Marker>` is the core safe path type used for system-facing I/O.
@@ -163,6 +177,7 @@ Use when: validating untrusted segments into a system-facing path within a known
 Use when: passing proven-safe paths to I/O and helpers; no extra validation inside the function.
 - `.strict_join(path)` → Chain additional safe joins
 - `.interop_path()` → `&OsStr` for third-party `AsRef<Path>` APIs you cannot adapt
+- `.exists()` → Check if path exists (built-in, no need to use `Path::new().exists()`)
 - `.read()/.write(data)` → I/O operations
 - `.create_file()` → Writable handle (pass to tar builders, etc.)
 - `.open_file()` → Read-only handle when you only need to stream bytes out
@@ -181,9 +196,57 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.virtualpath_display()` → Virtual display (e.g., "/file.txt")
 - `.as_unvirtual()` → Borrow underlying `StrictPath<T>` for shared helpers
 - `.interop_path()` → Pass into third-party APIs expecting `AsRef<Path>`
+- `.exists()` → Check if path exists (built-in)
 - I/O helpers available: `.read()`, `.write(..)`, `.create_file()`, `.open_file()`, `.create_parent_dir_all()`
 
-### Core Security Rules
+## Built-in I/O Methods (Always Use These!)
+
+**CRITICAL**: `StrictPath` and `VirtualPath` provide built-in helpers for common filesystem operations. **Never** use `.interop_path()` to call `std::fs` methods directly — that's what these helpers are for!
+
+**File Operations**:
+- `.exists()` → Check if path exists (bool)
+- `.read()` → Read file to Vec<u8>
+- `.read_to_string()` → Read file to String
+- `.write(contents)` → Write to file (creates or truncates)
+- `.create_file()` → Get writable File handle
+- `.open_file()` → Get read-only File handle
+- `.remove_file()` → Delete file
+
+**Directory Operations**:
+- `.create_dir()` → Create directory (must not exist)
+- `.create_dir_all()` → Create directory and all parents
+- `.create_parent_dir_all()` → Create all parent directories for a file path
+- `.read_dir()` → Iterate directory entries
+- `.remove_dir()` → Delete empty directory
+- `.remove_dir_all()` → Delete directory and all contents
+
+**Path Manipulation**:
+- `.strict_join(path)` / `.virtual_join(path)` → Safely append segment
+- `.strictpath_parent()` / `.virtualpath_parent()` → Get parent directory
+- `.strictpath_with_file_name()` / `.virtualpath_with_file_name()` → Replace filename
+- `.strictpath_with_extension()` / `.virtualpath_with_extension()` → Replace extension
+
+**File System Operations**:
+- `.strict_copy(dest)` → Copy file to destination
+- `.strict_rename(dest)` → Move/rename file
+- `.strict_symlink(link_path)` → Create symbolic link
+- `.strict_hard_link(link_path)` → Create hard link
+- `.strict_junction(link_path)` → Create NTFS directory junction (Windows, feature = "junctions")
+
+**Why This Matters:**
+```rust
+// ❌ WRONG - Using interop_path with std::fs
+if Path::new(safe_path.interop_path()).exists() {  // DON'T DO THIS!
+    let content = std::fs::read_to_string(safe_path.interop_path())?;  // DON'T DO THIS!
+}
+
+// ✅ CORRECT - Using built-in methods
+if safe_path.exists() {  // ✅ Use the built-in method
+    let content = safe_path.read_to_string()?;  // ✅ Use the built-in method
+}
+```
+
+
 
 - ❌ **Never**: `std::path::Path::join(user_input)` - vulnerable to traversal  
 - ✅ **Always**: `boundary.strict_join(user_input)` or `vroot.virtual_join(user_input)`
@@ -255,6 +318,8 @@ If you're only validating constants or immediately converting back to unsafe pat
 | `vroot.as_unvirtual().interop_path()`                   | `vroot.interop_path()`                          | VirtualRoot has `interop_path()` directly         |
 | `path.interop_path().as_ref()`                          | `path.interop_path()`                           | Already `AsRef<Path>`; redundant `.as_ref()`      |
 | `std::fs::copy(path.interop_path(), ...)`               | `path.strict_copy(...)`                         | Use built-in I/O helpers, not raw `std::fs`       |
+| `std::os::windows::fs::symlink_dir(..)` in app code     | `path.strict_symlink(&link_path)`               | Built-in link helpers apply boundary checks       |
+| Manual junction creation in app code                    | `path.strict_junction(&link_path)`              | Windows-only helper when feature is enabled       |
 
 ### The Golden Rules (Memorize These!)
 
@@ -350,6 +415,8 @@ match boundary.strict_join(user_input) {
 - strict_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<()>
 - strict_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<u64>
 - strict_symlink(&self, link_path: &Self) -> io::Result<()>
+- strict_hard_link(&self, link_path: &Self) -> io::Result<()>
+- strict_junction(&self, link_path: &Self) -> io::Result<()>  // Windows-only, feature: junctions
 - strict_hard_link(&self, link_path: &Self) -> io::Result<()>
 
 All operations prevent traversal and symlink/junction escapes. Do not use `std::path::Path::join` on untrusted input; use the explicit `strict_*/virtual_*` operations documented below.

@@ -695,6 +695,25 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Create a Windows NTFS directory junction at `link_path` pointing to this virtual path.
+    ///
+    /// DETAILS:
+    /// - Windows-only and behind the `junctions` feature.
+    /// - Directory-only semantics; both paths must share the same virtual root.
+    #[cfg(all(windows, feature = "junctions"))]
+    pub fn virtual_junction(&self, link_path: &Self) -> std::io::Result<()> {
+        if self.inner.boundary().path() != link_path.inner.boundary().path() {
+            let err = StrictPathError::path_escapes_boundary(
+                link_path.inner.path().to_path_buf(),
+                self.inner.boundary().path().to_path_buf(),
+            );
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
+        }
+
+        self.inner.strict_junction(&link_path.inner)
+    }
+
+    /// SUMMARY:
     /// Rename/move within the same virtual root. Relative destinations are siblings; absolute are clamped to root.
     ///
     /// DETAILS:

@@ -230,6 +230,25 @@ impl<Marker> VirtualRoot<Marker> {
     }
 
     /// SUMMARY:
+    /// Create a Windows NTFS directory junction at `link_path` pointing to this virtual root's directory.
+    ///
+    /// DETAILS:
+    /// - Windows-only and behind the `junctions` feature.
+    #[cfg(all(windows, feature = "junctions"))]
+    pub fn virtual_junction(
+        &self,
+        link_path: &crate::path::virtual_path::VirtualPath<Marker>,
+    ) -> std::io::Result<()> {
+        let root = self
+            .root
+            .clone()
+            .into_strictpath()
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
+        root.strict_junction(link_path.as_unvirtual())
+    }
+
+    /// SUMMARY:
     /// Read directory entries at the virtual root (discovery). Re‑join names through virtual/strict APIs before I/O.
     #[inline]
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {

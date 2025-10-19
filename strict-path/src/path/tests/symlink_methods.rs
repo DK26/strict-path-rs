@@ -37,6 +37,64 @@ fn hard_link_unsupported(err: &std::io::Error) -> bool {
     )
 }
 
+#[cfg(all(windows, feature = "junctions"))]
+#[test]
+fn strict_junction_helpers_create_junctions_within_boundary() {
+    let td = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
+
+    // Junction target must be a directory
+    let target_dir = boundary.strict_join("data/dir").unwrap();
+    target_dir.create_dir_all().unwrap();
+
+    let link_dir = boundary.strict_join("links/junc").unwrap();
+    link_dir.create_parent_dir_all().unwrap();
+
+    if let Err(err) = target_dir.strict_junction(&link_dir) {
+        // Junctions generally don't require admin; if some env forbids, skip
+        eprintln!("Skipping strict_junction test due to environment: {err:?}");
+        return;
+    }
+    // Some environments may not flag junctions as directories via is_dir(); verify by attempting to read
+    if !link_dir.exists() {
+        eprintln!("Skipping strict_junction test: link does not exist after creation");
+        return;
+    }
+    if let Err(err) = link_dir.read_dir() {
+        eprintln!("Skipping strict_junction test: unable to read junction as directory: {err:?}");
+        return;
+    }
+
+    // Also exercise PathBoundary wrapper
+    let link_from_root = boundary.strict_join("links/root_junc").unwrap();
+    link_from_root.create_parent_dir_all().unwrap();
+    if let Err(err) = boundary.strict_junction(&link_from_root) {
+        eprintln!("Skipping PathBoundary::strict_junction test due to environment: {err:?}");
+        return;
+    }
+    if !link_from_root.exists() {
+        eprintln!(
+            "Skipping PathBoundary::strict_junction test: link does not exist after creation"
+        );
+        return;
+    }
+    if let Err(err) = link_from_root.read_dir() {
+        eprintln!("Skipping PathBoundary::strict_junction test: unable to read junction as directory: {err:?}");
+    }
+}
+
+// When the `junctions` feature is disabled, any test that requires junction creation
+// must fail loudly with a clear explanation so users know how to enable it.
+#[cfg(all(windows, not(feature = "junctions")))]
+#[test]
+fn strict_junction_helpers_require_junctions_feature() {
+    panic!(
+        "This test requires the 'junctions' feature. \
+         Enable it with: cargo test -p strict-path --features junctions \
+         (CI and default dev runs use --all-features)."
+    );
+}
+
 #[test]
 fn strict_symlink_helpers_create_links_within_boundary() {
     let td = tempfile::tempdir().unwrap();

@@ -198,6 +198,17 @@ Avoid generic names like `boundary`, `jail`, or type-based suffixes. This applie
 - Interop vs display:
   - Interop (`AsRef<Path>`): Call `.interop_path()` on `StrictPath`/`VirtualPath`/`PathBoundary`/`VirtualRoot` **only** when a third-party crate (including stdlib adapters that you cannot wrap) insists on an `AsRef<Path>` argument. If you reach for `.interop_path()` in any other context, pause and re-evaluate—the crate almost certainly already exposes a strict helper for that operation.
   - Display: `strictpath_display()` (system) / `virtualpath_display()` (virtual).
+  - Windows junctions (feature = `junctions`): Prefer built-in helpers (`StrictPath::strict_junction`, `VirtualPath::virtual_junction`, and root/boundary wrappers) instead of direct calls to junction crates in application code. Tests may still call third-party crates when simulating environment-specific behavior.
+
+#### Test design principles: symlinks vs junctions on Windows
+
+- Symlink creation often fails on CI without Developer Mode/admin. Tests must handle this gracefully.
+- Where a link creation is part of the test intent:
+  - First attempt the regular symlink helper (e.g., `strict_symlink`).
+  - If you receive Windows ERROR_PRIVILEGE_NOT_HELD (1314), prefer falling back to the built-in junction helper when `feature = "junctions"` is enabled:
+    - `StrictPath::strict_junction(&link)` or wrappers on `PathBoundary`/`VirtualRoot`/`VirtualPath`.
+  - Only as a last resort in tests (not app code), use third-party junction creation to simulate malicious preexisting links that cannot be represented as `StrictPath` targets (e.g., a link inside the boundary pointing to an outside path).
+- Always use built-in I/O (e.g., `read_dir()`, `exists()`) to verify link behavior; avoid `std::fs` calls on `.interop_path()`.
 - Explicit operations by dimension:
   - `strict_join`/`virtual_join`, `strictpath_parent`/`virtualpath_parent`, `strictpath_with_*`/`virtualpath_with_*`.
   - `.interop_path()` returns `&OsStr` (already `AsRef<Path>`) — never wrap it in `Path::new()` to use std path operations.
@@ -386,6 +397,33 @@ To keep `cargo doc` green with `-D warnings`:
 - Validate locally after edits: `cargo doc --no-deps --document-private-items --all-features`.
 
 ### LLM_API_REFERENCE.md — Purpose and Audience
+
+## Fast local debugging (be efficient)
+
+When a specific step fails locally or in CI, run only what’s needed first. Prefer targeted commands over the full pipeline:
+
+- Lints for the library only:
+  - Quick fix and lint all targets, all features:
+    - Windows PowerShell:
+      - `cargo clippy -p strict-path --fix --allow-dirty --allow-staged --all-targets --all-features`
+  - Non‑fixing lint pass (diagnostics only):
+    - `cargo clippy -p strict-path --all-targets --all-features -- -D warnings`
+- Tests for the library only:
+  - `cargo test -p strict-path --all-features`
+  - Single test file or pattern:
+    - `cargo test -p strict-path --all-features cve_2025_11001`
+- Docs (validate rustdoc warnings):
+  - `cargo doc -p strict-path --no-deps --document-private-items --all-features`
+
+When to run full pipeline:
+- Before pushing a series of changes or opening a PR
+- After modifying multiple areas (API surface, docs, tests)
+- When reproducing CI parity locally: use `./ci-local.ps1` on Windows or `./ci-local.sh` on Unix/WSL
+
+Windows‑specific notes:
+- Symlink creation can fail without Developer Mode/admin (ERROR_PRIVILEGE_NOT_HELD = 1314). Tests must handle this gracefully and may fall back to junctions when the `junctions` feature is enabled.
+- When adapting third‑party crates that require `AsRef<Path>`, pass `.interop_path()` directly; do not wrap it in `Path::new()`.
+
 
 LLM_API_REFERENCE.md is written purely for external LLM consumption. It is usage‑first and should prioritize:
 - Which types to use and when (`PathBoundary`, `StrictPath`, `VirtualRoot`, `VirtualPath`).
