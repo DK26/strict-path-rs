@@ -2,6 +2,45 @@
 
 Common workflows and patterns for everyday `strict-path` usage.
 
+## Typical Workflow
+
+- Establish a root (policy type): `PathBoundary` for strict detection, or `VirtualRoot` for virtual containment.
+- Accept safe types in internal APIs: `&StrictPath<Marker>` / `&VirtualPath<Marker>` (or roots + raw segments).
+- Validate any untrusted input (CLI, config, DB, user I/O) via `strict_join`/`virtual_join` before any I/O.
+
+Strict link creation (hard link)
+```rust
+use strict_path::PathBoundary;
+
+let boundary: PathBoundary = PathBoundary::try_new_create("./link_demo")?;
+let target = boundary.strict_join("data/target.txt")?;
+target.create_parent_dir_all()?;
+target.write(b"hello")?;
+
+// Create a sibling hard link under the same directory
+target.strict_hard_link("alias.txt")?; // mirrors std::fs::hard_link
+
+let alias = boundary.strict_join("data/alias.txt")?;
+assert_eq!(alias.read_to_string()?, "hello");
+```
+
+Virtual link creation (hard link)
+```rust
+use strict_path::VirtualRoot;
+
+let tenant_id = "tenant42";
+let vroot: VirtualRoot = VirtualRoot::try_new_create(format!("./vlink_demo/{tenant_id}"))?;
+let vtarget = vroot.virtual_join("/data/target.txt")?;
+vtarget.create_parent_dir_all()?;
+vtarget.write(b"hi")?;
+
+// Create a sibling hard link (virtual semantics)
+vtarget.virtual_hard_link("alias.txt")?;
+
+let valias = vroot.virtual_join("/data/alias.txt")?;
+assert_eq!(valias.read_to_string()?, "hi");
+```
+
 ## Pattern 1: Validate User Input
 
 **Problem**: User provides a filename, you need to ensure it stays in your directory.

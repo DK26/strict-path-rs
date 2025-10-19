@@ -48,7 +48,9 @@ fn load_config(path: &StrictPath<ConfigData>) -> Result<String, std::io::Error> 
 fn example_type_safety() -> Result<(), Box<dyn std::error::Error>> {
     // Create context-specific boundaries
     let assets_root: VirtualRoot<WebAssets> = VirtualRoot::try_new("public")?;
-    let uploads_root: VirtualRoot<UserFiles> = VirtualRoot::try_new("uploads")?;
+    let user_id = "alice";
+    let uploads_root: VirtualRoot<UserFiles> =
+        VirtualRoot::try_new(format!("uploads/{user_id}"))?;
     let config_boundary: PathBoundary<ConfigData> = PathBoundary::try_new("config")?;
 
     // Create paths with proper contexts
@@ -118,7 +120,6 @@ struct ServerConfig;
 
 struct WebServer {
     assets: VirtualRoot<WebAssets>,
-    uploads: VirtualRoot<UserUploads>,
     config: PathBoundary<ServerConfig>,
 }
 
@@ -126,7 +127,6 @@ impl WebServer {
     fn new() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
             assets: VirtualRoot::try_new("public")?,
-            uploads: VirtualRoot::try_new("uploads")?,
             config: PathBoundary::try_new("config")?,
         })
     }
@@ -143,8 +143,13 @@ impl WebServer {
     }
     
     // This can ONLY handle user uploads
-    fn save_upload(&self, filename: &str, content: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-        let upload: VirtualPath<UserUploads> = self.uploads.virtual_join(filename)?;
+    fn save_upload(
+        &self,
+        uploads_root: &VirtualRoot<UserUploads>,
+        filename: &str,
+        content: &[u8],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let upload: VirtualPath<UserUploads> = uploads_root.virtual_join(filename)?;
         self.write_upload(upload.as_unvirtual(), content)?;
         Ok(())
     }
@@ -172,7 +177,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Each method can only access its designated context
     let css = server.serve_static_file("app.css")?;
-    server.save_upload("document.pdf", b"PDF content")?;
+    
+    // Per-user uploads: construct a VirtualRoot with user_id
+    let user_id = "alice";
+    let uploads_root: VirtualRoot<UserUploads> =
+        VirtualRoot::try_new_create(format!("uploads/{user_id}"))?;
+    server.save_upload(&uploads_root, "document.pdf", b"PDF content")?;
+    
     let config = server.load_config("server.toml")?;
     
     // These would be impossible to mess up due to type safety:

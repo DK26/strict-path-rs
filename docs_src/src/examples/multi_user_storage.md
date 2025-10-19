@@ -173,7 +173,8 @@ let bob_doc = bob_root.virtual_join("/secret.txt")?;
 Understanding the difference:
 
 ```rust
-let alice_root = VirtualRoot::try_new_create("user_data_alice")?;
+let username = "alice";
+let alice_root = VirtualRoot::try_new_create(format!("user_data_{username}"))?;
 let doc = alice_root.virtual_join("/reports/january.pdf")?;
 
 // What the user sees:

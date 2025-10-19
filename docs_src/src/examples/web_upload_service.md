@@ -68,7 +68,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let service = FileUploadService;
 
     // Per-user virtual roots
-    let alice_uploads_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/alice")?;
+    let username = "alice";
+    let alice_uploads_root: VirtualRoot = VirtualRoot::try_new_create(format!("user_uploads/{username}"))?;
     let bob_uploads_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/bob")?;
 
     // Simulate user uploads - these are all SAFE and isolated
@@ -145,7 +146,8 @@ fn process_common<M>(file: &StrictPath<M>) -> io::Result<Vec<u8>> {
 let public_assets_root = PathBoundary::try_new("./assets")?;
 let css_file: StrictPath = public_assets_root.strict_join("style.css")?;
 
-let alice_uploads_root = VirtualRoot::try_new("./uploads/alice")?;
+let username = "alice";
+let alice_uploads_root = VirtualRoot::try_new(format!("./uploads/{username}"))?;
 let avatar_file: VirtualPath = alice_uploads_root.virtual_join("avatar.jpg")?;
 
 // Call with either type

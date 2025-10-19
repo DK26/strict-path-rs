@@ -14,7 +14,10 @@ In Stage 4, you learned how to encode authorization in markers. Now you'll learn
 use strict_path::StrictPath;
 
 fn show_user_files() -> Result<(), Box<dyn std::error::Error>> {
-    let uploads_dir = StrictPath::with_boundary_create("/var/app/users/alice/uploads")?;
+    let username = "alice";
+    let uploads_dir = StrictPath::with_boundary_create(
+        format!("/var/app/users/{username}/uploads"),
+    )?;
     let file = uploads_dir.strict_join("documents/report.pdf")?;
 
     // User sees ugly system path
@@ -42,8 +45,11 @@ fn show_user_files() -> Result<(), Box<dyn std::error::Error>> {
 use strict_path::VirtualPath;
 
 fn show_user_files_virtually() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a virtual root (system boundary: /var/app/users/alice/uploads)
-    let user_vroot = VirtualPath::with_root("/var/app/users/alice/uploads")?;
+    // Create a virtual root (system boundary: /var/app/users/{user}/uploads)
+    let username = "alice";
+    let user_vroot = VirtualPath::with_root(
+        format!("/var/app/users/{username}/uploads"),
+    )?;
     
     let file = user_vroot.virtual_join("documents/report.pdf")?;
 

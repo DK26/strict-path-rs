@@ -139,7 +139,8 @@ let jail = VirtualRoot::try_new("./user_data")?;
 ```rust
 let uploads_dir = PathBoundary::try_new("./uploads")?;
 let config_dir = PathBoundary::try_new("./config")?;
-let user_data = VirtualRoot::try_new("./user_data")?;
+let user_id = "alice";
+let user_data = VirtualRoot::try_new(format!("./user_data/{user_id}"))?;
 ```
 
 Now `uploads_dir.strict_join("photo.jpg")` reads naturally as "uploads directory join photo.jpg".
