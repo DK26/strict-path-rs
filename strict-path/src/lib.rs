@@ -127,10 +127,17 @@
 //! ## Feature Flags
 //!
 //! - `virtual-path` — Enables `VirtualRoot`/`VirtualPath` for containment scenarios
-//! - `serde` — Serialization support (deserialization requires context; see `serde_ext` module)
-//! - `dirs` — OS directory discovery (`PathBoundary::from_home_dir()`, etc.)
-//! - `tempfile` — RAII constructors for temporary boundaries
-//! - `app-path` — Application-specific directory patterns with env var overrides
+//! - `junctions` (Windows) — Built-in NTFS junction helpers for strict/virtual paths
+//!
+//! ## Ecosystem Integration
+//!
+//! Use ecosystem crates directly with `PathBoundary` for maximum flexibility:
+//! - `tempfile` — RAII temporary directories via `tempfile::tempdir()` → `PathBoundary::try_new()`
+//! - `dirs` — OS standard directories via `dirs::config_dir()` → `PathBoundary::try_new_create()`
+//! - `app-path` — Portable app paths via `AppPath::with("subdir")` → `PathBoundary::try_new_create()`
+//! - `serde` — `PathBoundary`/`VirtualRoot` implement `FromStr` for automatic deserialization
+//!
+//! **[→ See Ecosystem Integration Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html)**
 //!
 //! **[→ Read the getting started guide](https://dk26.github.io/strict-path-rs/getting_started.html)**
 //!

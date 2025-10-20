@@ -108,8 +108,15 @@ let text = cfg.read_to_string()?;
 ## Feature notes
 
 - `virtual-path`: enables `VirtualRoot`/`VirtualPath` and virtual operations.
-- `serde`: Serialize secure paths (`StrictPath` → system path string; `VirtualPath` → rooted string like "/a/b.txt").
-- OS/app/temp helpers are available behind features in the crate; see crate docs for exact APIs.
+- `junctions` (Windows): Built-in NTFS junction helpers for strict/virtual paths.
+
+## Ecosystem integration
+
+Use ecosystem crates directly with `PathBoundary` for maximum flexibility:
+- `tempfile` — RAII temporary directories: `tempfile::tempdir()` → `PathBoundary::try_new()`
+- `dirs` — OS standard directories: `dirs::config_dir()` → `PathBoundary::try_new_create()`
+- `app-path` — Portable app paths: `AppPath::with("subdir")` → `PathBoundary::try_new_create()`
+- `serde` — `PathBoundary`/`VirtualRoot` implement `FromStr` for automatic deserialization; serialize paths as display strings
 
 ## Decision guide (what to use when)
 
@@ -165,10 +172,34 @@ Use these when writing or generating code. Names make the dimension explicit.
 ### Feature semantics
 
 - virtual-path: Enables all VirtualRoot/VirtualPath types and methods; `StrictPath` remains available without the feature.
-- app-path: App‑relative roots with env override; when the env var is set, its value becomes the final root (do not append the provided subdir).
-- dirs: OS directory constructors (e.g., config/data/cache/home/desktop/documents/downloads/etc.) exposed as `try_new_os_*` on both `PathBoundary` and `VirtualRoot`.
-- tempfile: Temporary directories with RAII roots; `try_new_temp()` and `try_new_temp_with_prefix(..)` on both root types.
-- serde: Serialize support for `StrictPath` (system string) and `VirtualPath` (rooted `/a/b`). For safe deserialization, use seeds: `serde_ext::WithBoundary(&boundary)` → `StrictPath`, `serde_ext::WithVirtualRoot(&vroot)` → `VirtualPath`.
+- junctions (Windows): Built-in NTFS junction helpers for directory links on Windows.
+
+### Ecosystem integration patterns
+
+**Temporary directories** (`tempfile` crate):
+```rust
+let temp = tempfile::tempdir()?;
+let boundary = PathBoundary::try_new(temp.path())?;
+// RAII cleanup from tempfile, security from strict-path
+```
+
+**OS standard directories** (`dirs` crate):
+```rust
+let config_base = dirs::config_dir().ok_or("No config")?;
+let boundary = PathBoundary::try_new_create(config_base.join("myapp"))?;
+```
+
+**Portable app paths** (`app-path` crate):
+```rust
+use app_path::AppPath;
+let app_path = AppPath::with("config");  // Relative to executable directory
+let boundary = PathBoundary::try_new_create(&app_path)?;
+```
+
+**Serialization** (`serde`):
+- `PathBoundary`/`VirtualRoot` implement `FromStr`, enabling automatic deserialization
+- Serialize paths as display strings: `boundary.strictpath_display().to_string()`
+- For untrusted path fields, deserialize as `String` and validate manually via `boundary.strict_join()`
 
 ## Critical behaviors
 
@@ -327,50 +358,36 @@ fn save_user_file(user_root_fs: &str, user_path: &str, data: &[u8]) -> std::io::
 
 ## Serde and config (safe deserialization)
 
-Enable `serde` (and `virtual-path` if needed). Validate using seeds so runtime policy is applied while deserializing.
-
 ```rust
-// Cargo.toml
-// strict-path = { version = "*", features = ["serde", "virtual-path"] }
-
 use serde::Deserialize;
-use strict_path::{serde_ext, PathBoundary, StrictPath};
+use strict_path::PathBoundary;
 
 #[derive(Deserialize)]
-struct AppCfg { filename: String }
-
-fn load_cfg(json: &str, cfg_dir: &PathBoundary) -> Result<StrictPath, Box<dyn std::error::Error>> {
-  let raw: AppCfg = serde_json::from_str(json)?;
-  let path = cfg_dir.strict_join(&raw.filename)?; // validate after plain deserialize
-  Ok(path)
+struct AppConfig {
+  // PathBoundary implements FromStr, enabling automatic deserialization
+  upload_dir: PathBoundary,
+  // Validate untrusted path fields manually
+  user_paths: Vec<String>,
 }
 
-// Or deserialize directly with a seed at the call site using the boundary/root:
-// let strict_path: StrictPath<_> = serde_ext::WithBoundary(&cfg_dir).deserialize(deserializer)?;
-// let virtual_path: VirtualPath<_> = serde_ext::WithVirtualRoot(&vroot).deserialize(deserializer)?; // feature: virtual-path
+fn load_config(json: &str) -> Result<(), Box<dyn std::error::Error>> {
+  let config: AppConfig = serde_json::from_str(json)?;
+  
+  // Boundaries are ready to use
+  for path_str in &config.user_paths {
+    match config.upload_dir.strict_join(path_str) {
+      Ok(safe_path) => safe_path.write(b"data")?,
+      Err(e) => eprintln!("Blocked: {}", e),
+    }
+  }
+  Ok(())
+}
 ```
-
-For virtual paths use `serde_ext::WithVirtualRoot(&vroot)` similarly.
 
 ## OS/app/temp recipes (feature‑gated)
 
 ```rust
-// app-path: app‑relative directory with env override
-// The env var VALUE becomes the final root (no subdir append when set)
-// strict-path = { version = "*", features = ["app-path"] }
-use strict_path::PathBoundary;
-let cfg = PathBoundary::try_new_app_path_with_env("config", "MYAPP_CONFIG_DIR")?;
-let file = cfg.strict_join("settings.toml")?;
 
-// dirs: standard OS directories
-// strict-path = { version = "*", features = ["dirs"] }
-let downloads = PathBoundary::try_new_os_downloads()?;
-let dl = downloads.strict_join("report.pdf")?;
-
-// tempfile: temporary roots with RAII
-// strict-path = { version = "*", features = ["tempfile"] }
-let tmp = PathBoundary::try_new_temp()?; // ephemeral root
-let scratch = tmp.strict_join("scratch.txt")?;
 ```
 
 ## Interop cookbook

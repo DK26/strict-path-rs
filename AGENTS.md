@@ -257,12 +257,10 @@ Per-user VirtualRoot construction (web/multi-tenant best practice):
 
 ### Serde Guidelines
 
-- Feature `serde` adds `Serialize` for `StrictPath`/`VirtualPath`.
-- Safe deserialization requires runtime policy; use seeds on policy types:
-  - `serde_ext::WithBoundary(&boundary)` → `StrictPath`
-  - `serde_ext::WithVirtualRoot(&vroot)` → `VirtualPath`
-- For config structs: deserialize raw `String`/path-like fields and validate by calling `strict_join` or `virtual_join` using either a sugar-constructed boundary directory or a policy root.
-- Do not add blanket `Deserialize` impls for the secure path types; they need context.
+- `PathBoundary` and `VirtualRoot` implement `FromStr`, enabling automatic deserialization.
+- Serialize paths as display strings: `boundary.strictpath_display().to_string()` for system paths, `vpath.virtualpath_display()` for virtual paths.
+- For config structs: deserialize `PathBoundary`/`VirtualRoot` directly (via `FromStr`); deserialize untrusted path fields as `String` and validate manually by calling `strict_join` or `virtual_join`.
+- Never add `Deserialize` impls for `StrictPath`/`VirtualPath` — they need a runtime boundary/root context which only the application can provide.
 
 ### Internal Design: PathHistory & Type‑State
 

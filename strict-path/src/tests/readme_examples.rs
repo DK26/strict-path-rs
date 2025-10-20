@@ -6,8 +6,11 @@ fn readme_policy_types_example() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "virtual-path")]
     use crate::VirtualRoot;
 
+    let temp_dir = tempfile::tempdir()?.keep();
+
     // 1. Define the boundary - paths are contained within ./uploads
-    let uploads_boundary: crate::PathBoundary = PathBoundary::try_new_create("./uploads")?;
+    let uploads_boundary: crate::PathBoundary =
+        PathBoundary::try_new_create(temp_dir.join("uploads"))?;
 
     // 2. Validate untrusted user input against the boundary
     let user_file = uploads_boundary.strict_join("documents/report.pdf")?;
@@ -29,17 +32,15 @@ fn readme_policy_types_example() -> Result<(), Box<dyn std::error::Error>> {
     {
         let tenant_id = "alice";
         let tenant_vroot: crate::VirtualRoot =
-            VirtualRoot::try_new_create(format!("./tenant_data/{tenant_id}"))?;
+            VirtualRoot::try_new_create(temp_dir.join(format!("tenant_data/{tenant_id}")))?;
         let tenant_file = tenant_vroot.virtual_join("../../../sensitive")?;
         // Escape attempt is silently clamped - stays within tenant_data
         println!("Virtual path: {}", tenant_file.virtualpath_display()); // Shows: "/sensitive"
         assert_eq!(tenant_file.virtualpath_display().to_string(), "/sensitive");
         // Cleanup (not shown in README)
-        let _ = tenant_vroot.remove_dir_all();
     }
 
-    // Cleanup (not shown in README)
-    let _ = uploads_boundary.remove_dir_all();
+    // temp_dir cleanup is automatic via RAII
     Ok(())
 }
 
@@ -49,26 +50,29 @@ fn readme_one_liner_sugar_example() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "virtual-path")]
     use crate::VirtualPath;
 
+    let temp_dir = tempfile::tempdir()?.keep();
+
     // Concise form - boundary created inline
     let config_file: crate::StrictPath =
-        StrictPath::with_boundary_create("./config")?.strict_join("app.toml")?;
+        StrictPath::with_boundary_create(temp_dir.join("config"))?.strict_join("app.toml")?;
     config_file.write(b"settings")?;
 
     #[cfg(feature = "virtual-path")]
     {
-        let asset: crate::VirtualPath =
-            VirtualPath::with_root_create("./public")?.virtual_join("images/logo.png")?;
-        asset.create_parent_dir_all()?;
-        asset.write(b"logo data")?;
-
-        // Cleanup
-        let root: crate::VirtualPath = VirtualPath::with_root("./public")?;
-        root.remove_dir_all().ok();
+        // Virtual paths require dynamic tenant/user IDs to serve their purpose
+        let user_id = "alice";
+        let user_avatar: crate::VirtualPath =
+            VirtualPath::with_root_create(temp_dir.join(format!("user_data/{user_id}")))?
+                .virtual_join("/profile/avatar.png")?;
+        user_avatar.create_parent_dir_all()?;
+        user_avatar.write(b"image data")?;
+        // Each user sees "/profile/avatar.png" but they're isolated on disk
+        assert_eq!(
+            user_avatar.virtualpath_display().to_string(),
+            "/profile/avatar.png"
+        );
     }
 
-    // Cleanup
-    let root: crate::StrictPath = StrictPath::with_boundary("./config")?;
-    root.remove_dir_all().ok();
     Ok(())
 }
 
@@ -76,16 +80,15 @@ fn readme_one_liner_sugar_example() -> Result<(), Box<dyn std::error::Error>> {
 fn readme_disaster_prevention_example() -> Result<(), Box<dyn std::error::Error>> {
     use crate::StrictPath;
 
+    let temp_dir = tempfile::tempdir()?.keep();
     let user_input = "../../../etc/passwd";
 
     // ? This single line makes it mathematically impossible
-    let boundary: crate::StrictPath = StrictPath::with_boundary_create("uploads")?;
+    let boundary: crate::StrictPath = StrictPath::with_boundary_create(temp_dir.join("uploads"))?;
     let result = boundary.strict_join(user_input);
     // Returns Err(PathEscapesBoundary) - attack blocked!
     assert!(result.is_err());
 
-    // Cleanup
-    boundary.remove_dir_all().ok();
     Ok(())
 }
 
@@ -93,8 +96,10 @@ fn readme_disaster_prevention_example() -> Result<(), Box<dyn std::error::Error>
 fn readme_typical_workflow_strict_links_example() -> Result<(), Box<dyn std::error::Error>> {
     use crate::PathBoundary;
 
+    let temp_dir = tempfile::tempdir()?.keep();
+
     // 1) Establish boundary
-    let boundary: crate::PathBoundary = PathBoundary::try_new_create("./link_demo")?;
+    let boundary: crate::PathBoundary = PathBoundary::try_new_create(temp_dir.join("link_demo"))?;
 
     // 2) Validate target path from untrusted input
     let target = boundary.strict_join("data/target.txt")?;
@@ -107,8 +112,6 @@ fn readme_typical_workflow_strict_links_example() -> Result<(), Box<dyn std::err
     let alias = boundary.strict_join("data/alias.txt")?;
     assert_eq!(alias.read_to_string()?, "hello");
 
-    // Cleanup (not shown in README)
-    let _ = boundary.remove_dir_all();
     Ok(())
 }
 
@@ -117,10 +120,12 @@ fn readme_typical_workflow_strict_links_example() -> Result<(), Box<dyn std::err
 fn readme_typical_workflow_virtual_links_example() -> Result<(), Box<dyn std::error::Error>> {
     use crate::VirtualRoot;
 
-    // 1) Establish virtual root
+    let temp_dir = tempfile::tempdir()?.keep();
     let tenant_id = "tenant42";
+
+    // 1) Establish virtual root
     let vroot: crate::VirtualRoot =
-        VirtualRoot::try_new_create(format!("./vlink_demo/{tenant_id}"))?;
+        VirtualRoot::try_new_create(temp_dir.join(format!("vlink_demo/{tenant_id}")))?;
 
     // 2) Validate target in virtual space (absolute is clamped to root)
     let vtarget = vroot.virtual_join("/data/target.txt")?;
@@ -133,7 +138,5 @@ fn readme_typical_workflow_virtual_links_example() -> Result<(), Box<dyn std::er
     let valias = vroot.virtual_join("/data/alias.txt")?;
     assert_eq!(valias.read_to_string()?, "hi");
 
-    // Cleanup (not shown in README)
-    let _ = vroot.remove_dir_all();
     Ok(())
 }

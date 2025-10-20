@@ -532,15 +532,14 @@ Start here: [Quick Recipes](#quick-recipes) · [Pitfalls](#pitfalls-and-how-to-a
 
 Top-level exports
 
-| Symbol                        |   Kind | Purpose                                                                                                      |
-| ----------------------------- | -----: | ------------------------------------------------------------------------------------------------------------ |
-| `StrictPathError`             |   enum | Validation and resolution errors.                                                                            |
-| `Result<T>`                   |  alias | `Result<T, StrictPathError>`                                                                                 |
-| `StrictPath<Marker>`          | struct | System-facing, restriction‑validated path that proves containment; supports I/O.                             |
-| `VirtualPath<Marker>`         | struct | User-facing path that extends `StrictPath` with a virtual‑root view and restriction‑aware ops; supports I/O. |
-| `PathBoundary<Marker>`        | struct | Boundary policy that validates external input and produces `StrictPath`.                                     |
-| `VirtualRoot<Marker>`         | struct | Virtual policy root that produces `VirtualPath` values.                                                      |
-| `serde_ext` (feature `serde`) | module | Context-aware deserialization helpers (`WithBoundary`, `WithVirtualRoot`).                                   |
+| Symbol                 |   Kind | Purpose                                                                                                      |
+| ---------------------- | -----: | ------------------------------------------------------------------------------------------------------------ |
+| `StrictPathError`      |   enum | Validation and resolution errors.                                                                            |
+| `Result<T>`            |  alias | `Result<T, StrictPathError>`                                                                                 |
+| `StrictPath<Marker>`   | struct | System-facing, restriction‑validated path that proves containment; supports I/O.                             |
+| `VirtualPath<Marker>`  | struct | User-facing path that extends `StrictPath` with a virtual‑root view and restriction‑aware ops; supports I/O. |
+| `PathBoundary<Marker>` | struct | Boundary policy that validates external input and produces `StrictPath`.                                     |
+| `VirtualRoot<Marker>`  | struct | Virtual policy root that produces `VirtualPath` values.                                                      |
 
 ## Quick Recipes
 - **Sugar constructors (simple flows)**: `let sp = StrictPath::with_boundary_create("./safe")?.strict_join("a/b.txt")?;` or `let vp = VirtualPath::with_root_create("./safe")?.virtual_join("a/b.txt")?;`
@@ -689,69 +688,45 @@ VirtualPath<Marker>
 - read_dir(&self) -> io::Result<std::fs::ReadDir>
 - exists / is_file / is_dir / metadata / read_to_string / read / write / create_file / open_file / create_dir / create_dir_all / create_parent_dir / create_parent_dir_all / remove_file / remove_dir / remove_dir_all (delegates to `StrictPath`; parents derived via virtual semantics)
 
-### Feature-gated APIs (complete list)
-These APIs require enabling the named Cargo feature.
-These are available only when the corresponding Cargo features are enabled:
+### Feature-gated APIs
 
 - Feature `virtual-path`
 	- Types: `VirtualRoot`, `VirtualPath`
 	- Methods: All `virtual_*` and `virtualpath_*` operations, conversions to/from `VirtualRoot`/`VirtualPath`, and `StrictPath::virtualize()`
 	- When not enabled: Only `PathBoundary`/`StrictPath` are available; all I/O remains available on `StrictPath`.
 
-- Feature `dirs` (OS standard directories)
-	- PathBoundary
-		- `try_new_os_config(app_name: &str) -> Result<PathBoundary>`
-		- `try_new_os_data(app_name: &str) -> Result<PathBoundary>`
-		- `try_new_os_cache(app_name: &str) -> Result<PathBoundary>`
-		- `try_new_os_config_local(app_name: &str) -> Result<PathBoundary>`
-		- `try_new_os_data_local(app_name: &str) -> Result<PathBoundary>`
-		- `try_new_os_home() -> Result<PathBoundary>`
-		- `try_new_os_desktop() -> Result<PathBoundary>`
-		- `try_new_os_documents() -> Result<PathBoundary>`
-		- `try_new_os_downloads() -> Result<PathBoundary>`
-		- `try_new_os_pictures() -> Result<PathBoundary>`
-		- `try_new_os_audio() -> Result<PathBoundary>`
-		- `try_new_os_videos() -> Result<PathBoundary>`
-		- `try_new_os_executables() -> Result<PathBoundary>`
-		- `try_new_os_runtime() -> Result<PathBoundary>`
-		- `try_new_os_state(app_name: &str) -> Result<PathBoundary>`
-	- VirtualRoot (one‑to‑one with `PathBoundary`)
-		- `try_new_os_config(app_name: &str) -> Result<VirtualRoot>`
-		- `try_new_os_data(app_name: &str) -> Result<VirtualRoot>`
-		- `try_new_os_cache(app_name: &str) -> Result<VirtualRoot>`
-		- `try_new_os_config_local(app_name: &str) -> Result<VirtualRoot>`
-		- `try_new_os_data_local(app_name: &str) -> Result<VirtualRoot>`
-		- `try_new_os_home() -> Result<VirtualRoot>`
-		- `try_new_os_desktop() -> Result<VirtualRoot>`
-		- `try_new_os_documents() -> Result<VirtualRoot>`
-		- `try_new_os_downloads() -> Result<VirtualRoot>`
-		- `try_new_os_pictures() -> Result<VirtualRoot>`
-		- `try_new_os_audio() -> Result<VirtualRoot>`
-		- `try_new_os_videos() -> Result<VirtualRoot>`
-		- `try_new_os_executables() -> Result<VirtualRoot>`
-		- `try_new_os_runtime() -> Result<VirtualRoot>`
-		- `try_new_os_state(app_name: &str) -> Result<VirtualRoot>`
+### Ecosystem Integration (Composition Pattern)
 
-- Feature `tempfile` (RAII temporary directories)
-	- `PathBoundary::try_new_temp() -> Result<PathBoundary>`
-	- `PathBoundary::try_new_temp_with_prefix(prefix: &str) -> Result<PathBoundary>`
-	- `VirtualRoot::try_new_temp() -> Result<VirtualRoot>`
-	- `VirtualRoot::try_new_temp_with_prefix(prefix: &str) -> Result<VirtualRoot>`
-	- VirtualRoot holds RAII of temp dirs when constructed from a temp PathBoundary
+**Philosophy**: strict-path provides security primitives. You compose them with ecosystem tools.
 
-- Feature `app-path` (portable app‑relative dirs with optional env overrides)
-	- `PathBoundary::try_new_app_path<P: AsRef<Path>>(subdir: P, env_override: Option<&str>) -> Result<PathBoundary>`
-	- `PathBoundary::try_new_app_path_with_env<P: AsRef<Path>>(subdir: P, env_var_name: &str) -> Result<PathBoundary>`
-	- `VirtualRoot::try_new_app_path<P: AsRef<Path>>(subdir: P, env_override: Option<&str>) -> Result<VirtualRoot>`
-	- `VirtualRoot::try_new_app_path_with_env<P: AsRef<Path>>(subdir: P, env_var_name: &str) -> Result<VirtualRoot>`
+Instead of feature-gated wrappers, use ecosystem crates directly with `PathBoundary`:
 
-	Note: `env_override` is the NAME of an environment variable. When set, its VALUE is used as the final root directory; the provided `subdir` is not appended in that case.
+**Temporary Directories** (`tempfile` crate):
+```rust
+let temp = tempfile::tempdir()?;
+let boundary = PathBoundary::try_new(temp.path())?;
+// RAII cleanup from tempfile, security from strict-path
+```
 
-- Feature `serde`
-	- `impl Serialize for StrictPath` → system path string
-	- `impl Serialize for VirtualPath` → rooted virtual string (e.g., "/a/b.txt") [feature: virtual-path]
-	- `serde_ext::WithBoundary<'_, Marker>`: `DeserializeSeed` to deserialize a `StrictPath<Marker>` with a provided `&PathBoundary<Marker>`
-	- `serde_ext::WithVirtualRoot<'_, Marker>`: `DeserializeSeed` to deserialize a `VirtualPath<Marker>` with a provided `&VirtualRoot<Marker>` [feature: virtual-path]
+**OS Standard Directories** (`dirs` crate):
+```rust
+let config_base = dirs::config_dir().ok_or("No config")?;
+let boundary = PathBoundary::try_new_create(config_base.join("myapp"))?;
+```
+
+**Portable App Paths** (`app-path` crate):
+```rust
+use app_path::AppPath;
+let app_path = AppPath::with("config");  // Relative to executable directory
+let boundary = PathBoundary::try_new_create(&app_path)?;
+```
+
+**Serialization** (`serde`):
+- `PathBoundary` and `VirtualRoot` implement `FromStr`, enabling automatic deserialization
+- Serialize paths as display strings: `boundary.strictpath_display().to_string()`
+- For untrusted path fields, deserialize as `String` and validate manually via `boundary.strict_join()`
+
+See the mdBook [Ecosystem Integration Guide](https://yourusername.github.io/strict-path-rs/ecosystem_integration.html) for comprehensive patterns.
 
 Short usage rules (1-line each)
 - For user input: use `VirtualPath::virtual_join(...)` (construct a root via `VirtualPath::with_root(..)`) -> `VirtualPath`.

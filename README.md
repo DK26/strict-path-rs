@@ -94,10 +94,13 @@ let config_file = StrictPath::with_boundary_create("./config")?
     .strict_join("app.toml")?;
 config_file.write(b"settings")?;
 
-let asset = VirtualPath::with_root_create("./public")?
-    .virtual_join("images/logo.png")?;
-asset.create_parent_dir_all()?;
-asset.write(b"logo data")?;
+// Virtual paths require dynamic tenant/user IDs to serve their purpose
+let user_id = get_authenticated_user_id();
+let user_avatar = VirtualPath::with_root_create(format!("./user_data/{user_id}"))?
+    .virtual_join("/profile/avatar.png")?;
+user_avatar.create_parent_dir_all()?;
+user_avatar.write(b"image data")?;
+// Each user sees "/profile/avatar.png" but they're isolated on disk
 ```
 
 ## Typical Workflow
