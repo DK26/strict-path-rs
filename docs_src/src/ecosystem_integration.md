@@ -576,8 +576,9 @@ let temp = tempfile::tempdir()?;
 let boundary = PathBoundary::try_new(temp.path())?;
 
 // Portable app paths
-let app_dir = app_path::AppPath::new("MyApp").get_app_dir();
-let boundary = PathBoundary::try_new(&app_dir)?;
+use app_path::AppPath;
+let app_path = AppPath::with("MyApp");  // Relative to executable directory
+let boundary = PathBoundary::try_new_create(&app_path)?;
 
 // OS directories
 let config = dirs::config_dir().ok_or("No config dir")?;
