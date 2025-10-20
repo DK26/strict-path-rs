@@ -8,7 +8,6 @@ For detailed analysis and overhead tables:
 - **[docs/OVERHEAD_QUICK_REFERENCE.md](docs/OVERHEAD_QUICK_REFERENCE.md)** — Quick-reference tables with all overhead numbers
 - **[docs/PERFORMANCE_OVERHEAD_ANALYSIS.md](docs/PERFORMANCE_OVERHEAD_ANALYSIS.md)** — Comprehensive analysis (500+ lines, 6 detailed tables)
 - **[docs/CACHING_BENEFITS_REPORT.md](docs/CACHING_BENEFITS_REPORT.md)** — Real-world batch performance analysis
-- **[docs/BENCHMARK_FIX_SUMMARY.md](docs/BENCHMARK_FIX_SUMMARY.md)** — Methodology fixes and lessons learned
 - **[docs/BENCHMARK_ANALYSIS.md](docs/BENCHMARK_ANALYSIS.md)** — Initial benchmark analysis (historical)
 
 ---
@@ -219,10 +218,11 @@ small_batch_10_files/strict_path_cached
 
 ## 📚 Related Documentation
 
-- **[CACHING_BENEFITS_REPORT.md](../../CACHING_BENEFITS_REPORT.md)** — Detailed analysis of real-world performance gains
-- **[BENCHMARK_FIX_SUMMARY.md](../../BENCHMARK_FIX_SUMMARY.md)** — Explains the benchmark methodology fixes
-- **[BENCHMARK_ANALYSIS.md](../../BENCHMARK_ANALYSIS.md)** — Analysis of overhead measurements (will be updated after fix)
-- **[LLM_API_REFERENCE.md](../../LLM_API_REFERENCE.md)** — API design decisions affecting performance
+- **[CACHING_BENEFITS_REPORT.md](docs/CACHING_BENEFITS_REPORT.md)** — Detailed analysis of real-world performance gains
+- **[PERFORMANCE_OVERHEAD_ANALYSIS.md](docs/PERFORMANCE_OVERHEAD_ANALYSIS.md)** — Comprehensive overhead analysis with 6 detailed tables
+- **[OVERHEAD_QUICK_REFERENCE.md](docs/OVERHEAD_QUICK_REFERENCE.md)** — Quick-reference tables for all overhead numbers
+- **[BENCHMARK_ANALYSIS.md](docs/BENCHMARK_ANALYSIS.md)** — Initial benchmark analysis (historical)
+- **[LLM_API_REFERENCE.md](../LLM_API_REFERENCE.md)** — API design decisions affecting performance
 
 ---
 

@@ -8,6 +8,12 @@
 
 Audience and usage: This page is a minimal-context, copy/paste guide for tool-calling LLMs. Prefer the bullets and short recipes here; link to README and mdBook for longer explanations.
 
+**🚨 CRITICAL for LLM code generation:**
+- NEVER validate hardcoded string literals like `boundary.strict_join("file.txt")` — this is security theater
+- ALWAYS use variable names that show untrusted input: `user_input`, `requested_file`, `attack_input`, `uploaded_data`
+- AVOID generic names: `filename`, `path`, `name`, `config_name` — they hide that you're validating untrusted input
+- Include source comments: `// User input from HTTP request, CLI args, form data, etc.`
+
 ## Essential Flow (Start Here)
 1. **Create boundary**: `PathBoundary::try_new_create(dir)` → secure foundation
 2. **Validate input**: `boundary.strict_join(user_input)` → `StrictPath<T>` 
@@ -280,8 +286,14 @@ if safe_path.exists() {  // ✅ Use the built-in method
 If you're only validating constants or immediately converting back to unsafe paths, **you're writing security theater, not security code.**
 
 - ❌ **Only validating constants**: `boundary.strict_join("hardcoded.txt")?` — no untrusted input ever flows through validation. This is completely pointless.
+- ❌ **Generic variable names that hide intent**: Use `user_input`, `requested_file`, `uploaded_data` not `filename`, `path`, `name`. Variables must clearly show they represent untrusted external input.
 - ❌ **Validating then converting back to unsafe types**: `let safe = boundary.strict_join(input)?; let path = PathBuf::from(safe.interop_path()); std::fs::read(&path)?` — you validated it, then threw away the safety!
 - ❌ **Accepting unsafe types in functions**: `fn process(path: &str) { boundary.strict_join(path)?; }` — validate at call site, accept `&StrictPath<_>` in signature.
+
+**Critical**: When writing code that uses this crate, always use variable names that make it obvious you're validating untrusted input:
+- ✅ Good: `user_input`, `requested_file`, `attack_input`, `uploaded_avatar`, `config_input`
+- ❌ Bad: `filename`, `path`, `name`, `config_name`, `user_doc_path`
+- Include comments showing source: `// User input from HTTP request, CLI args, form data, etc.`
 
 ---
 
@@ -359,7 +371,9 @@ println!("Saved: {}", user_file.virtualpath_display()); // Shows: "/document.pdf
 ### Pattern 2: Config File Access (StrictPath) 
 ```rust
 let config_boundary = PathBoundary::try_new_create("./config")?;
-let config_file = config_boundary.strict_join("app.toml")?;
+// User input from CLI args, environment, or config loader
+let user_input = "app.toml";
+let config_file = config_boundary.strict_join(user_input)?;
 let content = config_file.read_to_string()?;
 println!("Config: {}", config_file.strictpath_display()); // Shows: "./config/app.toml"
 ```
@@ -371,8 +385,12 @@ struct ConfigFiles;
 fn process_user_file(f: &StrictPath<UserFiles>) -> Result<Vec<u8>> { f.read() }
 fn process_config_file(f: &StrictPath<ConfigFiles>) -> Result<String> { f.read_to_string() }
 
-let user_file = user_boundary.strict_join("data.json")?;
-let config_file = config_boundary.strict_join("settings.toml")?;
+// User input from request parameters, database, form data, etc.
+let user_input = "data.json";
+let config_input = "settings.toml";
+
+let user_file = user_boundary.strict_join(user_input)?;
+let config_file = config_boundary.strict_join(config_input)?;
 // process_user_file(&config_file); // ❌ Compile error - wrong marker type
 ```
 
@@ -380,7 +398,9 @@ let config_file = config_boundary.strict_join("settings.toml")?;
 ```rust
 use walkdir::WalkDir;
 
-let safe_path = boundary.strict_join("file.txt")?;
+// User input from request, form data, CLI args, etc.
+let user_input = "uploads";
+let safe_path = boundary.strict_join(user_input)?;
 // Only for third-party crates that insist on `AsRef<Path>`
 for entry in WalkDir::new(safe_path.interop_path()) {
 	let entry = entry?;
@@ -450,7 +470,9 @@ Minimal decision checklist (LLM prompts)
 ```rust
 // ✅ Per-user storage - each user gets their own "/"
 let user_space: VirtualRoot<UserFiles> = VirtualRoot::try_new(format!("./users/{user_id}"))?;
-let doc = user_space.virtual_join("docs/report.pdf")?; // User sees "/docs/report.pdf"
+// User input from request path, form data, API payload, etc.
+let user_input = "docs/report.pdf";
+let doc = user_space.virtual_join(user_input)?; // User sees "/docs/report.pdf"
 
 // ✅ Shared config area - all users access same protected space
 let config_restriction: PathBoundary<ConfigFiles> = PathBoundary::try_new("./shared/config")?;
@@ -489,7 +511,9 @@ let bytes = read_user_file(vpath.as_unvirtual())?;
 
 // Compile-time separation of restrictions
 let logs: PathBoundary<Logs> = PathBoundary::try_new("./logs")?;
-let log_path = logs.strict_join("app.log")?;
+// User input from monitoring system, request parameter, log viewer, etc.
+let user_input = "app.log";
+let log_path = logs.strict_join(user_input)?;
 // read_user_file(&log_path)?; // ❌ compile error: expected `StrictPath<UserFiles>`
 ```
 
@@ -726,7 +750,7 @@ let boundary = PathBoundary::try_new_create(&app_path)?;
 - Serialize paths as display strings: `boundary.strictpath_display().to_string()`
 - For untrusted path fields, deserialize as `String` and validate manually via `boundary.strict_join()`
 
-See the mdBook [Ecosystem Integration Guide](https://yourusername.github.io/strict-path-rs/ecosystem_integration.html) for comprehensive patterns.
+See the mdBook [Ecosystem Integration Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html) for comprehensive patterns.
 
 Short usage rules (1-line each)
 - For user input: use `VirtualPath::virtual_join(...)` (construct a root via `VirtualPath::with_root(..)`) -> `VirtualPath`.

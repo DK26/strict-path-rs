@@ -276,4 +276,4 @@ Results in `target/criterion/*/report/index.html`
 **For detailed analysis, see:**
 - [PERFORMANCE_OVERHEAD_ANALYSIS.md](./PERFORMANCE_OVERHEAD_ANALYSIS.md) — Comprehensive breakdown
 - [CACHING_BENEFITS_REPORT.md](./CACHING_BENEFITS_REPORT.md) — Real-world performance gains
-- [BENCHMARK_FIX_SUMMARY.md](./BENCHMARK_FIX_SUMMARY.md) — Methodology and validation
+- [BENCHMARK_ANALYSIS.md](./BENCHMARK_ANALYSIS.md) — Initial analysis and methodology

@@ -19,8 +19,11 @@
 //! # use strict_path::StrictPath;
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let temp = tempfile::tempdir()?;
+//!
+//! // User input from HTTP request, CLI args, config file, etc.
+//! let user_input = "users/alice.txt"; // In real code: get_filename_from_request()
 //! let safe: StrictPath = StrictPath::with_boundary(temp.path())?
-//!     .strict_join("users/alice.txt")?;  // Validated, stays inside boundary
+//!     .strict_join(user_input)?;  // Validated, stays inside boundary
 //!
 //! safe.create_parent_dir_all()?;
 //! safe.write("hello")?;
@@ -68,8 +71,12 @@
 //! let assets = PathBoundary::<PublicAssets>::try_new("./assets")?;
 //! let uploads = PathBoundary::<UserUploads>::try_new("./uploads")?;
 //!
-//! let css: StrictPath<PublicAssets> = assets.strict_join("style.css")?;
-//! let avatar: StrictPath<UserUploads> = uploads.strict_join("avatar.jpg")?;
+//! // User input from request parameters, form data, database, etc.
+//! let requested_css = "style.css";      // From request: /static/style.css
+//! let uploaded_avatar = "avatar.jpg";   // From form: <input type="file">
+//!
+//! let css: StrictPath<PublicAssets> = assets.strict_join(requested_css)?;
+//! let avatar: StrictPath<UserUploads> = uploads.strict_join(uploaded_avatar)?;
 //!
 //! fn serve_public_asset(file: &StrictPath<PublicAssets>) { /* ... */ }
 //!
@@ -99,7 +106,10 @@
 //! # fn external_api<P: AsRef<std::path::Path>>(_p: P) {}
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let restriction: PathBoundary = PathBoundary::try_new_create("./safe")?;
-//! let jp = restriction.strict_join("file.txt")?;
+//!
+//! // User input from CLI args, API request, config file, etc.
+//! let user_input = "file.txt";
+//! let jp = restriction.strict_join(user_input)?;
 //!
 //! // ✅ Preferred: borrow as &OsStr (implements AsRef<Path>)
 //! external_api(jp.interop_path());

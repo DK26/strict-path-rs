@@ -44,7 +44,8 @@ use strict_path::PathBoundary;
 let uploads_boundary = PathBoundary::try_new("./app/uploads_dir")?;
 
 // 2. Validate untrusted user input against the boundary
-let user_file = uploads_boundary.strict_join("documents/report.pdf")?;
+let user_provided_path = get_filename_from_request(); // e.g., from HTTP form data
+let user_file = uploads_boundary.strict_join(user_provided_path)?;
 
 // 3. Safe I/O operations - guaranteed within boundary
 user_file.create_parent_dir_all()?;
@@ -52,7 +53,8 @@ user_file.write(b"file contents")?;
 let contents = user_file.read_to_string()?;
 
 // 4. Escape attempts are detected and rejected
-match uploads_boundary.strict_join("../../etc/passwd") {
+let malicious_input = "../../etc/passwd"; // Attacker-controlled input
+match uploads_boundary.strict_join(malicious_input) {
     Ok(_) => panic!("Escapes should be caught!"),
     Err(e) => println!("Attack blocked: {e}"), // PathEscapesBoundary error
 }
@@ -67,7 +69,8 @@ use strict_path::VirtualRoot;
 // Note: path_absolutize::absolutize_virtually REJECTS escapes (returns Err);
 // VirtualPath CLAMPS them within the boundary (returns Ok, contained path)
 let tenant_id = "alice";
-let tenant_vroot = VirtualRoot::try_new_create(format!("./tenant_data/{tenant_id}"))?;
+let tenant_dir = format!("./tenant_data/{tenant_id}");
+let tenant_vroot = VirtualRoot::try_new_create(tenant_dir)?; 
 let tenant_file = tenant_vroot.virtual_join("../../../sensitive")?;
 // Escape attempt is silently clamped - stays within tenant_data
 println!("Virtual path: {}", tenant_file.virtualpath_display()); // Shows: "/sensitive"
@@ -80,7 +83,8 @@ use strict_path::StrictPath;
 
 // Concise form - boundary created inline and joined in one expression
 // with_boundary() requires directory exists; use with_boundary_create() to create if missing
-let config_file = StrictPath::with_boundary("./app/config")?.strict_join("app.toml")?;
+let user_input = get_config_name(); // e.g., from CLI args or environment
+let config_file = StrictPath::with_boundary("./app/config")?.strict_join(user_input)?;
 config_file.write(b"settings")?;
 ```
 
@@ -91,7 +95,8 @@ use strict_path::VirtualPath;
 
 // Virtual paths require dynamic tenant/user IDs for per-user isolation
 let user_id = get_authenticated_user_id();
-let user_avatar = VirtualPath::with_root_create(format!("./user_data/{user_id}"))?.virtual_join("/profile/avatar.png")?;
+let user_dir = format!("./user_data/{user_id}");
+let user_avatar = VirtualPath::with_root_create(user_dir)?.virtual_join("/profile/avatar.png")?;
 user_avatar.create_parent_dir_all()?;
 user_avatar.write(b"image data")?;
 // Each user sees "/profile/avatar.png" but they're isolated on disk
@@ -274,11 +279,13 @@ safe_path.remove_file()?; // Remove when cleanup is required
 ```rust
 use strict_path::PathBoundary;
 
-fn extract_zip(zip_entries: impl IntoIterator<Item=(String, Vec<u8>)>) -> std::io::Result<()> {
-    let extract_boundary = PathBoundary::try_new_create("./app/extracted")?;
+fn extract_zip(
+    extraction_dir: PathBoundary, // We set a boundary that paths cannot escape
+    zip_entries: impl IntoIterator<Item=(String, Vec<u8>)>) -> std::io::Result<()> {
+   
     for (name, data) in zip_entries {
         // Hostile names like "../../../etc/passwd" are rejected with PathEscapesBoundary error
-        let safe_path = extract_boundary.strict_join(&name)?; // Zip slip detected & blocked
+        let safe_path = extraction_dir.strict_join(&name)?; // Zip slip detected & blocked
         safe_path.create_parent_dir_all()?;
         safe_path.write(&data)?;
     }
@@ -292,15 +299,18 @@ use strict_path::VirtualRoot;
 
 // Each tenant gets isolated filesystem view
 let tenant_id = get_authenticated_tenant_id();
-let tenant_root = VirtualRoot::try_new_create(format!("./app/tenant_data/{tenant_id}"))?;
+let tenant_dir = format!("./app/tenant_data/{tenant_id}");
+let tenant_root = VirtualRoot::try_new_create(tenant_dir)?;
 
-// User sees "/documents/report.pdf" - system stores at ./app/tenant_data/{tenant_id}/documents/report.pdf
-let user_file = tenant_root.virtual_join("/documents/report.pdf")?;
+// User input from request/form data
+let user_input = get_document_name_from_request(); // e.g., "report.pdf" from user
+let user_file = tenant_root.virtual_join(user_input)?;
 user_file.create_parent_dir_all()?;
 user_file.write(b"tenant data")?;
 
 // Escape attempts are silently clamped within tenant boundary
-let escaped = tenant_root.virtual_join("../../../etc/passwd")?;
+let attack_input = "../../../etc/passwd"; // Attacker-controlled input
+let escaped = tenant_root.virtual_join(attack_input)?;
 println!("{}", escaped.virtualpath_display()); // Shows: "/etc/passwd" (still within tenant_root)
 ```
 

@@ -175,7 +175,6 @@ benches/
 │   ├── OVERHEAD_QUICK_REFERENCE.md
 │   ├── PERFORMANCE_OVERHEAD_ANALYSIS.md
 │   ├── CACHING_BENEFITS_REPORT.md
-│   ├── BENCHMARK_FIX_SUMMARY.md
 │   └── BENCHMARK_ANALYSIS.md
 └── README.md               # Benchmark usage guide
 ```
@@ -219,7 +218,7 @@ cargo bench
 - `benches/docs/OVERHEAD_QUICK_REFERENCE.md` — at-a-glance tables (StrictPath +11%, VirtualPath +35%)
 - `benches/docs/PERFORMANCE_OVERHEAD_ANALYSIS.md` — comprehensive 500+ line analysis with 6 tables
 - `benches/docs/CACHING_BENEFITS_REPORT.md` — real-world batch scenarios (VirtualPath 2-3x faster!)
-- `benches/docs/BENCHMARK_FIX_SUMMARY.md` — methodology fixes (use relative segments, fair comparison)
+- `benches/docs/BENCHMARK_ANALYSIS.md` — initial benchmark analysis and methodology notes
 
 **Adding new benchmarks:**
 1. Create `benches/benches/your_benchmark.rs`
@@ -244,7 +243,7 @@ cargo bench
 - ❌ Comparing different workloads (must be equivalent)
 - ❌ Forgetting `black_box()` (compiler may optimize away work)
 
-**See also:** `benches/docs/BENCHMARK_FIX_SUMMARY.md` for detailed methodology validation.
+**See also:** `benches/docs/PERFORMANCE_OVERHEAD_ANALYSIS.md` for detailed methodology and validation notes.
 
 ## CI Workflows (GitHub Actions)
 
@@ -280,6 +279,7 @@ cargo bench
 
 - Demos must be production‑authentic: use the same protocols and official crates that real teams would pick (avoid ad‑hoc mocks for protocol/runtime concerns).
 - Demos must encode strict/virtual path guarantees in handlers so users learn the correct integration patterns (validate received paths → operate through `StrictPath`/`VirtualPath`).
+- **Demos must validate actual external input**: Show validation of data from HTTP requests, CLI args, config files, etc. Never validate hardcoded string literals. Use descriptive variable names (`user_input`, `requested_file`, `uploaded_data`) that make it clear the data is untrusted.
 - No #[allow(...)] in demos — fix the code and naming to pass clippy with `-D warnings`.
 - Use domain names for variables (e.g., `user_project_root`, `system_root`, `entry_path`) — never one‑letter variables for paths.
 - Demonstrate directory discovery vs. validation: call the strict helper (`let entries = root.strict_join("")?.read_dir()?;`) to enumerate, then re‑join each discovered name through `strict_join`/`virtual_join`. Reserve `.interop_path()` for third‑party crates that require `AsRef<Path>`.
@@ -406,7 +406,8 @@ Escape hatches:
 
 ## Anti‑Patterns (Tell‑offs)
 
-- Validating only constants (no untrusted segment ever flows through validation).
+- **Validating only constants (CRITICAL)**: `boundary.strict_join("hardcoded.txt")?` — no untrusted segment ever flows through validation. This completely defeats the purpose of the crate and is misleading in examples.
+- **Using generic variable names that hide intent**: Variables must clearly indicate they represent untrusted external input (e.g., `user_input`, `requested_file`, `uploaded_data`) not generic names like `filename`, `path`, `name`.
 - Constructing boundaries/roots inside helpers.
 - Wrapping secure types in `Path::new()` / `PathBuf::from()`.
 - Performing filesystem I/O via `std::fs` on `.interop_path()` paths instead of the built-in strict helpers (e.g., `StrictPath::create_file`, `StrictPath::read_to_string`).
@@ -439,6 +440,7 @@ See also mdBook pages (access via `.docs/` worktree):
 - Align README examples with `strict-path/src/lib.rs` doc examples where appropriate.
 - Use doctested examples in source whenever possible; examples must compile and follow path‑handling rules.
 - Examples should be runnable and realistic: prefer end‑to‑end flows over contrived snippets; show policy types for reusable flows.
+- **Examples MUST demonstrate actual input validation**: Every example showing `strict_join()`/`virtual_join()` must validate external/untrusted input, not hardcoded string literals. Use variable names that clearly indicate the source (e.g., `user_input`, `requested_file`, `attack_input`) with comments showing where the input comes from (HTTP request, CLI args, form data, etc.).
 - Doctests and examples must not rely on `#[allow(..)]` to pass lints; fix code and naming instead.
 - Fenced code blocks in docs must execute as doctests. Do not use `no_run`, `ignore`, or similar escape hatches. If an example needs to show a failure path, structure it as a regular doctest that asserts the failure (or mark it `compile_fail` when the compiler should reject it).
 - Lead with sugar for ergonomics in simple flows; demonstrate policy types for reuse, serde context, OS dirs, and temp RAII.
@@ -475,6 +477,15 @@ See also mdBook pages (access via `.docs/` worktree):
 - ❌ Incomplete examples that can't be compiled (missing imports, missing file creation)
 - ❌ Tests diverge from README (different APIs, different flow, different behavior)
 - ❌ README uses `unreachable!()` but tests use `panic!()` — keep consistent
+- ❌ Variables with generic names (`filename`, `path`, `name`) that hide the fact they represent untrusted input
+
+**Variable naming for examples (CRITICAL)**:
+- **ALWAYS** use variable names that make it crystal clear the data represents untrusted external input
+- ✅ **Good**: `user_input`, `requested_file`, `uploaded_avatar`, `attack_input`, `config_input`
+- ❌ **Bad**: `filename`, `path`, `name`, `config_name`, `user_doc_path`
+- Include comments showing the source: `// User input from HTTP request, CLI args, form data, etc.`
+- For attack scenarios, use names like `attack_input`, `malicious_path` to make intent obvious
+- Variable names must "scream" that validation is happening on external data
 
 **Test file structure example**:
 ```rust

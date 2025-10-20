@@ -13,7 +13,8 @@ fn readme_policy_types_example() -> Result<(), Box<dyn std::error::Error>> {
         PathBoundary::try_new_create(temp_dir.join("uploads"))?;
 
     // 2. Validate untrusted user input against the boundary
-    let user_file = uploads_boundary.strict_join("documents/report.pdf")?;
+    let user_provided_path = "documents/report.pdf"; // Simulates get_filename_from_request()
+    let user_file = uploads_boundary.strict_join(user_provided_path)?;
 
     // 3. Safe I/O operations - guaranteed within boundary
     user_file.create_parent_dir_all()?;
@@ -22,7 +23,8 @@ fn readme_policy_types_example() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(contents, "file contents");
 
     // 4. Escape attempts are detected and rejected
-    match uploads_boundary.strict_join("../../etc/passwd") {
+    let malicious_input = "../../etc/passwd"; // Simulates attacker-controlled input
+    match uploads_boundary.strict_join(malicious_input) {
         Ok(_) => panic!("Escapes should be caught!"),
         Err(e) => println!("Attack blocked: {e}"), // PathEscapesBoundary error
     }

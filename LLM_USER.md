@@ -3,8 +3,14 @@
 Security‑first path handling for Rust apps. Validate every untrusted path segment into restriction‑enforced types before any I/O. Choose Strict (detect & reject) or Virtual (contain & clamp).
 
 - Core types: `PathBoundary<Marker>`, `StrictPath<Marker>`; with feature `virtual-path`: `VirtualRoot<Marker>`, `VirtualPath<Marker>`.
-- Golden rule: “Restrict every external path.” Validate user/LLM/config/archive input using `strict_join` or `virtual_join` before touching the filesystem.
+- Golden rule: "Restrict every external path." Validate user/LLM/config/archive input using `strict_join` or `virtual_join` before touching the filesystem.
 - Interop vs display: use `.interop_path()` only for third‑party APIs requiring `AsRef<Path>`; use `*_display()` for human‑readable output.
+
+**🚨 CRITICAL for LLM code generation:**
+- NEVER validate hardcoded string literals — this defeats the entire purpose of the crate
+- ALWAYS use variable names that clearly show untrusted input: `user_input`, `requested_file`, `attack_input`
+- AVOID generic names like `filename`, `path`, `name` — they hide security intent
+- Include comments showing input source: `// User input from HTTP request, CLI args, etc.`
 
 ## Install
 
@@ -60,9 +66,11 @@ println!("user sees: {}", doc.virtualpath_display());
 - Do: `boundary.strict_join(user_input)` or `vroot.virtual_join(user_input)`.
 - Do: pass `&StrictPath<_>`/`&VirtualPath<_>` into helpers; or pass policy roots + segment.
 - Do: use `*_display()` for users; `.interop_path()` only for `AsRef<Path>` adapters.
+- Do: use variable names that clearly show untrusted input: `user_input`, `requested_file`, `attack_input`, `uploaded_data`.
 - Don't: wrap `.interop_path()` in `Path::new()` or `PathBuf::from()` — it's already `AsRef<Path>`.
 - Don't: use std path operations (`Path::join`, `Path::parent`) on untrusted input — use `.strict_join()` instead.
 - Don't: Construct boundaries/roots inside helpers; inject policy via parameters.
+- Don't: use generic variable names like `filename`, `path`, `name` that hide the fact you're validating untrusted input.
 
 ## Quick recipes
 
@@ -225,6 +233,9 @@ let boundary = PathBoundary::try_new_create(&app_path)?;
 - Name variables by domain/purpose, not by type:
   - Good: `user_uploads_root`, `static_assets_root`, `config_dir`, `tenant_vroot`
   - Avoid: `boundary`, `jail`, `root1`, one-letter names
+- For untrusted input, use names that make it obvious:
+  - Good: `user_input`, `requested_file`, `attack_input`, `uploaded_data`, `config_input`
+  - Avoid: `filename`, `path`, `name`, `config_name` (hides that it's untrusted)
 - Markers describe stored content (and optional capability), not people/teams.
 
 ## Error-handling playbook
