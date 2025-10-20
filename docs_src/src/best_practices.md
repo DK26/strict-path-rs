@@ -49,10 +49,10 @@ For detailed explanations and comprehensive examples, see these focused chapters
 
 ### Decision Matrix by Source
 
-| Source                  | Typical Input             | Default Choice            | Notes                                                 |
-| ----------------------- | ------------------------- | ------------------------- | ----------------------------------------------------- |
+| Source                     | Typical Input             | Default Choice            | Notes                                                 |
+| -------------------------- | ------------------------- | ------------------------- | ----------------------------------------------------- |
 | ðŸŒ **HTTP/Web**          | URL segments, form fields | VirtualPath or StrictPath | VirtualPath for UI display, StrictPath for system I/O |
-| âš™ï¸ **Config/DB**         | Paths in config/database  | StrictPath                | Storage â‰  safety; validate on use                     |
+| âš™ï¸ **Config/DB**       | Paths in config/database  | StrictPath                | Storage â‰  safety; validate on use                   |
 | ðŸ“‚ **CLI/External APIs** | Args, webhooks, payloads  | StrictPath                | Never trust external input                            |
 | ðŸ¤– **LLM/AI**            | Generated paths/filenames | StrictPath                | LLM output is untrusted by default                    |
 | ðŸ“¦ **Archives**          | ZIP/TAR entry names       | **StrictPath ONLY**       | Detect malicious paths, reject bad archives           |
@@ -357,4 +357,4 @@ For detailed anti-patterns and fixes, see: **[Anti-Patterns Guide â†’](../a
 
 That's it! This page is your quick reference. Dive into the focused chapters when you need details.
 
-For source-level API documentation: **[API Reference (strict-path crate docs) â†’](../../strict_path/index.html)**
+For source-level API documentation: **[API Reference (docs.rs) →](https://docs.rs/strict-path)**

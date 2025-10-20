@@ -4,8 +4,8 @@
 > This section is for contributors, library developers, and curious developers who want to understand how strict-path works internally.
 
 If you're just using strict-path in your project, you probably want:
-- [Getting Started](./chapter_1.md) - Learn the basic API
-- [Real-World Examples](./examples.md) - See practical usage patterns
+- [Getting Started](./getting_started.md) - Learn the basic API
+- [Real-World Examples](./examples/overview.md) - See practical usage patterns
 
 ## What's in This Section
 

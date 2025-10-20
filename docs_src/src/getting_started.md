@@ -31,13 +31,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Now any path we validate through this path boundary will be contained
     // within the "user_files" directory
 
-    // ✅ This is SAFE - creates "user_files/documents/report.txt"
-    let report = user_files_dir.strict_join("documents/report.txt")?;
+    // Simulate user input from HTTP request, CLI args, form data, etc.
+    let user_input = "documents/report.txt"; // In real code: from request.form_data()
+    
+    // ✅ This is SAFE - validates and creates "user_files/documents/report.txt"
+    let report = user_files_dir.strict_join(user_input)?;
     report.create_parent_dir_all()?;
     report.write("Quarterly report contents")?;
 
     // ❌ This would FAIL - can't escape the path boundary!
-    // let _bad = user_files_dir.strict_join("../../../etc/passwd")?; // Error!
+    let attack_input = "../../../etc/passwd"; // Attacker-controlled input
+    // let _bad = user_files_dir.strict_join(attack_input)?; // Error!
 
     let display = report.strictpath_display();
     println!("Safe path: {display}");
