@@ -30,70 +30,83 @@
 
 ---
 
-## Quick start
+## 🚀 **Real-World Examples**
 
-> *"If you can read this file, you've already passed your first PathBoundary checkpoint."*
+> *"Show me the code that protects my production server."*
 
-### Policy types (reusable, explicit)
+### Archive Extraction (Zip Slip Prevention)
+
+**The Threat**: Malicious archives with paths like `../../../etc/passwd` that escape your extraction directory. This is [CVE-2018-1000178](https://snyk.io/research/zip-slip-vulnerability) and has compromised thousands of applications.
 
 ```rust
 use strict_path::PathBoundary;
 
-// 1. Define the boundary - paths are contained within ./app/uploads_dir
-//    try_new() requires directory exists (use try_new_create() to create if missing)
-let uploads_boundary = PathBoundary::try_new("./app/uploads_dir")?;
-
-// 2. Validate untrusted user input against the boundary
-let user_provided_path = get_filename_from_request(); // e.g., from HTTP form data
-let user_file = uploads_boundary.strict_join(user_provided_path)?;
-
-// 3. Safe I/O operations - guaranteed within boundary
-user_file.create_parent_dir_all()?;
-user_file.write(b"file contents")?;
-let contents = user_file.read_to_string()?;
-
-// 4. Escape attempts are detected and rejected
-let malicious_input = "../../etc/passwd"; // Attacker-controlled input
-match uploads_boundary.strict_join(malicious_input) {
-    Ok(_) => panic!("Escapes should be caught!"),
-    Err(e) => println!("Attack blocked: {e}"), // PathEscapesBoundary error
+fn extract_zip(
+    extraction_dir: PathBoundary, // Boundary that paths cannot escape
+    zip_entries: impl IntoIterator<Item=(String, Vec<u8>)>) -> std::io::Result<()> {
+   
+    for (name, data) in zip_entries {
+        // Hostile names like "../../../etc/passwd" are rejected with PathEscapesBoundary error
+        let safe_path = extraction_dir.strict_join(&name)?; // Zip slip detected & blocked
+        safe_path.create_parent_dir_all()?;
+        safe_path.write(&data)?;
+    }
+    Ok(())
 }
 ```
 
-**With `virtual-path` feature enabled:**
+**What you get**: Automatic detection of malicious paths. No manual string parsing. No CVE research. Just safe extraction.
+
+### Multi-Tenant Web Application
+
+**The Threat**: User A accesses User B's files via `GET /files/../../userB/secrets.txt`. One of the most common web vulnerabilities.
 
 ```rust
 use strict_path::VirtualRoot;
 
-// Virtual filesystem for multi-tenant isolation (requires "virtual-path" feature)
-// Note: path_absolutize::absolutize_virtually REJECTS escapes (returns Err);
-// VirtualPath CLAMPS them within the boundary (returns Ok, contained path)
-let tenant_id = "alice";
-let tenant_dir = format!("./tenant_data/{tenant_id}");
-let tenant_vroot = VirtualRoot::try_new_create(tenant_dir)?; 
-let tenant_file = tenant_vroot.virtual_join("../../../sensitive")?;
-// Escape attempt is silently clamped - stays within tenant_data
-println!("Virtual path: {}", tenant_file.virtualpath_display()); // Shows: "/sensitive"
+// Each tenant gets isolated filesystem view
+fn handle_file_request(tenant_id: &str, requested_path: &str) -> std::io::Result<Vec<u8>> {
+    // Create per-tenant virtual root
+    let tenant_root = VirtualRoot::try_new_create(format!("./tenants/{tenant_id}"))?;
+    
+    // Attacker tries: "../../other_tenant/secrets.txt"
+    // Result: Silently clamped to "/other_tenant/secrets.txt" within THIS tenant's root
+    let user_file = tenant_root.virtual_join(requested_path)?;
+    
+    // User sees "/other_tenant/secrets.txt" but it's actually:
+    // ./tenants/{tenant_id}/other_tenant/secrets.txt (still within their boundary)
+    user_file.read()
+}
 ```
 
-### One-liner sugar (quick prototyping)
+**What you get**: Perfect tenant isolation. Escape attempts stay contained. User-friendly virtual paths (showing `/docs/file.txt` instead of real system paths).
+
+---
+
+## Quick start
+
+> *"If you can read this file, you've already passed your first PathBoundary checkpoint."*
+
+### StrictPath (detect & reject escapes)
 
 ```rust
 use strict_path::StrictPath;
 
-// Concise form - boundary created inline and joined in one expression
-// with_boundary() requires directory exists; use with_boundary_create() to create if missing
 let user_input = get_config_name(); // e.g., from CLI args or environment
 let config_file = StrictPath::with_boundary("./app/config")?.strict_join(user_input)?;
 config_file.write(b"settings")?;
+
+// Attack blocked
+StrictPath::with_boundary("./uploads")?.strict_join("../../etc/passwd")?; // Err(PathEscapesBoundary)
 ```
 
-**With `virtual-path` feature enabled:**
+### VirtualPath (contain & clamp escapes)
+
+**Requires `virtual-path` feature in Cargo.toml**
 
 ```rust
 use strict_path::VirtualPath;
 
-// Virtual paths require dynamic tenant/user IDs for per-user isolation
 let user_id = get_authenticated_user_id();
 let user_dir = format!("./user_data/{user_id}");
 let user_avatar = VirtualPath::with_root_create(user_dir)?.virtual_join("/profile/avatar.png")?;
@@ -272,47 +285,6 @@ safe_path.remove_file()?; // Remove when cleanup is required
 | External APIs/webhooks/inter-service messages    | `StrictPath`   | Validate on consume before touching FS |
 
  **[Complete Decision Matrix →](https://dk26.github.io/strict-path-rs/best_practices.html)** - Full guide with rationale, symlink behavior, edge cases, and advanced patterns
-
-## 🚀 **Real-World Examples**
-
-### Archive Extraction (Zip Slip Prevention)
-```rust
-use strict_path::PathBoundary;
-
-fn extract_zip(
-    extraction_dir: PathBoundary, // We set a boundary that paths cannot escape
-    zip_entries: impl IntoIterator<Item=(String, Vec<u8>)>) -> std::io::Result<()> {
-   
-    for (name, data) in zip_entries {
-        // Hostile names like "../../../etc/passwd" are rejected with PathEscapesBoundary error
-        let safe_path = extraction_dir.strict_join(&name)?; // Zip slip detected & blocked
-        safe_path.create_parent_dir_all()?;
-        safe_path.write(&data)?;
-    }
-    Ok(())
-}
-```
-
-### Multi-Tenant Isolation (VirtualPath)
-```rust
-use strict_path::VirtualRoot;
-
-// Each tenant gets isolated filesystem view
-let tenant_id = get_authenticated_tenant_id();
-let tenant_dir = format!("./app/tenant_data/{tenant_id}");
-let tenant_root = VirtualRoot::try_new_create(tenant_dir)?;
-
-// User input from request/form data
-let user_input = get_document_name_from_request(); // e.g., "report.pdf" from user
-let user_file = tenant_root.virtual_join(user_input)?;
-user_file.create_parent_dir_all()?;
-user_file.write(b"tenant data")?;
-
-// Escape attempts are silently clamped within tenant boundary
-let attack_input = "../../../etc/passwd"; // Attacker-controlled input
-let escaped = tenant_root.virtual_join(attack_input)?;
-println!("{}", escaped.virtualpath_display()); // Shows: "/etc/passwd" (still within tenant_root)
-```
 
 📚 **[More Real-World Examples →](https://dk26.github.io/strict-path-rs/examples.html)** - LLM agents, web servers, config managers, and more
 
