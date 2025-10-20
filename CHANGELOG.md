@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-rc.1] - 2025-10-21
+
+Release candidate for 0.1.0 stable release.
+
 ### Removed
 - **BREAKING**: Removed deprecated methods (deprecated since 0.1.0-alpha.5)
   - `StrictPath::read_bytes()` - Use `read()` instead
@@ -18,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Rationale**: Simplifies API surface and enforces consistent method names
 
 ### Changed
-- **BREAKING**: Removed feature-gated ecosystem integrations from library core (commit 35f5c18)
+- **BREAKING**: Removed feature-gated ecosystem integrations from library core
   - **Removed features**: `serde`, `dirs`, `tempfile`, `app-path`
   - **Removed modules**: `serde_ext` (WithBoundary/WithVirtualRoot seeds)
   - **Removed impls**: `Serialize` for `StrictPath`/`VirtualPath`
@@ -45,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ```
 
 ### Added
-- **Windows junction support** (feature: `junctions`, commit 4736c7e)
+- **Windows junction support** (feature: `junctions`)
   - Added optional junction helpers with inline implementation
   - `StrictPath::strict_junction(link_path)` - Creates junctions between paths in the same boundary
   - `VirtualPath::virtual_junction(link_path)` - Creates junctions between virtual paths
@@ -53,23 +57,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `VirtualRoot::virtual_junction(link_path)` - Creates junctions pointing to virtual root
   - Enables Windows junction support without requiring Developer Mode/admin privileges
   - Useful fallback when symlink creation fails with ERROR_PRIVILEGE_NOT_HELD (1314)
-
-### Tests
-- **CVE protection proof tests** (commit 3ab1a95)
+- **CVE protection verification**
   - Added comprehensive tests demonstrating protection against CVE-2025-11001 (Windows 8.3 short name bypass)
   - Added tests demonstrating protection against CVE-2025-11002 (symlink-based TOCTOU attacks)
-  - Tests validate that strict-path's canonicalization-based approach prevents both classes of vulnerabilities
+  - Validates that strict-path's canonicalization-based approach prevents both classes of vulnerabilities
 
 ### Documentation
-- **Clarified interop_path() usage** (commit 60836a3)
+- **Clarified interop_path() usage**
   - Enhanced documentation explaining when to use `.interop_path()` vs built-in I/O methods
   - Added anti-patterns section warning against wrapping `.interop_path()` in `Path::new()` or `PathBuf::from()`
   - Emphasized that `.interop_path()` should only be used for third-party crate integration
-- **Variable naming rules and ecosystem integration patterns** (commit b112175)
+- **Variable naming rules and ecosystem integration patterns**
   - Updated documentation with clear variable naming conventions for VirtualRoot and PathBoundary
   - Added guidance on realistic demo patterns and ecosystem integration
   - Enhanced examples showing composition with dirs, tempfile, and other crates
-- **Link creation refactoring** (commit 01176c5)
+- **Link creation refactoring**
   - Refactored link creation methods to accept generic path types
   - Improved type ergonomics for symlink/junction/hard link helpers
 

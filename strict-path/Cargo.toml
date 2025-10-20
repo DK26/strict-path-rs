@@ -1,19 +1,19 @@
 [package]
 name = "strict-path"
-version = "0.1.0-beta.3"
+version = "0.1.0-rc.1"
 edition = "2021"
 # Minimum supported Rust version (MSRV)
 rust-version = "1.71"
 authors = ["David Krasnitsky <dikaveman@gmail.com>"]
-description = "Enforce path boundaries with compile-time guarantees. Validates paths (StrictPath) or sandboxes them (VirtualPath). Handles symlinks, CVEs, platform quirks."
+description = "Prevent directory traversal with mathematically proven path boundaries. StrictPath detects escapes, VirtualPath contains them. Handles symlinks, 19+ CVEs, Windows 8.3 names, platform quirks."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/DK26/strict-path-rs"
 homepage = "https://github.com/DK26/strict-path-rs"
 documentation = "https://docs.rs/strict-path"
 # Complete guide and examples: https://dk26.github.io/strict-path-rs/
 readme = "../README.md"
-keywords = ["path", "security", "jail", "filesystem", "traversal"]
-categories = ["filesystem", "development-tools", "web-programming"]
+keywords = ["path", "security", "sandbox", "filesystem", "traversal"]
+categories = ["filesystem", "development-tools", "web-programming::http-server"]
 # The path is now relative to the workspace root
 exclude = ["../demos/**"]
 

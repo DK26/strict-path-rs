@@ -204,7 +204,7 @@ strict-path = { version = "...", features = ["junctions"] }
 
 ```toml
 [dependencies]
-strict-path = "0.1.0-beta.3"
+strict-path = "0.1.0-rc.1"
 ```
 
 ```rust
