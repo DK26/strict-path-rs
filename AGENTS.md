@@ -139,8 +139,9 @@ Do not implement leaky trait impls for secure types:
 
 ## Repository Layout
 
-- Root workspace: `[workspace].members = ["strict-path"]`, `exclude = ["demos"]`.
+- Root workspace: `[workspace].members = ["strict-path", "benches"]`, `exclude = ["demos"]`.
 - `strict-path/`: library crate; MSRV‑bound.
+- `benches/`: performance benchmarks; workspace member at project root; latest stable (not MSRV-bound); `publish = false`.
 - `demos/`: real‑world demo binaries; decoupled from MSRV; `publish = false`.
 - `.github/workflows/`: CI configs; stable + MSRV split.
 - Local CI parity: `ci-local.ps1` (Windows), `ci-local.sh` (Unix/WSL).
@@ -151,6 +152,99 @@ Do not implement leaky trait impls for secure types:
   - Read/edit: `.docs/docs_src/src/*.md` files.
   - Preview: `cd .docs/docs_src && mdbook serve -o`.
 - Docs: `README.md`, `LLM_API_REFERENCE.md`.
+
+## Benchmarks Structure (Workspace-Level)
+
+**Location:** `benches/` at project root (NOT in `strict-path/benches/`)
+
+**Why at workspace root:**
+- Rust convention: workspace-level benchmarks go in `<workspace>/benches/`
+- Benchmarks compare approaches and aren't "part of" the library API
+- Parallel structure to `demos/` (both at root, both excluded/member)
+- Cleaner separation of concerns
+
+**Directory structure:**
+```
+benches/
+├── Cargo.toml              # Separate workspace member
+├── src/lib.rs              # Dummy lib (Cargo requirement)
+├── benches/                # Actual benchmark files (Cargo convention)
+│   ├── performance_comparison.rs   # Overhead measurement
+│   └── caching_benefits.rs         # Real-world performance gains
+├── docs/                   # Benchmark analysis and reports
+│   ├── OVERHEAD_QUICK_REFERENCE.md
+│   ├── PERFORMANCE_OVERHEAD_ANALYSIS.md
+│   ├── CACHING_BENEFITS_REPORT.md
+│   ├── BENCHMARK_FIX_SUMMARY.md
+│   └── BENCHMARK_ANALYSIS.md
+└── README.md               # Benchmark usage guide
+```
+
+**Key points:**
+- `benches/Cargo.toml` declares dependency on `strict-path = { path = "../strict-path", features = ["virtual-path"] }`
+- Features enabled in benches/Cargo.toml, so no `--features` needed when running
+- `benches/src/lib.rs` is a dummy file to satisfy Cargo's requirement for a target
+- Actual benchmarks go in `benches/benches/*.rs` (Cargo convention)
+- Benchmarks use latest stable Rust (not MSRV-bound like library)
+
+**Running benchmarks:**
+```powershell
+# From repository root
+cd benches
+cargo bench                               # Run all benchmarks
+cargo bench --bench performance_comparison  # Overhead only
+cargo bench --bench caching_benefits        # Real-world gains only
+cargo bench -- --save-baseline main         # Save baseline for regression testing
+```
+
+**Never run from library directory:**
+```powershell
+# ❌ Wrong (old location):
+cd strict-path
+cargo bench --features virtual-path
+
+# ✅ Correct (new location):
+cd benches
+cargo bench
+```
+
+**Benchmark dependencies:**
+- `criterion = "0.7.0"` — professional benchmarking framework
+- `soft-canonicalize = { version = "0.4.5", features = ["anchored"] }` — baseline comparison
+- `tempfile = "3.22"` — test fixtures
+- NO `criterion` in `strict-path/Cargo.toml` dev-dependencies (moved to benches)
+
+**Documentation structure:**
+- `benches/README.md` — usage guide, what each benchmark measures, how to run
+- `benches/docs/OVERHEAD_QUICK_REFERENCE.md` — at-a-glance tables (StrictPath +11%, VirtualPath +35%)
+- `benches/docs/PERFORMANCE_OVERHEAD_ANALYSIS.md` — comprehensive 500+ line analysis with 6 tables
+- `benches/docs/CACHING_BENEFITS_REPORT.md` — real-world batch scenarios (VirtualPath 2-3x faster!)
+- `benches/docs/BENCHMARK_FIX_SUMMARY.md` — methodology fixes (use relative segments, fair comparison)
+
+**Adding new benchmarks:**
+1. Create `benches/benches/your_benchmark.rs`
+2. Add `[[bench]]` entry to `benches/Cargo.toml`
+3. Use `black_box()` to prevent compiler optimizations
+4. Ensure all approaches do equivalent work (fair comparison)
+5. Document expected results in comments
+6. Update `benches/README.md` with new benchmark description
+
+**Benchmark methodology (critical):**
+- All approaches must receive SAME inputs (relative path segments)
+- Measure full workflow: "untrusted string" → "validated path"
+- Include validation cost + I/O cost (if applicable)
+- Use `black_box()` around inputs and outputs
+- Setup costs (boundary creation) happen OUTSIDE benchmark loop
+- Throughput set correctly (matches operations per iteration)
+
+**Anti-patterns:**
+- ❌ Benchmarking with absolute paths (not fair comparison)
+- ❌ Measuring I/O only without validation cost
+- ❌ Validating outside the benchmark loop
+- ❌ Comparing different workloads (must be equivalent)
+- ❌ Forgetting `black_box()` (compiler may optimize away work)
+
+**See also:** `benches/docs/BENCHMARK_FIX_SUMMARY.md` for detailed methodology validation.
 
 ## CI Workflows (GitHub Actions)
 

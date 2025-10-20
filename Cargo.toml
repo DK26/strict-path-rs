@@ -6,9 +6,11 @@
 ##   - Build richer examples on latest stable with newer ecosystem crates
 ##   - Avoid workspace lock/feature resolution coupling between the two
 ## See `.github/workflows/ci.yml` for how CI runs the examples separately.
+##
+## Benchmarks are in the workspace but use latest stable (not MSRV-bound).
 [workspace]
 resolver = "2"
-members = ["strict-path"]
+members = ["strict-path", "benches"]
 # Critical to MSRV strategy: do NOT include `examples` in the workspace.
 exclude = ["demos"]
 

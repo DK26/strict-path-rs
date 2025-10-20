@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **BREAKING**: Removed deprecated methods (deprecated since 0.1.0-alpha.5)
+  - `StrictPath::read_bytes()` - Use `read()` instead
+  - `StrictPath::write_bytes(data)` - Use `write(data)` instead
+  - `StrictPath::write_string(data)` - Use `write(data)` instead
+  - `VirtualPath::read_bytes()` - Use `read()` instead
+  - `VirtualPath::write_bytes(data)` - Use `write(data)` instead
+  - `VirtualPath::write_string(data)` - Use `write(data)` instead
+  - **Rationale**: Simplifies API surface and enforces consistent method names
+
+### Changed
+- **BREAKING**: Removed feature-gated ecosystem integrations from library core (commit 35f5c18)
+  - **Removed features**: `serde`, `dirs`, `tempfile`, `app-path`
+  - **Removed modules**: `serde_ext` (WithBoundary/WithVirtualRoot seeds)
+  - **Removed impls**: `Serialize` for `StrictPath`/`VirtualPath`
+  - **Removed constructors**: `try_new_os_*`, `try_new_temp*`, `try_new_app_path*`
+  - **Rationale**: Users now compose ecosystem crates directly with validation primitives for maximum flexibility
+  - **Migration** (composition pattern):
+    ```rust
+    // Before: PathBoundary::try_new_os_config("app")?
+    // After:
+    let config_dir = dirs::config_dir()?.join("app");
+    PathBoundary::try_new_create(config_dir)?
+
+    // Before: PathBoundary::try_new_temp()?
+    // After:
+    let temp = tempfile::tempdir()?;
+    PathBoundary::try_new(temp.path())?
+
+    // Before: WithBoundary(&boundary).deserialize(de)?
+    // After:
+    let raw: String = String::deserialize(de)?;
+    let boundary: PathBoundary = raw.parse()?;
+    // Then validate untrusted segments:
+    boundary.strict_join(untrusted_segment)?
+    ```
+
+### Added
+- **Windows junction support** (feature: `junctions`, commit 4736c7e)
+  - Added optional junction helpers with inline implementation
+  - `StrictPath::strict_junction(link_path)` - Creates junctions between paths in the same boundary
+  - `VirtualPath::virtual_junction(link_path)` - Creates junctions between virtual paths
+  - `PathBoundary::strict_junction(link_path)` - Creates junctions pointing to boundary root
+  - `VirtualRoot::virtual_junction(link_path)` - Creates junctions pointing to virtual root
+  - Enables Windows junction support without requiring Developer Mode/admin privileges
+  - Useful fallback when symlink creation fails with ERROR_PRIVILEGE_NOT_HELD (1314)
+
+### Tests
+- **CVE protection proof tests** (commit 3ab1a95)
+  - Added comprehensive tests demonstrating protection against CVE-2025-11001 (Windows 8.3 short name bypass)
+  - Added tests demonstrating protection against CVE-2025-11002 (symlink-based TOCTOU attacks)
+  - Tests validate that strict-path's canonicalization-based approach prevents both classes of vulnerabilities
+
+### Documentation
+- **Clarified interop_path() usage** (commit 60836a3)
+  - Enhanced documentation explaining when to use `.interop_path()` vs built-in I/O methods
+  - Added anti-patterns section warning against wrapping `.interop_path()` in `Path::new()` or `PathBuf::from()`
+  - Emphasized that `.interop_path()` should only be used for third-party crate integration
+- **Variable naming rules and ecosystem integration patterns** (commit b112175)
+  - Updated documentation with clear variable naming conventions for VirtualRoot and PathBoundary
+  - Added guidance on realistic demo patterns and ecosystem integration
+  - Enhanced examples showing composition with dirs, tempfile, and other crates
+- **Link creation refactoring** (commit 01176c5)
+  - Refactored link creation methods to accept generic path types
+  - Improved type ergonomics for symlink/junction/hard link helpers
+
+### New Examples
+- **Ecosystem integration examples** (replacing removed features):
+  - `strict-path/examples/app_path_integration.rs` - Shows composition with app-path crate
+  - `strict-path/examples/dirs_integration.rs` - Shows composition with dirs crate
+  - `strict-path/examples/tempfile_integration.rs` - Shows composition with tempfile crate
+  - Removed: `strict-path/examples/os_directories.rs` (replaced by dirs_integration.rs)
+
+### Demos
+- **Updated demos** to use composition pattern instead of removed features:
+  - `demos/src/bin/config/app_path_demo.rs` - Now composes with app-path directly
+  - `demos/src/bin/config/os_directories_demo.rs` - Now composes with dirs directly
+  - `demos/src/bin/filesystem/dirs_demo.rs` - Updated for composition pattern
+  - `demos/src/bin/filesystem/tempfile_demo.rs` - Updated for composition pattern
+  - `demos/src/bin/web/axum_static_server.rs` - Updated for new patterns
+  - **Major refactor**: `demos/src/bin/config/config_management_example.rs` - Complete rewrite using composition pattern
+
 ## [0.1.0-beta.3] - 2025-10-14
 
 ### Changed

@@ -1,0 +1,19 @@
+[package]
+name = "strict-path-benches"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+strict-path = { path = "../strict-path", features = ["virtual-path"] }
+soft-canonicalize = { version = "0.4.5", features = ["anchored"] }
+criterion = "0.7.0"
+tempfile = "3.22"
+
+[[bench]]
+name = "performance_comparison"
+harness = false
+
+[[bench]]
+name = "caching_benefits"
+harness = false
