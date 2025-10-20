@@ -52,6 +52,7 @@
 
 # Features & Integration
 
+- [Ecosystem Integration](./ecosystem_integration.md)
 - [OS Standard Directories](./os_directories.md)
 
 ---
