@@ -440,29 +440,8 @@ impl<Marker> VirtualPath<Marker> {
         self.inner.read_to_string()
     }
 
-    /// Reads the file contents as raw bytes from the underlying system path.
-    #[deprecated(since = "0.1.0-alpha.5", note = "Use read() instead")]
-    #[inline]
-    pub fn read_bytes(&self) -> std::io::Result<Vec<u8>> {
-        self.inner.read()
-    }
-
-    /// Writes raw bytes to the underlying system path.
-    #[deprecated(since = "0.1.0-alpha.5", note = "Use write(...) instead")]
-    #[inline]
-    pub fn write_bytes(&self, data: &[u8]) -> std::io::Result<()> {
-        self.inner.write(data)
-    }
-
-    /// Writes a UTF-8 string to the underlying system path.
-    #[deprecated(since = "0.1.0-alpha.5", note = "Use write(...) instead")]
-    #[inline]
-    pub fn write_string(&self, data: &str) -> std::io::Result<()> {
-        self.inner.write(data)
-    }
-
     /// SUMMARY:
-    /// Read raw bytes from the underlying system path (replacement for `read_bytes`).
+    /// Read raw bytes from the underlying system path.
     #[inline]
     pub fn read(&self) -> std::io::Result<Vec<u8>> {
         self.inner.read()

@@ -364,24 +364,6 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// Reads the file contents as raw bytes.
-    #[deprecated(since = "0.1.0-alpha.5", note = "Use read() instead")]
-    pub fn read_bytes(&self) -> std::io::Result<Vec<u8>> {
-        std::fs::read(&self.path)
-    }
-
-    /// Writes raw bytes to the file, creating it if it does not exist.
-    #[deprecated(since = "0.1.0-alpha.5", note = "Use write(...) instead")]
-    pub fn write_bytes(&self, data: &[u8]) -> std::io::Result<()> {
-        std::fs::write(&self.path, data)
-    }
-
-    /// Writes a UTF-8 string to the file, creating it if it does not exist.
-    #[deprecated(since = "0.1.0-alpha.5", note = "Use write(...) instead")]
-    pub fn write_string(&self, data: &str) -> std::io::Result<()> {
-        std::fs::write(&self.path, data)
-    }
-
-    /// Reads the file contents as raw bytes (replacement for `read_bytes`).
     #[inline]
     pub fn read(&self) -> std::io::Result<Vec<u8>> {
         std::fs::read(&self.path)
