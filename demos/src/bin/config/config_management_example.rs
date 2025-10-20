@@ -1,141 +1,126 @@
-// Configuration management with the popular `config` crate + strict-path serde integration
-//
-// This example demonstrates:
-// 1. Hierarchical config loading (defaults -> environment -> user config -> CLI overrides)
-// 2. Multiple config formats (TOML, JSON, YAML) with automatic detection
-// 3. Environment-specific configuration management
-// 4. Proper serde integration with VirtualPath/StrictPath types
-// 5. Validation and error handling patterns
-// 6. Configuration merging and precedence rules
+//! Configuration Management Example
+//!
+//! Demonstrates the recommended pattern for loading and validating configuration
+//! with the `config` crate and strict-path. Shows how to:
+//!
+//! 1. Load hierarchical configuration (defaults → files → env vars → overrides)
+//! 2. Deserialize to raw string paths (untrusted input)
+//! 3. **Manually validate paths** using strict_join/virtual_join
+//! 4. Store validated paths in application structs
+//! 5. Handle multiple config formats (TOML, JSON, YAML)
+//! 6. Environment-specific configuration
+//!
+//! **Key Pattern**: Config files contain strings → validate → store typed paths
+//!
+//! ```text
+//! Config File (TOML/JSON/YAML)
+//!     ↓ deserialize
+//! RawConfig { paths: Vec<String> }
+//!     ↓ validate via strict_join/virtual_join
+//! ValidatedConfig { paths: Vec<VirtualPath<_>> }
+//!     ↓ use safely
+//! Application logic
+//! ```
 
 use anyhow::{Context, Result};
-use config::{Config, Environment, File, FileFormat, Value};
-use serde::{de::DeserializeSeed, Deserialize};
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use strict_path::{
-    serde_ext::{WithBoundary, WithVirtualRoot},
-    PathBoundary, StrictPath, VirtualPath, VirtualRoot,
-};
+use config::{Config, Environment, File};
+use serde::Deserialize;
+use std::path::Path;
+use strict_path::{PathBoundary, StrictPath, VirtualPath, VirtualRoot};
 
-// Application environment types
-#[derive(Debug, Clone, PartialEq)]
+// ============================================================================
+// Marker Types
+// ============================================================================
+
+struct AppData;
+struct UserUploads;
+struct SystemCache;
+struct ApplicationLogs;
+struct SecurityCerts;
+
+// ============================================================================
+// Application Environment
+// ============================================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
 enum AppEnvironment {
+    #[default]
     Development,
     Testing,
     Production,
 }
 
-impl std::str::FromStr for AppEnvironment {
-    type Err = String;
+// ============================================================================
+// Raw Configuration (from config files - strings only)
+// ============================================================================
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "dev" | "development" => Ok(AppEnvironment::Development),
-            "test" | "testing" => Ok(AppEnvironment::Testing),
-            "prod" | "production" => Ok(AppEnvironment::Production),
-            _ => Err(format!("Invalid environment: {}", s)),
-        }
-    }
-}
-
-// Type markers for different path contexts
-#[derive(Clone, Default, Debug)]
-struct DataDir;
-
-#[derive(Clone, Default, Debug)]
-struct CacheDir;
-
-#[derive(Clone, Default, Debug)]
-struct TempDir;
-
-#[derive(Clone, Default, Debug)]
-struct LogDir;
-
-// Raw configuration structure (from config files - untrusted strings)
+/// Raw configuration structure with untrusted string paths.
+/// This is what we deserialize from config files.
 #[derive(Debug, Deserialize)]
 struct RawAppConfig {
-    // Application settings
     app_name: String,
     version: String,
+
+    #[serde(default)]
+    environment: AppEnvironment,
+
+    #[serde(default)]
     debug: bool,
 
-    // Server configuration
     server: RawServerConfig,
-
-    // Database configuration
-    database: RawDatabaseConfig,
-
-    // Path configurations (as strings - not yet validated)
-    paths: RawPathsConfig,
-
-    // Security settings
+    storage: RawStorageConfig,
     security: RawSecurityConfig,
-
-    // Logging configuration
     logging: RawLoggingConfig,
-
-    // Environment-specific overrides
-    #[serde(default)]
-    environment_overrides: HashMap<String, Value>,
 }
 
 #[derive(Debug, Deserialize)]
 struct RawServerConfig {
     host: String,
     port: u16,
+
+    #[serde(default = "default_workers")]
     workers: usize,
-    max_connections: u32,
 
-    // Static file serving paths (strings)
-    static_files: Option<String>,
-    upload_dir: String,
+    // Path as string - needs validation
+    uploads_dir: String,
+
+    // Optional path
+    static_files_dir: Option<String>,
+}
+
+fn default_workers() -> usize {
+    4
 }
 
 #[derive(Debug, Deserialize)]
-struct RawDatabaseConfig {
-    url: String,
-    max_connections: u32,
+struct RawStorageConfig {
+    // Root directories as strings
+    data_root: String,
+    cache_root: String,
 
-    // Database-related paths
+    // Specific paths within roots
+    database_path: String,
     backup_dir: String,
-    migration_dir: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawPathsConfig {
-    // Core application directories
-    data_dir: String,
-    cache_dir: String,
-    temp_dir: String,
-    log_dir: String,
 
     // Optional paths
-    config_dir: Option<String>,
-    plugin_dir: Option<String>,
-
-    // Path arrays
-    #[serde(default)]
-    allowed_upload_dirs: Vec<String>,
-    #[serde(default)]
-    trusted_data_sources: Vec<String>,
+    export_dir: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct RawSecurityConfig {
-    // Security-related paths
     cert_dir: String,
     key_file: String,
 
-    // Access control
     #[serde(default)]
     allowed_origins: Vec<String>,
-    session_timeout: u64,
 
-    // Sandboxing paths
-    sandbox_root: String,
-    #[serde(default)]
-    strict_paths: Vec<String>,
+    #[serde(default = "default_session_timeout")]
+    session_timeout_seconds: u64,
+}
+
+fn default_session_timeout() -> u64 {
+    3600
 }
 
 #[derive(Debug, Deserialize)]
@@ -143,38 +128,33 @@ struct RawLoggingConfig {
     level: String,
     format: String,
 
-    // Log output paths
-    file_path: Option<String>,
-    error_log: Option<String>,
-    access_log: Option<String>,
+    // Log file path
+    log_file: Option<String>,
 
-    // Rotation settings
+    #[serde(default = "default_max_size_mb")]
     max_size_mb: u64,
-    max_files: u32,
 }
 
-// Validated configuration structure (with proper VirtualPath/StrictPath types)
+fn default_max_size_mb() -> u64 {
+    100
+}
+
+// ============================================================================
+// Validated Configuration (with typed, secure paths)
+// ============================================================================
+
+/// Validated configuration with typed, boundary-checked paths.
+/// All paths have been validated and are guaranteed to be within their boundaries.
 #[derive(Debug)]
 struct ValidatedAppConfig {
-    // Application settings (validated)
     app_name: String,
     version: String,
-    debug: bool,
     environment: AppEnvironment,
+    debug: bool,
 
-    // Server configuration (with validated paths)
     server: ValidatedServerConfig,
-
-    // Database configuration (with validated paths)
-    database: ValidatedDatabaseConfig,
-
-    // Validated path configurations
-    paths: ValidatedPathsConfig,
-
-    // Security configuration (with validated paths)
+    storage: ValidatedStorageConfig,
     security: ValidatedSecurityConfig,
-
-    // Logging configuration (with validated paths)
     logging: ValidatedLoggingConfig,
 }
 
@@ -183,53 +163,36 @@ struct ValidatedServerConfig {
     host: String,
     port: u16,
     workers: usize,
-    max_connections: u32,
 
-    // Validated paths
-    static_files: Option<VirtualPath<DataDir>>,
-    upload_dir: VirtualPath<DataDir>,
+    // Validated virtual root for uploads
+    uploads_root: VirtualRoot<UserUploads>,
+
+    // Optional static files boundary
+    static_files_boundary: Option<PathBoundary<AppData>>,
 }
 
 #[derive(Debug)]
-struct ValidatedDatabaseConfig {
-    url: String,
-    max_connections: u32,
+struct ValidatedStorageConfig {
+    // Virtual roots for user-facing paths
+    data_root: VirtualRoot<AppData>,
+    cache_boundary: PathBoundary<SystemCache>,
 
-    // Validated database paths
-    backup_dir: VirtualPath<DataDir>,
-    migration_dir: Option<VirtualPath<DataDir>>,
-}
+    // Validated paths within roots
+    database_file: VirtualPath<AppData>,
+    backup_dir: VirtualPath<AppData>,
 
-#[derive(Debug)]
-struct ValidatedPathsConfig {
-    // Core validated directories
-    data_dir: VirtualRoot<DataDir>,
-    cache_dir: VirtualRoot<CacheDir>,
-    temp_dir: VirtualRoot<TempDir>,
-    log_dir: VirtualRoot<LogDir>,
-
-    // Optional validated paths
-    config_dir: Option<VirtualRoot<DataDir>>,
-    plugin_dir: Option<VirtualPath<DataDir>>,
-
-    // Validated path collections
-    allowed_upload_dirs: Vec<VirtualPath<DataDir>>,
-    trusted_data_sources: Vec<StrictPath<DataDir>>,
+    // Optional paths
+    export_dir: Option<VirtualPath<AppData>>,
 }
 
 #[derive(Debug)]
 struct ValidatedSecurityConfig {
-    // Validated security paths
-    cert_dir: StrictPath<DataDir>,
-    key_file: StrictPath<DataDir>,
+    // Strict paths for security-critical files
+    cert_boundary: PathBoundary<SecurityCerts>,
+    key_file: StrictPath<SecurityCerts>,
 
-    // Access control (strings are fine)
     allowed_origins: Vec<String>,
-    session_timeout: u64,
-
-    // Validated sandboxing paths
-    sandbox_root: PathBoundary<DataDir>,
-    strict_paths: Vec<StrictPath<DataDir>>,
+    session_timeout_seconds: u64,
 }
 
 #[derive(Debug)]
@@ -237,836 +200,628 @@ struct ValidatedLoggingConfig {
     level: String,
     format: String,
 
-    // Validated log paths
-    file_path: Option<VirtualPath<LogDir>>,
-    error_log: Option<VirtualPath<LogDir>>,
-    access_log: Option<VirtualPath<LogDir>>,
+    // Optional log file path
+    log_file: Option<VirtualPath<ApplicationLogs>>,
 
-    // Rotation settings
     max_size_mb: u64,
-    max_files: u32,
 }
 
-// Configuration manager - handles the entire config lifecycle
-struct ConfigManager {
-    environment: AppEnvironment,
-    base_dir: PathBuf,
-}
+// ============================================================================
+// Configuration Manager
+// ============================================================================
+
+struct ConfigManager;
 
 impl ConfigManager {
-    pub fn new(environment: AppEnvironment) -> Result<Self> {
-        let base_dir = std::env::current_dir().context("Failed to get current directory")?;
-
-        Ok(ConfigManager {
-            environment,
-            base_dir,
-        })
-    }
-
     /// Load configuration with hierarchical precedence:
     /// 1. Built-in defaults
     /// 2. Base config file (config.toml)
-    /// 3. Environment-specific config (config.dev.toml, config.prod.toml, etc.)
+    /// 3. Environment-specific config (config.{env}.toml)
     /// 4. Environment variables (APP_*)
-    /// 5. User config file (if specified)
-    /// 6. Command-line overrides (if any)
-    pub fn load_config(&self, user_config_path: Option<&Path>) -> Result<ValidatedAppConfig> {
-        let mut config_builder = Config::builder();
+    /// 5. User config file (optional)
+    pub fn load_config(
+        config_dir: &Path,
+        environment: AppEnvironment,
+        user_config: Option<&Path>,
+    ) -> Result<ValidatedAppConfig> {
+        println!("📁 Loading configuration from: {}", config_dir.display());
+        println!("🌍 Environment: {:?}", environment);
 
-        // 1. Set built-in defaults
-        config_builder = self.add_defaults(config_builder)?;
+        let mut builder = Config::builder();
 
-        // 2. Load base configuration file
-        config_builder = self.add_base_config(config_builder)?;
+        // 1. Set defaults
+        builder = Self::add_defaults(builder)?;
 
-        // 3. Load environment-specific configuration
-        config_builder = self.add_environment_config(config_builder)?;
-
-        // 4. Add environment variables
-        config_builder = self.add_environment_variables(config_builder)?;
-
-        // 5. Add user configuration file if provided
-        if let Some(user_path) = user_config_path {
-            config_builder = self.add_user_config(config_builder, user_path)?;
+        // 2. Load base config
+        let base_path = config_dir.join("config.toml");
+        if base_path.exists() {
+            println!("  ✓ Loading base config: {}", base_path.display());
+            builder = builder.add_source(File::from(base_path));
         }
 
-        // Build the final configuration
-        let raw_config: RawAppConfig = config_builder
-            .build()
-            .context("Failed to build configuration")?
+        // 3. Load environment-specific config
+        let env_name = match environment {
+            AppEnvironment::Development => "dev",
+            AppEnvironment::Testing => "test",
+            AppEnvironment::Production => "prod",
+        };
+        let env_path = config_dir.join(format!("config.{env_name}.toml"));
+        if env_path.exists() {
+            println!("  ✓ Loading {env_name} config: {}", env_path.display());
+            builder = builder.add_source(File::from(env_path));
+        }
+
+        // 4. Add environment variables with APP_ prefix
+        builder = builder.add_source(
+            Environment::with_prefix("APP")
+                .separator("__")
+                .try_parsing(true),
+        );
+
+        // 5. Add user config if provided
+        if let Some(user_path) = user_config {
+            if user_path.exists() {
+                println!("  ✓ Loading user config: {}", user_path.display());
+                builder = builder.add_source(File::from(user_path));
+            }
+        }
+
+        // Build and deserialize to raw config
+        let config = builder.build().context("Failed to build configuration")?;
+
+        let raw_config: RawAppConfig = config
             .try_deserialize()
             .context("Failed to deserialize configuration")?;
 
+        // Use environment from config file if present, otherwise use parameter
+        let resolved_environment = raw_config.environment;
+        println!("  ✓ Resolved environment: {resolved_environment:?}");
+
+        println!("\n🔍 Validating configuration paths...");
+
         // 6. Validate and convert to secure path types
-        self.validate_config(raw_config)
+        Self::validate_config(raw_config, environment)
     }
 
     fn add_defaults(
-        &self,
         mut builder: config::ConfigBuilder<config::builder::DefaultState>,
     ) -> Result<config::ConfigBuilder<config::builder::DefaultState>> {
-        // Set application defaults
         builder = builder
-            .set_default("app_name", "MySecureApp")?
+            // App defaults
+            .set_default("app_name", "SecureApp")?
             .set_default("version", "1.0.0")?
             .set_default("debug", false)?
             // Server defaults
             .set_default("server.host", "127.0.0.1")?
             .set_default("server.port", 8080)?
             .set_default("server.workers", 4)?
-            .set_default("server.max_connections", 1000)?
-            .set_default("server.upload_dir", "./uploads")?
-            // Database defaults
-            .set_default("database.url", "sqlite:./data/app.db")?
-            .set_default("database.max_connections", 10)?
-            .set_default("database.backup_dir", "./backups")?
-            // Path defaults
-            .set_default("paths.data_dir", "./data")?
-            .set_default("paths.cache_dir", "./cache")?
-            .set_default("paths.temp_dir", "./tmp")?
-            .set_default("paths.log_dir", "./logs")?
+            .set_default("server.uploads_dir", "./uploads")?
+            // Storage defaults
+            .set_default("storage.data_root", "./data")?
+            .set_default("storage.cache_root", "./cache")?
+            .set_default("storage.database_path", "app.db")?
+            .set_default("storage.backup_dir", "backups")?
             // Security defaults
             .set_default("security.cert_dir", "./certs")?
-            .set_default("security.key_file", "./certs/private.key")?
-            .set_default("security.session_timeout", 3600)?
-            .set_default("security.sandbox_root", "./sandbox")?
+            .set_default("security.key_file", "private.key")?
+            .set_default("security.session_timeout_seconds", 3600)?
             // Logging defaults
             .set_default("logging.level", "info")?
             .set_default("logging.format", "json")?
-            .set_default("logging.max_size_mb", 100)?
-            .set_default("logging.max_files", 10)?;
+            .set_default("logging.max_size_mb", 100)?;
 
         Ok(builder)
     }
 
-    fn add_base_config(
-        &self,
-        builder: config::ConfigBuilder<config::builder::DefaultState>,
-    ) -> Result<config::ConfigBuilder<config::builder::DefaultState>> {
-        let config_path = self.base_dir.join("config");
-
-        // Try multiple formats in order of preference
-        let formats = [
-            ("config.toml", FileFormat::Toml),
-            ("config.json", FileFormat::Json),
-            ("config.yaml", FileFormat::Yaml),
-            ("config.yml", FileFormat::Yaml),
-        ];
-
-        for (filename, format) in formats {
-            let path = config_path.join(filename);
-            if path.exists() {
-                println!("📁 Loading base config from: {}", path.display());
-                return Ok(builder.add_source(File::from(path).format(format).required(false)));
-            }
-        }
-
-        println!("ℹ️  No base configuration file found, using defaults");
-        Ok(builder)
-    }
-
-    fn add_environment_config(
-        &self,
-        builder: config::ConfigBuilder<config::builder::DefaultState>,
-    ) -> Result<config::ConfigBuilder<config::builder::DefaultState>> {
-        let config_path = self.base_dir.join("config");
-        let env_suffix = match self.environment {
-            AppEnvironment::Development => "dev",
-            AppEnvironment::Testing => "test",
-            AppEnvironment::Production => "prod",
-        };
-
-        // Try environment-specific configs
-        let env_files = [
-            (format!("config.{}.toml", env_suffix), FileFormat::Toml),
-            (format!("config.{}.json", env_suffix), FileFormat::Json),
-            (format!("config.{}.yaml", env_suffix), FileFormat::Yaml),
-            (format!("config.{}.yml", env_suffix), FileFormat::Yaml),
-        ];
-
-        for (filename, format) in env_files {
-            let path = config_path.join(&filename);
-            if path.exists() {
-                println!("🌍 Loading environment config from: {}", path.display());
-                return Ok(builder.add_source(File::from(path).format(format).required(false)));
-            }
-        }
-
-        println!(
-            "ℹ️  No environment-specific configuration found for: {:?}",
-            self.environment
-        );
-        Ok(builder)
-    }
-
-    fn add_environment_variables(
-        &self,
-        builder: config::ConfigBuilder<config::builder::DefaultState>,
-    ) -> Result<config::ConfigBuilder<config::builder::DefaultState>> {
-        println!("🔧 Loading environment variables with prefix: APP_");
-        Ok(builder.add_source(
-            Environment::with_prefix("APP")
-                .separator("_")
-                .try_parsing(true),
-        ))
-    }
-
-    fn add_user_config(
-        &self,
-        builder: config::ConfigBuilder<config::builder::DefaultState>,
-        user_path: &Path,
-    ) -> Result<config::ConfigBuilder<config::builder::DefaultState>> {
-        if !user_path.exists() {
-            return Err(anyhow::anyhow!(
-                "User config file not found: {}",
-                user_path.display()
-            ));
-        }
-
-        // Auto-detect format from extension
-        let format = match user_path.extension().and_then(|ext| ext.to_str()) {
-            Some("toml") => FileFormat::Toml,
-            Some("json") => FileFormat::Json,
-            Some("yaml") | Some("yml") => FileFormat::Yaml,
-            _ => {
-                return Err(anyhow::anyhow!(
-                    "Unsupported config file format: {}",
-                    user_path.display()
-                ))
-            }
-        };
-
-        println!("👤 Loading user config from: {}", user_path.display());
-        Ok(builder.add_source(File::from(user_path).format(format).required(true)))
-    }
-
-    /// Convert raw configuration to validated configuration with proper path types
-    fn validate_config(&self, raw: RawAppConfig) -> Result<ValidatedAppConfig> {
-        println!("✅ Validating configuration and converting paths to secure types...");
-
-        // Check for environment-specific overrides
-        if !raw.environment_overrides.is_empty() {
-            println!(
-                "🔧 Found {} environment overrides",
-                raw.environment_overrides.len()
-            );
-            for (key, value) in &raw.environment_overrides {
-                println!("  Override: {} = {:?}", key, value);
-            }
-        }
-
-        // Validate server paths
-        let server = self
-            .validate_server_config(&raw.server)
+    /// **Core validation logic**: Convert raw string paths to validated types.
+    ///
+    /// This is the recommended pattern:
+    /// 1. Deserialize config to raw strings
+    /// 2. Create boundaries/roots for base directories
+    /// 3. Validate paths using strict_join/virtual_join
+    /// 4. Return validated config with typed paths
+    fn validate_config(
+        raw: RawAppConfig,
+        environment: AppEnvironment,
+    ) -> Result<ValidatedAppConfig> {
+        // Validate server configuration
+        let server = Self::validate_server(&raw.server)
             .context("Failed to validate server configuration")?;
 
-        // Validate database paths
-        let database = self
-            .validate_database_config(&raw.database)
-            .context("Failed to validate database configuration")?;
+        // Validate storage configuration
+        let storage = Self::validate_storage(&raw.storage)
+            .context("Failed to validate storage configuration")?;
 
-        // Validate core paths
-        let paths = self
-            .validate_paths_config(&raw.paths)
-            .context("Failed to validate paths configuration")?;
-
-        // Validate security paths
-        let security = self
-            .validate_security_config(&raw.security)
+        // Validate security configuration
+        let security = Self::validate_security(&raw.security)
             .context("Failed to validate security configuration")?;
 
-        // Validate logging paths
-        let logging = self
-            .validate_logging_config(&raw.logging)
+        // Validate logging configuration
+        let logging = Self::validate_logging(&raw.logging, &storage.data_root)
             .context("Failed to validate logging configuration")?;
 
-        println!("🎉 Configuration validation completed successfully!");
+        println!("\n✅ Configuration validation successful!");
 
         Ok(ValidatedAppConfig {
             app_name: raw.app_name,
             version: raw.version,
+            environment,
             debug: raw.debug,
-            environment: self.environment.clone(),
             server,
-            database,
-            paths,
+            storage,
             security,
             logging,
         })
     }
 
-    fn validate_server_config(&self, server: &RawServerConfig) -> Result<ValidatedServerConfig> {
-        println!("🌐 Validating server configuration...");
+    fn validate_server(server: &RawServerConfig) -> Result<ValidatedServerConfig> {
+        println!("\n🌐 Validating server configuration...");
 
-        // Create virtual root for upload directory
-        let upload_boundary = PathBoundary::try_new_create(&server.upload_dir)
-            .with_context(|| format!("Failed to create upload directory: {}", server.upload_dir))?;
-        let upload_vroot = upload_boundary.virtualize();
-
-        // Validate upload_dir using serde
-        let upload_dir =
-            self.deserialize_virtual_path(&server.upload_dir, &upload_vroot, "upload_dir")?;
-
-        // Validate optional static_files path
-        let static_files = if let Some(static_path) = &server.static_files {
-            let static_boundary = PathBoundary::try_new_create(static_path).with_context(|| {
-                format!("Failed to create static files directory: {}", static_path)
+        // Create virtual root for uploads (user-facing paths)
+        let uploads_root = VirtualRoot::<UserUploads>::try_new_create(&server.uploads_dir)
+            .with_context(|| {
+                format!("Failed to create uploads directory: {}", server.uploads_dir)
             })?;
-            let static_vroot = static_boundary.virtualize();
-            Some(self.deserialize_virtual_path(static_path, &static_vroot, "static_files")?)
+
+        println!(
+            "  ✓ Uploads root: {}",
+            uploads_root.as_unvirtual().strictpath_display()
+        );
+
+        // Validate optional static files directory
+        let static_files_boundary = if let Some(ref static_dir) = server.static_files_dir {
+            let boundary =
+                PathBoundary::<AppData>::try_new_create(static_dir).with_context(|| {
+                    format!("Failed to create static files directory: {static_dir}")
+                })?;
+
+            println!("  ✓ Static files: {}", boundary.strictpath_display());
+            Some(boundary)
         } else {
+            println!("  ⚠ No static files directory configured");
             None
         };
-
-        println!("  ✓ Upload directory: {}", upload_dir.virtualpath_display());
-        if let Some(ref sf) = static_files {
-            println!("  ✓ Static files: {}", sf.virtualpath_display());
-        }
 
         Ok(ValidatedServerConfig {
             host: server.host.clone(),
             port: server.port,
             workers: server.workers,
-            max_connections: server.max_connections,
-            static_files,
-            upload_dir,
+            uploads_root,
+            static_files_boundary,
         })
     }
 
-    fn validate_database_config(&self, db: &RawDatabaseConfig) -> Result<ValidatedDatabaseConfig> {
-        println!("💾 Validating database configuration...");
+    fn validate_storage(storage: &RawStorageConfig) -> Result<ValidatedStorageConfig> {
+        println!("\n💾 Validating storage configuration...");
 
-        // Create virtual root for backup directory
-        let backup_boundary = PathBoundary::try_new_create(&db.backup_dir)
-            .with_context(|| format!("Failed to create backup directory: {}", db.backup_dir))?;
-        let backup_vroot = backup_boundary.virtualize();
+        // Create virtual root for application data
+        let data_root = VirtualRoot::<AppData>::try_new_create(&storage.data_root)
+            .with_context(|| format!("Failed to create data directory: {}", storage.data_root))?;
 
-        let backup_dir =
-            self.deserialize_virtual_path(&db.backup_dir, &backup_vroot, "backup_dir")?;
+        println!(
+            "  ✓ Data root: {}",
+            data_root.as_unvirtual().strictpath_display()
+        );
 
-        // Validate optional migration directory
-        let migration_dir = if let Some(migration_path) = &db.migration_dir {
-            let migration_boundary =
-                PathBoundary::try_new_create(migration_path).with_context(|| {
-                    format!("Failed to create migration directory: {}", migration_path)
-                })?;
-            let migration_vroot = migration_boundary.virtualize();
-            Some(self.deserialize_virtual_path(
-                migration_path,
-                &migration_vroot,
-                "migration_dir",
-            )?)
+        // Validate database path within data root
+        let database_file = data_root
+            .virtual_join(&storage.database_path)
+            .with_context(|| format!("Invalid database path: {}", storage.database_path))?;
+
+        println!("  ✓ Database: {}", database_file.virtualpath_display());
+
+        // Validate backup directory within data root
+        let backup_dir = data_root
+            .virtual_join(&storage.backup_dir)
+            .with_context(|| format!("Invalid backup directory: {}", storage.backup_dir))?;
+
+        // Ensure backup directory exists
+        backup_dir.create_dir_all()?;
+        println!("  ✓ Backup dir: {}", backup_dir.virtualpath_display());
+
+        // Validate optional export directory
+        let export_dir = if let Some(ref export) = storage.export_dir {
+            let dir = data_root
+                .virtual_join(export)
+                .with_context(|| format!("Invalid export directory: {export}"))?;
+            dir.create_dir_all()?;
+            println!("  ✓ Export dir: {}", dir.virtualpath_display());
+            Some(dir)
         } else {
             None
         };
 
-        println!("  ✓ Backup directory: {}", backup_dir.virtualpath_display());
-        if let Some(ref md) = migration_dir {
-            println!("  ✓ Migration directory: {}", md.virtualpath_display());
-        }
+        // Create cache boundary (strict, not virtual - for system use)
+        let cache_boundary = PathBoundary::<SystemCache>::try_new_create(&storage.cache_root)
+            .with_context(|| format!("Failed to create cache directory: {}", storage.cache_root))?;
 
-        Ok(ValidatedDatabaseConfig {
-            url: db.url.clone(),
-            max_connections: db.max_connections,
+        println!("  ✓ Cache root: {}", cache_boundary.strictpath_display());
+
+        Ok(ValidatedStorageConfig {
+            data_root,
+            cache_boundary,
+            database_file,
             backup_dir,
-            migration_dir,
+            export_dir,
         })
     }
 
-    fn validate_paths_config(&self, paths: &RawPathsConfig) -> Result<ValidatedPathsConfig> {
-        println!("📁 Validating core paths configuration...");
+    fn validate_security(security: &RawSecurityConfig) -> Result<ValidatedSecurityConfig> {
+        println!("\n🔒 Validating security configuration...");
 
-        // Validate core directories as VirtualRoots
-        let data_dir = VirtualRoot::try_new_create(&paths.data_dir)
-            .with_context(|| format!("Failed to create data directory: {}", paths.data_dir))?;
-
-        let cache_dir = VirtualRoot::try_new_create(&paths.cache_dir)
-            .with_context(|| format!("Failed to create cache directory: {}", paths.cache_dir))?;
-
-        let temp_dir = VirtualRoot::try_new_create(&paths.temp_dir)
-            .with_context(|| format!("Failed to create temp directory: {}", paths.temp_dir))?;
-
-        let log_dir = VirtualRoot::try_new_create(&paths.log_dir)
-            .with_context(|| format!("Failed to create log directory: {}", paths.log_dir))?;
-
-        // Validate optional directories
-        let config_dir =
-            if let Some(config_path) = &paths.config_dir {
-                Some(VirtualRoot::try_new_create(config_path).with_context(|| {
-                    format!("Failed to create config directory: {}", config_path)
-                })?)
-            } else {
-                None
-            };
-
-        let plugin_dir = if let Some(plugin_path) = &paths.plugin_dir {
-            let plugin_boundary = PathBoundary::try_new_create(plugin_path)
-                .with_context(|| format!("Failed to create plugin directory: {}", plugin_path))?;
-            let plugin_vroot = plugin_boundary.virtualize();
-            Some(self.deserialize_virtual_path(plugin_path, &plugin_vroot, "plugin_dir")?)
-        } else {
-            None
-        };
-
-        // Validate path arrays
-        let mut allowed_upload_dirs = Vec::new();
-        for (i, upload_dir) in paths.allowed_upload_dirs.iter().enumerate() {
-            let upload_boundary = PathBoundary::try_new_create(upload_dir).with_context(|| {
+        // Create strict boundary for certificates (security-critical)
+        let cert_boundary = PathBoundary::<SecurityCerts>::try_new_create(&security.cert_dir)
+            .with_context(|| {
                 format!(
-                    "Failed to create allowed upload directory {}: {}",
-                    i, upload_dir
-                )
-            })?;
-            let upload_vroot = upload_boundary.virtualize();
-            let validated_path = self.deserialize_virtual_path(
-                upload_dir,
-                &upload_vroot,
-                &format!("allowed_upload_dirs[{}]", i),
-            )?;
-            allowed_upload_dirs.push(validated_path);
-        }
-
-        let mut trusted_data_sources = Vec::new();
-        for (i, data_source) in paths.trusted_data_sources.iter().enumerate() {
-            let source_boundary = PathBoundary::try_new_create(data_source).with_context(|| {
-                format!(
-                    "Failed to create trusted data source {}: {}",
-                    i, data_source
-                )
-            })?;
-            let validated_path = self.deserialize_strict_path(
-                data_source,
-                &source_boundary,
-                &format!("trusted_data_sources[{}]", i),
-            )?;
-            trusted_data_sources.push(validated_path);
-        }
-
-        println!(
-            "  ✓ Data directory: {}",
-            data_dir.as_unvirtual().strictpath_display()
-        );
-        println!(
-            "  ✓ Cache directory: {}",
-            cache_dir.as_unvirtual().strictpath_display()
-        );
-        println!(
-            "  ✓ Temp directory: {}",
-            temp_dir.as_unvirtual().strictpath_display()
-        );
-        println!(
-            "  ✓ Log directory: {}",
-            log_dir.as_unvirtual().strictpath_display()
-        );
-        println!(
-            "  ✓ Allowed upload directories: {}",
-            allowed_upload_dirs.len()
-        );
-        println!("  ✓ Trusted data sources: {}", trusted_data_sources.len());
-
-        Ok(ValidatedPathsConfig {
-            data_dir,
-            cache_dir,
-            temp_dir,
-            log_dir,
-            config_dir,
-            plugin_dir,
-            allowed_upload_dirs,
-            trusted_data_sources,
-        })
-    }
-
-    fn validate_security_config(
-        &self,
-        security: &RawSecurityConfig,
-    ) -> Result<ValidatedSecurityConfig> {
-        println!("🔒 Validating security configuration...");
-
-        // Validate certificate directory as StrictPath (must exist as directory)
-        let cert_boundary =
-            PathBoundary::try_new_create(&security.cert_dir).with_context(|| {
-                format!(
-                    "Failed to access certificate directory: {}",
+                    "Failed to create certificate directory: {}",
                     security.cert_dir
                 )
             })?;
-        let cert_dir =
-            self.deserialize_strict_path(&security.cert_dir, &cert_boundary, "cert_dir")?;
-
-        // For key file, use the cert directory as boundary and create a StrictPath within it
-        let key_file =
-            cert_boundary
-                .strict_join(Path::new(&security.key_file).file_name().ok_or_else(|| {
-                    anyhow::anyhow!("Invalid key file path: {}", security.key_file)
-                })?)
-                .with_context(|| {
-                    format!(
-                        "Failed to validate key file in cert directory: {}",
-                        security.key_file
-                    )
-                })?;
-
-        // Validate sandbox root as PathBoundary
-        let sandbox_root = PathBoundary::try_new_create(&security.sandbox_root)
-            .with_context(|| format!("Failed to create sandbox root: {}", security.sandbox_root))?;
-
-        // Validate restricted paths
-        let mut strict_paths = Vec::new();
-        for (i, strict_path) in security.strict_paths.iter().enumerate() {
-            let restricted_boundary =
-                PathBoundary::try_new_create(strict_path).with_context(|| {
-                    format!("Failed to access restricted path {}: {}", i, strict_path)
-                })?;
-            let validated_path = self.deserialize_strict_path(
-                strict_path,
-                &restricted_boundary,
-                &format!("strict_paths[{}]", i),
-            )?;
-            strict_paths.push(validated_path);
-        }
 
         println!(
             "  ✓ Certificate directory: {}",
-            cert_dir.strictpath_display()
+            cert_boundary.strictpath_display()
         );
-        println!("  ✓ Key file: {}", key_file.strictpath_display());
-        println!("  ✓ Sandbox root: {}", sandbox_root.strictpath_display());
-        println!("  ✓ Restricted paths: {}", strict_paths.len());
+
+        // Validate key file within certificate boundary
+        let key_file = cert_boundary
+            .strict_join(&security.key_file)
+            .with_context(|| format!("Invalid key file path: {}", security.key_file))?;
+
+        if !key_file.exists() {
+            println!(
+                "  ⚠ Key file does not exist yet: {}",
+                key_file.strictpath_display()
+            );
+        } else {
+            println!("  ✓ Key file: {}", key_file.strictpath_display());
+        }
+
+        if !security.allowed_origins.is_empty() {
+            println!("  ✓ Allowed origins: {:?}", security.allowed_origins);
+        }
 
         Ok(ValidatedSecurityConfig {
-            cert_dir,
+            cert_boundary,
             key_file,
             allowed_origins: security.allowed_origins.clone(),
-            session_timeout: security.session_timeout,
-            sandbox_root,
-            strict_paths,
+            session_timeout_seconds: security.session_timeout_seconds,
         })
     }
 
-    fn validate_logging_config(
-        &self,
+    fn validate_logging(
         logging: &RawLoggingConfig,
+        data_root: &VirtualRoot<AppData>,
     ) -> Result<ValidatedLoggingConfig> {
-        println!("📝 Validating logging configuration...");
+        println!("\n📝 Validating logging configuration...");
 
-        // Create virtual root for log directory (we'll use the main log_dir from paths)
-        let log_boundary = PathBoundary::try_new_create("./runtime-data/development/logs") // Use default, could be improved
-            .context("Failed to create log directory for validation")?;
-        let log_vroot = log_boundary.virtualize();
+        // Validate optional log file path
+        let log_file = if let Some(ref log_path) = logging.log_file {
+            // Create logs subdirectory in data root
+            let logs_subdir = data_root
+                .virtual_join("logs")
+                .context("Invalid logs directory")?;
+            logs_subdir.create_dir_all()?;
 
-        // Validate optional log file paths
-        let file_path = if let Some(file_path_str) = &logging.file_path {
-            Some(self.deserialize_virtual_path(file_path_str, &log_vroot, "file_path")?)
+            // Validate log file path within logs directory
+            let logs_root = VirtualRoot::<ApplicationLogs>::try_new(logs_subdir.interop_path())
+                .context("Failed to create logs virtual root")?;
+
+            let file = logs_root
+                .virtual_join(log_path)
+                .with_context(|| format!("Invalid log file path: {log_path}"))?;
+
+            println!("  ✓ Log file: {}", file.virtualpath_display());
+            Some(file)
         } else {
+            println!("  ⚠ No log file configured (logging to stdout)");
             None
         };
-
-        let error_log = if let Some(error_log_str) = &logging.error_log {
-            Some(self.deserialize_virtual_path(error_log_str, &log_vroot, "error_log")?)
-        } else {
-            None
-        };
-
-        let access_log = if let Some(access_log_str) = &logging.access_log {
-            Some(self.deserialize_virtual_path(access_log_str, &log_vroot, "access_log")?)
-        } else {
-            None
-        };
-
-        if let Some(ref fp) = file_path {
-            println!("  ✓ Log file: {}", fp.virtualpath_display());
-        }
-        if let Some(ref el) = error_log {
-            println!("  ✓ Error log: {}", el.virtualpath_display());
-        }
-        if let Some(ref al) = access_log {
-            println!("  ✓ Access log: {}", al.virtualpath_display());
-        }
 
         Ok(ValidatedLoggingConfig {
             level: logging.level.clone(),
             format: logging.format.clone(),
-            file_path,
-            error_log,
-            access_log,
+            log_file,
             max_size_mb: logging.max_size_mb,
-            max_files: logging.max_files,
         })
-    }
-
-    // Helper function to deserialize a string path into a VirtualPath using serde
-    fn deserialize_virtual_path<T>(
-        &self,
-        path_str: &str,
-        vroot: &VirtualRoot<T>,
-        field_name: &str,
-    ) -> Result<VirtualPath<T>>
-    where
-        T: Clone + Default,
-    {
-        let json_str = format!("\"{}\"", path_str);
-        let mut de = serde_json::Deserializer::from_str(&json_str);
-        WithVirtualRoot(vroot)
-            .deserialize(&mut de)
-            .with_context(|| {
-                format!(
-                    "Failed to validate {} path '{}' with serde",
-                    field_name, path_str
-                )
-            })
-    }
-
-    // Helper function to deserialize a string path into a StrictPath using serde
-    fn deserialize_strict_path<T>(
-        &self,
-        path_str: &str,
-        boundary: &PathBoundary<T>,
-        field_name: &str,
-    ) -> Result<StrictPath<T>>
-    where
-        T: Clone + Default,
-    {
-        let json_str = format!("\"{}\"", path_str);
-        let mut de = serde_json::Deserializer::from_str(&json_str);
-        WithBoundary(boundary)
-            .deserialize(&mut de)
-            .with_context(|| {
-                format!(
-                    "Failed to validate {} path '{}' with serde",
-                    field_name, path_str
-                )
-            })
     }
 }
 
-// Example usage and demonstration
+// ============================================================================
+// Demo Application
+// ============================================================================
+
+/// Demonstrates using validated configuration in application code
+struct DemoApp {
+    config: ValidatedAppConfig,
+}
+
+impl DemoApp {
+    fn new(config: ValidatedAppConfig) -> Self {
+        Self { config }
+    }
+
+    /// Simulate handling a file upload using validated paths
+    fn handle_upload(&self, filename: &str, _content: &[u8]) -> Result<()> {
+        println!("\n📤 Handling file upload: {filename}");
+
+        // The uploads_root is already validated - we can safely join user input
+        let upload_file = self
+            .config
+            .server
+            .uploads_root
+            .virtual_join(filename)
+            .context("Invalid filename")?;
+
+        // Demonstrate safe operations
+        println!("  Would save to: {}", upload_file.virtualpath_display());
+        println!(
+            "  System path: {}",
+            upload_file.as_unvirtual().strictpath_display()
+        );
+
+        Ok(())
+    }
+
+    /// Access database using validated path
+    fn access_database(&self) -> Result<()> {
+        println!("\n💾 Accessing database...");
+
+        let db_path = &self.config.storage.database_file;
+        println!("  Database location: {}", db_path.virtualpath_display());
+
+        // In real code, you'd open the database using db_path.interop_path()
+        // let conn = Connection::open(db_path.interop_path())?;
+
+        Ok(())
+    }
+
+    /// Perform backup using validated paths
+    fn create_backup(&self, backup_name: &str) -> Result<()> {
+        println!("\n💾 Creating backup: {backup_name}");
+
+        let backup_file = self
+            .config
+            .storage
+            .backup_dir
+            .virtual_join(backup_name)
+            .context("Invalid backup filename")?;
+
+        println!("  Backup location: {}", backup_file.virtualpath_display());
+
+        // Demonstrate creating parent directories
+        backup_file.create_parent_dir_all()?;
+
+        Ok(())
+    }
+
+    /// Access security certificate
+    fn load_certificate(&self) -> Result<()> {
+        println!("\n🔒 Loading security certificate...");
+
+        let cert_file = self
+            .config
+            .security
+            .cert_boundary
+            .strict_join("server.crt")
+            .context("Invalid certificate filename")?;
+
+        println!("  Certificate: {}", cert_file.strictpath_display());
+
+        if cert_file.exists() {
+            println!("  ✓ Certificate file found");
+        } else {
+            println!("  ⚠ Certificate file not found");
+        }
+
+        Ok(())
+    }
+
+    fn print_summary(&self) {
+        println!("\n{}", "=".repeat(60));
+        println!("📋 Application Configuration Summary");
+        println!("{}", "=".repeat(60));
+        println!(
+            "🏷️  Name: {} v{}",
+            self.config.app_name, self.config.version
+        );
+        println!("🌍 Environment: {:?}", self.config.environment);
+        println!("🐛 Debug mode: {}", self.config.debug);
+        println!("\n🌐 Server:");
+        println!(
+            "  • Address: {}:{}",
+            self.config.server.host, self.config.server.port
+        );
+        println!("  • Workers: {}", self.config.server.workers);
+        if self.config.server.static_files_boundary.is_some() {
+            println!("  • Static files: enabled");
+        }
+        println!("\n💾 Storage:");
+        if let Some(ref export) = self.config.storage.export_dir {
+            println!("  • Export dir: {}", export.virtualpath_display());
+        }
+        println!(
+            "  • Cache: {}",
+            self.config.storage.cache_boundary.strictpath_display()
+        );
+        println!("\n� Security:");
+        println!(
+            "  • Key file: {}",
+            self.config.security.key_file.strictpath_display()
+        );
+        println!(
+            "  • Session timeout: {}s",
+            self.config.security.session_timeout_seconds
+        );
+        println!(
+            "  • Allowed origins: {}",
+            self.config.security.allowed_origins.len()
+        );
+        println!("\n�📝 Logging:");
+        println!("  • Level: {}", self.config.logging.level);
+        println!("  • Format: {}", self.config.logging.format);
+        if let Some(ref log_file) = self.config.logging.log_file {
+            println!("  • File: {}", log_file.virtualpath_display());
+        }
+        println!("  • Max size: {} MB", self.config.logging.max_size_mb);
+        println!("{}", "=".repeat(60));
+    }
+}
+
+// ============================================================================
+// Main Function
+// ============================================================================
+
 fn main() -> Result<()> {
-    println!("🚀 Config Management Example with `config` crate + strict-path serde integration\n");
+    println!("🚀 Configuration Management Example");
+    println!("Demonstrates manual path validation with the config crate\n");
 
-    // Determine environment from environment variable or default to Development
-    let environment = std::env::var("APP_ENV")
-        .unwrap_or_else(|_| "development".to_string())
-        .parse::<AppEnvironment>()
-        .unwrap_or(AppEnvironment::Development);
+    // Setup demo config files
+    setup_demo_configs()?;
 
-    println!("🌍 Running in environment: {:?}", environment);
+    // Determine environment (from env var or default to development)
+    let environment = std::env::var("APP_ENVIRONMENT")
+        .ok()
+        .and_then(|s| match s.to_lowercase().as_str() {
+            "development" | "dev" => Some(AppEnvironment::Development),
+            "testing" | "test" => Some(AppEnvironment::Testing),
+            "production" | "prod" => Some(AppEnvironment::Production),
+            _ => None,
+        })
+        .unwrap_or_default();
 
-    // Initialize configuration manager
-    let config_manager = ConfigManager::new(environment)?;
+    // Load and validate configuration
+    let config = ConfigManager::load_config(
+        Path::new("./config"),
+        environment,
+        None, // No user config for this demo
+    )?;
 
-    // Load configuration (hierarchical loading)
-    let user_config_path = std::env::args().nth(1).map(PathBuf::from);
+    // Create application with validated config
+    let app = DemoApp::new(config);
 
-    if let Some(ref path) = user_config_path {
-        println!("👤 User config provided: {}", path.display());
-    }
+    // Print configuration summary
+    app.print_summary();
 
-    match config_manager.load_config(user_config_path.as_deref()) {
-        Ok(validated_config) => {
-            println!("\n🎉 Configuration loaded and validated successfully!");
-            display_config_summary(&validated_config);
+    // Demonstrate using validated paths
+    println!("\n{}", "=".repeat(60));
+    println!("🎯 Demonstrating Safe Operations");
+    println!("{}", "=".repeat(60));
 
-            // Demonstrate usage of validated paths
-            demonstrate_secure_operations(&validated_config)?;
-        }
-        Err(e) => {
-            eprintln!("\n❌ Configuration validation failed: {}", e);
+    app.handle_upload("user_document.pdf", b"fake content")?;
+    app.access_database()?;
+    app.create_backup("daily_backup.tar.gz")?;
+    app.load_certificate()?;
 
-            // Show the error chain for debugging
-            let mut source = e.source();
-            while let Some(err) = source {
-                eprintln!("  Caused by: {}", err);
-                source = err.source();
-            }
+    // Cleanup demo files
+    cleanup_demo()?;
 
-            std::process::exit(1);
-        }
-    }
+    println!("\n✅ Demo completed successfully!");
+    println!("\n💡 Key Takeaways:");
+    println!("  1. Deserialize config to raw strings (RawAppConfig)");
+    println!("  2. Validate paths using strict_join/virtual_join");
+    println!("  3. Store validated types (ValidatedAppConfig)");
+    println!("  4. Use validated paths safely in application");
 
     Ok(())
 }
 
-fn display_config_summary(config: &ValidatedAppConfig) {
-    println!("\n📋 Configuration Summary:");
-    println!(
-        "  App: {} v{} (debug: {})",
-        config.app_name, config.version, config.debug
-    );
-    println!("  Environment: {:?}", config.environment);
-    println!(
-        "  Server: {}:{} ({} workers)",
-        config.server.host, config.server.port, config.server.workers
-    );
-    println!(
-        "  Database: {} (max: {} connections)",
-        config.database.url, config.database.max_connections
-    );
+// ============================================================================
+// Demo Setup/Teardown
+// ============================================================================
 
-    println!("\n🔒 Secure Path Summary:");
-    println!(
-        "  Data directory: {}",
-        config.paths.data_dir.as_unvirtual().strictpath_display()
-    );
-    println!(
-        "  Upload directory: {}",
-        config.server.upload_dir.virtualpath_display()
-    );
-    println!(
-        "  Backup directory: {}",
-        config.database.backup_dir.virtualpath_display()
-    );
-    println!(
-        "  Certificate directory: {}",
-        config.security.cert_dir.strictpath_display()
-    );
-    println!(
-        "  Sandbox root: {}",
-        config.security.sandbox_root.strictpath_display()
-    );
+fn setup_demo_configs() -> Result<()> {
+    println!("🔧 Setting up demo configuration files...\n");
 
-    if !config.paths.allowed_upload_dirs.is_empty() {
-        println!("  Allowed upload directories:");
-        for (i, dir) in config.paths.allowed_upload_dirs.iter().enumerate() {
-            println!("    {}: {}", i + 1, dir.virtualpath_display());
-        }
-    }
+    std::fs::create_dir_all("./config")?;
+
+    // Base config (config.toml)
+    let base_config = r#"
+app_name = "SecureFileManager"
+version = "2.1.0"
+debug = false
+
+[server]
+host = "0.0.0.0"
+port = 8080
+workers = 8
+uploads_dir = "./uploads"
+static_files_dir = "./public"
+
+[storage]
+data_root = "./app_data"
+cache_root = "./cache"
+database_path = "database.db"
+backup_dir = "db_backups"
+export_dir = "exports"
+
+[security]
+cert_dir = "./certs"
+key_file = "server.key"
+allowed_origins = ["https://example.com", "https://app.example.com"]
+session_timeout_seconds = 7200
+
+[logging]
+level = "info"
+format = "json"
+log_file = "app.log"
+max_size_mb = 50
+"#;
+    std::fs::write("./config/config.toml", base_config)?;
+
+    // Development config (config.dev.toml)
+    let dev_config = r#"
+debug = true
+
+[server]
+host = "127.0.0.1"
+workers = 2
+
+[logging]
+level = "debug"
+format = "pretty"
+"#;
+    std::fs::write("./config/config.dev.toml", dev_config)?;
+
+    // Production config (config.prod.toml)
+    let prod_config = r#"
+debug = false
+
+[server]
+workers = 16
+
+[logging]
+level = "warn"
+max_size_mb = 200
+"#;
+    std::fs::write("./config/config.prod.toml", prod_config)?;
+
+    println!("  ✓ Created config/config.toml (base)");
+    println!("  ✓ Created config/config.dev.toml (development)");
+    println!("  ✓ Created config/config.prod.toml (production)\n");
+
+    Ok(())
 }
 
-fn demonstrate_secure_operations(config: &ValidatedAppConfig) -> Result<()> {
-    println!("\n🔧 Demonstrating secure path operations:");
+fn cleanup_demo() -> Result<()> {
+    println!("\n🧹 Cleaning up demo files...");
 
-    // Example 1: Safe file creation in upload directory (from VirtualPath root)
-    let upload_vroot = config.server.upload_dir.as_unvirtual().clone().virtualize();
-    let upload_file = upload_vroot.virtual_join("example.txt")?;
-    println!(
-        "  ✓ Safe upload path: {}",
-        upload_file.virtualpath_display()
-    );
+    // Remove created directories
+    let dirs_to_remove = vec![
+        "./config",
+        "./uploads",
+        "./public",
+        "./app_data",
+        "./cache",
+        "./certs",
+    ];
 
-    // Example 2: Safe backup file creation (from VirtualPath root)
-    let backup_vroot = config
-        .database
-        .backup_dir
-        .as_unvirtual()
-        .clone()
-        .virtualize();
-    let backup_file = backup_vroot.virtual_join("backup_20231211.sql")?;
-    println!(
-        "  ✓ Safe backup path: {}",
-        backup_file.virtualpath_display()
-    );
-
-    // Example 3: Certificate validation (StrictPath - must exist)
-    println!(
-        "  ✓ Certificate directory validated: {}",
-        config.security.cert_dir.strictpath_display()
-    );
-
-    // Example 4: Sandbox containment
-    match config
-        .security
-        .sandbox_root
-        .clone()
-        .virtualize()
-        .virtual_join("user_data/file.txt")
-    {
-        Ok(sandboxed_path) => {
-            println!(
-                "  ✓ Sandboxed path: {}",
-                sandboxed_path.virtualpath_display()
-            );
-        }
-        Err(e) => {
-            println!("  ⚠️  Sandbox violation prevented: {}", e);
+    for dir in dirs_to_remove {
+        if Path::new(dir).exists() {
+            std::fs::remove_dir_all(dir).ok();
+            println!("  ✓ Removed {dir}");
         }
     }
 
-    // Use server configuration fields
-    println!(
-        "  ✓ Server max connections: {}",
-        config.server.max_connections
-    );
-    if let Some(ref static_files) = config.server.static_files {
-        println!(
-            "  ✓ Static files directory: {}",
-            static_files.virtualpath_display()
-        );
-    }
-
-    // Use database migration directory
-    if let Some(ref migration_dir) = config.database.migration_dir {
-        println!(
-            "  ✓ Migration directory: {}",
-            migration_dir.virtualpath_display()
-        );
-    }
-
-    // Use paths configuration
-    println!(
-        "  ✓ Cache directory: {}",
-        config.paths.cache_dir.as_unvirtual().strictpath_display()
-    );
-    println!(
-        "  ✓ Temp directory: {}",
-        config.paths.temp_dir.as_unvirtual().strictpath_display()
-    );
-    println!(
-        "  ✓ Log directory: {}",
-        config.paths.log_dir.as_unvirtual().strictpath_display()
-    );
-
-    if let Some(ref config_dir) = config.paths.config_dir {
-        println!(
-            "  ✓ Config directory: {}",
-            config_dir.as_unvirtual().strictpath_display()
-        );
-    }
-    if let Some(ref plugin_dir) = config.paths.plugin_dir {
-        println!("  ✓ Plugin directory: {}", plugin_dir.virtualpath_display());
-    }
-
-    println!(
-        "  ✓ Trusted data sources: {} configured",
-        config.paths.trusted_data_sources.len()
-    );
-    for (i, source) in config.paths.trusted_data_sources.iter().enumerate() {
-        println!("    {}: {}", i + 1, source.strictpath_display());
-    }
-
-    // Use security configuration
-    println!(
-        "  ✓ Security key file: {}",
-        config.security.key_file.strictpath_display()
-    );
-    println!(
-        "  ✓ Allowed origins: {}",
-        config.security.allowed_origins.join(", ")
-    );
-    println!("  ✓ Session timeout: {}s", config.security.session_timeout);
-    println!(
-        "  ✓ Restricted paths: {} configured",
-        config.security.strict_paths.len()
-    );
-
-    // Use logging configuration
-    println!(
-        "  ✓ Logging level: {}, format: {}",
-        config.logging.level, config.logging.format
-    );
-    if let Some(ref file_path) = config.logging.file_path {
-        println!("  ✓ Log file: {}", file_path.virtualpath_display());
-    }
-    if let Some(ref error_log) = config.logging.error_log {
-        println!("  ✓ Error log: {}", error_log.virtualpath_display());
-    }
-    if let Some(ref access_log) = config.logging.access_log {
-        println!("  ✓ Access log: {}", access_log.virtualpath_display());
-    }
-    println!(
-        "  ✓ Log rotation: max {}MB, {} files",
-        config.logging.max_size_mb, config.logging.max_files
-    );
-
-    println!("\n✅ All secure operations completed successfully!");
     Ok(())
 }

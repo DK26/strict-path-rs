@@ -1035,13 +1035,3 @@ impl<Marker> Ord for VirtualPath<Marker> {
         self.inner.path().cmp(other.inner.path())
     }
 }
-
-#[cfg(feature = "serde")]
-impl<Marker> serde::Serialize for VirtualPath<Marker> {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&format!("{}", self.virtualpath_display()))
-    }
-}

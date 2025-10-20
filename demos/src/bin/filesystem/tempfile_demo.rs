@@ -1,8 +1,9 @@
 //! Temporary File Processing Demo
 //!
-//! Demonstrates the `tempfile` feature integration with strict-path.
-//! Shows how to use `PathBoundary::try_new_temp()` for secure temporary file operations
-//! with automatic cleanup and boundary enforcement.
+//! Demonstrates integration with the tempfile crate for secure temporary file operations.
+//! Shows how to combine tempfile's RAII cleanup with strict-path's security boundaries.
+//!
+//! Pattern: tempfile::tempdir() → PathBoundary::try_new() → secure operations
 
 #![cfg_attr(not(feature = "with-tempfile"), allow(unused))]
 
@@ -31,10 +32,14 @@ impl TempFileProcessor {
     fn new() -> Result<Self> {
         println!("🔧 Creating temporary processing environment...");
 
-        // Use library's tempfile integration - automatic cleanup!
-        let work_dir = PathBoundary::<TempWork>::try_new_temp()?;
-        let logs_dir = PathBoundary::<TempLogs>::try_new_temp()?;
-        let upload_staging = PathBoundary::<TempUploads>::try_new_temp()?;
+        // Create temp directories using tempfile crate, then establish boundaries
+        let work_tempdir = tempfile::tempdir()?;
+        let logs_tempdir = tempfile::tempdir()?;
+        let upload_tempdir = tempfile::tempdir()?;
+
+        let work_dir = PathBoundary::<TempWork>::try_new(work_tempdir.path())?;
+        let logs_dir = PathBoundary::<TempLogs>::try_new(logs_tempdir.path())?;
+        let upload_staging = PathBoundary::<TempUploads>::try_new(upload_tempdir.path())?;
 
         println!("✅ Work directory: {}", work_dir.strictpath_display());
         println!("✅ Logs directory: {}", logs_dir.strictpath_display());
@@ -135,10 +140,13 @@ impl TempFileProcessor {
 
 /// Demonstrate batch file compression workflow
 fn demonstrate_compression_workflow() -> Result<()> {
-    println!("\n� Demonstrating batch compression workflow...");
+    println!("\n📦 Demonstrating batch compression workflow...");
 
-    let temp_work = PathBoundary::<TempWork>::try_new_temp()?;
-    let temp_archive = PathBoundary::<TempWork>::try_new_temp()?;
+    let work_tempdir = tempfile::tempdir()?;
+    let archive_tempdir = tempfile::tempdir()?;
+
+    let temp_work = PathBoundary::<TempWork>::try_new(work_tempdir.path())?;
+    let temp_archive = PathBoundary::<TempWork>::try_new(archive_tempdir.path())?;
 
     // Create sample files to compress
     let files_to_compress = [
@@ -189,7 +197,7 @@ fn demonstrate_compression_workflow() -> Result<()> {
 
 fn main() -> Result<()> {
     println!("🚀 Temporary File Processing Demo");
-    println!("Showcasing strict-path's tempfile feature integration\n");
+    println!("Showcasing tempfile crate integration with strict-path\n");
 
     // Create processor with automatic temp cleanup
     let processor = TempFileProcessor::new()?;
@@ -218,8 +226,8 @@ fn main() -> Result<()> {
     // Demonstrate additional tempfile workflow patterns
     demonstrate_temp_workflow_patterns()?;
 
-    println!("\n🧹 Cleanup: All temp directories will be automatically removed when PathBoundary instances are dropped!");
-    println!("This demonstrates the power of RAII cleanup with the tempfile integration.");
+    println!("\n🧹 Cleanup: Temp directories are automatically removed when TempDir instances are dropped!");
+    println!("This demonstrates the power of RAII cleanup with tempfile integration.");
 
     Ok(())
 }
@@ -229,9 +237,13 @@ fn demonstrate_temp_workflow_patterns() -> Result<()> {
     println!("\n🛠️ Common tempfile workflow patterns:");
 
     // Pattern 1: Processing pipeline with multiple temp stages
-    let input_stage = PathBoundary::<()>::try_new_temp()?;
-    let processing_stage = PathBoundary::<()>::try_new_temp()?;
-    let output_stage = PathBoundary::<()>::try_new_temp()?;
+    let input_tempdir = tempfile::tempdir()?;
+    let processing_tempdir = tempfile::tempdir()?;
+    let output_tempdir = tempfile::tempdir()?;
+
+    let input_stage = PathBoundary::<()>::try_new(input_tempdir.path())?;
+    let processing_stage = PathBoundary::<()>::try_new(processing_tempdir.path())?;
+    let output_stage = PathBoundary::<()>::try_new(output_tempdir.path())?;
 
     println!("📂 Pipeline: input -> processing -> output");
     println!("   Input: {}", input_stage.strictpath_display());
@@ -239,7 +251,8 @@ fn demonstrate_temp_workflow_patterns() -> Result<()> {
     println!("   Output: {}", output_stage.strictpath_display());
 
     // Pattern 2: User-specific temp workspace
-    let user_temp = PathBoundary::<()>::try_new_temp()?;
+    let user_tempdir = tempfile::tempdir()?;
+    let user_temp = PathBoundary::<()>::try_new(user_tempdir.path())?;
     let user_workspace = user_temp.strict_join("workspace")?;
     user_workspace.create_dir_all()?;
 
@@ -252,7 +265,8 @@ fn demonstrate_temp_workflow_patterns() -> Result<()> {
     );
 
     // Pattern 3: Atomic operations with temp + rename
-    let atomic_temp = PathBoundary::<()>::try_new_temp()?;
+    let atomic_tempdir = tempfile::tempdir()?;
+    let atomic_temp = PathBoundary::<()>::try_new(atomic_tempdir.path())?;
     let temp_file = atomic_temp.strict_join("atomic_write.tmp")?;
 
     // Write to temp, then atomic rename (in real code, would rename to final location)
@@ -268,8 +282,11 @@ mod tests {
 
     #[test]
     fn test_temp_boundaries_are_separate() -> Result<()> {
-        let temp1 = PathBoundary::<()>::try_new_temp()?;
-        let temp2 = PathBoundary::<()>::try_new_temp()?;
+        let temp1_dir = tempfile::tempdir()?;
+        let temp2_dir = tempfile::tempdir()?;
+
+        let temp1 = PathBoundary::<()>::try_new(temp1_dir.path())?;
+        let temp2 = PathBoundary::<()>::try_new(temp2_dir.path())?;
 
         // Different temp directories
         assert_ne!(temp1.interop_path(), temp2.interop_path());
@@ -283,9 +300,11 @@ mod tests {
 
     #[test]
     fn test_temp_cleanup_on_drop() -> Result<()> {
-        let temp_boundary = PathBoundary::<()>::try_new_temp()?;
+        let temp_dir = tempfile::tempdir()?;
+        let temp_boundary = PathBoundary::<()>::try_new(temp_dir.path())?;
         let _temp_root_display = temp_boundary.strictpath_display().to_string();
         drop(temp_boundary); // dropped here
+        drop(temp_dir); // tempfile cleanup
 
         // Directory should be cleaned up automatically
         // Note: This test might be flaky due to timing, but demonstrates the concept

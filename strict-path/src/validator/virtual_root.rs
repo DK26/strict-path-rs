@@ -5,21 +5,12 @@ use crate::PathBoundary;
 use crate::Result;
 use std::marker::PhantomData;
 use std::path::Path;
-#[cfg(feature = "tempfile")]
-use std::sync::Arc;
-
-// keep feature-gated TempDir RAII field using Arc from std::sync
-#[cfg(feature = "tempfile")]
-use tempfile::TempDir;
 
 /// SUMMARY:
 /// Provide a user‑facing virtual root that produces `VirtualPath` values clamped to a boundary.
 #[derive(Clone)]
 pub struct VirtualRoot<Marker = ()> {
     pub(crate) root: PathBoundary<Marker>,
-    // Held only to tie RAII of temp directories to the VirtualRoot lifetime
-    #[cfg(feature = "tempfile")]
-    pub(crate) _temp_dir: Option<Arc<TempDir>>, // mirrors RAII when constructed from temp
     pub(crate) _marker: PhantomData<Marker>,
 }
 
@@ -38,12 +29,10 @@ impl<Marker> VirtualRoot<Marker> {
     /// - `StrictPathError::InvalidRestriction`: Root invalid or cannot be canonicalized.
     ///
     /// EXAMPLE:
-    /// Uses `AsRef<Path>` for maximum ergonomics, including direct `TempDir` support for clean shadowing patterns:
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use strict_path::VirtualRoot;
-    /// let tmp_dir = tempfile::tempdir()?;
-    /// let tmp_dir = VirtualRoot::<()>::try_new(tmp_dir)?; // Clean variable shadowing
+    /// let vroot = VirtualRoot::<()>::try_new("./data")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -52,64 +41,6 @@ impl<Marker> VirtualRoot<Marker> {
         let root = PathBoundary::try_new(root_path)?;
         Ok(Self {
             root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// SUMMARY:
-    /// Create a `VirtualRoot` backed by a unique temporary directory with RAII cleanup.
-    ///
-    /// # Example
-    /// ```
-    /// # #[cfg(feature = "tempfile")] {
-    /// use strict_path::VirtualRoot;
-    ///
-    /// let uploads_root = VirtualRoot::<()>::try_new_temp()?;
-    /// let tenant_file = uploads_root.virtual_join("tenant/document.pdf")?;
-    /// let display = tenant_file.virtualpath_display().to_string();
-    /// assert!(display.starts_with("/"));
-    /// # }
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    #[cfg(feature = "tempfile")]
-    #[inline]
-    pub fn try_new_temp() -> Result<Self> {
-        let root = PathBoundary::try_new_temp()?;
-        let temp_dir = root.temp_dir_arc();
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: temp_dir,
-            _marker: PhantomData,
-        })
-    }
-
-    /// SUMMARY:
-    /// Create a `VirtualRoot` in a temporary directory with a custom prefix and RAII cleanup.
-    ///
-    /// # Example
-    /// ```
-    /// # #[cfg(feature = "tempfile")] {
-    /// use strict_path::VirtualRoot;
-    ///
-    /// let session_root = VirtualRoot::<()>::try_new_temp_with_prefix("session")?;
-    /// let export_path = session_root.virtual_join("exports/report.txt")?;
-    /// let display = export_path.virtualpath_display().to_string();
-    /// assert!(display.starts_with("/exports"));
-    /// # }
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    #[cfg(feature = "tempfile")]
-    #[inline]
-    pub fn try_new_temp_with_prefix(prefix: &str) -> Result<Self> {
-        let root = PathBoundary::try_new_temp_with_prefix(prefix)?;
-        let temp_dir = root.temp_dir_arc();
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: temp_dir,
             _marker: PhantomData,
         })
     }
@@ -184,17 +115,10 @@ impl<Marker> VirtualRoot<Marker> {
     /// ```
     #[inline]
     pub fn change_marker<NewMarker>(self) -> VirtualRoot<NewMarker> {
-        let VirtualRoot {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir,
-            ..
-        } = self;
+        let VirtualRoot { root, .. } = self;
 
         VirtualRoot {
             root: root.change_marker(),
-            #[cfg(feature = "tempfile")]
-            _temp_dir,
             _marker: PhantomData,
         }
     }
@@ -294,8 +218,7 @@ impl<Marker> VirtualRoot<Marker> {
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use strict_path::VirtualRoot;
-    /// let tmp_dir = tempfile::tempdir()?;
-    /// let tmp_dir = VirtualRoot::<()>::try_new_create(tmp_dir)?; // Clean variable shadowing
+    /// let vroot = VirtualRoot::<()>::try_new_create("./data")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -304,8 +227,6 @@ impl<Marker> VirtualRoot<Marker> {
         let root = PathBoundary::try_new_create(root_path)?;
         Ok(Self {
             root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
             _marker: PhantomData,
         })
     }
@@ -402,264 +323,6 @@ impl<Marker> VirtualRoot<Marker> {
     // Creates virtual roots in OS standard directories following platform conventions.
     // Applications see clean virtual paths ("/config.toml") while the system manages
     // the actual location (e.g., "~/.config/myapp/config.toml").
-
-    /// Creates a virtual root in the OS standard config directory.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `~/.config/{app_name}` (XDG Base Directory Specification)
-    /// - **Windows**: `%APPDATA%\{app_name}` (Known Folder API - Roaming AppData)
-    /// - **macOS**: `~/Library/Application Support/{app_name}` (Apple Standard Directories)
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_config(app_name: &str) -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_config(app_name)?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the OS standard data directory.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_data(app_name: &str) -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_data(app_name)?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the OS standard cache directory.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_cache(app_name: &str) -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_cache(app_name)?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the OS local config directory.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_config_local(app_name: &str) -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_config_local(app_name)?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the OS local data directory.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_data_local(app_name: &str) -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_data_local(app_name)?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the user's home directory.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_home() -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_home()?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the user's desktop directory.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_desktop() -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_desktop()?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the user's documents directory.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_documents() -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_documents()?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the user's downloads directory.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_downloads() -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_downloads()?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the user's pictures directory.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_pictures() -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_pictures()?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the user's music/audio directory.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_audio() -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_audio()?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the user's videos directory.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_videos() -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_videos()?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the OS executable directory (Linux only).
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_executables() -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_executables()?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the OS runtime directory (Linux only).
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_runtime() -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_runtime()?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Creates a virtual root in the OS state directory (Linux only).
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_state(app_name: &str) -> Result<Self> {
-        let root = crate::PathBoundary::try_new_os_state(app_name)?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// SUMMARY:
-    /// Create a virtual root using the `app-path` strategy (portable app‑relative directory),
-    /// optionally honoring an environment variable override.
-    ///
-    /// PARAMETERS:
-    /// - `subdir` (`AsRef<Path>`): Subdirectory path relative to the executable location (or to the
-    ///   directory specified by the environment override). Accepts any path‑like value via `AsRef<Path>`.
-    /// - `env_override` (Option<&str>): Optional environment variable name to check first; when set
-    ///   and the variable is present, its value is used as the root base instead of the executable directory.
-    ///
-    /// RETURNS:
-    /// - `Result<VirtualRoot<Marker>>`: Virtual root whose underlying `PathBoundary` is created if missing
-    ///   and proven safe; all subsequent `virtual_join` operations are clamped to this root.
-    ///
-    /// ERRORS:
-    /// - `StrictPathError::InvalidRestriction`: If `app-path` resolution fails or the directory cannot be created/validated.
-    ///
-    /// EXAMPLE:
-    /// ```rust
-    /// # #[cfg(feature = "app-path")] {
-    /// use strict_path::VirtualRoot;
-    ///
-    /// // Create ./data relative to the executable (portable layout)
-    /// let vroot = VirtualRoot::<()>::try_new_app_path("data", None)?;
-    /// let vp = vroot.virtual_join("docs/report.txt")?;
-    /// assert_eq!(vp.virtualpath_display().to_string(), "/docs/report.txt");
-    ///
-    /// // With environment override: respects MYAPP_DATA_DIR when set
-    /// let _vroot = VirtualRoot::<()>::try_new_app_path("data", Some("MYAPP_DATA_DIR"))?;
-    /// # }
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    #[cfg(feature = "app-path")]
-    pub fn try_new_app_path<P: AsRef<Path>>(subdir: P, env_override: Option<&str>) -> Result<Self> {
-        let root = crate::PathBoundary::try_new_app_path(subdir, env_override)?;
-        Ok(Self {
-            root,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
-            _marker: PhantomData,
-        })
-    }
-
-    /// SUMMARY:
-    /// Create a virtual root via `app-path`, always consulting a specific environment variable
-    /// before falling back to the executable‑relative directory.
-    ///
-    /// PARAMETERS:
-    /// - `subdir` (`AsRef<Path>`): Subdirectory path used with `app-path` resolution.
-    /// - `env_override` (&str): Environment variable name to check first for the root base.
-    ///
-    /// RETURNS:
-    /// - `Result<VirtualRoot<Marker>>`: New virtual root anchored using `app-path` semantics.
-    ///
-    /// ERRORS:
-    /// - `StrictPathError::InvalidRestriction`: If resolution fails or the directory can't be created/validated.
-    ///
-    /// EXAMPLE:
-    /// ```rust
-    /// # #[cfg(feature = "app-path")] {
-    /// use strict_path::VirtualRoot;
-    /// let _vroot = VirtualRoot::<()>::try_new_app_path_with_env("cache", "MYAPP_CACHE_DIR")?;
-    /// # }
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    #[cfg(feature = "app-path")]
-    pub fn try_new_app_path_with_env<P: AsRef<Path>>(
-        subdir: P,
-        env_override: &str,
-    ) -> Result<Self> {
-        Self::try_new_app_path(subdir, Some(env_override))
-    }
 }
 
 impl<Marker> std::fmt::Display for VirtualRoot<Marker> {

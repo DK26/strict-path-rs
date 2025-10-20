@@ -9,9 +9,6 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 
-#[cfg(feature = "tempfile")]
-use tempfile::TempDir;
-
 /// SUMMARY:
 /// Canonicalize a candidate path and enforce the `PathBoundary` boundary, returning a `StrictPath`.
 ///
@@ -77,8 +74,6 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
 /// ```
 pub struct PathBoundary<Marker = ()> {
     path: Arc<PathHistory<((Raw, Canonicalized), Exists)>>,
-    #[cfg(feature = "tempfile")]
-    _temp_dir: Option<Arc<TempDir>>,
     _marker: PhantomData<Marker>,
 }
 
@@ -86,8 +81,6 @@ impl<Marker> Clone for PathBoundary<Marker> {
     fn clone(&self) -> Self {
         Self {
             path: self.path.clone(),
-            #[cfg(feature = "tempfile")]
-            _temp_dir: self._temp_dir.clone(),
             _marker: PhantomData,
         }
     }
@@ -153,19 +146,6 @@ impl<Marker> PartialEq<&std::path::Path> for PathBoundary<Marker> {
 }
 
 impl<Marker> PathBoundary<Marker> {
-    /// Private constructor that allows setting the temp_dir during construction
-    #[cfg(feature = "tempfile")]
-    fn new_with_temp_dir(
-        path: Arc<PathHistory<((Raw, Canonicalized), Exists)>>,
-        temp_dir: Option<Arc<TempDir>>,
-    ) -> Self {
-        Self {
-            path,
-            _temp_dir: temp_dir,
-            _marker: PhantomData,
-        }
-    }
-
     /// Creates a new `PathBoundary` anchored at `restriction_path` (which must already exist and be a directory).
     ///
     /// SUMMARY:
@@ -181,12 +161,10 @@ impl<Marker> PathBoundary<Marker> {
     /// - `StrictPathError::InvalidRestriction`: Boundary directory is missing, not a directory, or cannot be canonicalized.
     ///
     /// EXAMPLE:
-    /// Uses `AsRef<Path>` for maximum ergonomics, including direct `TempDir` support for clean shadowing patterns:
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use strict_path::PathBoundary;
-    /// let tmp_dir = tempfile::tempdir()?;
-    /// let tmp_dir = PathBoundary::<()>::try_new(tmp_dir)?; // Clean variable shadowing
+    /// let boundary = PathBoundary::<()>::try_new("./data")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -222,17 +200,10 @@ impl<Marker> PathBoundary<Marker> {
             ));
         }
 
-        #[cfg(feature = "tempfile")]
-        {
-            Ok(Self::new_with_temp_dir(Arc::new(verified_exists), None))
-        }
-        #[cfg(not(feature = "tempfile"))]
-        {
-            Ok(Self {
-                path: Arc::new(verified_exists),
-                _marker: PhantomData,
-            })
-        }
+        Ok(Self {
+            path: Arc::new(verified_exists),
+            _marker: PhantomData,
+        })
     }
 
     /// Creates the directory if missing, then constructs a new `PathBoundary`.
@@ -250,12 +221,10 @@ impl<Marker> PathBoundary<Marker> {
     /// - `StrictPathError::InvalidRestriction`: Directory creation/canonicalization fails.
     ///
     /// EXAMPLE:
-    /// Uses `AsRef<Path>` for maximum ergonomics, including direct `TempDir` support for clean shadowing patterns:
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use strict_path::PathBoundary;
-    /// let tmp_dir = tempfile::tempdir()?;
-    /// let tmp_dir = PathBoundary::<()>::try_new_create(tmp_dir)?; // Clean variable shadowing
+    /// let boundary = PathBoundary::<()>::try_new_create("./data")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -303,24 +272,19 @@ impl<Marker> PathBoundary<Marker> {
     /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
-    /// # let boundary_dir = std::env::temp_dir().join("change-marker-example");
-    /// # std::fs::create_dir_all(&boundary_dir)?;
     /// struct ReadOnly;
     /// struct ReadWrite;
     ///
-    /// let read_boundary: PathBoundary<ReadOnly> = PathBoundary::try_new(&boundary_dir)?;
+    /// let read_boundary: PathBoundary<ReadOnly> = PathBoundary::try_new_create("./data")?;
     ///
     /// // After authorization check...
     /// let write_boundary: PathBoundary<ReadWrite> = read_boundary.change_marker();
-    /// # std::fs::remove_dir_all(&boundary_dir)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[inline]
     pub fn change_marker<NewMarker>(self) -> PathBoundary<NewMarker> {
         PathBoundary {
             path: self.path,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: self._temp_dir,
             _marker: PhantomData,
         }
     }
@@ -341,12 +305,9 @@ impl<Marker> PathBoundary<Marker> {
     /// EXAMPLE:
     /// ```rust
     /// # use strict_path::{PathBoundary, StrictPath};
-    /// # let boundary_dir = std::env::temp_dir().join("into-strictpath-example");
-    /// # std::fs::create_dir_all(&boundary_dir)?;
-    /// let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
+    /// let boundary: PathBoundary = PathBoundary::try_new_create("./data")?;
     /// let boundary_path: StrictPath = boundary.into_strictpath()?;
     /// assert!(boundary_path.is_dir());
-    /// # std::fs::remove_dir_all(&boundary_dir)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[inline]
@@ -390,13 +351,6 @@ impl<Marker> PathBoundary<Marker> {
     #[inline]
     pub fn strictpath_display(&self) -> std::path::Display<'_> {
         self.path().display()
-    }
-
-    /// Internal helper: exposes the tempfile RAII handle so `VirtualRoot` constructors can mirror cleanup semantics when constructed from temporary directories.
-    #[cfg(feature = "tempfile")]
-    #[inline]
-    pub(crate) fn temp_dir_arc(&self) -> Option<Arc<TempDir>> {
-        self._temp_dir.clone()
     }
 
     /// SUMMARY:
@@ -480,478 +434,11 @@ impl<Marker> PathBoundary<Marker> {
     pub fn virtualize(self) -> crate::VirtualRoot<Marker> {
         crate::VirtualRoot {
             root: self,
-            #[cfg(feature = "tempfile")]
-            _temp_dir: None,
             _marker: PhantomData,
         }
     }
 
     // Note: Do not add new crate-private helpers unless necessary; use existing flows.
-
-    // OS Standard Directory Constructors
-    //
-    // These constructors provide secure access to operating system standard directories
-    // following platform-specific conventions (XDG on Linux, Known Folder API on Windows,
-    // Apple Standard Directories on macOS). Each creates an app-specific subdirectory
-    // and enforces path boundaries for secure file operations.
-
-    /// Creates a PathBoundary in the OS standard config directory for the given application.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `~/.config/{app_name}` (XDG Base Directory Specification)
-    /// - **Windows**: `%APPDATA%\{app_name}` (Known Folder API - Roaming AppData)
-    /// - **macOS**: `~/Library/Application Support/{app_name}` (Apple Standard Directories)
-    ///
-    /// Respects environment variables like `$XDG_CONFIG_HOME` on Linux systems.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_config(app_name: &str) -> Result<Self> {
-        let config_dir = dirs::config_dir()
-            .ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-config".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS config directory not available",
-                ),
-            })?
-            .join(app_name);
-        Self::try_new_create(config_dir)
-    }
-
-    /// Creates a PathBoundary in the OS standard data directory for the given application.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `~/.local/share/{app_name}` (XDG Base Directory Specification)
-    /// - **Windows**: `%APPDATA%\{app_name}` (Known Folder API - Roaming AppData)
-    /// - **macOS**: `~/Library/Application Support/{app_name}` (Apple Standard Directories)
-    ///
-    /// Respects environment variables like `$XDG_DATA_HOME` on Linux systems.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_data(app_name: &str) -> Result<Self> {
-        let data_dir = dirs::data_dir()
-            .ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-data".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS data directory not available",
-                ),
-            })?
-            .join(app_name);
-        Self::try_new_create(data_dir)
-    }
-
-    /// Creates a PathBoundary in the OS standard cache directory for the given application.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `~/.cache/{app_name}` (XDG Base Directory Specification)
-    /// - **Windows**: `%LOCALAPPDATA%\{app_name}` (Known Folder API - Local AppData)
-    /// - **macOS**: `~/Library/Caches/{app_name}` (Apple Standard Directories)
-    ///
-    /// Respects environment variables like `$XDG_CACHE_HOME` on Linux systems.
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_cache(app_name: &str) -> Result<Self> {
-        let cache_dir = dirs::cache_dir()
-            .ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-cache".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS cache directory not available",
-                ),
-            })?
-            .join(app_name);
-        Self::try_new_create(cache_dir)
-    }
-
-    /// Creates a PathBoundary in the OS local config directory (non-roaming on Windows).
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `~/.config/{app_name}` (same as config_dir)
-    /// - **Windows**: `%LOCALAPPDATA%\{app_name}` (Known Folder API - Local AppData)
-    /// - **macOS**: `~/Library/Application Support/{app_name}` (same as config_dir)
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_config_local(app_name: &str) -> Result<Self> {
-        let config_dir = dirs::config_local_dir()
-            .ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-config-local".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS local config directory not available",
-                ),
-            })?
-            .join(app_name);
-        Self::try_new_create(config_dir)
-    }
-
-    /// Creates a PathBoundary in the OS local data directory.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `~/.local/share/{app_name}` (same as data_dir)
-    /// - **Windows**: `%LOCALAPPDATA%\{app_name}` (Known Folder API - Local AppData)
-    /// - **macOS**: `~/Library/Application Support/{app_name}` (same as data_dir)
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_data_local(app_name: &str) -> Result<Self> {
-        let data_dir = dirs::data_local_dir()
-            .ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-data-local".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS local data directory not available",
-                ),
-            })?
-            .join(app_name);
-        Self::try_new_create(data_dir)
-    }
-
-    /// Creates a PathBoundary in the user's home directory.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `$HOME`
-    /// - **Windows**: `%USERPROFILE%` (e.g., `C:\Users\Username`)
-    /// - **macOS**: `$HOME`
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_home() -> Result<Self> {
-        let home_dir =
-            dirs::home_dir().ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-home".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS home directory not available",
-                ),
-            })?;
-        Self::try_new(home_dir)
-    }
-
-    /// Creates a PathBoundary in the user's desktop directory.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `$HOME/Desktop` or XDG_DESKTOP_DIR
-    /// - **Windows**: `%USERPROFILE%\Desktop`
-    /// - **macOS**: `$HOME/Desktop`
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_desktop() -> Result<Self> {
-        let desktop_dir =
-            dirs::desktop_dir().ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-desktop".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS desktop directory not available",
-                ),
-            })?;
-        Self::try_new(desktop_dir)
-    }
-
-    /// Creates a PathBoundary in the user's documents directory.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `$HOME/Documents` or XDG_DOCUMENTS_DIR
-    /// - **Windows**: `%USERPROFILE%\Documents`
-    /// - **macOS**: `$HOME/Documents`
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_documents() -> Result<Self> {
-        let docs_dir =
-            dirs::document_dir().ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-documents".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS documents directory not available",
-                ),
-            })?;
-        Self::try_new(docs_dir)
-    }
-
-    /// Creates a PathBoundary in the user's downloads directory.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `$HOME/Downloads` or XDG_DOWNLOAD_DIR
-    /// - **Windows**: `%USERPROFILE%\Downloads`
-    /// - **macOS**: `$HOME/Downloads`
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_downloads() -> Result<Self> {
-        let downloads_dir =
-            dirs::download_dir().ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-downloads".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS downloads directory not available",
-                ),
-            })?;
-        Self::try_new(downloads_dir)
-    }
-
-    /// Creates a PathBoundary in the user's pictures directory.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `$HOME/Pictures` or XDG_PICTURES_DIR
-    /// - **Windows**: `%USERPROFILE%\Pictures`
-    /// - **macOS**: `$HOME/Pictures`
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_pictures() -> Result<Self> {
-        let pictures_dir =
-            dirs::picture_dir().ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-pictures".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS pictures directory not available",
-                ),
-            })?;
-        Self::try_new(pictures_dir)
-    }
-
-    /// Creates a PathBoundary in the user's music/audio directory.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `$HOME/Music` or XDG_MUSIC_DIR
-    /// - **Windows**: `%USERPROFILE%\Music`
-    /// - **macOS**: `$HOME/Music`
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_audio() -> Result<Self> {
-        let audio_dir =
-            dirs::audio_dir().ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-audio".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS audio directory not available",
-                ),
-            })?;
-        Self::try_new(audio_dir)
-    }
-
-    /// Creates a PathBoundary in the user's videos directory.
-    ///
-    /// **Cross-Platform Behavior:**
-    /// - **Linux**: `$HOME/Videos` or XDG_VIDEOS_DIR  
-    /// - **Windows**: `%USERPROFILE%\Videos`
-    /// - **macOS**: `$HOME/Movies`
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_videos() -> Result<Self> {
-        let videos_dir =
-            dirs::video_dir().ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-videos".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS videos directory not available",
-                ),
-            })?;
-        Self::try_new(videos_dir)
-    }
-
-    /// Creates a PathBoundary in the OS executable directory (Linux only).
-    ///
-    /// **Platform Availability:**
-    /// - **Linux**: `~/.local/bin` or $XDG_BIN_HOME
-    /// - **Windows**: Returns error (not available)
-    /// - **macOS**: Returns error (not available)
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_executables() -> Result<Self> {
-        let exec_dir =
-            dirs::executable_dir().ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-executables".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS executables directory not available on this platform",
-                ),
-            })?;
-        Self::try_new(exec_dir)
-    }
-
-    /// Creates a PathBoundary in the OS runtime directory (Linux only).
-    ///
-    /// **Platform Availability:**
-    /// - **Linux**: `$XDG_RUNTIME_DIR` (session-specific, user-only access)
-    /// - **Windows**: Returns error (not available)
-    /// - **macOS**: Returns error (not available)
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_runtime() -> Result<Self> {
-        let runtime_dir =
-            dirs::runtime_dir().ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-runtime".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS runtime directory not available on this platform",
-                ),
-            })?;
-        Self::try_new(runtime_dir)
-    }
-
-    /// Creates a PathBoundary in the OS state directory (Linux only).
-    ///
-    /// **Platform Availability:**
-    /// - **Linux**: `~/.local/state/{app_name}` or $XDG_STATE_HOME/{app_name}
-    /// - **Windows**: Returns error (not available)
-    /// - **macOS**: Returns error (not available)
-    #[cfg(feature = "dirs")]
-    pub fn try_new_os_state(app_name: &str) -> Result<Self> {
-        let state_dir = dirs::state_dir()
-            .ok_or_else(|| crate::StrictPathError::InvalidRestriction {
-                restriction: "os-state".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "OS state directory not available on this platform",
-                ),
-            })?
-            .join(app_name);
-        Self::try_new_create(state_dir)
-    }
-
-    /// Creates a PathBoundary in a unique temporary directory with RAII cleanup.
-    ///
-    /// Returns a `StrictPath` pointing to the temporary boundary directory. The
-    /// directory will be automatically cleaned up when the `StrictPath` is dropped.
-    ///
-    /// # Example
-    /// ```
-    /// # #[cfg(feature = "tempfile")] {
-    /// use strict_path::PathBoundary;
-    ///
-    /// // Get a validated temp directory path directly
-    /// let temp_boundary = PathBoundary::<()>::try_new_temp()?;
-    /// let user_input = "uploads/document.pdf";
-    /// let validated_path = temp_boundary.strict_join(user_input)?; // Returns StrictPath
-    /// // Ensure parent directories exist before writing
-    /// validated_path.create_parent_dir_all()?;
-    /// validated_path.write(b"content")?; // Prefer strict-path helpers over std::fs
-    /// // temp_boundary is dropped here, directory gets cleaned up automatically
-    /// # }
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    #[cfg(feature = "tempfile")]
-    pub fn try_new_temp() -> Result<Self> {
-        let temp_dir =
-            tempfile::tempdir().map_err(|e| crate::StrictPathError::InvalidRestriction {
-                restriction: "temp".into(),
-                source: e,
-            })?;
-
-        let temp_path = temp_dir.path();
-        let raw = PathHistory::<Raw>::new(temp_path);
-        let canonicalized = raw.canonicalize()?;
-        let verified_exists = canonicalized.verify_exists().ok_or_else(|| {
-            crate::StrictPathError::InvalidRestriction {
-                restriction: "temp".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "Temp directory verification failed",
-                ),
-            }
-        })?;
-
-        Ok(Self::new_with_temp_dir(
-            Arc::new(verified_exists),
-            Some(Arc::new(temp_dir)),
-        ))
-    }
-
-    /// Creates a PathBoundary in a temporary directory with a custom prefix and RAII cleanup.
-    ///
-    /// Returns a `StrictPath` pointing to the prefixed temporary boundary directory. The
-    /// directory will be automatically cleaned up when the `StrictPath` is dropped.
-    ///
-    /// # Example
-    /// ```
-    /// # #[cfg(feature = "tempfile")] {
-    /// use strict_path::PathBoundary;
-    ///
-    /// // Get a validated temp directory path with session prefix
-    /// let upload_boundary = PathBoundary::<()>::try_new_temp_with_prefix("upload_batch")?;
-    /// let user_file = upload_boundary.strict_join("user_document.pdf")?; // Validate path
-    /// // Process validated path with direct filesystem operations
-    /// // upload_boundary is dropped here, directory gets cleaned up automatically
-    /// # }
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    #[cfg(feature = "tempfile")]
-    pub fn try_new_temp_with_prefix(prefix: &str) -> Result<Self> {
-        let temp_dir = tempfile::Builder::new()
-            .prefix(prefix)
-            .tempdir()
-            .map_err(|e| crate::StrictPathError::InvalidRestriction {
-                restriction: "temp".into(),
-                source: e,
-            })?;
-
-        let temp_path = temp_dir.path();
-        let raw = PathHistory::<Raw>::new(temp_path);
-        let canonicalized = raw.canonicalize()?;
-        let verified_exists = canonicalized.verify_exists().ok_or_else(|| {
-            crate::StrictPathError::InvalidRestriction {
-                restriction: "temp".into(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "Temp directory verification failed",
-                ),
-            }
-        })?;
-
-        Ok(Self::new_with_temp_dir(
-            Arc::new(verified_exists),
-            Some(Arc::new(temp_dir)),
-        ))
-    }
-
-    /// SUMMARY:
-    /// Create a boundary using `app-path` semantics (portable app-relative directory) with optional env override.
-    ///
-    /// PARAMETERS:
-    /// - `subdir` (`AsRef<Path>`): Subdirectory path relative to the executable (or override directory).
-    /// - `env_override` (Option<&str>): Optional environment variable name; when present and set,
-    ///   its value is used as the base directory instead of the executable directory.
-    ///
-    /// RETURNS:
-    /// - `Result<PathBoundary<Marker>>`: Created/validated boundary at the resolved app-path location.
-    ///
-    /// ERRORS:
-    /// - `StrictPathError::InvalidRestriction`: If resolution fails or directory cannot be created/validated.
-    ///
-    /// EXAMPLE:
-    /// ```
-    /// # #[cfg(feature = "app-path")] {
-    /// use strict_path::PathBoundary;
-    ///
-    /// // Creates ./config/ relative to executable
-    /// let config_restriction = PathBoundary::<()>::try_new_app_path("config", None)?;
-    ///
-    /// // With environment override (checks MYAPP_CONFIG_DIR first)
-    /// let config_restriction = PathBoundary::<()>::try_new_app_path("config", Some("MYAPP_CONFIG_DIR"))?;
-    /// # }
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    #[cfg(feature = "app-path")]
-    pub fn try_new_app_path<P: AsRef<std::path::Path>>(
-        subdir: P,
-        env_override: Option<&str>,
-    ) -> Result<Self> {
-        let subdir_path = subdir.as_ref();
-        // Resolve the override environment variable name (if provided) to its value.
-        // app-path expects the override PATH value, not the variable name.
-        let override_value: Option<String> = env_override.and_then(|key| std::env::var(key).ok());
-        let app_path = app_path::AppPath::try_with_override(subdir_path, override_value.as_deref())
-            .map_err(|e| crate::StrictPathError::InvalidRestriction {
-                restriction: format!("app-path: {}", subdir_path.display()).into(),
-                source: std::io::Error::new(std::io::ErrorKind::InvalidInput, e),
-            })?;
-
-        Self::try_new_create(app_path)
-    }
-
-    /// SUMMARY:
-    /// Create a boundary using `app-path`, always consulting a specific environment variable first.
-    ///
-    /// PARAMETERS:
-    /// - `subdir` (`AsRef<Path>`): Subdirectory used with `app-path` resolution.
-    /// - `env_override` (&str): Environment variable name to check for a base directory.
-    ///
-    /// RETURNS:
-    /// - `Result<PathBoundary<Marker>>`: New boundary anchored using `app-path` semantics.
-    ///
-    /// ERRORS:
-    /// - `StrictPathError::InvalidRestriction`: If resolution fails or the directory can't be created/validated.
-    #[cfg(feature = "app-path")]
-    pub fn try_new_app_path_with_env<P: AsRef<std::path::Path>>(
-        subdir: P,
-        env_override: &str,
-    ) -> Result<Self> {
-        let subdir_path = subdir.as_ref();
-        Self::try_new_app_path(subdir_path, Some(env_override))
-    }
 }
 
 impl<Marker> AsRef<Path> for PathBoundary<Marker> {
@@ -981,10 +468,8 @@ impl<Marker: Default> std::str::FromStr for PathBoundary<Marker> {
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let temp_dir = tempfile::tempdir()?;
-    /// let safe_path = temp_dir.path().join("safe_dir");
-    /// let boundary: PathBoundary<()> = safe_path.to_string_lossy().parse()?;
-    /// assert!(safe_path.exists());
+    /// let boundary: PathBoundary<()> = "./data".parse()?;
+    /// assert!(boundary.exists());
     /// # Ok(())
     /// # }
     /// ```

@@ -9,7 +9,6 @@ mod methods;
 mod read_dir_and_conversions;
 mod rename;
 mod security;
-mod serde;
 mod symlink_methods;
 #[cfg(feature = "virtual-path")]
 mod virtual_display;

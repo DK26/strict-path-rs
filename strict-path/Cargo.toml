@@ -20,17 +20,13 @@ exclude = ["../demos/**"]
 [dependencies]
 # Temporarily using dev branch for testing
 soft-canonicalize = { version = "0.4.5", features = ["anchored"] }
-serde = { version = "1", optional = true, default-features = false, features = [
-    "alloc",
-] }
-dirs = { version = "6.0.0", optional = true }
-tempfile = { version = "3.22", optional = true }
-app-path = { version = "1.1.2", optional = true }
 
 [dev-dependencies]
-tempfile = "3.20"
+tempfile = "3.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+dirs = "6.0.0"
+app-path = "1.1.2"
 
 # Windows test helper: junctions for symlink tests when admin privileges unavailable
 [target.'cfg(windows)'.dev-dependencies]
@@ -44,14 +40,6 @@ junction = { version = "1.3", optional = true }
 # Opt-in virtual filesystem support (VirtualRoot, VirtualPath)
 default = []
 virtual-path = []
-# Enable serde Serialize impls (and helpers) for core types.
-serde = ["dep:serde"]
-# Convenience restriction constructors for system directories (config/data/cache)
-dirs = ["dep:dirs"]
-# Temporary directories with RAII (unique dir per restriction) via `tempfile`
-tempfile = ["dep:tempfile"]
-# Portable application directory restrictions
-app-path = ["dep:app-path"]
 # Windows-only: enable built-in junction creation helpers using the `junction` crate
 junctions = ["dep:junction"]
 

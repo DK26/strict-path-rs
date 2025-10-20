@@ -76,8 +76,8 @@ fn serve_vp(p: &VirtualPath<Assets>) -> std::io::Result<String> {
 
 #[derive(serde::Serialize)]
 struct PathInfo {
-    // Serializes as virtual-root string via strict-path serde feature
-    path: VirtualPath<Assets>,
+    // Serialize virtual path as string using display method
+    path: String,
     // Include system path for observability
     system: String,
 }
@@ -89,8 +89,8 @@ async fn serve_json(
     match vroot.virtual_join(&path) {
         Ok(vp) => {
             let info = PathInfo {
-                path: vp.clone(),
-                system: format!("{}", vp.as_unvirtual().strictpath_display()),
+                path: vp.virtualpath_display().to_string(),
+                system: vp.as_unvirtual().strictpath_display().to_string(),
             };
             let value = serde_json::to_value(info)
                 .unwrap_or_else(|_| serde_json::json!({"error":"serialize"}));

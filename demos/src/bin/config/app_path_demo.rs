@@ -1,8 +1,10 @@
 //! Portable Application Directory Demo
 //!
-//! Demonstrates the `app-path` feature integration with strict-path.
-//! Shows how to use `PathBoundary::try_new_app_path()` for creating portable
-//! application directories that work relative to the executable location.
+//! Demonstrates integration with the app-path crate for portable applications.
+//! Shows how to combine app-path's executable-relative paths with strict-path's
+//! security boundaries.
+//!
+//! Pattern: AppPath::with("subdir") → PathBoundary::try_new_create() → portable operations
 
 #![cfg_attr(not(feature = "with-app-path"), allow(unused))]
 
@@ -10,6 +12,7 @@
 compile_error!("Enable with --features with-app-path to run this example");
 
 use anyhow::Result;
+use app_path::AppPath;
 use serde::{Deserialize, Serialize};
 use strict_path::{PathBoundary, StrictPath, VirtualPath, VirtualRoot};
 
@@ -53,21 +56,16 @@ struct PortableApp {
 }
 
 impl PortableApp {
-    /// Create a new portable app instance using library's app-path integration
+    /// Create a new portable app instance using app-path crate integration
     fn new() -> Result<Self> {
         println!("🚀 Initializing Portable Application");
-        println!("Using strict-path's app-path feature integration\n");
+        println!("Using app-path crate for executable-relative paths\n");
 
-        // Use library's app-path integration - creates directories relative to executable!
-        // These will be created relative to the executable with environment override support
-        let config_dir =
-            PathBoundary::<AppConfig>::try_new_app_path("config", Some("PORTABLE_DEMO_CONFIG"))?;
-        let data_dir =
-            PathBoundary::<AppData>::try_new_app_path("data", Some("PORTABLE_DEMO_DATA"))?;
-        let logs_dir =
-            PathBoundary::<AppLogs>::try_new_app_path("logs", Some("PORTABLE_DEMO_LOGS"))?;
-        let plugins_dir =
-            PathBoundary::<AppPlugins>::try_new_app_path("plugins", Some("PORTABLE_DEMO_PLUGINS"))?;
+        // Use app-path crate to get executable-relative paths, then create boundaries
+        let config_dir = PathBoundary::<AppConfig>::try_new_create(AppPath::with("config"))?;
+        let data_dir = PathBoundary::<AppData>::try_new_create(AppPath::with("data"))?;
+        let logs_dir = PathBoundary::<AppLogs>::try_new_create(AppPath::with("logs"))?;
+        let plugins_dir = PathBoundary::<AppPlugins>::try_new_create(AppPath::with("plugins"))?;
 
         // Convert data directory to VirtualRoot for user-facing path operations
         let data_root = VirtualRoot::try_new(data_dir.interop_path())?;
@@ -290,10 +288,10 @@ impl PortableApp {
 
 /// Demonstrate application backup and restore functionality
 fn demonstrate_backup_restore() -> Result<()> {
-    println!("\n� Demonstrating backup and restore...");
+    println!("\n💾 Demonstrating backup and restore...");
 
-    let data_dir = PathBoundary::<AppData>::try_new_app_path("data", None)?;
-    let backup_dir = PathBoundary::<AppData>::try_new_app_path("backups", None)?;
+    let data_dir = PathBoundary::<AppData>::try_new_create(AppPath::with("data"))?;
+    let backup_dir = PathBoundary::<AppData>::try_new_create(AppPath::with("backups"))?;
 
     // Create backup with timestamp
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");

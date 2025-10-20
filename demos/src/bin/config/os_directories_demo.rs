@@ -81,10 +81,22 @@ impl MediaOrganizerApp {
             app_name
         );
 
-        // Create secure boundaries for each OS standard directory
-        let config_root = PathBoundary::<()>::try_new_os_config(app_name)?;
-        let data_root = PathBoundary::<()>::try_new_os_data(app_name)?;
-        let cache_root = PathBoundary::<()>::try_new_os_cache(app_name)?;
+        // Use dirs crate to discover OS directories, then create secure boundaries
+        let config_root = PathBoundary::<()>::try_new_create(
+            dirs::config_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?
+                .join(app_name),
+        )?;
+        let data_root = PathBoundary::<()>::try_new_create(
+            dirs::data_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine data directory"))?
+                .join(app_name),
+        )?;
+        let cache_root = PathBoundary::<()>::try_new_create(
+            dirs::cache_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine cache directory"))?
+                .join(app_name),
+        )?;
 
         println!("📁 Config directory: {}", config_root.strictpath_display());
         println!("💾 Data directory: {}", data_root.strictpath_display());
@@ -162,61 +174,79 @@ impl MediaOrganizerApp {
     ) -> Result<MediaDatabase, Box<dyn std::error::Error>> {
         let mut db = self.load_database()?;
 
-        // Scan standard user media directories
-        let media_directories = vec![
-            ("Pictures", PathBoundary::<()>::try_new_os_pictures()?),
-            ("Music", PathBoundary::<()>::try_new_os_audio()?),
-            ("Videos", PathBoundary::<()>::try_new_os_videos()?),
-            ("Downloads", PathBoundary::<()>::try_new_os_downloads()?),
+        // Scan standard user media directories using dirs crate
+        let media_directories: Vec<(&str, Option<PathBoundary<()>>)> = vec![
+            (
+                "Pictures",
+                dirs::picture_dir().map(PathBoundary::try_new).transpose()?,
+            ),
+            (
+                "Music",
+                dirs::audio_dir().map(PathBoundary::try_new).transpose()?,
+            ),
+            (
+                "Videos",
+                dirs::video_dir().map(PathBoundary::try_new).transpose()?,
+            ),
+            (
+                "Downloads",
+                dirs::download_dir()
+                    .map(PathBoundary::try_new)
+                    .transpose()?,
+            ),
         ];
 
         println!("\n🔍 Scanning user media directories...");
 
-        for (dir_name, dir_path) in media_directories {
-            println!(
-                "📂 Scanning {}: {}",
-                dir_name,
-                dir_path.strictpath_display()
-            );
+        for (dir_name, dir_path_opt) in media_directories {
+            if let Some(dir_path) = dir_path_opt {
+                println!(
+                    "📂 Scanning {}: {}",
+                    dir_name,
+                    dir_path.strictpath_display()
+                );
 
-            // In a real app, you'd recursively scan for media files
-            // For demo purposes, we'll simulate finding some files
-            let simulated_files = match dir_name {
-                "Pictures" => vec!["vacation.jpg", "family.png", "screenshot.png"],
-                "Music" => vec!["song1.mp3", "album.flac", "podcast.wav"],
-                "Videos" => vec!["movie.mp4", "recording.mov"],
-                "Downloads" => vec!["wallpaper.jpg", "music.mp3"],
-                _ => vec![],
-            };
+                // In a real app, you'd recursively scan for media files
+                // For demo purposes, we'll simulate finding some files
+                let simulated_files = match dir_name {
+                    "Pictures" => vec!["vacation.jpg", "family.png", "screenshot.png"],
+                    "Music" => vec!["song1.mp3", "album.flac", "podcast.wav"],
+                    "Videos" => vec!["movie.mp4", "recording.mov"],
+                    "Downloads" => vec!["wallpaper.jpg", "music.mp3"],
+                    _ => vec![],
+                };
 
-            for filename in simulated_files {
-                // Demonstrate proper StrictPath operations for file handling
-                if let Ok(media_file) = dir_path.strict_join(filename) {
-                    // Extract filename and extension using StrictPath methods
-                    let actual_filename = media_file
-                        .strictpath_file_name()
-                        .and_then(|name| name.to_str())
-                        .unwrap_or("unknown");
+                for filename in simulated_files {
+                    // Demonstrate proper StrictPath operations for file handling
+                    if let Ok(media_file) = dir_path.strict_join(filename) {
+                        // Extract filename and extension using StrictPath methods
+                        let actual_filename = media_file
+                            .strictpath_file_name()
+                            .and_then(|name| name.to_str())
+                            .unwrap_or("unknown");
 
-                    let extension = media_file
-                        .strictpath_extension()
-                        .and_then(|ext| ext.to_str())
-                        .unwrap_or("");
+                        let extension = media_file
+                            .strictpath_extension()
+                            .and_then(|ext| ext.to_str())
+                            .unwrap_or("");
 
-                    if config.supported_formats.contains(&extension.to_string()) {
-                        let entry = MediaEntry {
-                            path: media_file.strictpath_display().to_string(),
-                            file_type: extension.to_string(),
-                            size_bytes: 1024 * 1024, // 1MB example size
-                            created: chrono::Utc::now().to_rfc3339(),
-                            has_thumbnail: false,
-                        };
+                        if config.supported_formats.contains(&extension.to_string()) {
+                            let entry = MediaEntry {
+                                path: media_file.strictpath_display().to_string(),
+                                file_type: extension.to_string(),
+                                size_bytes: 1024 * 1024, // 1MB example size
+                                created: chrono::Utc::now().to_rfc3339(),
+                                has_thumbnail: false,
+                            };
 
-                        db.entries
-                            .insert(media_file.strictpath_display().to_string(), entry);
-                        println!("   ✅ Added: {}", actual_filename);
+                            db.entries
+                                .insert(media_file.strictpath_display().to_string(), entry);
+                            println!("   ✅ Added: {}", actual_filename);
+                        }
                     }
                 }
+            } else {
+                println!("⚠️  Directory not available: {}", dir_name);
             }
         }
 
@@ -335,8 +365,11 @@ impl MediaOrganizerApp {
         println!("\n🌐 Virtual Root Demo (User-Facing Paths)");
         println!("═══════════════════════════════════════════");
 
-        // Create a virtual root for user workspace
-        let workspace = VirtualRoot::<()>::try_new_os_documents()?;
+        // Create a virtual root for user workspace using dirs crate
+        let workspace = VirtualRoot::<()>::try_new(
+            dirs::document_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine documents directory"))?,
+        )?;
         println!(
             "📁 User workspace: {}",
             workspace.as_unvirtual().strictpath_display()

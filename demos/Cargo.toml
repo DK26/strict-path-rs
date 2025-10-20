@@ -23,7 +23,7 @@ publish = false
 # Build demos against the workspace library. Do NOT enable any
 # non-existent features on the library here; keep example-only features
 # local to this crate so MSRV checks for the library remain isolated.
-strict-path = { path = "../strict-path", features = ["serde"] }
+strict-path = { path = "../strict-path" }
 config = "0.15.18"
 # Zip-related deps are optional and only enabled via the `with-zip` feature.
 # Use namespaced dependency features to avoid relying on removed implicit
@@ -82,9 +82,9 @@ sqlx = { version = "0.8", optional = true, features = [
 default = []
 with-zip = ["dep:zip", "dep:flate2"]
 with-aws = ["dep:aws-config", "dep:aws-sdk-s3"]
-with-app-path = ["dep:app-path", "strict-path/app-path"]
-with-dirs = ["dep:dirs", "strict-path/dirs"]
-with-tempfile = ["dep:tempfile", "strict-path/tempfile"]
+with-app-path = ["dep:app-path"]
+with-dirs = ["dep:dirs"]
+with-tempfile = ["dep:tempfile"]
 with-rmcp = ["dep:rmcp"]
 with-jwt = ["dep:hmac", "dep:sha2", "dep:base64"]
 with-database = ["dep:sqlx"]
@@ -113,6 +113,7 @@ path = "src/bin/config/config_includes.rs"
 [[bin]]
 name = "config_management_example"
 path = "src/bin/config/config_management_example.rs"
+required-features = ["virtual-path"]
 
 [[bin]]
 name = "user_data_manager"
@@ -187,6 +188,7 @@ required-features = ["with-rmcp"]
 [[bin]]
 name = "axum_static_server"
 path = "src/bin/web/axum_static_server.rs"
+required-features = ["virtual-path"]
 
 [[bin]]
 name = "s3_mirror"
@@ -197,6 +199,7 @@ name = "app_path_config"
 path = "src/bin/config/app_path_config.rs"
 
 # New feature demonstration binaries
+# Feature demonstration binaries - now using ecosystem crates directly
 [[bin]]
 name = "tempfile_demo"
 path = "src/bin/filesystem/tempfile_demo.rs"
@@ -210,12 +213,12 @@ required-features = ["with-dirs"]
 [[bin]]
 name = "app_path_demo"
 path = "src/bin/config/app_path_demo.rs"
-required-features = ["with-app-path"]
+required-features = ["with-app-path", "virtual-path"]
 
 [[bin]]
 name = "os_directories_demo"
 path = "src/bin/config/os_directories_demo.rs"
-required-features = ["with-dirs"]
+required-features = ["with-dirs", "virtual-path"]
 
 
 [[bin]]

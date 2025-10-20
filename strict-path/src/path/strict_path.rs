@@ -696,16 +696,6 @@ impl<Marker> StrictPath<Marker> {
     }
 }
 
-#[cfg(feature = "serde")]
-impl<Marker> serde::Serialize for StrictPath<Marker> {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.strictpath_to_string_lossy().as_ref())
-    }
-}
-
 impl<Marker> fmt::Debug for StrictPath<Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("StrictPath")

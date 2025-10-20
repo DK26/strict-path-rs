@@ -1,8 +1,10 @@
 //! System Directories Integration Demo  
 //!
-//! Demonstrates the `dirs` feature integration with strict-path.
-//! Shows how to use `PathBoundary::try_new_os_config()`, `try_new_os_data()`, and `try_new_os_cache()`
-//! for secure access to platform-appropriate system directories.
+//! Demonstrates integration with the dirs crate for secure access to platform-appropriate
+//! system directories. Shows how to combine dirs' OS directory discovery with strict-path's
+//! security boundaries.
+//!
+//! Pattern: dirs::*_dir() → PathBoundary::try_new_create() → secure operations
 
 #![cfg_attr(not(feature = "with-dirs"), allow(unused))]
 
@@ -48,14 +50,26 @@ struct SystemDirectoryManager {
 }
 
 impl SystemDirectoryManager {
-    /// Create a new manager using strict-path's dirs integration
+    /// Create a new manager using dirs crate for OS directory discovery
     fn new(app_name: &str) -> Result<Self> {
         println!("🔧 Setting up system directories for: {app_name}");
 
-        // Use library's dirs integration - creates directories if needed!
-        let config_dir = PathBoundary::<Config>::try_new_os_config(app_name)?;
-        let data_dir = PathBoundary::<Data>::try_new_os_data(app_name)?;
-        let cache_dir = PathBoundary::<Cache>::try_new_os_cache(app_name)?;
+        // Use dirs crate to discover OS directories, then create boundaries
+        let config_dir = PathBoundary::<Config>::try_new_create(
+            dirs::config_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?
+                .join(app_name),
+        )?;
+        let data_dir = PathBoundary::<Data>::try_new_create(
+            dirs::data_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine data directory"))?
+                .join(app_name),
+        )?;
+        let cache_dir = PathBoundary::<Cache>::try_new_create(
+            dirs::cache_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine cache directory"))?
+                .join(app_name),
+        )?;
 
         println!("✅ Config: {}", config_dir.strictpath_display());
         println!("✅ Data:   {}", data_dir.strictpath_display());
@@ -264,11 +278,15 @@ fn show_platform_info() {
     }
 }
 
-/// Demonstrate cross-platform configuration management
+/// Demonstrate cross-platform configuration migration
 fn demonstrate_config_migration() -> Result<()> {
-    println!("\n� Demonstrating configuration migration...");
+    println!("\n🔄 Demonstrating configuration migration...");
 
-    let config_dir = PathBoundary::<Config>::try_new_os_config("StrictPathDemo")?;
+    let config_dir = PathBoundary::<Config>::try_new_create(
+        dirs::config_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?
+            .join("StrictPathDemo"),
+    )?;
     let old_config = config_dir.strict_join("config_v1.toml")?;
     let new_config = config_dir.strict_join("config_v2.toml")?;
 
@@ -358,7 +376,11 @@ fn demonstrate_advanced_config_patterns() -> Result<()> {
     println!("\n⚙️ Advanced configuration patterns:");
 
     // Multi-environment configs
-    let config_dir = PathBoundary::<Config>::try_new_os_config("MultiEnvApp")?;
+    let config_dir = PathBoundary::<Config>::try_new_create(
+        dirs::config_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?
+            .join("MultiEnvApp"),
+    )?;
 
     let environments = ["development", "staging", "production"];
 
@@ -400,9 +422,21 @@ mod tests {
 
     #[test]
     fn test_system_dirs_are_different() -> Result<()> {
-        let config_dir = PathBoundary::<Config>::try_new_os_config("test_app")?;
-        let data_dir = PathBoundary::<Data>::try_new_os_data("test_app")?;
-        let cache_dir = PathBoundary::<Cache>::try_new_os_cache("test_app")?;
+        let config_dir = PathBoundary::<Config>::try_new_create(
+            dirs::config_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?
+                .join("test_app"),
+        )?;
+        let data_dir = PathBoundary::<Data>::try_new_create(
+            dirs::data_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine data directory"))?
+                .join("test_app"),
+        )?;
+        let cache_dir = PathBoundary::<Cache>::try_new_create(
+            dirs::cache_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine cache directory"))?
+                .join("test_app"),
+        )?;
 
         // Platform-specific expectations:
         // - Windows: Config and Data are both under %APPDATA% (<Roaming>), Cache under %LOCALAPPDATA% (<Local>)

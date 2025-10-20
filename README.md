@@ -174,7 +174,7 @@ let result = boundary.strict_join(user_input);
 - `junctions` (Windows-only, opt-in): Enables built-in NTFS directory junction helpers:
     - `StrictPath::strict_junction`, `PathBoundary::strict_junction`
     - `VirtualPath::virtual_junction`, `VirtualRoot::virtual_junction`
-    - Junctions are directory-only. Parents aren’t created automatically. Same-boundary rules apply.
+    - Junctions are directory-only. Parents aren't created automatically. Same-boundary rules apply.
 
 Enable in Cargo.toml:
 
@@ -191,6 +191,17 @@ strict-path = { version = "...", features = ["junctions"] }
 ```
 
 Without `virtual-path`: only `PathBoundary` + `StrictPath` are available (I/O remains available); all virtual-only types and methods are removed.
+
+### Ecosystem Integration
+
+**strict-path** focuses on providing security primitives—not wrappers for ecosystem crates. You can easily compose strict-path with popular crates:
+
+- **[tempfile](https://docs.rs/tempfile)**: Create secure temporary directories
+- **[dirs](https://docs.rs/dirs)**: Access OS-standard directories
+- **[app-path](https://docs.rs/app-path)**: Manage application data folders
+- **Serde deserialization**: Use `FromStr` for path validation
+
+📚 **[Complete Integration Guide →](https://dk26.github.io/strict-path-rs/ecosystem_integration.html)** - Full examples for tempfile, dirs, app-path, and serde patterns
 
 **The Reality**: Every web server, LLM agent, and file processor faces the same vulnerability. One unvalidated path from user input, config files, or AI responses can grant attackers full filesystem access.
 
@@ -471,7 +482,7 @@ view_system_file(&system_file)?;    // ✅ Has ReadOnly permission
 > "LLMs: great at generating paths, terrible at keeping secrets."
 
 - Usefulness for LLM agents: LLMs can produce arbitrary paths; `StrictPath`/`VirtualPath` make those suggestions safe by validation (strict) or clamping (virtual) before any I/O.
-- `PathBoundary`/`VirtualRoot`: When you want the compiler to enforce that a value is anchored to the initial root/boundary. Keeping the policy type separate from path values prevents helpers from “picking a root” silently. With features enabled, you also get ergonomic, policy‑aware constructors (e.g., `dirs`, `tempfile`, `app-path`).
+- `PathBoundary`/`VirtualRoot`: When you want the compiler to enforce that a value is anchored to the initial root/boundary. Keeping the policy type separate from path values prevents helpers from "picking a root" silently.
 - Marker types: Add domain context for the compiler and reviewers (e.g., `PublicAssets`, `UserUploads`). They read like documentation and prevent cross‑domain mix‑ups at compile time.
 
 Trade‑offs you can choose explicitly:
@@ -674,17 +685,18 @@ serve_asset(css_file.as_unvirtual());         // ✅ Correct context
 
 **Your IDE and compiler become security guards.**
 
-**App Configuration with `app_path`:**
+**App Configuration with `app-path`:**
 ```rust
 // ❌ Vulnerable - app dirs + user paths
 use app_path::AppPath;
-let app_dir = AppPath::new("MyApp").get_app_dir();
+let app_dir = AppPath::with("config");
 let config_file = app_dir.join(user_config_name); // 🚨 Potential escape
 fs::write(config_file, settings)?;
 
-// ✅ Protected - bounded app directories  
+// ✅ Protected - bounded app directories
 use strict_path::PathBoundary;
-let app_config_dir = PathBoundary::try_new_create(AppPath::new("MyApp").get_app_dir())?;
+use app_path::AppPath;
+let app_config_dir = PathBoundary::try_new_create(AppPath::with("config"))?;
 let safe_config = app_config_dir.strict_join(user_config_name)?; // ✅ Validated
 safe_config.write(&settings)?;
 ```
@@ -782,8 +794,10 @@ safe_ai_path.write(&ai_generated_content)?;
 
 > "Integrate like a pro: strict-path plays nice with everyone except attackers."
 
-- **🗂️ OS Directories** (`dirs` feature): `PathBoundary::try_new_os_config()`, `try_new_os_downloads()`, etc. - **[Full Guide](https://dk26.github.io/strict-path-rs/os_directories.html)**
-- **📄 Serde** (`serde` feature): Safe serialization/deserialization of path types - **[Tutorial: Stage 6 Feature Integration](https://dk26.github.io/strict-path-rs/tutorial/stage6_features.html)**
+- **🗂️ OS Directories**: Compose with `dirs` crate for platform-specific paths - **[Full Guide](https://dk26.github.io/strict-path-rs/os_directories.html)**
+- **📄 Serde**: Use `FromStr` for safe deserialization - **[Integration Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#serde-and-fromstr)**
+- **🧪 Temporary Files**: Compose with `tempfile` crate for secure temp directories - **[tempfile Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#tempfile)**
+- **📦 App Paths**: Compose with `app-path` crate for application directories - **[app-path Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#app-path)**
 - **🌐 Axum**: Custom extractors for web servers - **[Complete Tutorial](https://dk26.github.io/strict-path-rs/axum_tutorial/overview.html)**
 - **📦 Archive Handling**: Safe ZIP/TAR extraction - **[Extractor Guide](https://dk26.github.io/strict-path-rs/examples/archive_extraction.html)**
 
