@@ -24,9 +24,28 @@ Directory traversal vulnerabilities are everywhere:
 
 Getting path security wrong can expose your entire filesystem to attackers. With strict-path, the Rust compiler helps ensure you can't make these mistakes.
 
+## Get Secure in 30 Seconds
+
+```rust
+use strict_path::StrictPath;
+
+// GET /download?file=report.pdf
+let user_input = request.query_param("file"); // Untrusted: "report.pdf" or "../../etc/passwd"
+let untrusted_user_input = user_input.to_string();
+
+let file = StrictPath::with_boundary("/var/app/downloads")?
+    .strict_join(&untrusted_user_input)?; // Validates untrusted input - attack blocked!
+
+let contents = file.read()?; // Built-in safe I/O
+```
+
+**That's it.** Simple, safe, and path traversal attacks are blocked automatically.
+
+> **Analogy:** `StrictPath` is to paths what prepared statements are to SQL. The boundary is your prepared statement (the policy). The untrusted segment is the parameter (validated safely). Injection attempts become inert.
+
 ## Your First PathBoundary
 
-Let's start with a simple example. Say you're building a web app where users can upload and download their files, but you want to keep them contained in a specific directory:
+For reusable boundaries (e.g., passing to functions), use `PathBoundary`:
 
 ```rust
 use strict_path::PathBoundary;
@@ -35,9 +54,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a path boundary in the "user_files" directory
     // This creates the directory if it doesn't exist
     let user_files_dir = PathBoundary::try_new_create("user_files")?;
-
-    // Now any path we validate through this path boundary will be contained
-    // within the "user_files" directory
 
     // Simulate user input from HTTP request, CLI args, form data, etc.
     let user_input = "documents/report.txt"; // In real code: from request.form_data()
