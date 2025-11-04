@@ -54,6 +54,20 @@ Operational guide for AI assistants and automation working in this repository.
 - Security model: "Restrict every external path." Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
 - Foundation: Built on `soft-canonicalize` for resolution; canonicalization handles Windows 8.3 short names transparently.
 
+### Which Type Should I Use?
+
+**`Path`/`PathBuf` (std)** — When the path comes from a safe source within your control, not external input.
+
+**`StrictPath`** — When you want to restrict paths to a specific boundary and error if they escape.
+- Use for: Archive extraction, file uploads, config loading, shared system resources
+- Behavior: Returns `Err(PathEscapesBoundary)` on escape attempts (detect attacks)
+- Coverage: 90% of use cases
+
+**`VirtualPath`** (feature `virtual-path`) — When you want to provide path freedom under isolation.
+- Use for: Multi-tenant systems, malware sandboxes, security research, per-user filesystem views
+- Behavior: Silently clamps/redirects escapes within virtual boundary (contain behavior)
+- Coverage: 10% of use cases
+
 ### StrictPath vs VirtualPath: Detect vs. Contain
 
 **Critical distinction**: Choose based on whether path escapes are attacks or expected behavior.
@@ -730,6 +744,9 @@ When creating issues, ensure they include:
 ### Examples & Tests Principles
 
 - Examples:
+  - **Must be real-world and immediately demonstrate value**: Start with complete, realistic scenarios (e.g., archive extraction, web file uploads) that show the crate solving an actual problem. Avoid contrived "hello world" snippets that don't teach anything meaningful.
+  - **Path strings must be obviously paths**: Use full paths like `"/var/app/uploads"` or multi-segment relative paths like `"./data/user_files"` — never bare names like `"uploads"` that could be mistaken for any string. The path structure must be immediately readable.
+  - **Variable names must reveal untrusted input**: Name variables to show the data source (e.g., `archive_entry_name`, `user_uploaded_file`, `http_request_path`) — never generic names like `filename` or `path` that hide the validation purpose.
   - Compile and run (doctests or `cargo run --example ...`); no `#[allow(..)]`.
   - Use domain‑based variable names and explicit strict/virtual API calls; never wrap `.interop_path()` to use std path operations.
   - Demonstrate discovery vs. validation patterns clearly.

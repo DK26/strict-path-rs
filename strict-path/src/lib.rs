@@ -18,17 +18,17 @@
 //! ```rust
 //! # use strict_path::StrictPath;
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let temp = tempfile::tempdir()?;
+//! # let temp = tempfile::tempdir()?;
+//! # let request = std::collections::HashMap::from([("file", "report.pdf")]);
+//! # std::fs::write(temp.path().join("report.pdf"), b"file contents")?;
+//! // GET /download?file=report.pdf
+//! let user_input = request.get("file").unwrap(); // Untrusted: "report.pdf" or "../../etc/passwd"
+//! let untrusted_user_input = user_input.to_string();
 //!
-//! // User input from HTTP request, CLI args, config file, etc.
-//! let user_input = "users/alice.txt"; // In real code: get_filename_from_request()
-//! let safe: StrictPath = StrictPath::with_boundary(temp.path())?
-//!     .strict_join(user_input)?;  // Validated, stays inside boundary
+//! let file: StrictPath = StrictPath::with_boundary(temp.path())?
+//!     .strict_join(&untrusted_user_input)?; // Validates untrusted input - attack blocked!
 //!
-//! safe.create_parent_dir_all()?;
-//! safe.write("hello")?;
-//! safe.metadata()?;
-//! safe.remove_file()?;
+//! let contents = file.read()?; // Built-in safe I/O
 //! # Ok(()) }
 //! ```
 //!
@@ -43,16 +43,19 @@
 //!
 //! **[→ Read the security methodology](https://dk26.github.io/strict-path-rs/security_methodology.html)**
 //!
-//! ## When to Use Which Type
+//! ## Which Type Should I Use?
 //!
-//! **StrictPath (default)** — Detect & reject path escapes (90% of use cases):
-//! - Archive extraction, file uploads, config loading
-//! - Returns `Err(PathEscapesBoundary)` on escape attempts
+//! **`Path`/`PathBuf` (std)** — When the path comes from a safe source within your control, not external input.
 //!
-//! **VirtualPath (opt-in)** — Contain & redirect path escapes (10% of use cases):
-//! - Multi-tenant systems, malware sandboxes, security research
-//! - Silently clamps escapes within the virtual boundary
-//! - Requires `features = ["virtual-path"]` in `Cargo.toml`
+//! **`StrictPath`** — When you want to restrict paths to a specific boundary and error if they escape.
+//! - **Use for:** Archive extraction, file uploads, config loading, shared system resources
+//! - **Behavior:** Returns `Err(PathEscapesBoundary)` on escape attempts (detect attacks)
+//! - **Coverage:** 90% of use cases
+//!
+//! **`VirtualPath`** (feature `virtual-path`) — When you want to provide path freedom under isolation.
+//! - **Use for:** Multi-tenant systems, malware sandboxes, security research, per-user filesystem views
+//! - **Behavior:** Silently clamps/redirects escapes within virtual boundary (contain behavior)
+//! - **Coverage:** 10% of use cases
 //!
 //! **[→ Read the detailed comparison](https://dk26.github.io/strict-path-rs/best_practices.html)**
 //!
