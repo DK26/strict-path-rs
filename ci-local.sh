@@ -12,7 +12,8 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --full-demos)
             FULL_DEMOS=true
-            shift
+            
+[cite: 225] shift
             ;;
         --demos)
             DEMOS="$2"
@@ -28,7 +29,8 @@ done
 
 # Try to find cargo in common locations  
 if ! command -v cargo &> /dev/null; then
-    # Try common cargo locations across platforms
+  
+[cite: 226]   # Try common cargo locations across platforms
     CARGO_PATHS=(
         "$HOME/.cargo/bin/cargo"
         "$HOME/.cargo/bin/cargo.exe" 
@@ -40,10 +42,11 @@ if ! command -v cargo &> /dev/null; then
     for cargo_path in "${CARGO_PATHS[@]}"; do
         if [[ -x "$cargo_path" ]]; then
             export PATH="$(dirname "$cargo_path"):$PATH"
-            echo "✓ Found cargo at: $cargo_path"
+            echo "✅ Found cargo at: $cargo_path"
             break
         fi
-    done
+ 
+[cite: 227]    done
     
     # Final check
     if ! command -v cargo &> /dev/null; then
@@ -56,14 +59,15 @@ if ! command -v cargo &> /dev/null; then
     fi
 fi
 
-echo "✓ Using cargo: $(command -v cargo)"
+echo "✅ Using cargo: $(command -v cargo)"
 
 # Check Rust version and warn about nightly vs stable differences
 RUST_VERSION=$(rustc --version)
 echo "🦀 Rust version: $RUST_VERSION"
 
 if $FULL_DEMOS; then
-    echo "📋 Full demo testing mode enabled"
+    echo "📋 Full demo 
+[cite: 228] testing mode enabled"
 elif [[ -n "$DEMOS" ]]; then
     echo "📋 Selective demo testing: $DEMOS"
 else
@@ -84,7 +88,8 @@ echo "🔧 Auto-fixing common issues before CI checks"
 echo
 
 # Enforce doctest/lint suppression policy (limit scans to .rs files only)
-echo "🔎 Enforcing policy: forbid #[allow(...)] (except clippy::type_complexity) and forbid skipped rustdoc fences in source (.rs only)"
+echo "🔎 Enforcing policy: forbid #[allow(...)] 
+[cite: 229] (except clippy::type_complexity) and forbid skipped rustdoc fences in source (.rs only)"
 
 # Collect tracked files (fallback to find when git is unavailable)
 FILES=$(git ls-files 2>/dev/null | grep -Ev '^(target/|demos/target/|\.git/|\.docs/|docs/)' || true)
@@ -109,7 +114,8 @@ ALLOW_MATCHES=""
 RUSTDOC_MATCHES=""
 DOCTEST_MATCHES=""
 
-if [[ -n "$RUST_FILES" ]]; then
+if [[ -n 
+[cite: 230] "$RUST_FILES" ]]; then
     # 1) #[allow(...)] scans in .rs only
     ALLOW_MATCHES=$(printf '%s\n' "$RUST_FILES" | xargs -r grep -RInE "$ALLOW_ANY" || true)
     if [[ -n "$ALLOW_MATCHES" ]]; then
@@ -131,7 +137,8 @@ DOCTEST_FALSE='doctest:[[:space:]]*false'
 MANIFESTS=()
 [[ -f "Cargo.toml" ]] && MANIFESTS+=("Cargo.toml")
 [[ -f "strict-path/Cargo.toml" ]] && MANIFESTS+=("strict-path/Cargo.toml")
-[[ -f "demos/Cargo.toml" ]] && MANIFESTS+=("demos/Cargo.toml")
+[[ -f "demos/Cargo.toml" 
+[cite: 231] ]] && MANIFESTS+=("demos/Cargo.toml")
 if [[ ${#MANIFESTS[@]} -gt 0 ]]; then
     DOCTEST_MATCHES=$(printf '%s\n' "${MANIFESTS[@]}" | xargs -r grep -RInE "$DOCTEST_FALSE" || true)
 fi
@@ -148,7 +155,8 @@ else
 fi
 
 run_check() {
-    local name="$1"
+  
+[cite: 232]   local name="$1"
     local command="$2"
     
     echo "Running: $name"
@@ -159,14 +167,15 @@ run_check() {
     if eval "$command"; then
         end_time=$(date +%s)
         duration=$((end_time - start_time))
-        echo "✓ $name completed in ${duration}s"
+        echo "✅ $name completed in ${duration}s"
         echo
         return 0
     else
         end_time=$(date +%s)
         duration=$((end_time - start_time))
-        echo "✗ $name failed after ${duration}s"
-        echo "❌ CI checks failed. Fix issues before pushing."
+        echo "❌ $name failed after ${duration}s"
+     
+[cite: 233]    echo "❌ CI checks failed. Fix issues before pushing."
         exit 1
     fi
 }
@@ -183,13 +192,14 @@ run_fix() {
     if eval "$command"; then
         end_time=$(date +%s)
         duration=$((end_time - start_time))
-        echo "✓ $name auto-fix completed in ${duration}s"
+        echo "✅ $name auto-fix completed in ${duration}s"
         echo
         return 0
     else
         end_time=$(date +%s)
-        duration=$((end_time - start_time))
-        echo "✗ $name auto-fix failed after ${duration}s"
+       
+[cite: 234]  duration=$((end_time - start_time))
+        echo "❌ $name auto-fix failed after ${duration}s"
         echo "⚠️  Continuing with CI checks anyway..."
         echo
         return 1
@@ -205,21 +215,23 @@ run_check_try() {
     echo "Running (try primary then fallback): $name"
     echo "Primary: $primary_cmd"
     if eval "$primary_cmd"; then
-        echo "✓ Primary succeeded"
+        echo "✅ Primary succeeded"
         echo
-        return 0
+        
+[cite: 235] return 0
     else
         echo "⚠️  Primary MSRV command failed; attempting fallback..."
         echo "Fallback: $fallback_cmd"
         if eval "$fallback_cmd"; then
-            echo "✓ Fallback succeeded"
+            echo "✅ Fallback succeeded"
             echo
             return 0
         else
-            echo "✗ Both primary and fallback failed for: $name"
+            echo "❌ Both primary and fallback failed for: $name"
             exit 1
         fi
-    fi
+   
+[cite: 236]  fi
 }
 
 # Check if we're in the right directory
@@ -242,7 +254,8 @@ check_utf8_encoding() {
     
     # Method 1: Use file command if available (most reliable)
     if command -v file >/dev/null 2>&1; then
-        local file_output=$(file "$file")
+        
+[cite: 237] local file_output=$(file "$file")
         # Check for UTF-8, ASCII, text files, or source files (which are typically UTF-8)
         if echo "$file_output" | grep -q "UTF-8\|ASCII\|text\|[Ss]ource"; then
             echo "✅ $file: UTF-8 encoding verified (file command)"
@@ -251,7 +264,8 @@ check_utf8_encoding() {
             echo "❌ $file is not UTF-8 encoded:"
             echo "   File command output: $file_output"
             return 1
-        fi
+      
+[cite: 238]   fi
     fi
     
     # Method 2: Check for UTF-16 BOM (Windows PowerShell sometimes creates these)
@@ -262,7 +276,8 @@ check_utf8_encoding() {
             return 1
         fi
     elif command -v od >/dev/null 2>&1; then
-        if head -c 2 "$file" | od -t x1 | grep -q "ff fe\|fe ff"; then
+   
+[cite: 239]      if head -c 2 "$file" | od -t x1 | grep -q "ff fe\|fe ff"; then
             echo "❌ $file appears to be UTF-16 encoded (found BOM)"
             echo "   Fix with: iconv -f utf-16 -t utf-8 '$file' -o '$file'"
             return 1
@@ -274,7 +289,8 @@ check_utf8_encoding() {
         if python3 -c "
 import sys
 try:
-    with open('$file', 'r', encoding='utf-8') as f:
+    
+[cite: 240] with open('$file', 'r', encoding='utf-8') as f:
         f.read()
     print('✅ $file: UTF-8 encoding verified (Python check)')
 except UnicodeDecodeError as e:
@@ -289,7 +305,8 @@ except UnicodeDecodeError as e:
     
     # If no validation method available, warn but continue
     echo "⚠️  Cannot verify encoding for $file (no validation tools available)"
-    echo "   Assuming UTF-8. Install 'file' command for proper validation."
+    echo "   
+[cite: 241] Assuming UTF-8. Install 'file' command for proper validation."
     return 0
 }
 
@@ -301,7 +318,8 @@ check_no_bom() {
         if head -c 3 "$file" | xxd | grep -qE "ef[ ]?bb[ ]?bf"; then
             echo "❌ $file contains UTF-8 BOM (should be UTF-8 without BOM)"
             echo "   This can cause issues with Cargo publish and GitHub Actions"
-            echo "   Fix with: tail -c +4 '$file' > temp && mv temp '$file'"
+            echo "   Fix with: tail -c +4 
+[cite: 242] '$file' > temp && mv temp '$file'"
             return 1
         fi
         echo "✅ $file: No BOM detected (correct)"
@@ -309,7 +327,8 @@ check_no_bom() {
         if head -c 3 "$file" | od -t x1 | grep -qE "ef[ ]?bb[ ]?bf"; then
             echo "❌ $file contains UTF-8 BOM (should be UTF-8 without BOM)"
             echo "   This can cause issues with Cargo publish and GitHub Actions"
-            echo "   Fix with: tail -c +4 '$file' > temp && mv temp '$file'"
+            echo 
+[cite: 243] "   Fix with: tail -c +4 '$file' > temp && mv temp '$file'"
             return 1
         fi
         echo "✅ $file: No BOM detected (correct)"
@@ -331,7 +350,8 @@ if find strict-path/src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
     find strict-path/src -name "*.rs" -type f | while read file; do
         check_utf8_encoding "$file" || exit 1
     done
-    echo "✅ All Rust source files in strict-path/src: UTF-8 encoding verified"
+ 
+[cite: 244]    echo "✅ All Rust source files in strict-path/src: UTF-8 encoding verified"
 elif find src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
     find src -name "*.rs" -type f | while read file; do
         check_utf8_encoding "$file" || exit 1
@@ -343,7 +363,8 @@ elif find demos/src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
     done
     echo "✅ All Rust source files in demos/src: UTF-8 encoding verified"
 else
-    echo "⚠️  No Rust source files found in strict-path/src, src/ or demos/src; skipping source file encoding check"
+    echo "⚠️  No Rust 
+[cite: 245] source files found in strict-path/src, src/ or demos/src; skipping source file encoding check"
 fi
 
 echo "🎉 All file encoding checks passed!"
@@ -367,7 +388,8 @@ echo "🦀 Now running CI checks (same as GitHub Actions)..."
 echo
 
 # Run all CI checks in order
-run_check "Format Check" '
+run_check "Format Check" 
+[cite: 246] '
     set -e
     if ! cargo fmt --all -- --check; then
         echo "❌ Formatting check failed. Run cargo fmt --all to fix."
@@ -385,7 +407,8 @@ run_check "Format Check demos" '
     # Run in a subshell to avoid leaking directory changes
     (
       cd demos
-      if ! cargo fmt --all -- --check; then
+      if ! cargo fmt 
+[cite: 247] --all -- --check; then
           echo "❌ Demos formatting check failed. Run cd demos && cargo fmt --all to fix."
           echo "Here is what would be changed:"
           cargo fmt --all -- --check --verbose || true
@@ -401,7 +424,8 @@ run_check "Build examples (library)" "cargo build -p strict-path --examples --al
 get_changed_demo_files_ci() {
     local force_full_test_var="$1"
     
-    # Check if we're in a git repository
+    
+[cite: 248] # Check if we're in a git repository
     if [[ ! -d ".git" ]]; then
         eval "$force_full_test_var=true"
         return
@@ -416,7 +440,8 @@ get_changed_demo_files_ci() {
     
     # Check if core library or demo dependencies changed (force full test)
     local core_changes=()
-    for change in "${all_changes[@]}"; do
+    for change in 
+[cite: 249] "${all_changes[@]}"; do
         if [[ "$change" == strict-path/* ]] || [[ "$change" == "demos/Cargo.toml" ]] || [[ "$change" == "Cargo.toml" ]] || [[ "$change" == "Cargo.lock" ]]; then
             core_changes+=("$change")
         fi
@@ -431,7 +456,8 @@ get_changed_demo_files_ci() {
     local demo_changes=()
     for change in "${all_changes[@]}"; do
         if [[ "$change" == demos/src/bin/*.rs ]]; then
-            demo_changes+=("$change")
+ 
+[cite: 250]            demo_changes+=("$change")
         fi
     done
     
@@ -451,7 +477,8 @@ get_binary_names_from_paths_ci() {
     done
     
     # Remove duplicates and sort
-    printf '%s\n' "${binary_names[@]}" | sort -u
+    printf '%s\n' 
+[cite: 251] "${binary_names[@]}" | sort -u
 }
 
 # Determine what demos to test
@@ -470,7 +497,8 @@ else
         mapfile -t BINARIES_TO_TEST < <(get_binary_names_from_paths_ci "${CHANGED_DEMO_FILES[@]}")
         echo "📋 Changed demo files detected: $(IFS=','; echo "${CHANGED_DEMO_FILES[*]}")"
         echo "🎯 Will test binaries: $(IFS=','; echo "${BINARIES_TO_TEST[*]}")"
-    elif [[ "$FORCE_FULL_DEMO_TEST" != "true" ]]; then
+    elif [[ "$FORCE_FULL_DEMO_TEST" != 
+[cite: 252] "true" ]]; then
         echo "✅ No demo changes detected, skipping demo tests"
         BINARIES_TO_TEST=()
     fi
@@ -488,7 +516,8 @@ if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]] || [[ ${#BINARIES_TO_TEST[@]} -gt 0 ]
     # Run in a subshell to avoid leaking directory changes
     (
         set -e
-        cd demos
+ 
+[cite: 253]        cd demos
         
         # Check for heavy toolchain deps
         if command -v cmake >/dev/null 2>&1 && command -v nasm >/dev/null 2>&1; then
@@ -498,7 +527,8 @@ if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]] || [[ ${#BINARIES_TO_TEST[@]} -gt 0 ]
             ALL_FEATURES="with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path"
         fi
         
-        if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]]; then
+        if [[ "$FORCE_FULL_DEMO_TEST" == 
+[cite: 254] "true" ]]; then
             # Test all demos with all features at once
             echo "==> Clippy demos with features: $ALL_FEATURES"
             cargo clippy --all-targets --features "$ALL_FEATURES" -- -D warnings
@@ -506,7 +536,8 @@ if [[ "$FORCE_FULL_DEMO_TEST" == "true" ]] || [[ ${#BINARIES_TO_TEST[@]} -gt 0 ]
             # Test only specific binaries with all features
             for binary in "${BINARIES_TO_TEST[@]}"; do
                 echo "==> Clippy demo '\''$binary'\'' with features: $ALL_FEATURES"
-                cargo clippy --bin "$binary" --features "$ALL_FEATURES" -- -D warnings
+         
+[cite: 255]        cargo clippy --bin "$binary" --features "$ALL_FEATURES" -- -D warnings
             done
         fi
     )
@@ -529,7 +560,8 @@ DOCS_DIR=""
 if [[ -d ".docs/docs_src" ]]; then
     DOCS_DIR=".docs/docs_src"
 elif [[ -d "docs_src" ]]; then
-    DOCS_DIR="docs_src"
+ 
+[cite: 256]    DOCS_DIR="docs_src"
 else
     echo "ℹ️  No docs worktree found at .docs/docs_src and no local docs_src directory. Skipping mdBook build."
 fi
@@ -540,10 +572,11 @@ if [[ -n "$DOCS_DIR" ]]; then
     else
         echo "⚠️  mdbook not found. Installing..."
         if cargo install mdbook --locked; then
-            echo "✓ mdbook installed successfully"
+            echo "✅ mdbook installed successfully"
             run_check "Build mdbook docs" "(cd \"$DOCS_DIR\" && mdbook build)"
         else
-            echo "❌ Failed to install mdbook. Skipping documentation build."
+    
+[cite: 257]         echo "❌ Failed to install mdbook. Skipping documentation build."
             echo "💡 To install manually: cargo install mdbook"
             echo "💡 Then run: cd $DOCS_DIR && mdbook build"
         fi
@@ -557,16 +590,17 @@ if command -v cargo-audit &> /dev/null; then
 else
     echo "⚠️  cargo-audit not found. Installing..."
     if cargo install cargo-audit --locked; then
-        echo "✓ cargo-audit installed successfully"
+        echo "✅ cargo-audit installed successfully"
         run_check "Security Audit" "cargo audit"
     else
-        echo "❌ Failed to install cargo-audit. Skipping security audit."
+       
+[cite: 258]  echo "❌ Failed to install cargo-audit. Skipping security audit."
         echo "💡 To install manually: cargo install cargo-audit"
     fi
 fi
 if command -v rustup &> /dev/null; then
     if rustup toolchain list | grep -q "1.71.0"; then
-        echo "✓ Found Rust 1.71.0 toolchain, checking MSRV compatibility..."
+        echo "✅ Found Rust 1.71.0 toolchain, checking MSRV compatibility..."
 
         # Ensure Clippy is installed for MSRV
         if ! rustup component list --toolchain 1.71.0 | grep -q "clippy.*(installed)"; then
@@ -574,21 +608,25 @@ if command -v rustup &> /dev/null; then
             rustup component add clippy --toolchain 1.71.0
         fi
 
-        # Run MSRV checks scoped to the library package only
+   
+[cite: 259]      # Run MSRV checks scoped to the library package only
         run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" || true
         run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose"
         run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
-        run_check_try "MSRV Clippy Lint (no features)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
+        run_check_try "MSRV Clippy Lint (no features)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked 
+[cite: 260] -p strict-path --lib --no-default-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
         run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose"
     else
         echo "⚠️  Rust 1.71.0 not installed. Installing for MSRV check..."
         if rustup toolchain install 1.71.0; then
             echo "🔧 Installing Clippy for Rust 1.71.0..."
             rustup component add clippy --toolchain 1.71.0
-            run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features"
+          
+[cite: 261]   run_fix "MSRV Clippy Auto-fix" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features"
             run_check_try "MSRV Check (Rust 1.71.0)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo check -p strict-path --lib --locked --verbose"
             run_check_try "MSRV Clippy Lint" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
-            run_check_try "MSRV Clippy Lint (no features)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
+            run_check_try "MSRV Clippy Lint (no features)" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings" "CARGO_TARGET_DIR=target/msrv rustup run 
+[cite: 262] 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
             run_check_try "MSRV Test" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose" "CARGO_TARGET_DIR=target/msrv rustup run 1.71.0 cargo test -p strict-path --lib --all-features --locked --verbose"
     else
         echo "❌ Failed to install Rust 1.71.0. Skipping MSRV check."
@@ -601,5 +639,6 @@ else
 fi
 
 echo "🎉 All CI checks passed!"
-echo "💡 Remember to review and commit any auto-fixes made."
+echo "💡 Remember to review and commit 
+[cite: 263] any auto-fixes made."
 echo "Ready to push to remote."

@@ -21,7 +21,8 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --fix-changed)
-            DO_FIX_CHANGED=true
+      
+       DO_FIX_CHANGED=true
             shift
             ;;
         --demos)
@@ -37,7 +38,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "=== CI Check: demos crate ==="
-if $FULL_TEST; then
+if 
+ $FULL_TEST; then
     echo "Full validation mode (testing all demos)"
 else
     echo "Smart validation mode (testing only changed demos)"
@@ -57,8 +59,9 @@ if ! command -v cargo &> /dev/null; then
     
     for cargo_path in "${CARGO_PATHS[@]}"; do
         if [[ -x "$cargo_path" ]]; then
-            export PATH="$(dirname "$cargo_path"):$PATH"
-            echo "✓ Found cargo at: $cargo_path"
+            
+ export PATH="$(dirname "$cargo_path"):$PATH"
+            echo "✅ Found cargo at: $cargo_path"
             break
         fi
     done
@@ -70,7 +73,7 @@ if ! command -v cargo &> /dev/null; then
     fi
 fi
 
-echo "✓ Using cargo: $(command -v cargo)"
+echo "✅ Using cargo: $(command -v cargo)"
 
 # Check Rust version
 RUST_VERSION=$(rustc --version)
@@ -85,18 +88,19 @@ run_check() {
     echo "Running: $name"
     echo "Command: $command"
     
-    start_time=$(date +%s)
+  
+   start_time=$(date +%s)
     
     if eval "$command"; then
         end_time=$(date +%s)
         duration=$((end_time - start_time))
-        echo "✓ $name completed in ${duration}s"
+        echo "✅ $name completed in ${duration}s"
         echo
         return 0
     else
         end_time=$(date +%s)
         duration=$((end_time - start_time))
-        echo "✗ $name failed after ${duration}s"
+        echo "❌ $name failed after ${duration}s"
         echo "❌ Validation checks failed."
         exit 1
     fi
@@ -106,7 +110,8 @@ run_fix() {
     local name="$1"
     local command="$2"
     
-    echo "Auto-fixing: $name"
+  
+   echo "Auto-fixing: $name"
     echo "Command: $command"
     
     start_time=$(date +%s)
@@ -114,15 +119,16 @@ run_fix() {
     if eval "$command"; then
         end_time=$(date +%s)
         duration=$((end_time - start_time))
-        echo "✓ $name auto-fix completed in ${duration}s"
+        echo "✅ $name auto-fix completed in ${duration}s"
         echo
         return 0
     else
         end_time=$(date +%s)
         duration=$((end_time - start_time))
-        echo "✗ $name auto-fix failed after ${duration}s"
+        echo "❌ $name auto-fix failed after ${duration}s"
         echo "⚠️  Continuing with checks anyway..."
-        echo
+   
+      echo
         return 1
     fi
 }
@@ -141,7 +147,8 @@ get_changed_demo_files() {
     fi
     
     # Get staged changes (ready to commit) and unstaged changes (working directory)
-    local staged_changes=($(git diff --cached --name-only 2>/dev/null || true))
+    local staged_changes=($(git diff 
+ --cached --name-only 2>/dev/null || true))
     local unstaged_changes=($(git diff --name-only 2>/dev/null || true))
     
     # Combine and deduplicate changes
@@ -157,7 +164,8 @@ get_changed_demo_files() {
         fi
     done
     
-    if [[ ${#demo_changes[@]} -eq 0 ]]; then
+    if [[ ${#demo_changes[@]} -eq 
+ 0 ]]; then
         echo "✅ No demo files changed, nothing to validate." >&2
         return
     fi
@@ -177,7 +185,8 @@ get_binary_names_from_paths() {
     
     for path in "${paths[@]}"; do
         # Extract binary name from demos/src/bin/<category>/<binary_name>.rs
-        if [[ "$path" =~ demos/src/bin/[^/]+/([^/]+)\.rs$ ]]; then
+        if [[ 
+ "$path" =~ demos/src/bin/[^/]+/([^/]+)\.rs$ ]]; then
             binary_names+=("${BASH_REMATCH[1]}")
         fi
     done
@@ -204,7 +213,8 @@ echo "🔍 Validating UTF-8 encoding for critical files..."
 check_utf8_encoding() {
     local file="$1"
     
-    # Check if file exists
+   
+  # Check if file exists
     if [[ ! -f "$file" ]]; then
         echo "❌ File not found: $file"
         return 1
@@ -216,6 +226,7 @@ check_utf8_encoding() {
         # Check for UTF-8, ASCII, text files, or source files (which are typically UTF-8)
         if echo "$file_output" | grep -q "UTF-8\|ASCII\|text\|[Ss]ource"; then
             echo "✅ $file: UTF-8 encoding verified (file command)"
+ 
             return 0
         else
             echo "❌ $file is not UTF-8 encoded:"
@@ -230,7 +241,8 @@ check_utf8_encoding() {
 import sys
 try:
     with open('$file', 'r', encoding='utf-8') as f:
-        f.read()
+    
+     f.read()
     print('✅ $file: UTF-8 encoding verified (Python check)')
 except UnicodeDecodeError as e:
     print('❌ $file: Not valid UTF-8 -', str(e))
@@ -245,7 +257,8 @@ except UnicodeDecodeError as e:
     # If no validation method available, warn but continue
     echo "⚠️  Cannot verify encoding for $file (no validation tools available)"
     echo "   Assuming UTF-8. Install 'file' command for proper validation."
-    return 0
+    return 
+ 0
 }
 
 check_no_bom() {
@@ -257,14 +270,16 @@ check_no_bom() {
             echo "❌ $file contains UTF-8 BOM (should be UTF-8 without BOM)"
             echo "   This can cause issues with Cargo publish and GitHub Actions"
             echo "   Fix with: tail -c +4 '$file' > temp && mv temp '$file'"
-            return 1
+   
+          return 1
         fi
         echo "✅ $file: No BOM detected (correct)"
     elif command -v od >/dev/null 2>&1; then
         if head -c 3 "$file" | od -t x1 | grep -qE "ef[ ]?bb[ ]?bf"; then
             echo "❌ $file contains UTF-8 BOM (should be UTF-8 without BOM)"
             echo "   This can cause issues with Cargo publish and GitHub Actions"
-            echo "   Fix with: tail -c +4 '$file' > temp && mv temp '$file'"
+            echo "   Fix with: tail -c +4 '$file' 
+ > temp && mv temp '$file'"
             return 1
         fi
         echo "✅ $file: No BOM detected (correct)"
@@ -288,7 +303,8 @@ fi
 echo "📄 Checking demos Rust source files..."
 if find demos/src -name "*.rs" -type f | head -1 >/dev/null 2>&1; then
     find demos/src -name "*.rs" -type f | while read file; do
-        check_utf8_encoding "$file" || exit 1
+  
+       check_utf8_encoding "$file" || exit 1
     done
     echo "✅ All Rust source files in demos/src: UTF-8 encoding verified"
 else
@@ -306,7 +322,8 @@ if $FULL_TEST || $DO_FIX; then
     echo "🔧 Auto-fixing common issues..."
     run_fix "Format demos" "(cd demos && cargo fmt --all)"
     # Use safe features for auto-fix (avoid heavy dependencies like AWS that require cmake/nasm)
-    run_fix "Clippy Fixable Issues (demos)" "(cd demos && cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path')"
+    run_fix "Clippy Fixable Issues (demos)" 
+ "(cd demos && cargo clippy --fix --allow-dirty --allow-staged --all-targets --features 'with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path')"
     run_fix "Format demos (after clippy fix)" "(cd demos && cargo fmt --all)"
 else
     echo "⏭️  Skipping auto-fix (use --full, --fix or --fix-changed to enable)."
@@ -323,7 +340,8 @@ if [[ "$FORCE_FULL_TEST" == "true" ]]; then
         # Run in a subshell to avoid leaking directory changes
         (
           cd demos
-          if ! cargo fmt --all -- --check; then
+          if ! cargo fmt --all -- --check; 
+ then
               echo "❌ Demos formatting check failed. Run cd demos && cargo fmt --all to fix."
               echo "Here is what would be changed:"
               cargo fmt --all -- --check --verbose || true
@@ -333,7 +351,8 @@ if [[ "$FORCE_FULL_TEST" == "true" ]]; then
     '
 elif [[ ${#CHANGED_DEMO_FILES[@]} -gt 0 ]]; then
     # Fast format check - only changed files
-    # Default behavior: auto-format changed files (no compilation)
+    # Default behavior: auto-format changed files (no 
+ compilation)
     if ! $FULL_TEST && ! $DO_FIX && ! $DO_FIX_CHANGED; then
         run_fix "Format changed demo files" "rustfmt $(printf '%q ' \"${CHANGED_DEMO_FILES[@]}\")"
     fi
@@ -344,7 +363,8 @@ elif [[ ${#CHANGED_DEMO_FILES[@]} -gt 0 ]]; then
         # Use rustfmt directly on the changed files
         if ! rustfmt --check "${CHANGED_DEMO_FILES[@]}"; then
             echo "❌ Format check failed for changed demo files."
-            echo "Fix with: rustfmt $(printf '"'"'%s '"'"' "${CHANGED_DEMO_FILES[@]}")"
+            echo "Fix with: rustfmt $(printf '"'"'%s '"'"' 
+ "${CHANGED_DEMO_FILES[@]}")"
             exit 1
         fi
         echo "✅ All changed demo files are properly formatted"
@@ -360,7 +380,8 @@ if $DO_FIX_CHANGED && [[ ${#CHANGED_DEMO_FILES[@]} -gt 0 ]] && ! $FULL_TEST && !
     # 2) Run clippy --fix per affected binary with safe features
     mapfile -t CHANGED_BINS < <(get_binary_names_from_paths "${CHANGED_DEMO_FILES[@]}")
     if [[ ${#CHANGED_BINS[@]} -gt 0 ]]; then
-        (
+    
+     (
             cd demos
             for bin in "${CHANGED_BINS[@]}"; do
                 echo "Clippy fix for demo bin: $bin"
@@ -375,6 +396,7 @@ fi
 # Determine what to test
 FORCE_FULL_TEST=false
 if $FULL_TEST; then
+ 
     echo "📋 Full test mode requested via --full flag"
     FORCE_FULL_TEST=true
 elif [[ -n "$DEMOS" ]]; then
@@ -389,7 +411,8 @@ else
     # Default behavior: auto-format changed files (no compilation)
     if [[ "$FORCE_FULL_TEST" != "true" ]] && [[ ${#CHANGED_DEMO_FILES[@]} -gt 0 ]] && ! $FULL_TEST && ! $DO_FIX && ! $DO_FIX_CHANGED; then
         run_fix "Format changed demo files" "rustfmt $(printf '%q ' \"${CHANGED_DEMO_FILES[@]}\")"
-    fi
+  
+   fi
     if [[ "$FORCE_FULL_TEST" != "true" ]] && [[ ${#CHANGED_DEMO_FILES[@]} -gt 0 ]]; then
         mapfile -t BINARIES_TO_TEST < <(get_binary_names_from_paths "${CHANGED_DEMO_FILES[@]}")
         echo "📋 Changed demo files detected:"
@@ -399,7 +422,8 @@ else
         echo "🎯 Will test binaries: $(IFS=','; echo "${BINARIES_TO_TEST[*]}")"
     elif [[ "$FORCE_FULL_TEST" != "true" ]]; then
         echo "✅ No demo changes detected, skipping clippy tests"
-        echo "💡 Use --full flag to force full testing"
+        echo "💡 Use --full flag 
+ to force full testing"
         echo
         echo "🎉 No demo validation needed!"
         echo "💡 This was a smart check - no demo changes detected."
@@ -415,7 +439,8 @@ if [[ "$FORCE_FULL_TEST" == "true" ]]; then
         # Run in a subshell to avoid leaking directory changes
         (
             set -e
-            cd demos
+         
+    cd demos
             
             # Check for heavy toolchain deps
             if command -v cmake >/dev/null 2>&1 && command -v nasm >/dev/null 2>&1; then
@@ -423,7 +448,8 @@ if [[ "$FORCE_FULL_TEST" == "true" ]]; then
             else
                 echo "⚠️  WARNING: Skipping '\''with-aws'\'' feature: cmake and/or nasm not found on PATH"
                 ALL_FEATURES="with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp,virtual-path"
-            fi
+    
+         fi
             
             # Single combined test: compile once with all available features
             echo "==> Clippy demos with features: $ALL_FEATURES"
@@ -433,7 +459,8 @@ if [[ "$FORCE_FULL_TEST" == "true" ]]; then
 elif [[ ${#BINARIES_TO_TEST[@]} -gt 0 ]]; then
     # Ultra-fast validation - file-level checks only (no compilation/builds)
     run_check "Ultra-Fast Demos (SELECTIVE: $(IFS=','; echo "${BINARIES_TO_TEST[*]}"))" '
-        echo "🚀 Ultra-fast validation (no builds, no dependency downloads)..."
+        echo "🚀 Ultra-fast validation (no builds, no 
+ dependency downloads)..."
         
         # Format check on changed files only
         echo "==> Format check on changed demo files..."
@@ -444,7 +471,8 @@ elif [[ ${#BINARIES_TO_TEST[@]} -gt 0 ]]; then
         echo "✅ Format check passed for changed demo files"
         
         echo "💡 Selective validation complete - only checked changed files for formatting."
-        echo "💡 For full lint/syntax checks, use --full flag or run ci-local.sh"
+        echo "💡 For full lint/syntax 
+ checks, use --full flag or run ci-local.sh"
     '
 fi
 
