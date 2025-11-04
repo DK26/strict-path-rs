@@ -305,7 +305,8 @@ let jail = VirtualRoot::try_new("./user_data")?;
 </span><span class="boring">fn main() {
 </span>let uploads_dir = PathBoundary::try_new("./uploads")?;
 let config_dir = PathBoundary::try_new("./config")?;
-let user_data = VirtualRoot::try_new("./user_data")?;
+let user_id = "alice";
+let user_data = VirtualRoot::try_new(format!("./user_data/{user_id}"))?;
 <span class="boring">}</span></code></pre></pre>
 <p>Now <code>uploads_dir.strict_join("photo.jpg")</code> reads naturally as "uploads directory join photo.jpg".</p>
 <h2 id="functions-that-accept-dangerous-inputs"><a class="header" href="#functions-that-accept-dangerous-inputs">Functions That Accept Dangerous Inputs</a></h2>

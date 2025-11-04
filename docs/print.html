@@ -183,6 +183,13 @@
 <h2 id="what-is-strict-path"><a class="header" href="#what-is-strict-path">What is strict-path?</a></h2>
 <p>Have you ever worried about users trying to access files they shouldn't? Like when someone enters <code>../../../etc/passwd</code> to try to escape from a safe directory? That's called a "directory traversal" attack, and it's surprisingly common.</p>
 <p><strong>strict-path strictly enforces path boundaries to prevent directory traversal attacks.</strong> It creates safe boundaries that paths cannot escape from. It comes in two modes: StrictPath (via PathBoundary) which detects and rejects escape attempts, and VirtualPath (via VirtualRoot) which contains and redirects escape attempts within a virtual sandbox.</p>
+<h2 id="which-type-should-i-use"><a class="header" href="#which-type-should-i-use">Which Type Should I Use?</a></h2>
+<ul>
+<li><strong>Path/PathBuf</strong> (std): When the path comes from a safe source within your control, not external input.</li>
+<li><strong>StrictPath</strong>: When you want to restrict paths to a specific boundary and error if they escape.</li>
+<li><strong>VirtualPath</strong>: When you want to provide path freedom under isolation.</li>
+</ul>
+<p>See the <strong><a href="./best_practices.html#pick-the-right-type-quick-reference">Complete Decision Matrix →</a></strong> for detailed guidance.</p>
 <h2 id="why-should-you-care"><a class="header" href="#why-should-you-care">Why Should You Care?</a></h2>
 <p>Directory traversal vulnerabilities are everywhere:</p>
 <ul>
@@ -192,8 +199,26 @@
 <li>Systems that extract archives (ZIP files, etc.)</li>
 </ul>
 <p>Getting path security wrong can expose your entire filesystem to attackers. With strict-path, the Rust compiler helps ensure you can't make these mistakes.</p>
+<h2 id="get-secure-in-30-seconds"><a class="header" href="#get-secure-in-30-seconds">Get Secure in 30 Seconds</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+// GET /download?file=report.pdf
+let user_input = request.query_param("file"); // Untrusted: "report.pdf" or "../../etc/passwd"
+let untrusted_user_input = user_input.to_string();
+
+let file = StrictPath::with_boundary("/var/app/downloads")?
+    .strict_join(&amp;untrusted_user_input)?; // Validates untrusted input - attack blocked!
+
+let contents = file.read()?; // Built-in safe I/O
+<span class="boring">}</span></code></pre></pre>
+<p><strong>That's it.</strong> Simple, safe, and path traversal attacks are blocked automatically.</p>
+<blockquote>
+<p><strong>Analogy:</strong> <code>StrictPath</code> is to paths what prepared statements are to SQL. The boundary is your prepared statement (the policy). The untrusted segment is the parameter (validated safely). Injection attempts become inert.</p>
+</blockquote>
 <h2 id="your-first-pathboundary"><a class="header" href="#your-first-pathboundary">Your First PathBoundary</a></h2>
-<p>Let's start with a simple example. Say you're building a web app where users can upload and download their files, but you want to keep them contained in a specific directory:</p>
+<p>For reusable boundaries (e.g., passing to functions), use <code>PathBoundary</code>:</p>
 <pre><pre class="playground"><code class="language-rust">use strict_path::PathBoundary;
 
 fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
@@ -201,16 +226,17 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     // This creates the directory if it doesn't exist
     let user_files_dir = PathBoundary::try_new_create("user_files")?;
 
-    // Now any path we validate through this path boundary will be contained
-    // within the "user_files" directory
-
-    // ✅ This is SAFE - creates "user_files/documents/report.txt"
-    let report = user_files_dir.strict_join("documents/report.txt")?;
+    // Simulate user input from HTTP request, CLI args, form data, etc.
+    let user_input = "documents/report.txt"; // In real code: from request.form_data()
+    
+    // ✅ This is SAFE - validates and creates "user_files/documents/report.txt"
+    let report = user_files_dir.strict_join(user_input)?;
     report.create_parent_dir_all()?;
     report.write("Quarterly report contents")?;
 
     // ❌ This would FAIL - can't escape the path boundary!
-    // let _bad = user_files_dir.strict_join("../../../etc/passwd")?; // Error!
+    let attack_input = "../../../etc/passwd"; // Attacker-controlled input
+    // let _bad = user_files_dir.strict_join(attack_input)?; // Error!
 
     let display = report.strictpath_display();
     println!("Safe path: {display}");
@@ -1651,7 +1677,10 @@ fn protected(path: &amp;StrictPath&lt;(Resource, ReadWrite)&gt;) {
 </span>use strict_path::StrictPath;
 
 fn show_user_files() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let uploads_dir = StrictPath::with_boundary_create("/var/app/users/alice/uploads")?;
+    let username = "alice";
+    let uploads_dir = StrictPath::with_boundary_create(
+        format!("/var/app/users/{username}/uploads"),
+    )?;
     let file = uploads_dir.strict_join("documents/report.pdf")?;
 
     // User sees ugly system path
@@ -1678,8 +1707,11 @@ fn show_user_files() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 </span>use strict_path::VirtualPath;
 
 fn show_user_files_virtually() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Create a virtual root (system boundary: /var/app/users/alice/uploads)
-    let user_vroot = VirtualPath::with_root("/var/app/users/alice/uploads")?;
+    // Create a virtual root (system boundary: /var/app/users/{user}/uploads)
+    let username = "alice";
+    let user_vroot = VirtualPath::with_root(
+        format!("/var/app/users/{username}/uploads"),
+    )?;
     
     let file = user_vroot.virtual_join("documents/report.pdf")?;
 
@@ -2084,414 +2116,241 @@ println!("System: {}", vpath.as_unvirtual().strictpath_display());  // path/file
 vpath.write(data)?;
 let content = vpath.read_to_string()?;
 <span class="boring">}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="stage-6-feature-integration--ecosystem-integration-with-safe-boundaries"><a class="header" href="#stage-6-feature-integration--ecosystem-integration-with-safe-boundaries">Stage 6: Feature Integration — Ecosystem Integration with Safe Boundaries</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="stage-6-ecosystem-integration"><a class="header" href="#stage-6-ecosystem-integration">Stage 6: Ecosystem Integration</a></h1>
 <blockquote>
-<p><em>"Integrate with OS directories, temp files, and app-specific paths — safely."</em></p>
+<p><em>"Compose strict-path with ecosystem tools — security primitives, not wrappers."</em></p>
 </blockquote>
-<p>You've mastered the core concepts: boundaries, markers, authorization, and virtual paths. Now you'll learn how to integrate strict-path with your ecosystem using <strong>feature-gated constructors</strong> that work seamlessly with popular Rust crates.</p>
-<h2 id="the-problem-external-directory-apis"><a class="header" href="#the-problem-external-directory-apis">The Problem: External Directory APIs</a></h2>
-<p>Your app needs to work with standard directories:</p>
-<ul>
-<li><strong>User config:</strong> <code>~/.config/myapp/</code> (Linux) or <code>C:\Users\Alice\AppData\Roaming\myapp\</code> (Windows)</li>
-<li><strong>Temp files:</strong> System temp directory with automatic cleanup</li>
-<li><strong>Downloads:</strong> User's Downloads folder</li>
-<li><strong>App directories:</strong> Portable app-specific paths</li>
-</ul>
-<p>But you still need <strong>boundary enforcement</strong>! Otherwise, untrusted input can escape these directories too.</p>
-<h2 id="the-solution-feature-gated-constructors"><a class="header" href="#the-solution-feature-gated-constructors">The Solution: Feature-Gated Constructors</a></h2>
-<p>Enable features in <code>Cargo.toml</code>:</p>
-<pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-beta.2", features = ["dirs", "tempfile", "app-path", "serde"] }
-</code></pre>
-<p>Now you get special constructors that combine external crate APIs with strict-path's boundary enforcement.</p>
-<h2 id="feature-dirs--os-standard-directories"><a class="header" href="#feature-dirs--os-standard-directories">Feature: <code>dirs</code> — OS Standard Directories</a></h2>
-<p>The <code>dirs</code> feature adds constructors for platform-specific user directories:</p>
+<p>You've mastered the core concepts: boundaries, markers, authorization, and virtual paths. Now you'll learn how to integrate <code>strict-path</code> with popular Rust ecosystem crates for real-world applications.</p>
+<h2 id="the-philosophy"><a class="header" href="#the-philosophy">The Philosophy</a></h2>
+<p><strong><code>strict-path</code> provides security primitives. You compose them with ecosystem tools.</strong></p>
+<p>We don't wrap external crates behind feature flags. Instead, we show you how to use them together effectively — giving you full control and explicit security.</p>
+<hr />
+<h2 id="quick-integration-examples"><a class="header" href="#quick-integration-examples">Quick Integration Examples</a></h2>
+<h3 id="temporary-directories-tempfile"><a class="header" href="#temporary-directories-tempfile">Temporary Directories (<code>tempfile</code>)</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use tempfile::TempDir;
+
+fn process_upload() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create temp directory with RAII cleanup
+    let temp_dir = tempfile::tempdir()?;
+
+    // Establish strict boundary
+    let upload_boundary = PathBoundary::try_new(temp_dir.path())?;
+
+    // Safe operations within boundary
+    let user_file = upload_boundary.strict_join("user/data.txt")?;
+    user_file.create_parent_dir_all()?;
+    user_file.write(b"uploaded content")?;
+
+    // Escape attempts are blocked
+    match upload_boundary.strict_join("../../etc/passwd") {
+        Ok(_) =&gt; panic!("Should not escape!"),
+        Err(e) =&gt; println!("✓ Attack blocked: {}", e),
+    }
+
+    Ok(())
+    // temp_dir automatically deleted when dropped
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why this works</strong>: RAII cleanup from <code>tempfile</code>, security from <code>strict-path</code>.</p>
+<hr />
+<h3 id="portable-app-paths-app-path"><a class="header" href="#portable-app-paths-app-path">Portable App Paths (<code>app-path</code>)</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use app_path::AppPath;
+
+fn setup_portable_app() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Executable-relative path
+    let app_path = AppPath::new("MyPortableApp");
+    let app_dir = app_path.get_app_dir();
+
+    // Establish boundary
+    let boundary = PathBoundary::try_new_create(&amp;app_dir)?;
+
+    // Safe config access
+    let config = boundary.strict_join("config/settings.ini")?;
+    config.create_parent_dir_all()?;
+    config.write(b"[settings]\nportable=true\n")?;
+
+    println!("App directory: {}", boundary.strictpath_display());
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Use cases</strong>: USB drives, CI/CD, containers with custom paths.</p>
+<hr />
+<h3 id="os-directories-dirs"><a class="header" href="#os-directories-dirs">OS Directories (<code>dirs</code>)</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::PathBoundary;
 
-struct AppConfig;
-struct UserDownloads;
-struct UserDocuments;
+fn setup_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Platform-specific config directory
+    let config_base = dirs::config_dir()
+        .ok_or("No config directory")?;
 
-fn use_os_directories() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Get user's config directory (platform-specific)
-    let config_dir: PathBoundary&lt;AppConfig&gt; = PathBoundary::try_new_os_config("myapp")?;
-    // Linux: ~/.config/myapp/
+    // App-specific subdirectory boundary
+    let app_config = config_base.join("myapp");
+    let boundary = PathBoundary::try_new_create(&amp;app_config)?;
+
+    // Cross-platform locations:
+    // Linux:   ~/.config/myapp/
     // Windows: C:\Users\Alice\AppData\Roaming\myapp\
-    // macOS: ~/Library/Application Support/myapp/
+    // macOS:   ~/Library/Application Support/myapp/
 
-    let config_file = config_dir.strict_join("settings.toml")?;
-    config_file.write(b"theme = dark\nlanguage = en")?;
-    println!("Config: {}", config_file.strictpath_display());
-
-    // Get user's downloads directory
-    let downloads_dir: PathBoundary&lt;UserDownloads&gt; = PathBoundary::try_new_os_downloads()?;
-    let export_file = downloads_dir.strict_join("export.csv")?;
-    export_file.write(b"col1,col2\nval1,val2")?;
-    println!("Export: {}", export_file.strictpath_display());
-
-    // Get user's documents directory
-    let docs_dir: PathBoundary&lt;UserDocuments&gt; = PathBoundary::try_new_os_documents()?;
-    let report = docs_dir.strict_join("report.pdf")?;
-    report.write(b"PDF content")?;
-    println!("Report: {}", report.strictpath_display());
+    let settings = boundary.strict_join("settings.toml")?;
+    settings.write(b"[app]\nversion = '1.0'\n")?;
 
     Ok(())
 }
 <span class="boring">}</span></code></pre></pre>
-<h3 id="available-os-directory-constructors"><a class="header" href="#available-os-directory-constructors">Available OS Directory Constructors</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Constructor</th><th>Linux</th><th>Windows</th><th>macOS</th></tr></thead><tbody>
-<tr><td><code>try_new_os_config("app")</code></td><td><code>~/.config/app/</code></td><td><code>C:\Users\...\AppData\Roaming\app\</code></td><td><code>~/Library/Application Support/app/</code></td></tr>
-<tr><td><code>try_new_os_data("app")</code></td><td><code>~/.local/share/app/</code></td><td><code>C:\Users\...\AppData\Roaming\app\</code></td><td><code>~/Library/Application Support/app/</code></td></tr>
-<tr><td><code>try_new_os_cache("app")</code></td><td><code>~/.cache/app/</code></td><td><code>C:\Users\...\AppData\Local\app\</code></td><td><code>~/Library/Caches/app/</code></td></tr>
-<tr><td><code>try_new_os_downloads()</code></td><td><code>~/Downloads/</code></td><td><code>C:\Users\...\Downloads\</code></td><td><code>~/Downloads/</code></td></tr>
-<tr><td><code>try_new_os_documents()</code></td><td><code>~/Documents/</code></td><td><code>C:\Users\...\Documents\</code></td><td><code>~/Documents/</code></td></tr>
-<tr><td><code>try_new_os_pictures()</code></td><td><code>~/Pictures/</code></td><td><code>C:\Users\...\Pictures\</code></td><td><code>~/Pictures/</code></td></tr>
-<tr><td><code>try_new_os_videos()</code></td><td><code>~/Videos/</code></td><td><code>C:\Users\...\Videos\</code></td><td><code>~/Videos/</code></td></tr>
-<tr><td><code>try_new_os_music()</code></td><td><code>~/Music/</code></td><td><code>C:\Users\...\Music\</code></td><td><code>~/Music/</code></td></tr>
-</tbody></table>
-</div>
-<p>See the <a href="tutorial/../os_directories.html">OS Directories chapter</a> for the complete list and details.</p>
-<h3 id="try-it-cross-platform-config-manager"><a class="header" href="#try-it-cross-platform-config-manager">Try It: Cross-Platform Config Manager</a></h3>
-<pre><pre class="playground"><code class="language-rust">use strict_path::PathBoundary;
-
-struct AppSettings;
-
-fn save_user_settings(theme: &amp;str, language: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Works on Linux, Windows, and macOS automatically!
-    let config_dir: PathBoundary&lt;AppSettings&gt; = 
-        PathBoundary::try_new_os_config("myapp")?;
-
-    let settings_file = config_dir.strict_join("settings.toml")?;
-    let content = format!("theme = {}\nlanguage = {}\n", theme, language);
-    settings_file.write(content.as_bytes())?;
-
-    println!("Settings saved to: {}", settings_file.strictpath_display());
-    Ok(())
-}
-
-fn load_user_settings() -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
-    let config_dir: PathBoundary&lt;AppSettings&gt; = 
-        PathBoundary::try_new_os_config("myapp")?;
-
-    let settings_file = config_dir.strict_join("settings.toml")?;
-    Ok(settings_file.read_to_string()?)
-}
-
-fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    save_user_settings("dark", "en")?;
-    let settings = load_user_settings()?;
-    println!("Loaded settings:\n{}", settings);
-    Ok(())
-}</code></pre></pre>
-<h2 id="feature-tempfile--automatic-cleanup-with-raii"><a class="header" href="#feature-tempfile--automatic-cleanup-with-raii">Feature: <code>tempfile</code> — Automatic Cleanup with RAII</a></h2>
-<p>The <code>tempfile</code> feature works with the <code>tempfile</code> crate for automatic cleanup:</p>
-<pre><pre class="playground"><code class="language-rust">use strict_path::PathBoundary;
-use tempfile::TempDir;
-
-struct WorkDir;
-
-fn process_with_temp() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Create temporary directory (cleaned up automatically when dropped)
-    let temp = TempDir::new()?;
-    
-    println!("Created temp directory: {:?}", temp.path());
-
-    // Wrap in PathBoundary for safe operations
-    let work_dir: PathBoundary&lt;WorkDir&gt; = PathBoundary::try_new(temp.path())?;
-
-    // Do work inside temp directory — all paths validated!
-    let intermediate = work_dir.strict_join("intermediate.json")?;
-    intermediate.write(b"{\"status\": \"processing\"}")?;
-
-    let output = work_dir.strict_join("output.txt")?;
-    output.write(b"Final result")?;
-
-    // Try to escape — fails!
-    match work_dir.strict_join("../../../etc/passwd") {
-        Ok(_) =&gt; println!("❌ Escape succeeded (should not happen!)"),
-        Err(e) =&gt; println!("✅ Escape blocked: {}", e),
-    }
-
-    println!("Work directory: {}", work_dir.strictpath_display());
-    println!("Output file: {}", output.strictpath_display());
-
-    // When this function returns, `temp` is dropped → directory deleted automatically
-    Ok(())
-}
-
-fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    process_with_temp()?;
-    println!("Temp directory has been automatically cleaned up!");
-    Ok(())
-}</code></pre></pre>
-<p><strong>Key benefits:</strong></p>
-<ul>
-<li>✅ <strong>RAII cleanup</strong> — temp directory deleted when <code>TempDir</code> drops</li>
-<li>✅ <strong>Boundary enforcement</strong> — even in temp directories, paths can't escape</li>
-<li>✅ <strong>No manual cleanup</strong> — Rust handles it for you</li>
-</ul>
-<h3 id="try-it-safe-archive-processing"><a class="header" href="#try-it-safe-archive-processing">Try It: Safe Archive Processing</a></h3>
+<hr />
+<h3 id="serialization-serde-via-fromstr"><a class="header" href="#serialization-serde-via-fromstr">Serialization (<code>serde</code> via <code>FromStr</code>)</a></h3>
+<p><code>PathBoundary</code> and <code>VirtualRoot</code> implement <code>FromStr</code>, so they deserialize automatically:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::PathBoundary;
-use tempfile::TempDir;
+use serde::Deserialize;
 
-struct ArchiveExtract;
-
-fn extract_and_process_archive(archive_data: &amp;[u8]) 
-    -&gt; Result&lt;Vec&lt;String&gt;, Box&lt;dyn std::error::Error&gt;&gt; 
-{
-    // Create temp directory for extraction
-    let temp = TempDir::new()?;
-    let extract_dir: PathBoundary&lt;ArchiveExtract&gt; = 
-        PathBoundary::try_new(temp.path())?;
-
-    // Simulate extracting files (in reality, use zip crate)
-    let file1 = extract_dir.strict_join("readme.txt")?;
-    file1.write(b"Archive contents...")?;
-
-    let file2 = extract_dir.strict_join("data/values.csv")?;
-    file2.create_parent_dir_all()?;
-    file2.write(b"col1,col2\n1,2")?;
-
-    // Even if archive contains hostile paths, they're validated
-    match extract_dir.strict_join("../../../evil.sh") {
-        Ok(_) =&gt; println!("❌ Hostile path accepted!"),
-        Err(e) =&gt; println!("✅ Hostile path blocked: {}", e),
-    }
-
-    // Collect extracted files
-    let mut files = Vec::new();
-    files.push(file1.strictpath_display().to_string());
-    files.push(file2.strictpath_display().to_string());
-
-    // Temp directory deleted automatically when function returns
-    Ok(files)
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="feature-app-path--portable-application-directories"><a class="header" href="#feature-app-path--portable-application-directories">Feature: <code>app-path</code> — Portable Application Directories</a></h2>
-<p>The <code>app-path</code> feature provides portable app-specific paths with environment variable overrides:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::PathBoundary;
-
-struct AppLogs;
-struct AppData;
-
-fn setup_app_directories() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Get app-specific log directory with environment override support
-    // If MYAPP_LOGS_DIR is set, uses that path
-    // Otherwise, uses platform-specific app directory + "logs" subdirectory
-    let logs_dir: PathBoundary&lt;AppLogs&gt; = 
-        PathBoundary::try_new_app_path("logs", Some("MYAPP_LOGS_DIR"))?;
-    
-    let error_log = logs_dir.strict_join("errors.log")?;
-    error_log.write(b"[ERROR] Example error message\n")?;
-
-    let access_log = logs_dir.strict_join("access.log")?;
-    access_log.write(b"[INFO] User accessed /api/data\n")?;
-
-    println!("Logs directory: {}", logs_dir.strictpath_display());
-
-    // Get app-specific data directory with environment override support
-    let data_dir: PathBoundary&lt;AppData&gt; = 
-        PathBoundary::try_new_app_path("data", Some("MYAPP_DATA_DIR"))?;
-
-    let database = data_dir.strict_join("app.db")?;
-    database.write(b"SQLite database content")?;
-
-    println!("Data directory: {}", data_dir.strictpath_display());
-
-    Ok(())
-}
-<span class="boring">}</span></code></pre></pre>
-<h3 id="environment-variable-overrides"><a class="header" href="#environment-variable-overrides">Environment Variable Overrides</a></h3>
-<p>You can override the default locations using environment variables:</p>
-<pre><code class="language-bash"># Override logs directory
-export MYAPP_LOGS_DIR=/custom/log/path
-
-# Override data directory
-export MYAPP_DATA_DIR=/custom/data/path
-</code></pre>
-<p><strong>When the environment variable is set, the path is resolved to the final directory — no subdirectory append happens.</strong></p>
-<p>This is useful for:</p>
-<ul>
-<li>✅ Testing with custom paths</li>
-<li>✅ Deployment-specific configurations</li>
-<li>✅ Docker container mounts</li>
-<li>✅ CI/CD pipelines</li>
-</ul>
-<h2 id="feature-serde--safe-deserialization-with-validation"><a class="header" href="#feature-serde--safe-deserialization-with-validation">Feature: <code>serde</code> — Safe Deserialization with Validation</a></h2>
-<p>The <code>serde</code> feature adds safe serialization/deserialization with automatic validation:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::{PathBoundary, StrictPath, serde_ext::WithBoundary};
-use serde::{Deserialize, Serialize};
-
-struct ConfigFiles;
-struct DataFiles;
-
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct AppConfig {
-    app_name: String,
-    
-    // Deserialize with validation through boundary
-    #[serde(deserialize_with = "deserialize_log_file")]
-    log_file: StrictPath&lt;ConfigFiles&gt;,
-    
-    #[serde(deserialize_with = "deserialize_data_file")]
-    data_file: StrictPath&lt;DataFiles&gt;,
-}
+    // Deserializes via FromStr automatically
+    upload_dir: PathBoundary,
+    data_dir: PathBoundary,
 
-fn deserialize_log_file&lt;'de, D&gt;(deserializer: D) 
-    -&gt; Result&lt;StrictPath&lt;ConfigFiles&gt;, D::Error&gt;
-where
-    D: serde::Deserializer&lt;'de&gt;,
-{
-    let config_dir: PathBoundary&lt;ConfigFiles&gt; = 
-        PathBoundary::try_new("config").map_err(serde::de::Error::custom)?;
-    
-    // Use WithBoundary seed to validate during deserialization
-    let seed = WithBoundary(&amp;config_dir);
-    seed.deserialize(deserializer)
-}
-
-fn deserialize_data_file&lt;'de, D&gt;(deserializer: D) 
-    -&gt; Result&lt;StrictPath&lt;DataFiles&gt;, D::Error&gt;
-where
-    D: serde::Deserializer&lt;'de&gt;,
-{
-    let data_dir: PathBoundary&lt;DataFiles&gt; = 
-        PathBoundary::try_new("data").map_err(serde::de::Error::custom)?;
-    
-    let seed = WithBoundary(&amp;data_dir);
-    seed.deserialize(deserializer)
+    // Validate these manually
+    user_paths: Vec&lt;String&gt;,
 }
 
 fn load_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let json = r#"{
-        "app_name": "MyApp",
-        "log_file": "logs/app.log",
-        "data_file": "db/app.db"
+        "upload_dir": "./uploads",
+        "data_dir": "./data",
+        "user_paths": ["file1.txt", "../../etc/passwd"]
     }"#;
 
     let config: AppConfig = serde_json::from_str(json)?;
-    
-    println!("App: {}", config.app_name);
-    println!("Log file: {}", config.log_file.strictpath_display());
-    println!("Data file: {}", config.data_file.strictpath_display());
 
-    // Try loading config with hostile paths
-    let evil_json = r#"{
-        "app_name": "EvilApp",
-        "log_file": "../../../etc/passwd",
-        "data_file": "db/app.db"
-    }"#;
-
-    match serde_json::from_str::&lt;AppConfig&gt;(evil_json) {
-        Ok(_) =&gt; println!("❌ Hostile config accepted!"),
-        Err(e) =&gt; println!("✅ Hostile config rejected: {}", e),
+    // Boundaries are ready to use
+    for path_str in &amp;config.user_paths {
+        match config.upload_dir.strict_join(path_str) {
+            Ok(safe_path) =&gt; {
+                safe_path.write(b"uploaded")?;
+                println!("✓ {}", safe_path.strictpath_display());
+            }
+            Err(e) =&gt; {
+                eprintln!("✗ Blocked '{}': {}", path_str, e);
+            }
+        }
     }
 
     Ok(())
 }
 <span class="boring">}</span></code></pre></pre>
-<p><strong>Key point:</strong> Deserialization validates paths through boundaries — <strong>untrusted config files can't escape!</strong></p>
-<h2 id="combining-features-real-world-application"><a class="header" href="#combining-features-real-world-application">Combining Features: Real-World Application</a></h2>
-<p>Here's how you'd combine multiple features in a real application:</p>
-<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, VirtualRoot};
+<p><strong>Key insight</strong>: Explicit validation is a feature, not a bug. Security operations should be visible.</p>
+<hr />
+<h2 id="real-world-application"><a class="header" href="#real-world-application">Real-World Application</a></h2>
+<p>Combining all integrations:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, VirtualRoot};
 use tempfile::TempDir;
+use serde::Deserialize;
 
 struct AppConfig;
-struct AppLogs;
 struct UserFiles;
 struct TempProcessing;
 
-struct Application {
+#[derive(Deserialize)]
+struct Config {
     config_dir: PathBoundary&lt;AppConfig&gt;,
-    logs_dir: PathBoundary&lt;AppLogs&gt;,
-    user_files_root: VirtualRoot&lt;UserFiles&gt;,
+}
+
+struct Application {
+    config: PathBoundary&lt;AppConfig&gt;,
+    user_root: VirtualRoot&lt;UserFiles&gt;,
 }
 
 impl Application {
     fn new(user_id: u64) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
-        // OS-specific config directory
-        let config_dir = PathBoundary::try_new_os_config("myapp")?;
-        
-        // App-specific log directory (with env override support)
-        let logs_dir = PathBoundary::try_new_app_path("logs", None)?;
-        
-        // Per-user virtual root for file isolation
+        // OS-specific config
+        let config_base = dirs::config_dir()
+            .ok_or("No config directory")?;
+        let config = PathBoundary::try_new_create(
+            config_base.join("myapp")
+        )?;
+
+        // Per-user virtual root
         let user_storage = format!("users/user_{}", user_id);
-        let user_files_root = VirtualRoot::try_new_create(user_storage)?;
+        let user_root = VirtualRoot::try_new_create(user_storage)?;
 
-        Ok(Self {
-            config_dir,
-            logs_dir,
-            user_files_root,
-        })
+        Ok(Self { config, user_root })
     }
 
-    fn load_config(&amp;self, config_name: &amp;str) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
-        let config_file = self.config_dir.strict_join(config_name)?;
-        Ok(config_file.read_to_string()?)
-    }
-
-    fn log_event(&amp;self, message: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-        let log_file = self.logs_dir.strict_join("app.log")?;
-        let mut log = log_file.read_to_string().unwrap_or_default();
-        log.push_str(message);
-        log.push('\n');
-        log_file.write(log.as_bytes())?;
-        Ok(())
-    }
-
-    fn process_user_file(&amp;self, filename: &amp;str) 
-        -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; 
+    fn process_file(&amp;self, filename: &amp;str)
+        -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt;
     {
-        // Use temp directory for processing
+        // Temp directory for processing
         let temp = TempDir::new()?;
-        let temp_dir: PathBoundary&lt;TempProcessing&gt; = 
+        let temp_dir: PathBoundary&lt;TempProcessing&gt; =
             PathBoundary::try_new(temp.path())?;
 
         // Get user file (virtual path)
-        let user_file = self.user_files_root.virtual_join(filename)?;
+        let user_file = self.user_root.virtual_join(filename)?;
         let data = user_file.read()?;
 
-        // Process in temp directory
+        // Process in temp
         let temp_file = temp_dir.strict_join("processing.tmp")?;
         temp_file.write(&amp;data)?;
 
-        // Log the operation
-        self.log_event(&amp;format!("Processed file: {}", filename))?;
-
-        // Return result
         Ok(format!("Processed {} bytes", data.len()))
+        // temp auto-cleaned
     }
 }
-
-fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let app = Application::new(123)?;
-    
-    // Load config from OS-specific directory
-    let config = app.load_config("settings.toml").unwrap_or_default();
-    println!("Config: {}", config);
-
-    // Process user file using temp directory
-    let result = app.process_user_file("documents/report.pdf")?;
-    println!("Result: {}", result);
-
-    Ok(())
-}</code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="why-no-feature-flags"><a class="header" href="#why-no-feature-flags">Why No Feature Flags?</a></h2>
+<p><strong>Previous approach (deprecated):</strong></p>
+<pre><code class="language-toml">strict-path = { version = "0.1", features = ["tempfile", "dirs", "app-path", "serde"] }
+</code></pre>
+<p><strong>New approach (recommended):</strong></p>
+<pre><code class="language-toml">strict-path = "0.1"
+tempfile = "3.0"
+dirs = "5.0"
+app-path = "1.0"
+</code></pre>
+<p><strong>Benefits:</strong></p>
+<ol>
+<li>✅ <strong>Full control</strong> - Access all options of external crates</li>
+<li>✅ <strong>No version coupling</strong> - Use any version you want</li>
+<li>✅ <strong>Explicit dependencies</strong> - Clear what you're using</li>
+<li>✅ <strong>Reduced bloat</strong> - Pay only for what you import</li>
+<li>✅ <strong>Visible security</strong> - Validation is explicit in code</li>
+</ol>
+<p><strong>Trade-off</strong>: One extra line of code for explicit, secure integration.</p>
+<hr />
+<h2 id="complete-integration-guide"><a class="header" href="#complete-integration-guide">Complete Integration Guide</a></h2>
+<p>For comprehensive examples, patterns, and best practices, see:</p>
+<p><strong><a href="tutorial/../ecosystem_integration.html">📚 Ecosystem Integration Guide →</a></strong></p>
+<p>This guide covers:</p>
+<ul>
+<li>Temporary directories with RAII cleanup</li>
+<li>Portable application paths with env overrides</li>
+<li>OS standard directories (cross-platform)</li>
+<li>Serialization/deserialization patterns</li>
+<li>Multi-directory application architecture</li>
+<li>Web API integration examples</li>
+</ul>
+<hr />
 <h2 id="key-takeaways-5"><a class="header" href="#key-takeaways-5">Key Takeaways</a></h2>
-<p>✅ <strong><code>dirs</code> feature</strong> — OS-specific user directories (config, downloads, documents, etc.)<br />
-✅ <strong><code>tempfile</code> feature</strong> — RAII temp directories with boundary enforcement<br />
-✅ <strong><code>app-path</code> feature</strong> — Portable app paths with env override support<br />
-✅ <strong><code>serde</code> feature</strong> — Safe deserialization with automatic validation<br />
-✅ <strong>Combine features</strong> — Build real-world apps with ecosystem integration<br />
-✅ <strong>Boundaries everywhere</strong> — Even external directories enforce security</p>
+<p>✅ <strong>Compose, don't wrap</strong> — Use ecosystem crates directly
+✅ <strong>Explicit validation</strong> — Security operations are visible
+✅ <strong>Full control</strong> — No feature coupling or version constraints
+✅ <strong>One extra line</strong> — Small cost for explicit security
+✅ <strong>FromStr support</strong> — Boundaries deserialize automatically</p>
 <h2 id="the-final-complete-guarantee"><a class="header" href="#the-final-complete-guarantee">The Final Complete Guarantee</a></h2>
 <blockquote>
 <p><strong>By combining all stages, you achieve:</strong></p>
@@ -2504,24 +2363,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 </ol>
 <p><strong>All enforced at compile time with zero runtime overhead.</strong></p>
 </blockquote>
-<h2 id="feature-combinations"><a class="header" href="#feature-combinations">Feature Combinations</a></h2>
-<p>Features can be combined as needed:</p>
-<pre><code class="language-toml">[dependencies]
-strict-path = { 
-    version = "0.1.0-beta.2", 
-    features = ["dirs", "serde", "tempfile", "app-path"] 
-}
-</code></pre>
-<p>All combinations work seamlessly together - choose the features your application needs.</p>
-<h2 id="design-philosophy"><a class="header" href="#design-philosophy">Design Philosophy</a></h2>
-<p>All optional features:</p>
-<ul>
-<li><strong>Maintain security</strong>: Never compromise path boundary enforcement</li>
-<li><strong>Zero-cost when unused</strong>: Features add no overhead if not enabled</li>
-<li><strong>Composable</strong>: Features work together seamlessly</li>
-<li><strong>Platform-aware</strong>: Handle platform differences gracefully</li>
-<li><strong>Standards-compliant</strong>: Follow established conventions and specifications</li>
-</ul>
+<hr />
 <h2 id="congratulations-"><a class="header" href="#congratulations-">Congratulations! 🎉</a></h2>
 <p>You've completed the full tutorial! You now understand:</p>
 <ul>
@@ -2529,15 +2371,15 @@ strict-path = {
 <li>✅ How markers prevent domain mix-ups</li>
 <li>✅ How <code>change_marker()</code> encodes authorization</li>
 <li>✅ How <code>VirtualPath</code> provides user-friendly sandboxing</li>
-<li>✅ How features integrate with the Rust ecosystem</li>
+<li>✅ How to integrate with the Rust ecosystem</li>
 </ul>
 <h2 id="whats-next-6"><a class="header" href="#whats-next-6">What's Next?</a></h2>
 <p>Explore these resources to deepen your knowledge:</p>
 <ul>
+<li><strong><a href="tutorial/../ecosystem_integration.html">Ecosystem Integration Guide</a></strong> — Comprehensive integration patterns</li>
 <li><strong><a href="tutorial/../examples/overview.html">Real-World Examples</a></strong> — Copy-pasteable patterns for web servers, CLI tools, archives</li>
 <li><strong><a href="tutorial/../best_practices.html">Best Practices</a></strong> — Decision matrices, design patterns, and guidelines</li>
 <li><strong><a href="tutorial/../anti_patterns.html">Anti-Patterns</a></strong> — Common mistakes and how to fix them</li>
-<li><strong><a href="tutorial/../os_directories.html">OS Directories</a></strong> — Complete API reference for all OS directory constructors</li>
 <li><strong><a href="tutorial/../axum_tutorial/overview.html">Axum Tutorial</a></strong> — Build a complete web service with strict-path</li>
 </ul>
 <p><strong>You're ready to build secure systems!</strong> 🚀</p>
@@ -2545,319 +2387,27 @@ strict-path = {
 <p><strong>Quick Reference Card:</strong></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// OS directories
-let config = PathBoundary::&lt;MyConfig&gt;::try_new_os_config("app")?;
-let downloads = PathBoundary::&lt;Downloads&gt;::try_new_os_downloads()?;
+</span>// Temporary directories
+let temp = tempfile::tempdir()?;
+let boundary = PathBoundary::try_new(temp.path())?;
 
-// Temp directories
-let temp = TempDir::new()?;
-let work = PathBoundary::&lt;Work&gt;::try_new(temp.path())?;
+// Portable app paths
+let app_dir = app_path::AppPath::new("MyApp").get_app_dir();
+let boundary = PathBoundary::try_new(&amp;app_dir)?;
 
-// App paths (with env override)
-let logs = PathBoundary::&lt;Logs&gt;::try_new_app_path("logs", None)?;
+// OS directories
+let config = dirs::config_dir().ok_or("No config")?;
+let boundary = PathBoundary::try_new_create(config.join("myapp"))?;
 
-// Serde validation
-#[serde(deserialize_with = "deserialize_with_boundary")]
-log_file: StrictPath&lt;ConfigFiles&gt;
+// Deserialization (FromStr)
+#[derive(Deserialize)]
+struct Config {
+    boundary: PathBoundary,  // Automatic via FromStr
+    user_path: String,        // Manual validation
+}
 <span class="boring">}</span></code></pre></pre>
 <p><strong><a href="tutorial/./overview.html">← Back to Tutorial Overview</a></strong></p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="type-system-guarantees-in-signatures"><a class="header" href="#type-system-guarantees-in-signatures">Type-System Guarantees in Signatures</a></h1>
-<p>One of strict-path's most powerful features is its <strong>marker type system</strong> that lets you encode domain-specific path guarantees in function signatures. This makes incorrect path usage a compile-time error rather than a runtime vulnerability.</p>
-<h2 id="what-are-markers"><a class="header" href="#what-are-markers">What Are Markers?</a></h2>
-<p>A marker is a zero-cost type parameter that describes what a path contains or how it should be used. Markers have no runtime representation - they exist purely to help the type system prevent mistakes.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::{PathBoundary, StrictPath};
-
-// Define markers for different content domains
-struct PublicAssets;   // CSS, JS, images for website
-struct UserUploads;    // Documents uploaded by users  
-struct TempFiles;      // Temporary processing files
-struct ConfigFiles;    // Application configuration
-
-// Use markers to create domain-specific boundaries
-let public_assets_dir: PathBoundary&lt;PublicAssets&gt; = PathBoundary::try_new("static")?;
-let user_uploads_dir: PathBoundary&lt;UserUploads&gt; = PathBoundary::try_new("uploads")?;
-let temp_files_dir: PathBoundary&lt;TempFiles&gt; = PathBoundary::try_new("temp")?;
-let app_config_dir: PathBoundary&lt;ConfigFiles&gt; = PathBoundary::try_new("config")?;
-
-// Join paths with their appropriate markers
-let css_file: StrictPath&lt;PublicAssets&gt; = public_assets_dir.strict_join("style.css")?;
-let user_doc: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("report.pdf")?;
-let temp_file: StrictPath&lt;TempFiles&gt; = temp_files_dir.strict_join("processing.tmp")?;
-let app_config: StrictPath&lt;ConfigFiles&gt; = app_config_dir.strict_join("settings.json")?;
-<span class="boring">}</span></code></pre></pre>
-<h2 id="why-markers-matter"><a class="header" href="#why-markers-matter">Why Markers Matter</a></h2>
-<p>Without markers, it's easy to accidentally mix up different types of paths:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Without markers - dangerous mix-ups are possible
-fn process_user_upload(file_path: &amp;StrictPath) -&gt; io::Result&lt;()&gt; {
-    // Is this a user file? Config file? Temp file? 
-    // No way to know from the type!
-    file_path.read_to_string()
-}
-
-// With markers - impossible to mix up domains  
-fn process_user_upload(user_file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; io::Result&lt;String&gt; {
-    // Clear: this function ONLY processes user uploads
-    user_file.read_to_string() 
-}
-
-fn load_app_config(config_file: &amp;StrictPath&lt;ConfigFiles&gt;) -&gt; io::Result&lt;AppConfig&gt; {
-    // Clear: this function ONLY loads config files
-    let content = config_file.read_to_string()?;
-    serde_json::from_str(&amp;content)
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="compile-time-safety"><a class="header" href="#compile-time-safety">Compile-Time Safety</a></h2>
-<p>With markers, the compiler prevents domain mix-ups:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let user_doc: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("report.pdf")?;
-let app_config: StrictPath&lt;ConfigFiles&gt; = app_config_dir.strict_join("settings.json")?;
-
-// ✅ These work - correct marker types
-process_user_upload(&amp;user_doc)?;
-load_app_config(&amp;app_config)?;
-
-// ❌ These are compile errors - marker type mismatch!
-// process_user_upload(&amp;app_config)?;  // Can't pass ConfigFiles to UserUploads function
-// load_app_config(&amp;user_doc)?;        // Can't pass UserUploads to ConfigFiles function
-<span class="boring">}</span></code></pre></pre>
-<p><strong>The power</strong>: If your code compiles, you know you're not accidentally processing config files as user uploads, or serving user uploads as public assets!</p>
-<h2 id="function-signature-patterns"><a class="header" href="#function-signature-patterns">Function Signature Patterns</a></h2>
-<h3 id="pattern-1-accept-validated-paths"><a class="header" href="#pattern-1-accept-validated-paths">Pattern 1: Accept Validated Paths</a></h3>
-<p>When the caller has already validated the path, accept the typed path directly:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn serve_public_asset(asset: &amp;StrictPath&lt;PublicAssets&gt;) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
-    // Caller proved this is a public asset - we can serve it safely
-    asset.read()
-}
-
-fn delete_user_file(user_file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; io::Result&lt;()&gt; {
-    // Caller proved this is a user upload - safe to delete
-    user_file.remove_file()
-}
-
-fn backup_config(config_file: &amp;StrictPath&lt;ConfigFiles&gt;, backup_dir: &amp;StrictPath&lt;BackupStorage&gt;) -&gt; io::Result&lt;()&gt; {
-    let content = config_file.read()?;
-    let backup_name = format!("config-{}.json", chrono::Utc::now().format("%Y%m%d"));
-    let backup_path = backup_dir.strict_join(&amp;backup_name)?;
-    backup_path.write(content)
-}
-<span class="boring">}</span></code></pre></pre>
-<h3 id="pattern-2-validate-inside-helper"><a class="header" href="#pattern-2-validate-inside-helper">Pattern 2: Validate Inside Helper</a></h3>
-<p>When the helper needs to validate user input, accept the boundary plus untrusted segment:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn save_user_upload(
-    uploads_dir: &amp;PathBoundary&lt;UserUploads&gt;, 
-    filename: &amp;str,  // untrusted input
-    content: &amp;[u8]
-) -&gt; io::Result&lt;()&gt; {
-    // Validate the untrusted filename
-    let user_file = uploads_dir.strict_join(filename)?;
-    user_file.create_parent_dir_all()?;
-    user_file.write(content)
-}
-
-fn load_config_by_name(
-    config_dir: &amp;PathBoundary&lt;ConfigFiles&gt;, 
-    config_name: &amp;str  // untrusted input
-) -&gt; io::Result&lt;serde_json::Value&gt; {
-    // Validate the untrusted config name
-    let config_file = config_dir.strict_join(config_name)?; 
-    let content = config_file.read_to_string()?;
-    serde_json::from_str(&amp;content).map_err(Into::into)
-}
-<span class="boring">}</span></code></pre></pre>
-<h3 id="pattern-3-multiple-domain-access"><a class="header" href="#pattern-3-multiple-domain-access">Pattern 3: Multiple Domain Access</a></h3>
-<p>Some functions need to work with multiple domains - use multiple parameters:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn generate_report(
-    user_data: &amp;StrictPath&lt;UserUploads&gt;,
-    template: &amp;StrictPath&lt;PublicAssets&gt;, 
-    temp_reports_dir: &amp;PathBoundary&lt;TempFiles&gt;
-) -&gt; io::Result&lt;StrictPath&lt;TempFiles&gt;&gt; {
-    let data = user_data.read_to_string()?;
-    let template_content = template.read_to_string()?;
-    
-    // Process data with template...
-    let report = process_template(&amp;template_content, &amp;data);
-    
-    let report_file = temp_reports_dir.strict_join("report.html")?;
-    report_file.write(report)?;
-    Ok(report_file)
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="marker-best-practices"><a class="header" href="#marker-best-practices">Marker Best Practices</a></h2>
-<h3 id="use-descriptive-domain-names"><a class="header" href="#use-descriptive-domain-names">Use Descriptive Domain Names</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// ✅ Good - describes what the paths contain
-struct UserHomes;
-struct ProductImages; 
-struct DatabaseBackups;
-struct AuditLogs;
-
-// ❌ Avoid - generic or implementation-focused names
-struct Files;
-struct Directory;
-struct Database;
-struct Secure;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="create-markers-for-business-domains"><a class="header" href="#create-markers-for-business-domains">Create Markers for Business Domains</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// ✅ Good - matches your application's business logic
-struct CustomerDocuments;
-struct FinancialReports;
-struct ProductCatalog; 
-struct EmployeeRecords;
-struct MarketingAssets;
-
-// ❌ Avoid - technical implementation details as primary markers
-struct JsonFiles;
-struct ReadOnlyData;
-struct EncryptedStorage;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="use-meaningful-function-names"><a class="header" href="#use-meaningful-function-names">Use Meaningful Function Names</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// ✅ Good - function names explain business intent
-fn archive_customer_document(doc: &amp;StrictPath&lt;CustomerDocuments&gt;) -&gt; io::Result&lt;()&gt; { ... }
-fn publish_marketing_asset(asset: &amp;StrictPath&lt;MarketingAssets&gt;) -&gt; io::Result&lt;()&gt; { ... }
-fn audit_financial_report(report: &amp;StrictPath&lt;FinancialReports&gt;) -&gt; io::Result&lt;()&gt; { ... }
-
-// ❌ Avoid - generic names that don't explain purpose  
-fn process_file(path: &amp;StrictPath&lt;SomeMarker&gt;) -&gt; io::Result&lt;()&gt; { ... }
-fn handle_data(path: &amp;StrictPath&lt;SomeMarker&gt;) -&gt; io::Result&lt;()&gt; { ... }
-<span class="boring">}</span></code></pre></pre>
-<h2 id="advanced-marker-patterns"><a class="header" href="#advanced-marker-patterns">Advanced Marker Patterns</a></h2>
-<h3 id="hierarchical-markers"><a class="header" href="#hierarchical-markers">Hierarchical Markers</a></h3>
-<p>You can create marker hierarchies for more sophisticated type safety:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>struct MediaFiles;
-struct Images;
-struct Videos;
-struct Documents;
-
-// Use PhantomData for hierarchical relationships
-struct MediaFile&lt;T&gt;(std::marker::PhantomData&lt;T&gt;);
-
-type ImageFile = MediaFile&lt;Images&gt;;
-type VideoFile = MediaFile&lt;Videos&gt;;
-type DocumentFile = MediaFile&lt;Documents&gt;;
-
-fn process_image(img: &amp;StrictPath&lt;ImageFile&gt;) -&gt; io::Result&lt;()&gt; { ... }
-fn process_video(vid: &amp;StrictPath&lt;VideoFile&gt;) -&gt; io::Result&lt;()&gt; { ... }
-fn process_document(doc: &amp;StrictPath&lt;DocumentFile&gt;) -&gt; io::Result&lt;()&gt; { ... }
-<span class="boring">}</span></code></pre></pre>
-<h3 id="environment-specific-markers"><a class="header" href="#environment-specific-markers">Environment-Specific Markers</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>struct Production;
-struct Staging;  
-struct Development;
-
-struct ConfigFile&lt;Env&gt;(std::marker::PhantomData&lt;Env&gt;);
-
-type ProdConfig = ConfigFile&lt;Production&gt;;
-type StagingConfig = ConfigFile&lt;Staging&gt;;
-type DevConfig = ConfigFile&lt;Development&gt;;
-
-fn deploy_to_production(config: &amp;StrictPath&lt;ProdConfig&gt;) -&gt; io::Result&lt;()&gt; {
-    // Only production configs can be deployed to production
-    apply_production_config(config)
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="integration-with-serde"><a class="header" href="#integration-with-serde">Integration with Serde</a></h2>
-<p>When deserializing paths from configuration, you still need runtime validation:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use serde::Deserialize;
-
-#[derive(Deserialize)]
-struct AppConfig {
-    upload_directory: String,  // Raw path from config
-    static_directory: String,  // Raw path from config
-}
-
-fn load_app_config() -&gt; Result&lt;(PathBoundary&lt;UserUploads&gt;, PathBoundary&lt;PublicAssets&gt;), ConfigError&gt; {
-    let config: AppConfig = serde_json::from_str(&amp;config_json)?;
-    
-    // Validate raw config paths into typed boundaries
-    let user_uploads_dir = PathBoundary::&lt;UserUploads&gt;::try_new_create(&amp;config.upload_directory)?;
-    let public_assets_dir = PathBoundary::&lt;PublicAssets&gt;::try_new_create(&amp;config.static_directory)?;
-    
-    Ok((user_uploads_dir, public_assets_dir))
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="zero-runtime-cost"><a class="header" href="#zero-runtime-cost">Zero Runtime Cost</a></h2>
-<p>It's important to understand that markers are zero-cost abstractions:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// These have identical runtime performance
-let generic_path: StrictPath = some_root.strict_join("file.txt")?;
-let typed_path: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("file.txt")?;
-
-// The marker information is erased at compile time
-assert_eq!(
-    std::mem::size_of::&lt;StrictPath&gt;(), 
-    std::mem::size_of::&lt;StrictPath&lt;UserUploads&gt;&gt;()
-);
-<span class="boring">}</span></code></pre></pre>
-<p>All the type safety benefits come at compile time with no runtime overhead!</p>
-<h2 id="strictpath-vs-virtualpath-symlink-semantics"><a class="header" href="#strictpath-vs-virtualpath-symlink-semantics">StrictPath vs VirtualPath: Symlink Semantics</a></h2>
-<p>One critical difference between <code>StrictPath</code> and <code>VirtualPath</code> is how they handle symlinks:</p>
-<h3 id="strictpath-system-filesystem-semantics"><a class="header" href="#strictpath-system-filesystem-semantics">StrictPath: System Filesystem Semantics</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::StrictPath;
-
-// StrictPath follows symlinks and validates targets
-let boundary = StrictPath::with_boundary_create("system_root")?;
-
-// If "system_root/config_link" symlinks to "/etc/app.conf":
-let config = boundary.strict_join("config_link");
-// ❌ Error if target is outside boundary
-// ✅ OK if target resolves to path inside boundary
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Use for:</strong> Shared system resources, config files, traditional filesystem operations</p>
-<h3 id="virtualpath-virtual-filesystem-semantics"><a class="header" href="#virtualpath-virtual-filesystem-semantics">VirtualPath: Virtual Filesystem Semantics</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::VirtualPath;
-
-// VirtualPath clamps absolute symlink targets to virtual root
-let vroot = VirtualPath::with_root("user_sandbox")?;
-
-// If "user_sandbox/config_link" symlinks to "/etc/app.conf":
-let config = vroot.virtual_join("config_link")?;
-// ✅ Always OK - target clamped to "user_sandbox/etc/app.conf"
-
-println!("Virtual: {}", config.virtualpath_display());
-// Output: /etc/app.conf (from user's perspective)
-
-println!("System: {}", config.as_unvirtual().strictpath_display());  
-// Output: user_sandbox/etc/app.conf (actually safe!)
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Use for:</strong> Multi-tenant systems, archive extraction, sandboxed environments, container-like semantics</p>
-<p><strong>Key Insight:</strong> In a virtual filesystem, absolute paths (whether from user input or symlink targets) are <em>always</em> relative to the virtual root. This makes <code>VirtualPath</code> perfect for untrusted inputs where you want graceful containment rather than explicit rejection.</p>
-<h2 id="common-patterns-summary"><a class="header" href="#common-patterns-summary">Common Patterns Summary</a></h2>
-<ol>
-<li><strong>Validate once, use everywhere</strong>: Create typed paths at boundaries, pass typed paths to functions</li>
-<li><strong>Encode intent in signatures</strong>: Function parameters should clearly show what domains they work with</li>
-<li><strong>Separate validation from business logic</strong>: Keep path validation separate from file processing</li>
-<li><strong>Use meaningful marker names</strong>: Markers should describe business domains, not technical implementation</li>
-<li><strong>Fail at compile time</strong>: Structure your code so domain mix-ups become type errors</li>
-<li><strong>Choose the right semantics</strong>: Use <code>StrictPath</code> for system operations (validation), <code>VirtualPath</code> for sandboxing (clamping)</li>
-</ol>
-<p>The type system becomes your ally in preventing path-related security bugs and logic errors!</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="type-system-guarantees-in-signatures--one-of-strict-paths-most-powerful-features-is-its-marker-type-system-that-lets-you-encode-domain-specific-path-guarantees-in-function-signatures-this-makes-incorrect-path-usage-a-compile-time-error-rather-than-a-runtime-vulnerability---what-are-markers--a-marker-is-a-zero-cost-type-parameter-that-describes-what-a-path-contains-or-how-it-should-be-used-markers-have-no-runtime-representation---they-exist-purely-to-help-the-type-system-prevent-mistakes--rust-use-strict_pathpathboundary-strictpath---define-markers-for-different-content-domains-struct-publicassets----css-js-images-for-website-struct-useruploads-----documents-uploaded-by-users---struct-tempfiles-------temporary-processing-files-struct-configfiles-----application-configuration---use-markers-to-create-domain-specific-boundaries-let-public_assets_dir-pathboundarypublicassets--pathboundarytry_newstatic-let-user_uploads_dir-pathboundaryuseruploads--pathboundarytry_newuploads-let-temp_files_dir-pathboundarytempfiles--pathboundarytry_newtemp-let-app_config_dir-pathboundaryconfigfiles--pathboundarytry_newconfig---join-paths-with-their-appropriate-markers-let-css_file-strictpathpublicassets--public_assets_dirstrict_joinstylecss-let-user_doc-strictpathuseruploads--user_uploads_dirstrict_joinreportpdf-let-temp_file-strictpathtempfiles--temp_files_dirstrict_joinprocessingtmp-let-app_config-strictpathconfigfiles--app_config_dirstrict_joinsettingsjson----why-markers-matter--without-markers-its-easy-to-accidentally-mix-up-different-types-of-paths--rust--without-markers---dangerous-mix-ups-are-possible-fn-process_user_uploadfile_path-strictpath---ioresult-------is-this-a-user-file-config-file-temp-file-------no-way-to-know-from-the-type-----file_pathread_to_string----with-markers---impossible-to-mix-up-domains---fn-process_user_uploaduser_file-strictpathuseruploads---ioresultstring-------clear-this-function-only-processes-user-uploads-----user_fileread_to_string----fn-load_app_configconfig_file-strictpathconfigfiles---ioresultappconfig-------clear-this-function-only-loads-config-files-----let-content--config_fileread_to_string-----serde_jsonfrom_strcontent-----compile-time-safety--with-markers-the-compiler-prevents-domain-mix-ups--rust-let-user_doc-strictpathuseruploads--user_uploads_dirstrict_joinreportpdf-let-app_config-strictpathconfigfiles--app_config_dirstrict_joinsettingsjson----these-work---correct-marker-types-process_user_uploaduser_doc-load_app_configapp_config----these-are-compile-errors---marker-type-mismatch--process_user_uploadapp_config---cant-pass-configfiles-to-useruploads-function--load_app_configuser_doc---------cant-pass-useruploads-to-configfiles-function---the-power-if-your-code-compiles-you-know-youre-not-accidentally-processing-config-files-as-user-uploads-or-serving-user-uploads-as-public-assets---function-signature-patterns---pattern-1-accept-validated-paths--when-the-caller-has-already-validated-the-path-accept-the-typed-path-directly--rust-fn-serve_public_assetasset-strictpathpublicassets---ioresultvecu8-------caller-proved-this-is-a-public-asset---we-can-serve-it-safely-----assetread---fn-delete_user_fileuser_file-strictpathuseruploads---ioresult-------caller-proved-this-is-a-user-upload---safe-to-delete-----user_fileremove_file---fn-backup_configconfig_file-strictpathconfigfiles-backup_dir-strictpathbackupstorage---ioresult------let-content--config_fileread-----let-backup_name--formatconfig-json-chronoutcnowformatymd-----let-backup_path--backup_dirstrict_joinbackup_name-----backup_pathwritecontent-----pattern-2-validate-inside-helper--when-the-helper-needs-to-validate-user-input-accept-the-boundary-plus-untrusted-segment--rust-fn-save_user_upload-----uploads_dir-pathboundaryuseruploads------filename-str---untrusted-input-----content-u8----ioresult-------validate-the-untrusted-filename-----let-user_file--uploads_dirstrict_joinfilename-----user_filecreate_parent_dir_all-----user_filewritecontent---fn-load_config_by_name-----config_dir-pathboundaryconfigfiles------config_name-str---untrusted-input----ioresultserde_jsonvalue-------validate-the-untrusted-config-name-----let-config_file--config_dirstrict_joinconfig_name------let-content--config_fileread_to_string-----serde_jsonfrom_strcontentmap_errintointo-----pattern-3-multiple-domain-access--some-functions-need-to-work-with-multiple-domains---use-multiple-parameters--rust-fn-generate_report-----user_data-strictpathuseruploads-----template-strictpathpublicassets------temp_reports_dir-pathboundarytempfiles----ioresultstrictpathtempfiles------let-data--user_dataread_to_string-----let-template_content--templateread_to_string-----------process-data-with-template-----let-report--process_templatetemplate_content-data----------let-report_file--temp_reports_dirstrict_joinreporthtml-----report_filewritereport-----okreport_file-----marker-best-practices---use-descriptive-domain-names--rust---good---describes-what-the-paths-contain-struct-userhomes-struct-productimages--struct-databasebackups-struct-auditlogs----avoid---generic-or-implementation-focused-names-struct-files-struct-directory-struct-database-struct-secure----create-markers-for-business-domains--rust---good---matches-your-applications-business-logic-struct-customerdocuments-struct-financialreports-struct-productcatalog--struct-employeerecords-struct-marketingassets----avoid---technical-implementation-details-as-primary-markers-struct-jsonfiles-struct-readonlydata-struct-encryptedstorage----use-meaningful-function-names--rust---good---function-names-explain-business-intent-fn-archive_customer_documentdoc-strictpathcustomerdocuments---ioresult----fn-publish_marketing_assetasset-strictpathmarketingassets---ioresult----fn-audit_financial_reportreport-strictpathfinancialreports---ioresult-------avoid---generic-names-that-dont-explain-purpose---fn-process_filepath-strictpathsomemarker---ioresult----fn-handle_datapath-strictpathsomemarker---ioresult-------advanced-marker-patterns---hierarchical-markers--you-can-create-marker-hierarchies-for-more-sophisticated-type-safety--rust-struct-mediafiles-struct-images-struct-videos-struct-documents---use-phantomdata-for-hierarchical-relationships-struct-mediafiletstdmarkerphantomdatat--type-imagefile--mediafileimages-type-videofile--mediafilevideos-type-documentfile--mediafiledocuments--fn-process_imageimg-strictpathimagefile---ioresult----fn-process_videovid-strictpathvideofile---ioresult----fn-process_documentdoc-strictpathdocumentfile---ioresult-------environment-specific-markers--rust-struct-production-struct-staging---struct-development--struct-configfileenvstdmarkerphantomdataenv--type-prodconfig--configfileproduction-type-stagingconfig--configfilestaging-type-devconfig--configfiledevelopment--fn-deploy_to_productionconfig-strictpathprodconfig---ioresult-------only-production-configs-can-be-deployed-to-production-----apply_production_configconfig-----integration-with-serde--when-deserializing-paths-from-configuration-you-still-need-runtime-validation--rust-use-serdedeserialize--derivedeserialize-struct-appconfig------upload_directory-string---raw-path-from-config-----static_directory-string---raw-path-from-config---fn-load_app_config---resultpathboundaryuseruploads-pathboundarypublicassets-configerror------let-config-appconfig--serde_jsonfrom_strconfig_json-----------validate-raw-config-paths-into-typed-boundaries-----let-user_uploads_dir--pathboundaryuseruploadstry_new_createconfigupload_directory-----let-public_assets_dir--pathboundarypublicassetstry_new_createconfigstatic_directory----------okuser_uploads_dir-public_assets_dir-----zero-runtime-cost--its-important-to-understand-that-markers-are-zero-cost-abstractions--rust--these-have-identical-runtime-performance-let-generic_path-strictpath--some_rootstrict_joinfiletxt-let-typed_path-strictpathuseruploads--user_uploads_dirstrict_joinfiletxt---the-marker-information-is-erased-at-compile-time-assert_eq-----stdmemsize_ofstrictpath------stdmemsize_ofstrictpathuseruploads----all-the-type-safety-benefits-come-at-compile-time-with-no-runtime-overhead---strictpath-vs-virtualpath-symlink-semantics--one-critical-difference-between-strictpath-and-virtualpath-is-how-they-handle-symlinks---strictpath-system-filesystem-semantics--rust-use-strict_pathstrictpath---strictpath-follows-symlinks-and-validates-targets-let-boundary--strictpathwith_boundary_createsystem_root---if-system_rootconfig_link-symlinks-to-etcappconf-let-config--boundarystrict_joinconfig_link---error-if-target-is-outside-boundary---ok-if-target-resolves-to-path-inside-boundary---use-for-shared-system-resources-config-files-traditional-filesystem-operations---virtualpath-virtual-filesystem-semantics----rust-use-strict_pathvirtualpath---virtualpath-clamps-absolute-symlink-targets-to-virtual-root-let-vroot--virtualpathwith_rootformatuser_user_id_sandbox---if-user_sandboxconfig_link-symlinks-to-etcappconf-let-config--vrootvirtual_joinconfig_link---always-ok---target-clamped-to-user_sandboxetcappconf--printlnvirtual--configvirtualpath_display--output-etcappconf-from-users-perspective--printlnsystem--configas_unvirtualstrictpath_display----output-user_sandboxetcappconf-actually-safe---use-for-multi-tenant-systems-archive-extraction-sandboxed-environments-container-like-semantics--key-insight-in-a-virtual-filesystem-absolute-paths-whether-from-user-input-or-symlink-targets-are-always-relative-to-the-virtual-root-this-makes-virtualpath-perfect-for-untrusted-inputs-where-you-want-graceful-containment-rather-than-explicit-rejection---common-patterns-summary--1-validate-once-use-everywhere-create-typed-paths-at-boundaries-pass-typed-paths-to-functions-2-encode-intent-in-signatures-function-parameters-should-clearly-show-what-domains-they-work-with-3-separate-validation-from-business-logic-keep-path-validation-separate-from-file-processing-4-use-meaningful-marker-names-markers-should-describe-business-domains-not-technical-implementation-5-fail-at-compile-time-structure-your-code-so-domain-mix-ups-become-type-errors-6-choose-the-right-semantics-use-strictpath-for-system-operations-validation-virtualpath-for-sandboxing-clamping--the-type-system-becomes-your-ally-in-preventing-path-related-security-bugs-and-logic-errors"><a class="header" href="#type-system-guarantees-in-signatures--one-of-strict-paths-most-powerful-features-is-its-marker-type-system-that-lets-you-encode-domain-specific-path-guarantees-in-function-signatures-this-makes-incorrect-path-usage-a-compile-time-error-rather-than-a-runtime-vulnerability---what-are-markers--a-marker-is-a-zero-cost-type-parameter-that-describes-what-a-path-contains-or-how-it-should-be-used-markers-have-no-runtime-representation---they-exist-purely-to-help-the-type-system-prevent-mistakes--rust-use-strict_pathpathboundary-strictpath---define-markers-for-different-content-domains-struct-publicassets----css-js-images-for-website-struct-useruploads-----documents-uploaded-by-users---struct-tempfiles-------temporary-processing-files-struct-configfiles-----application-configuration---use-markers-to-create-domain-specific-boundaries-let-public_assets_dir-pathboundarypublicassets--pathboundarytry_newstatic-let-user_uploads_dir-pathboundaryuseruploads--pathboundarytry_newuploads-let-temp_files_dir-pathboundarytempfiles--pathboundarytry_newtemp-let-app_config_dir-pathboundaryconfigfiles--pathboundarytry_newconfig---join-paths-with-their-appropriate-markers-let-css_file-strictpathpublicassets--public_assets_dirstrict_joinstylecss-let-user_doc-strictpathuseruploads--user_uploads_dirstrict_joinreportpdf-let-temp_file-strictpathtempfiles--temp_files_dirstrict_joinprocessingtmp-let-app_config-strictpathconfigfiles--app_config_dirstrict_joinsettingsjson----why-markers-matter--without-markers-its-easy-to-accidentally-mix-up-different-types-of-paths--rust--without-markers---dangerous-mix-ups-are-possible-fn-process_user_uploadfile_path-strictpath---ioresult-------is-this-a-user-file-config-file-temp-file-------no-way-to-know-from-the-type-----file_pathread_to_string----with-markers---impossible-to-mix-up-domains---fn-process_user_uploaduser_file-strictpathuseruploads---ioresultstring-------clear-this-function-only-processes-user-uploads-----user_fileread_to_string----fn-load_app_configconfig_file-strictpathconfigfiles---ioresultappconfig-------clear-this-function-only-loads-config-files-----let-content--config_fileread_to_string-----serde_jsonfrom_strcontent-----compile-time-safety--with-markers-the-compiler-prevents-domain-mix-ups--rust-let-user_doc-strictpathuseruploads--user_uploads_dirstrict_joinreportpdf-let-app_config-strictpathconfigfiles--app_config_dirstrict_joinsettingsjson----these-work---correct-marker-types-process_user_uploaduser_doc-load_app_configapp_config----these-are-compile-errors---marker-type-mismatch--process_user_uploadapp_config---cant-pass-configfiles-to-useruploads-function--load_app_configuser_doc---------cant-pass-useruploads-to-configfiles-function---the-power-if-your-code-compiles-you-know-youre-not-accidentally-processing-config-files-as-user-uploads-or-serving-user-uploads-as-public-assets---function-signature-patterns---pattern-1-accept-validated-paths--when-the-caller-has-already-validated-the-path-accept-the-typed-path-directly--rust-fn-serve_public_assetasset-strictpathpublicassets---ioresultvecu8-------caller-proved-this-is-a-public-asset---we-can-serve-it-safely-----assetread---fn-delete_user_fileuser_file-strictpathuseruploads---ioresult-------caller-proved-this-is-a-user-upload---safe-to-delete-----user_fileremove_file---fn-backup_configconfig_file-strictpathconfigfiles-backup_dir-strictpathbackupstorage---ioresult------let-content--config_fileread-----let-backup_name--formatconfig-json-chronoutcnowformatymd-----let-backup_path--backup_dirstrict_joinbackup_name-----backup_pathwritecontent-----pattern-2-validate-inside-helper--when-the-helper-needs-to-validate-user-input-accept-the-boundary-plus-untrusted-segment--rust-fn-save_user_upload-----uploads_dir-pathboundaryuseruploads------filename-str---untrusted-input-----content-u8----ioresult-------validate-the-untrusted-filename-----let-user_file--uploads_dirstrict_joinfilename-----user_filecreate_parent_dir_all-----user_filewritecontent---fn-load_config_by_name-----config_dir-pathboundaryconfigfiles------config_name-str---untrusted-input----ioresultserde_jsonvalue-------validate-the-untrusted-config-name-----let-config_file--config_dirstrict_joinconfig_name------let-content--config_fileread_to_string-----serde_jsonfrom_strcontentmap_errintointo-----pattern-3-multiple-domain-access--some-functions-need-to-work-with-multiple-domains---use-multiple-parameters--rust-fn-generate_report-----user_data-strictpathuseruploads-----template-strictpathpublicassets------temp_reports_dir-pathboundarytempfiles----ioresultstrictpathtempfiles------let-data--user_dataread_to_string-----let-template_content--templateread_to_string-----------process-data-with-template-----let-report--process_templatetemplate_content-data----------let-report_file--temp_reports_dirstrict_joinreporthtml-----report_filewritereport-----okreport_file-----marker-best-practices---use-descriptive-domain-names--rust---good---describes-what-the-paths-contain-struct-userhomes-struct-productimages--struct-databasebackups-struct-auditlogs----avoid---generic-or-implementation-focused-names-struct-files-struct-directory-struct-database-struct-secure----create-markers-for-business-domains--rust---good---matches-your-applications-business-logic-struct-customerdocuments-struct-financialreports-struct-productcatalog--struct-employeerecords-struct-marketingassets----avoid---technical-implementation-details-as-primary-markers-struct-jsonfiles-struct-readonlydata-struct-encryptedstorage----use-meaningful-function-names--rust---good---function-names-explain-business-intent-fn-archive_customer_documentdoc-strictpathcustomerdocuments---ioresult----fn-publish_marketing_assetasset-strictpathmarketingassets---ioresult----fn-audit_financial_reportreport-strictpathfinancialreports---ioresult-------avoid---generic-names-that-dont-explain-purpose---fn-process_filepath-strictpathsomemarker---ioresult----fn-handle_datapath-strictpathsomemarker---ioresult-------advanced-marker-patterns---hierarchical-markers--you-can-create-marker-hierarchies-for-more-sophisticated-type-safety--rust-struct-mediafiles-struct-images-struct-videos-struct-documents---use-phantomdata-for-hierarchical-relationships-struct-mediafiletstdmarkerphantomdatat--type-imagefile--mediafileimages-type-videofile--mediafilevideos-type-documentfile--mediafiledocuments--fn-process_imageimg-strictpathimagefile---ioresult----fn-process_videovid-strictpathvideofile---ioresult----fn-process_documentdoc-strictpathdocumentfile---ioresult-------environment-specific-markers--rust-struct-production-struct-staging---struct-development--struct-configfileenvstdmarkerphantomdataenv--type-prodconfig--configfileproduction-type-stagingconfig--configfilestaging-type-devconfig--configfiledevelopment--fn-deploy_to_productionconfig-strictpathprodconfig---ioresult-------only-production-configs-can-be-deployed-to-production-----apply_production_configconfig-----integration-with-serde--when-deserializing-paths-from-configuration-you-still-need-runtime-validation--rust-use-serdedeserialize--derivedeserialize-struct-appconfig------upload_directory-string---raw-path-from-config-----static_directory-string---raw-path-from-config---fn-load_app_config---resultpathboundaryuseruploads-pathboundarypublicassets-configerror------let-config-appconfig--serde_jsonfrom_strconfig_json-----------validate-raw-config-paths-into-typed-boundaries-----let-user_uploads_dir--pathboundaryuseruploadstry_new_createconfigupload_directory-----let-public_assets_dir--pathboundarypublicassetstry_new_createconfigstatic_directory----------okuser_uploads_dir-public_assets_dir-----zero-runtime-cost--its-important-to-understand-that-markers-are-zero-cost-abstractions--rust--these-have-identical-runtime-performance-let-generic_path-strictpath--some_rootstrict_joinfiletxt-let-typed_path-strictpathuseruploads--user_uploads_dirstrict_joinfiletxt---the-marker-information-is-erased-at-compile-time-assert_eq-----stdmemsize_ofstrictpath------stdmemsize_ofstrictpathuseruploads----all-the-type-safety-benefits-come-at-compile-time-with-no-runtime-overhead---strictpath-vs-virtualpath-symlink-semantics--one-critical-difference-between-strictpath-and-virtualpath-is-how-they-handle-symlinks---strictpath-system-filesystem-semantics--rust-use-strict_pathstrictpath---strictpath-follows-symlinks-and-validates-targets-let-boundary--strictpathwith_boundary_createsystem_root---if-system_rootconfig_link-symlinks-to-etcappconf-let-config--boundarystrict_joinconfig_link---error-if-target-is-outside-boundary---ok-if-target-resolves-to-path-inside-boundary---use-for-shared-system-resources-config-files-traditional-filesystem-operations---virtualpath-virtual-filesystem-semantics----rust-use-strict_pathvirtualpath---virtualpath-clamps-absolute-symlink-targets-to-virtual-root-let-vroot--virtualpathwith_rootformatuser_user_id_sandbox---if-user_sandboxconfig_link-symlinks-to-etcappconf-let-config--vrootvirtual_joinconfig_link---always-ok---target-clamped-to-user_sandboxetcappconf--printlnvirtual--configvirtualpath_display--output-etcappconf-from-users-perspective--printlnsystem--configas_unvirtualstrictpath_display----output-user_sandboxetcappconf-actually-safe---use-for-multi-tenant-systems-archive-extraction-sandboxed-environments-container-like-semantics--key-insight-in-a-virtual-filesystem-absolute-paths-whether-from-user-input-or-symlink-targets-are-always-relative-to-the-virtual-root-this-makes-virtualpath-perfect-for-untrusted-inputs-where-you-want-graceful-containment-rather-than-explicit-rejection---common-patterns-summary--1-validate-once-use-everywhere-create-typed-paths-at-boundaries-pass-typed-paths-to-functions-2-encode-intent-in-signatures-function-parameters-should-clearly-show-what-domains-they-work-with-3-separate-validation-from-business-logic-keep-path-validation-separate-from-file-processing-4-use-meaningful-marker-names-markers-should-describe-business-domains-not-technical-implementation-5-fail-at-compile-time-structure-your-code-so-domain-mix-ups-become-type-errors-6-choose-the-right-semantics-use-strictpath-for-system-operations-validation-virtualpath-for-sandboxing-clamping--the-type-system-becomes-your-ally-in-preventing-path-related-security-bugs-and-logic-errors">Type-System Guarantees in SignaturesOne of strict-path's most powerful features is its **marker type system** that lets you encode domain-specific path guarantees in function signatures. This makes incorrect path usage a compile-time error rather than a runtime vulnerability.## What Are Markers?A marker is a zero-cost type parameter that describes what a path contains or how it should be used. Markers have no runtime representation - they exist purely to help the type system prevent mistakes.```rustuse strict_path::{PathBoundary, StrictPath};// Define markers for different content domainsstruct PublicAssets;   // CSS, JS, images for websitestruct UserUploads;    // Documents uploaded by users  struct TempFiles;      // Temporary processing filesstruct ConfigFiles;    // Application configuration// Use markers to create domain-specific boundarieslet public_assets_dir: PathBoundary&lt;PublicAssets&gt; = PathBoundary::try_new("static")?;let user_uploads_dir: PathBoundary&lt;UserUploads&gt; = PathBoundary::try_new("uploads")?;let temp_files_dir: PathBoundary&lt;TempFiles&gt; = PathBoundary::try_new("temp")?;let app_config_dir: PathBoundary&lt;ConfigFiles&gt; = PathBoundary::try_new("config")?;// Join paths with their appropriate markerslet css_file: StrictPath&lt;PublicAssets&gt; = public_assets_dir.strict_join("style.css")?;let user_doc: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("report.pdf")?;let temp_file: StrictPath&lt;TempFiles&gt; = temp_files_dir.strict_join("processing.tmp")?;let app_config: StrictPath&lt;ConfigFiles&gt; = app_config_dir.strict_join("settings.json")?;```## Why Markers MatterWithout markers, it's easy to accidentally mix up different types of paths:```rust// Without markers - dangerous mix-ups are possiblefn process_user_upload(file_path: &amp;StrictPath) -&gt; io::Result&lt;()&gt; {    // Is this a user file? Config file? Temp file?     // No way to know from the type!    file_path.read_to_string()}// With markers - impossible to mix up domains  fn process_user_upload(user_file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; io::Result&lt;String&gt; {    // Clear: this function ONLY processes user uploads    user_file.read_to_string() }fn load_app_config(config_file: &amp;StrictPath&lt;ConfigFiles&gt;) -&gt; io::Result&lt;AppConfig&gt; {    // Clear: this function ONLY loads config files    let content = config_file.read_to_string()?;    serde_json::from_str(&amp;content)}```## Compile-Time SafetyWith markers, the compiler prevents domain mix-ups:```rustlet user_doc: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("report.pdf")?;let app_config: StrictPath&lt;ConfigFiles&gt; = app_config_dir.strict_join("settings.json")?;// ✅ These work - correct marker typesprocess_user_upload(&amp;user_doc)?;load_app_config(&amp;app_config)?;// ❌ These are compile errors - marker type mismatch!// process_user_upload(&amp;app_config)?;  // Can't pass ConfigFiles to UserUploads function// load_app_config(&amp;user_doc)?;        // Can't pass UserUploads to ConfigFiles function```**The power**: If your code compiles, you know you're not accidentally processing config files as user uploads, or serving user uploads as public assets!## Function Signature Patterns### Pattern 1: Accept Validated PathsWhen the caller has already validated the path, accept the typed path directly:```rustfn serve_public_asset(asset: &amp;StrictPath&lt;PublicAssets&gt;) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {    // Caller proved this is a public asset - we can serve it safely    asset.read()}fn delete_user_file(user_file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; io::Result&lt;()&gt; {    // Caller proved this is a user upload - safe to delete    user_file.remove_file()}fn backup_config(config_file: &amp;StrictPath&lt;ConfigFiles&gt;, backup_dir: &amp;StrictPath&lt;BackupStorage&gt;) -&gt; io::Result&lt;()&gt; {    let content = config_file.read()?;    let backup_name = format!("config-{}.json", chrono::Utc::now().format("%Y%m%d"));    let backup_path = backup_dir.strict_join(&amp;backup_name)?;    backup_path.write(content)}```### Pattern 2: Validate Inside HelperWhen the helper needs to validate user input, accept the boundary plus untrusted segment:```rustfn save_user_upload(    uploads_dir: &amp;PathBoundary&lt;UserUploads&gt;,     filename: &amp;str,  // untrusted input    content: &amp;[u8]) -&gt; io::Result&lt;()&gt; {    // Validate the untrusted filename    let user_file = uploads_dir.strict_join(filename)?;    user_file.create_parent_dir_all()?;    user_file.write(content)}fn load_config_by_name(    config_dir: &amp;PathBoundary&lt;ConfigFiles&gt;,     config_name: &amp;str  // untrusted input) -&gt; io::Result&lt;serde_json::Value&gt; {    // Validate the untrusted config name    let config_file = config_dir.strict_join(config_name)?;     let content = config_file.read_to_string()?;    serde_json::from_str(&amp;content).map_err(Into::into)}```### Pattern 3: Multiple Domain AccessSome functions need to work with multiple domains - use multiple parameters:```rustfn generate_report(    user_data: &amp;StrictPath&lt;UserUploads&gt;,    template: &amp;StrictPath&lt;PublicAssets&gt;,     temp_reports_dir: &amp;PathBoundary&lt;TempFiles&gt;) -&gt; io::Result&lt;StrictPath&lt;TempFiles&gt;&gt; {    let data = user_data.read_to_string()?;    let template_content = template.read_to_string()?;        // Process data with template...    let report = process_template(&amp;template_content, &amp;data);        let report_file = temp_reports_dir.strict_join("report.html")?;    report_file.write(report)?;    Ok(report_file)}```## Marker Best Practices### Use Descriptive Domain Names```rust// ✅ Good - describes what the paths containstruct UserHomes;struct ProductImages; struct DatabaseBackups;struct AuditLogs;// ❌ Avoid - generic or implementation-focused namesstruct Files;struct Directory;struct Database;struct Secure;```### Create Markers for Business Domains```rust// ✅ Good - matches your application's business logicstruct CustomerDocuments;struct FinancialReports;struct ProductCatalog; struct EmployeeRecords;struct MarketingAssets;// ❌ Avoid - technical implementation details as primary markersstruct JsonFiles;struct ReadOnlyData;struct EncryptedStorage;```### Use Meaningful Function Names```rust// ✅ Good - function names explain business intentfn archive_customer_document(doc: &amp;StrictPath&lt;CustomerDocuments&gt;) -&gt; io::Result&lt;()&gt; { ... }fn publish_marketing_asset(asset: &amp;StrictPath&lt;MarketingAssets&gt;) -&gt; io::Result&lt;()&gt; { ... }fn audit_financial_report(report: &amp;StrictPath&lt;FinancialReports&gt;) -&gt; io::Result&lt;()&gt; { ... }// ❌ Avoid - generic names that don't explain purpose  fn process_file(path: &amp;StrictPath&lt;SomeMarker&gt;) -&gt; io::Result&lt;()&gt; { ... }fn handle_data(path: &amp;StrictPath&lt;SomeMarker&gt;) -&gt; io::Result&lt;()&gt; { ... }```## Advanced Marker Patterns### Hierarchical MarkersYou can create marker hierarchies for more sophisticated type safety:```ruststruct MediaFiles;struct Images;struct Videos;struct Documents;// Use PhantomData for hierarchical relationshipsstruct MediaFile&lt;T&gt;(std::marker::PhantomData&lt;T&gt;);type ImageFile = MediaFile&lt;Images&gt;;type VideoFile = MediaFile&lt;Videos&gt;;type DocumentFile = MediaFile&lt;Documents&gt;;fn process_image(img: &amp;StrictPath&lt;ImageFile&gt;) -&gt; io::Result&lt;()&gt; { ... }fn process_video(vid: &amp;StrictPath&lt;VideoFile&gt;) -&gt; io::Result&lt;()&gt; { ... }fn process_document(doc: &amp;StrictPath&lt;DocumentFile&gt;) -&gt; io::Result&lt;()&gt; { ... }```### Environment-Specific Markers```ruststruct Production;struct Staging;  struct Development;struct ConfigFile&lt;Env&gt;(std::marker::PhantomData&lt;Env&gt;);type ProdConfig = ConfigFile&lt;Production&gt;;type StagingConfig = ConfigFile&lt;Staging&gt;;type DevConfig = ConfigFile&lt;Development&gt;;fn deploy_to_production(config: &amp;StrictPath&lt;ProdConfig&gt;) -&gt; io::Result&lt;()&gt; {    // Only production configs can be deployed to production    apply_production_config(config)}```## Integration with SerdeWhen deserializing paths from configuration, you still need runtime validation:```rustuse serde::Deserialize;#[derive(Deserialize)]struct AppConfig {    upload_directory: String,  // Raw path from config    static_directory: String,  // Raw path from config}fn load_app_config() -&gt; Result&lt;(PathBoundary&lt;UserUploads&gt;, PathBoundary&lt;PublicAssets&gt;), ConfigError&gt; {    let config: AppConfig = serde_json::from_str(&amp;config_json)?;        // Validate raw config paths into typed boundaries    let user_uploads_dir = PathBoundary::&lt;UserUploads&gt;::try_new_create(&amp;config.upload_directory)?;    let public_assets_dir = PathBoundary::&lt;PublicAssets&gt;::try_new_create(&amp;config.static_directory)?;        Ok((user_uploads_dir, public_assets_dir))}```## Zero Runtime CostIt's important to understand that markers are zero-cost abstractions:```rust// These have identical runtime performancelet generic_path: StrictPath = some_root.strict_join("file.txt")?;let typed_path: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("file.txt")?;// The marker information is erased at compile timeassert_eq!(    std::mem::size_of::&lt;StrictPath&gt;(),     std::mem::size_of::&lt;StrictPath&lt;UserUploads&gt;&gt;());```All the type safety benefits come at compile time with no runtime overhead!## StrictPath vs VirtualPath: Symlink SemanticsOne critical difference between `StrictPath` and `VirtualPath` is how they handle symlinks:### StrictPath: System Filesystem Semantics```rustuse strict_path::StrictPath;// StrictPath follows symlinks and validates targetslet boundary = StrictPath::with_boundary_create("system_root")?;// If "system_root/config_link" symlinks to "/etc/app.conf":let config = boundary.strict_join("config_link");// ❌ Error if target is outside boundary// ✅ OK if target resolves to path inside boundary```**Use for:** Shared system resources, config files, traditional filesystem operations### VirtualPath: Virtual Filesystem Semantics  ```rustuse strict_path::VirtualPath;// VirtualPath clamps absolute symlink targets to virtual rootlet vroot = VirtualPath::with_root(format!("user_{user_id}_sandbox"))?;// If "user_sandbox/config_link" symlinks to "/etc/app.conf":let config = vroot.virtual_join("config_link")?;// ✅ Always OK - target clamped to "user_sandbox/etc/app.conf"println!("Virtual: {}", config.virtualpath_display());// Output: /etc/app.conf (from user's perspective)println!("System: {}", config.as_unvirtual().strictpath_display());  // Output: user_sandbox/etc/app.conf (actually safe!)```**Use for:** Multi-tenant systems, archive extraction, sandboxed environments, container-like semantics**Key Insight:** In a virtual filesystem, absolute paths (whether from user input or symlink targets) are *always* relative to the virtual root. This makes `VirtualPath` perfect for untrusted inputs where you want graceful containment rather than explicit rejection.## Common Patterns Summary1. **Validate once, use everywhere**: Create typed paths at boundaries, pass typed paths to functions2. **Encode intent in signatures**: Function parameters should clearly show what domains they work with3. **Separate validation from business logic**: Keep path validation separate from file processing4. **Use meaningful marker names**: Markers should describe business domains, not technical implementation5. **Fail at compile time**: Structure your code so domain mix-ups become type errors6. **Choose the right semantics**: Use `StrictPath` for system operations (validation), `VirtualPath` for sandboxing (clamping)The type system becomes your ally in preventing path-related security bugs and logic errors!</a></h1>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="how-we-achieve-security"><a class="header" href="#how-we-achieve-security">How We Achieve Security</a></h1>
 <p>This chapter provides a detailed look at the multi-layered security methodology behind <code>strict-path</code>. Rather than relying on simple string validation or ad-hoc checks, we've built a comprehensive defense-in-depth approach that addresses path security from the ground up.</p>
 <h2 id="1-battle-tested-foundation-soft-canonicalize"><a class="header" href="#1-battle-tested-foundation-soft-canonicalize">1. Battle-Tested Foundation: <code>soft-canonicalize</code></a></h2>
@@ -3527,7 +3077,8 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let service = FileUploadService;
 
     // Per-user virtual roots
-    let alice_uploads_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/alice")?;
+    let username = "alice";
+    let alice_uploads_root: VirtualRoot = VirtualRoot::try_new_create(format!("user_uploads/{username}"))?;
     let bob_uploads_root: VirtualRoot = VirtualRoot::try_new_create("user_uploads/bob")?;
 
     // Simulate user uploads - these are all SAFE and isolated
@@ -3598,7 +3149,8 @@ fn process_common&lt;M&gt;(file: &amp;StrictPath&lt;M&gt;) -&gt; io::Result&lt;V
 let public_assets_root = PathBoundary::try_new("./assets")?;
 let css_file: StrictPath = public_assets_root.strict_join("style.css")?;
 
-let alice_uploads_root = VirtualRoot::try_new("./uploads/alice")?;
+let username = "alice";
+let alice_uploads_root = VirtualRoot::try_new(format!("./uploads/{username}"))?;
 let avatar_file: VirtualPath = alice_uploads_root.virtual_join("avatar.jpg")?;
 
 // Call with either type
@@ -3785,7 +3337,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 <tr><td><code>load_config("..\\windows\\system.ini")</code></td><td>❌ Path escape blocked</td></tr>
 </tbody></table>
 </div>
-<h2 id="integration-with-serde-1"><a class="header" href="#integration-with-serde-1">Integration with Serde</a></h2>
+<h2 id="integration-with-serde"><a class="header" href="#integration-with-serde">Integration with Serde</a></h2>
 <p>For more complex deserialization scenarios, use the <code>serde</code> feature:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -3823,7 +3375,7 @@ fn new_with_os_config() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&g
 }
 <span class="boring">}</span></code></pre></pre>
 <p>See the <a href="examples/../os_directories.html">OS Standard Directories</a> chapter for more details.</p>
-<h2 id="environment-variable-overrides-1"><a class="header" href="#environment-variable-overrides-1">Environment Variable Overrides</a></h2>
+<h2 id="environment-variable-overrides"><a class="header" href="#environment-variable-overrides">Environment Variable Overrides</a></h2>
 <p>For deployment flexibility, use the <code>app-path</code> feature:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -4011,7 +3563,8 @@ let bob_doc = bob_root.virtual_join("/secret.txt")?;
 <p>Understanding the difference:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>let alice_root = VirtualRoot::try_new_create("user_data_alice")?;
+</span>let username = "alice";
+let alice_root = VirtualRoot::try_new_create(format!("user_data_{username}"))?;
 let doc = alice_root.virtual_join("/reports/january.pdf")?;
 
 // What the user sees:
@@ -5079,7 +4632,9 @@ fn load_config(path: &amp;StrictPath&lt;ConfigData&gt;) -&gt; Result&lt;String, 
 fn example_type_safety() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     // Create context-specific boundaries
     let assets_root: VirtualRoot&lt;WebAssets&gt; = VirtualRoot::try_new("public")?;
-    let uploads_root: VirtualRoot&lt;UserFiles&gt; = VirtualRoot::try_new("uploads")?;
+    let user_id = "alice";
+    let uploads_root: VirtualRoot&lt;UserFiles&gt; =
+        VirtualRoot::try_new(format!("uploads/{user_id}"))?;
     let config_boundary: PathBoundary&lt;ConfigData&gt; = PathBoundary::try_new("config")?;
 
     // Create paths with proper contexts
@@ -5144,7 +4699,6 @@ struct ServerConfig;
 
 struct WebServer {
     assets: VirtualRoot&lt;WebAssets&gt;,
-    uploads: VirtualRoot&lt;UserUploads&gt;,
     config: PathBoundary&lt;ServerConfig&gt;,
 }
 
@@ -5152,7 +4706,6 @@ impl WebServer {
     fn new() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
         Ok(Self {
             assets: VirtualRoot::try_new("public")?,
-            uploads: VirtualRoot::try_new("uploads")?,
             config: PathBoundary::try_new("config")?,
         })
     }
@@ -5169,8 +4722,13 @@ impl WebServer {
     }
     
     // This can ONLY handle user uploads
-    fn save_upload(&amp;self, filename: &amp;str, content: &amp;[u8]) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-        let upload: VirtualPath&lt;UserUploads&gt; = self.uploads.virtual_join(filename)?;
+    fn save_upload(
+        &amp;self,
+        uploads_root: &amp;VirtualRoot&lt;UserUploads&gt;,
+        filename: &amp;str,
+        content: &amp;[u8],
+    ) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+        let upload: VirtualPath&lt;UserUploads&gt; = uploads_root.virtual_join(filename)?;
         self.write_upload(upload.as_unvirtual(), content)?;
         Ok(())
     }
@@ -5198,7 +4756,13 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     
     // Each method can only access its designated context
     let css = server.serve_static_file("app.css")?;
-    server.save_upload("document.pdf", b"PDF content")?;
+    
+    // Per-user uploads: construct a VirtualRoot with user_id
+    let user_id = "alice";
+    let uploads_root: VirtualRoot&lt;UserUploads&gt; =
+        VirtualRoot::try_new_create(format!("uploads/{user_id}"))?;
+    server.save_upload(&amp;uploads_root, "document.pdf", b"PDF content")?;
+    
     let config = server.load_config("server.toml")?;
     
     // These would be impossible to mess up due to type safety:
@@ -6360,17 +5924,598 @@ curl http://localhost:3000/users/user_001/files
 <hr />
 <p><strong>Navigation:</strong><br />
 <a href="axum_tutorial/./chapter2_static_assets.html">← Chapter 2</a> | <a href="axum_tutorial/./overview.html">Tutorial Overview</a></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="ecosystem-integration"><a class="header" href="#ecosystem-integration">Ecosystem Integration</a></h1>
+<blockquote>
+<p><em>"Compose strict-path with ecosystem tools — no feature flags needed."</em></p>
+</blockquote>
+<p><code>strict-path</code> provides security primitives for path operations. You compose these with popular ecosystem crates directly — no coupling, no feature flags, just clean integration.</p>
+<p><strong>Philosophy</strong>: We don't wrap ecosystem crates. We show you how to use them together effectively.</p>
+<hr />
+<h2 id="table-of-contents"><a class="header" href="#table-of-contents">Table of Contents</a></h2>
+<ul>
+<li><a href="ecosystem_integration.html#temporary-directories-tempfile">Temporary Directories (tempfile)</a></li>
+<li><a href="ecosystem_integration.html#portable-application-paths-app-path">Portable Application Paths (app-path)</a></li>
+<li><a href="ecosystem_integration.html#os-standard-directories-dirs">OS Standard Directories (dirs)</a></li>
+<li><a href="ecosystem_integration.html#serialization--deserialization-serde">Serialization &amp; Deserialization (serde)</a></li>
+</ul>
+<hr />
+<h2 id="temporary-directories-tempfile-1"><a class="header" href="#temporary-directories-tempfile-1">Temporary Directories (tempfile)</a></h2>
+<p>The <a href="https://crates.io/crates/tempfile"><code>tempfile</code></a> crate provides RAII temporary directories that auto-cleanup on drop. Perfect for extraction staging, upload processing, and test fixtures.</p>
+<h3 id="basic-integration"><a class="header" href="#basic-integration">Basic Integration</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use tempfile::TempDir;
+
+fn process_upload() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create temporary directory with RAII cleanup
+    let temp_dir = tempfile::tempdir()?;
+
+    // Establish strict boundary
+    let upload_boundary = PathBoundary::try_new(temp_dir.path())?;
+
+    // Now all operations are bounded
+    let user_file = upload_boundary.strict_join("user/data.txt")?;
+    user_file.create_parent_dir_all()?;
+    user_file.write(b"uploaded content")?;
+
+    // Process files...
+    let contents = user_file.read_to_string()?;
+    println!("Processed: {}", contents);
+
+    Ok(())
+    // temp_dir automatically deleted here when dropped
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="with-custom-prefix"><a class="header" href="#with-custom-prefix">With Custom Prefix</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn extraction_staging() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Temp directory with identifiable prefix
+    let temp_dir = tempfile::Builder::new()
+        .prefix("archive-extract-")
+        .tempdir()?;
+
+    let extract_boundary = PathBoundary::try_new(temp_dir.path())?;
+
+    // Extract archive entries safely
+    for entry_name in &amp;["file1.txt", "../../etc/passwd", "file2.txt"] {
+        match extract_boundary.strict_join(entry_name) {
+            Ok(safe_path) =&gt; {
+                safe_path.create_parent_dir_all()?;
+                safe_path.write(b"extracted")?;
+                println!("✓ Extracted: {}", safe_path.strictpath_display());
+            }
+            Err(e) =&gt; {
+                eprintln!("✗ Blocked malicious path '{}': {}", entry_name, e);
+            }
+        }
+    }
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="test-fixtures-pattern"><a class="header" href="#test-fixtures-pattern">Test Fixtures Pattern</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use tempfile::TempDir;
+
+#[test]
+fn test_file_processing() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    // Setup test files
+    let input = boundary.strict_join("input.txt").unwrap();
+    input.write(b"test data").unwrap();
+
+    // Run your code
+    process_file(&amp;boundary, "input.txt").unwrap();
+
+    // Verify results
+    let output = boundary.strict_join("output.txt").unwrap();
+    assert!(output.exists());
+
+    // temp auto-cleans on drop
+}
+
+fn process_file(boundary: &amp;PathBoundary, name: &amp;str) -&gt; std::io::Result&lt;()&gt; {
+    let input = boundary.strict_join(name).unwrap();
+    let output = boundary.strict_join("output.txt").unwrap();
+
+    let data = input.read_to_string()?;
+    output.write(data.to_uppercase().as_bytes())?;
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="virtualroot-with-temporary-directories"><a class="header" href="#virtualroot-with-temporary-directories">VirtualRoot with Temporary Directories</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualRoot;
+
+fn temp_sandbox() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let temp_dir = tempfile::tempdir()?;
+    let sandbox = VirtualRoot::try_new(temp_dir.path())?;
+
+    // Escape attempts are clamped
+    let user_path = sandbox.virtual_join("../../../etc/passwd")?;
+
+    // Stays within temp directory
+    println!("Virtual: {}", user_path.virtualpath_display()); // "/etc/passwd"
+    println!("Real: {}", user_path.realpath_display());       // "/&lt;tempdir&gt;/etc/passwd"
+
+    user_path.create_parent_dir_all()?;
+    user_path.write(b"safe content")?;
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="portable-application-paths-app-path"><a class="header" href="#portable-application-paths-app-path">Portable Application Paths (app-path)</a></h2>
+<p>The <a href="https://crates.io/crates/app-path"><code>app-path</code></a> crate creates executable-relative paths for truly portable applications (USB drives, different install locations).</p>
+<p><strong>Key API</strong>:</p>
+<ul>
+<li><code>AppPath::new()</code> - Returns executable directory</li>
+<li><code>AppPath::with("subdir")</code> - Returns executable_dir/subdir</li>
+<li>Implements <code>Deref&lt;Target=Path&gt;</code> so it can be used directly as a path</li>
+</ul>
+<h3 id="basic-portable-app"><a class="header" href="#basic-portable-app">Basic Portable App</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use app_path::AppPath;
+
+fn setup_portable_app() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // AppPath::with() returns executable_dir/MyPortableApp
+    let app_dir = AppPath::with("MyPortableApp");
+
+    // Establish boundary for the app directory
+    let boundary = PathBoundary::try_new_create(app_dir)?;
+
+    // Safe operations within app directory
+    let config = boundary.strict_join("config/settings.ini")?;
+    config.create_parent_dir_all()?;
+    config.write(b"[settings]\nportable=true\n")?;
+
+    let data = boundary.strict_join("data/userfiles")?;
+    data.create_dir_all()?;
+
+    println!("App directory: {}", boundary.strictpath_display());
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="environment-variable-overrides-testingcicd"><a class="header" href="#environment-variable-overrides-testingcicd">Environment Variable Overrides (Testing/CI/CD)</a></h3>
+<p>Perfect for testing, CI/CD pipelines, and container deployments where you need to control the data location.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use app_path::AppPath;
+
+fn setup_app_with_override() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Use AppPath's built-in override support
+    let env_var = "MY_APP_DATA_DIR";
+    let app_path = AppPath::with_override("MyApp", Some(env_var));
+
+    let boundary = PathBoundary::try_new_create(app_path)?;
+
+    println!("Using app directory: {}", boundary.strictpath_display());
+    // In production: /path/to/exe/MyApp
+    // In CI with MY_APP_DATA_DIR=/tmp/ci-test: /tmp/ci-test
+
+    let log_file = boundary.strict_join("logs/app.log")?;
+    log_file.create_parent_dir_all()?;
+    log_file.write(b"Application started\n")?;
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="multi-directory-pattern"><a class="header" href="#multi-directory-pattern">Multi-Directory Pattern</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use app_path::AppPath;
+
+struct AppPaths {
+    config: PathBoundary&lt;ConfigDir&gt;,
+    data: PathBoundary&lt;DataDir&gt;,
+    cache: PathBoundary&lt;CacheDir&gt;,
+}
+
+struct ConfigDir;
+struct DataDir;
+struct CacheDir;
+
+impl AppPaths {
+    fn new(app_name: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        // AppPath::with() returns executable_dir/app_name
+        let base_dir = AppPath::with(app_name);
+
+        Ok(Self {
+            config: PathBoundary::try_new_create(base_dir.join("config"))?,
+            data: PathBoundary::try_new_create(base_dir.join("data"))?,
+            cache: PathBoundary::try_new_create(base_dir.join("cache"))?,
+        })
+    }
+}
+
+fn use_app_paths() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let paths = AppPaths::new("MyApp")?;
+
+    let settings = paths.config.strict_join("settings.toml")?;
+    settings.write(b"theme = 'dark'\n")?;
+
+    let user_db = paths.data.strict_join("users.db")?;
+    user_db.write(b"database content")?;
+
+    let temp_cache = paths.cache.strict_join("thumbnails/thumb1.png")?;
+    temp_cache.create_parent_dir_all()?;
+    temp_cache.write(b"cached data")?;
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="os-standard-directories-dirs"><a class="header" href="#os-standard-directories-dirs">OS Standard Directories (dirs)</a></h2>
+<p>The <a href="https://crates.io/crates/dirs"><code>dirs</code></a> crate provides cross-platform access to standard user directories (config, data, cache, downloads, etc.).</p>
+<h3 id="configuration-directory"><a class="header" href="#configuration-directory">Configuration Directory</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn setup_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Get platform-specific config directory
+    let config_base = dirs::config_dir()
+        .ok_or("No config directory available")?;
+
+    // Create app-specific subdirectory boundary
+    let app_config = config_base.join("myapp");
+    let boundary = PathBoundary::try_new_create(&amp;app_config)?;
+
+    // Platform-specific locations:
+    // Linux:   ~/.config/myapp/
+    // Windows: C:\Users\Alice\AppData\Roaming\myapp\
+    // macOS:   ~/Library/Application Support/myapp/
+
+    let settings = boundary.strict_join("settings.toml")?;
+    settings.write(b"[app]\nversion = '1.0'\n")?;
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="multi-directory-application"><a class="header" href="#multi-directory-application">Multi-Directory Application</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+struct AppDirectories {
+    config: PathBoundary,
+    data: PathBoundary,
+    cache: PathBoundary,
+}
+
+impl AppDirectories {
+    fn new(app_name: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        let config_base = dirs::config_dir()
+            .ok_or("No config directory")?;
+        let data_base = dirs::data_dir()
+            .ok_or("No data directory")?;
+        let cache_base = dirs::cache_dir()
+            .ok_or("No cache directory")?;
+
+        Ok(Self {
+            config: PathBoundary::try_new_create(config_base.join(app_name))?,
+            data: PathBoundary::try_new_create(data_base.join(app_name))?,
+            cache: PathBoundary::try_new_create(cache_base.join(app_name))?,
+        })
+    }
+}
+
+fn use_standard_dirs() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let dirs = AppDirectories::new("MyApp")?;
+
+    // Config: user preferences
+    let prefs = dirs.config.strict_join("preferences.json")?;
+    prefs.write(br#"{"theme": "dark"}"#)?;
+
+    // Data: persistent user data
+    let database = dirs.data.strict_join("app.db")?;
+    database.write(b"database data")?;
+
+    // Cache: temporary/regenerable data
+    let thumbnail = dirs.cache.strict_join("thumbs/image1.jpg")?;
+    thumbnail.create_parent_dir_all()?;
+    thumbnail.write(b"thumbnail data")?;
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="user-content-directories"><a class="header" href="#user-content-directories">User Content Directories</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn access_user_content() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Downloads directory
+    if let Some(downloads) = dirs::download_dir() {
+        let boundary = PathBoundary::try_new(&amp;downloads)?;
+
+        // Safe access to user-selected file
+        let user_input = "report.pdf"; // From file picker or CLI
+        let file = boundary.strict_join(user_input)?;
+
+        if file.exists() {
+            let data = file.read()?;
+            println!("Processing file: {} bytes", data.len());
+        }
+    }
+
+    // Documents directory
+    if let Some(documents) = dirs::document_dir() {
+        let boundary = PathBoundary::try_new(&amp;documents)?;
+
+        let export = boundary.strict_join("exports/data.csv")?;
+        export.create_parent_dir_all()?;
+        export.write(b"col1,col2\nval1,val2\n")?;
+
+        println!("Exported to: {}", export.strictpath_display());
+    }
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="serialization--deserialization-serde"><a class="header" href="#serialization--deserialization-serde">Serialization &amp; Deserialization (serde)</a></h2>
+<p>For JSON, TOML, YAML, and other formats, use <code>FromStr</code> trait with manual validation — giving you explicit control over path validation.</p>
+<h3 id="deserializing-boundaries-with-fromstr"><a class="header" href="#deserializing-boundaries-with-fromstr">Deserializing Boundaries with FromStr</a></h3>
+<p><code>PathBoundary</code> and <code>VirtualRoot</code> implement <code>FromStr</code>, so they deserialize automatically with serde:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct AppConfig {
+    // Deserializes via FromStr automatically
+    upload_dir: PathBoundary,
+    data_dir: PathBoundary,
+}
+
+fn load_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let json = r#"{
+        "upload_dir": "./uploads",
+        "data_dir": "./data"
+    }"#;
+
+    let config: AppConfig = serde_json::from_str(json)?;
+
+    // Boundaries are ready to use
+    let file = config.upload_dir.strict_join("user/file.txt")?;
+    file.create_parent_dir_all()?;
+    file.write(b"content")?;
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="explicit-path-validation-pattern"><a class="header" href="#explicit-path-validation-pattern">Explicit Path Validation Pattern</a></h3>
+<p>For paths within boundaries, deserialize as <code>String</code> and validate explicitly:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct UploadRequest {
+    boundary: PathBoundary,
+    user_paths: Vec&lt;String&gt;, // Validate these manually
+}
+
+fn handle_upload(json: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let request: UploadRequest = serde_json::from_str(json)?;
+
+    // Explicit validation - security-conscious and visible
+    for path_str in &amp;request.user_paths {
+        match request.boundary.strict_join(path_str) {
+            Ok(safe_path) =&gt; {
+                safe_path.create_parent_dir_all()?;
+                safe_path.write(b"uploaded")?;
+                println!("✓ Uploaded: {}", safe_path.strictpath_display());
+            }
+            Err(e) =&gt; {
+                eprintln!("✗ Rejected '{}': {}", path_str, e);
+            }
+        }
+    }
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="web-api-example-axum"><a class="header" href="#web-api-example-axum">Web API Example (Axum)</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use serde::{Deserialize, Serialize};
+use axum::{Json, extract::State};
+
+#[derive(Deserialize)]
+struct FileUpload {
+    filename: String, // User input - must validate!
+    content: String,
+}
+
+#[derive(Serialize)]
+struct UploadResponse {
+    success: bool,
+    path: String,
+}
+
+struct AppState {
+    upload_boundary: PathBoundary,
+}
+
+async fn upload_file(
+    State(state): State&lt;AppState&gt;,
+    Json(upload): Json&lt;FileUpload&gt;,
+) -&gt; Json&lt;UploadResponse&gt; {
+    // Explicit validation of user input
+    match state.upload_boundary.strict_join(&amp;upload.filename) {
+        Ok(safe_path) =&gt; {
+            safe_path.create_parent_dir_all().ok();
+            safe_path.write(upload.content.as_bytes()).ok();
+
+            Json(UploadResponse {
+                success: true,
+                path: safe_path.strictpath_display().to_string(),
+            })
+        }
+        Err(e) =&gt; {
+            Json(UploadResponse {
+                success: false,
+                path: format!("Error: {}", e),
+            })
+        }
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="config-file-pattern"><a class="header" href="#config-file-pattern">Config File Pattern</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct ServerConfig {
+    // Boundaries deserialize via FromStr
+    public_assets: PathBoundary&lt;PublicAssets&gt;,
+    user_uploads: PathBoundary&lt;UserUploads&gt;,
+
+    // Other config
+    port: u16,
+    host: String,
+}
+
+struct PublicAssets;
+struct UserUploads;
+
+fn load_server_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let toml_str = r#"
+        public_assets = "./public"
+        user_uploads = "./uploads"
+        port = 8080
+        host = "127.0.0.1"
+    "#;
+
+    let config: ServerConfig = toml::from_str(toml_str)?;
+
+    // Use boundaries immediately
+    let favicon = config.public_assets.strict_join("favicon.ico")?;
+    println!("Favicon: {}", favicon.strictpath_display());
+
+    let user_file = config.user_uploads.strict_join("user123/file.txt")?;
+    user_file.create_parent_dir_all()?;
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="serializing-paths"><a class="header" href="#serializing-paths">Serializing Paths</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, StrictPath};
+use serde_json::json;
+
+fn serialize_paths() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let boundary = PathBoundary::try_new_create("./data")?;
+    let file = boundary.strict_join("config/settings.json")?;
+
+    // Serialize to JSON using display methods
+    let response = json!({
+        "boundary": boundary.strictpath_display().to_string(),
+        "file": file.strictpath_display().to_string(),
+        "file_name": file.strictpath_file_name()
+            .unwrap()
+            .to_string_lossy(),
+    });
+
+    println!("{}", serde_json::to_string_pretty(&amp;response)?);
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="why-no-feature-flags-1"><a class="header" href="#why-no-feature-flags-1">Why No Feature Flags?</a></h2>
+<p><strong>Philosophy</strong>: <code>strict-path</code> provides security primitives. You compose them with ecosystem tools.</p>
+<p><strong>Benefits of direct integration:</strong></p>
+<ol>
+<li>✅ <strong>Full control</strong> - Access all options of external crates, not just what we expose</li>
+<li>✅ <strong>No version coupling</strong> - Use any version of <code>tempfile</code>, <code>dirs</code>, etc.</li>
+<li>✅ <strong>Clear dependencies</strong> - You explicitly add what you use</li>
+<li>✅ <strong>Reduced bloat</strong> - Pay only for what you import</li>
+<li>✅ <strong>Explicit validation</strong> - Security operations are visible in your code</li>
+</ol>
+<p><strong>Trade-off</strong>: Write one extra line of code for explicit, secure integration.</p>
+<hr />
+<h2 id="quick-reference"><a class="header" href="#quick-reference">Quick Reference</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Temporary directories
+let temp = tempfile::tempdir()?;
+let boundary = PathBoundary::try_new(temp.path())?;
+
+// Portable app paths
+use app_path::AppPath;
+let app_path = AppPath::with("MyApp");  // Relative to executable directory
+let boundary = PathBoundary::try_new_create(&amp;app_path)?;
+
+// OS directories
+let config = dirs::config_dir().ok_or("No config dir")?;
+let boundary = PathBoundary::try_new_create(config.join("myapp"))?;
+
+// Deserialization (FromStr)
+#[derive(Deserialize)]
+struct Config {
+    boundary: PathBoundary,  // Automatic via FromStr
+    user_path: String,        // Manual validation
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
+<ul>
+<li><a href="./examples/overview.html">Real-World Examples</a></li>
+<li><a href="./best_practices.html">Best Practices</a></li>
+<li><a href="./axum_tutorial/overview.html">Axum Tutorial</a></li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="os-standard-directories"><a class="header" href="#os-standard-directories">OS Standard Directories</a></h1>
 <blockquote>
-<p><strong>Feature</strong>: <code>dirs</code> - Enable with <code>features = ["dirs"]</code> in your <code>Cargo.toml</code></p>
+<p><strong>Recommended: Use the <a href="https://crates.io/crates/dirs"><code>dirs</code></a> crate directly with <code>PathBoundary::try_new()</code></strong></p>
 </blockquote>
-<p>The <code>strict-path</code> crate provides seamless integration with operating system standard directories through the <a href="https://crates.io/crates/dirs"><code>dirs</code></a> crate. This enables cross-platform applications to securely access user and system directories like configuration, data storage, cache, and user content locations.</p>
-<p><strong>Quick Start:</strong></p>
+<p>This page shows how to integrate <code>strict-path</code> with the <code>dirs</code> crate for cross-platform OS standard directories.</p>
+<h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-beta.2", features = ["dirs"] }
+strict-path = "0.1"
+dirs = "5.0"  # Add dirs directly
 </code></pre>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+// Platform-specific config directory
+let config_base = dirs::config_dir()
+    .ok_or("No config directory")?;
+
+// Create app-specific boundary
+let app_config = config_base.join("myapp");
+let boundary = PathBoundary::try_new_create(&amp;app_config)?;
+
+// Safe operations within boundary
+let settings = boundary.strict_join("settings.toml")?;
+settings.write(b"[app]\nversion = '1.0'\n")?;
+<span class="boring">}</span></code></pre></pre>
+<hr />
 <h2 id="cross-platform-standards"><a class="header" href="#cross-platform-standards">Cross-Platform Standards</a></h2>
-<p>The integration follows established cross-platform directory standards:</p>
+<p>The <code>dirs</code> crate follows established cross-platform directory standards:</p>
 <h3 id="linux-xdg-base-directory-specification"><a class="header" href="#linux-xdg-base-directory-specification">Linux (XDG Base Directory Specification)</a></h3>
 <ul>
 <li><strong>Config</strong>: <code>$XDG_CONFIG_HOME</code> or <code>~/.config</code></li>
@@ -6392,331 +6537,294 @@ strict-path = { version = "0.1.0-beta.2", features = ["dirs"] }
 <li><strong>Data</strong>: <code>~/Library/Application Support</code></li>
 <li><strong>Cache</strong>: <code>~/Library/Caches</code></li>
 </ul>
-<h2 id="api-reference"><a class="header" href="#api-reference">API Reference</a></h2>
-<p>Both <code>PathBoundary</code> and <code>VirtualRoot</code> provide comprehensive OS directory constructors:</p>
-<h3 id="application-directories"><a class="header" href="#application-directories">Application Directories</a></h3>
-<h4 id="try_new_os_configapp_name-str"><a class="header" href="#try_new_os_configapp_name-str"><code>try_new_os_config(app_name: &amp;str)</code></a></h4>
-<p>Creates a secure boundary for application configuration storage.</p>
+<hr />
+<h2 id="integration-patterns"><a class="header" href="#integration-patterns">Integration Patterns</a></h2>
+<h3 id="application-configuration"><a class="header" href="#application-configuration">Application Configuration</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::PathBoundary;
 
-let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config("MyApp")?;
-let config_file = config_dir.strict_join("settings.json")?;
-config_file.write(r#"{"theme": "dark"}"#)?;
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Platform paths:</strong></p>
-<ul>
-<li>Linux: <code>~/.config/MyApp/</code></li>
-<li>Windows: <code>%APPDATA%/MyApp/</code></li>
-<li>macOS: <code>~/Library/Application Support/MyApp/</code></li>
-</ul>
-<h4 id="try_new_os_dataapp_name-str"><a class="header" href="#try_new_os_dataapp_name-str"><code>try_new_os_data(app_name: &amp;str)</code></a></h4>
-<p>Creates a secure boundary for application data storage.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let data_dir = PathBoundary::&lt;()&gt;::try_new_os_data("MyApp")?;
-let database = data_dir.strict_join("app.db")?;
-database.write(b"SQLite database content")?;
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Platform paths:</strong></p>
-<ul>
-<li>Linux: <code>~/.local/share/MyApp/</code></li>
-<li>Windows: <code>%APPDATA%/MyApp/</code></li>
-<li>macOS: <code>~/Library/Application Support/MyApp/</code></li>
-</ul>
-<h4 id="try_new_os_cacheapp_name-str"><a class="header" href="#try_new_os_cacheapp_name-str"><code>try_new_os_cache(app_name: &amp;str)</code></a></h4>
-<p>Creates a secure boundary for application cache storage.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let cache_dir = PathBoundary::&lt;()&gt;::try_new_os_cache("MyApp")?;
-let thumbnail_cache = cache_dir.strict_join("thumbnails/")?;
-thumbnail_cache.create_dir_all()?;
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Platform paths:</strong></p>
-<ul>
-<li>Linux: <code>~/.cache/MyApp/</code></li>
-<li>Windows: <code>%LOCALAPPDATA%/MyApp/</code></li>
-<li>macOS: <code>~/Library/Caches/MyApp/</code></li>
-</ul>
-<h3 id="platform-specific-directories"><a class="header" href="#platform-specific-directories">Platform-Specific Directories</a></h3>
-<h4 id="try_new_os_config_localapp_name-str-windowslinux-only"><a class="header" href="#try_new_os_config_localapp_name-str-windowslinux-only"><code>try_new_os_config_local(app_name: &amp;str)</code> (Windows/Linux only)</a></h4>
-<p>Creates a local (non-roaming) config directory boundary.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(any(target_os = "windows", target_os = "linux"))]
-let local_config = PathBoundary::&lt;()&gt;::try_new_os_config_local("MyApp")?;
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Platform paths:</strong></p>
-<ul>
-<li>Linux: <code>~/.config/MyApp/</code> (same as config)</li>
-<li>Windows: <code>%LOCALAPPDATA%/MyApp/</code> (non-roaming)</li>
-<li>macOS: Not available (returns <code>Err</code>)</li>
-</ul>
-<h4 id="try_new_os_data_localapp_name-str-windowslinux-only"><a class="header" href="#try_new_os_data_localapp_name-str-windowslinux-only"><code>try_new_os_data_local(app_name: &amp;str)</code> (Windows/Linux only)</a></h4>
-<p>Creates a local (non-roaming) data directory boundary.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(any(target_os = "windows", target_os = "linux"))]
-let local_data = PathBoundary::&lt;()&gt;::try_new_os_data_local("MyApp")?;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="user-content-directories"><a class="header" href="#user-content-directories">User Content Directories</a></h3>
-<h4 id="standard-user-folders"><a class="header" href="#standard-user-folders">Standard User Folders</a></h4>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// User's home directory
-let home_dir = PathBoundary::&lt;()&gt;::try_new_os_home()?;
+struct AppConfig;
 
-// Desktop folder
-let desktop_dir = PathBoundary::&lt;()&gt;::try_new_os_desktop()?;
+fn setup_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let config_base = dirs::config_dir()
+        .ok_or("No config directory available")?;
 
-// Documents folder  
-let documents_dir = PathBoundary::&lt;()&gt;::try_new_os_documents()?;
+    let app_config = config_base.join("myapp");
+    let boundary: PathBoundary&lt;AppConfig&gt; =
+        PathBoundary::try_new_create(&amp;app_config)?;
 
-// Downloads folder
-let downloads_dir = PathBoundary::&lt;()&gt;::try_new_os_downloads()?;
+    // Platform-specific locations:
+    // Linux:   ~/.config/myapp/
+    // Windows: C:\Users\Alice\AppData\Roaming\myapp\
+    // macOS:   ~/Library/Application Support/myapp/
+
+    let settings = boundary.strict_join("settings.toml")?;
+    settings.write(b"[app]\ntheme = 'dark'\n")?;
+
+    println!("Config saved to: {}", settings.strictpath_display());
+
+    Ok(())
+}
 <span class="boring">}</span></code></pre></pre>
-<h4 id="media-directories"><a class="header" href="#media-directories">Media Directories</a></h4>
+<h3 id="multi-directory-application-1"><a class="header" href="#multi-directory-application-1">Multi-Directory Application</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// Pictures/Photos
-let pictures_dir = PathBoundary::&lt;()&gt;::try_new_os_pictures()?;
+</span>use strict_path::PathBoundary;
 
-// Music/Audio files
-let audio_dir = PathBoundary::&lt;()&gt;::try_new_os_audio()?;
+struct Config;
+struct Data;
+struct Cache;
 
-// Videos/Movies
-let videos_dir = PathBoundary::&lt;()&gt;::try_new_os_videos()?;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="system-directories"><a class="header" href="#system-directories">System Directories</a></h3>
-<h4 id="try_new_os_executables-unix-only"><a class="header" href="#try_new_os_executables-unix-only"><code>try_new_os_executables()</code> (Unix only)</a></h4>
-<p>Creates a boundary for user executable binaries.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(unix)]
-let bin_dir = PathBoundary::&lt;()&gt;::try_new_os_executables()?;
-// Typically ~/.local/bin on Linux
-<span class="boring">}</span></code></pre></pre>
-<h4 id="try_new_os_runtime-unix-only"><a class="header" href="#try_new_os_runtime-unix-only"><code>try_new_os_runtime()</code> (Unix only)</a></h4>
-<p>Creates a boundary for runtime files like sockets and PIDs.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(unix)]
-let runtime_dir = PathBoundary::&lt;()&gt;::try_new_os_runtime()?;
-// Uses $XDG_RUNTIME_DIR or falls back to /tmp
-<span class="boring">}</span></code></pre></pre>
-<h4 id="try_new_os_state-linux-only"><a class="header" href="#try_new_os_state-linux-only"><code>try_new_os_state()</code> (Linux only)</a></h4>
-<p>Creates a boundary for application state data.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(target_os = "linux")]
-let state_dir = PathBoundary::&lt;()&gt;::try_new_os_state("MyApp")?;
-// Uses $XDG_STATE_HOME or ~/.local/state/MyApp
-<span class="boring">}</span></code></pre></pre>
-<h2 id="virtual-root-integration"><a class="header" href="#virtual-root-integration">Virtual Root Integration</a></h2>
-<p>All OS directory constructors are available on <code>VirtualRoot</code> as well:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::VirtualRoot;
-
-// Create virtual root for user documents
-let docs_root = VirtualRoot::&lt;()&gt;::try_new_os_documents()?;
-
-// User sees clean virtual paths, system handles real location
-let project_file = docs_root.virtual_join("projects/my-app/notes.txt")?;
-println!("Virtual path: {}", project_file.virtualpath_display());
-// Output: "/projects/my-app/notes.txt"
-
-println!("Real path: {}", project_file.as_unvirtual().strictpath_display());
-// Output: "/home/user/Documents/projects/my-app/notes.txt" (Linux example)
-<span class="boring">}</span></code></pre></pre>
-<h2 id="complete-application-example"><a class="header" href="#complete-application-example">Complete Application Example</a></h2>
-<p>Here's a realistic media organizer application demonstrating the OS directories integration:</p>
-<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, VirtualRoot};
-use std::collections::HashMap;
-
-#[derive(Debug)]
-struct MediaOrganizerApp {
-    config_dir: PathBoundary&lt;()&gt;,
-    data_dir: PathBoundary&lt;()&gt;,
-    cache_dir: PathBoundary&lt;()&gt;,
+struct AppDirectories {
+    config: PathBoundary&lt;Config&gt;,
+    data: PathBoundary&lt;Data&gt;,
+    cache: PathBoundary&lt;Cache&gt;,
 }
 
-impl MediaOrganizerApp {
+impl AppDirectories {
     fn new(app_name: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
-        // Initialize with OS standard directories
-        let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config(app_name)?;
-        let data_dir = PathBoundary::&lt;()&gt;::try_new_os_data(app_name)?;
-        let cache_dir = PathBoundary::&lt;()&gt;::try_new_os_cache(app_name)?;
-        
-        println!("📁 Config: {}", config_dir.strictpath_display());
-        println!("💾 Data: {}", data_dir.strictpath_display());
-        println!("🗄️ Cache: {}", cache_dir.strictpath_display());
-        
-        Ok(Self { config_dir, data_dir, cache_dir })
+        let config_base = dirs::config_dir()
+            .ok_or("No config directory")?;
+        let data_base = dirs::data_dir()
+            .ok_or("No data directory")?;
+        let cache_base = dirs::cache_dir()
+            .ok_or("No cache directory")?;
+
+        Ok(Self {
+            config: PathBoundary::try_new_create(config_base.join(app_name))?,
+            data: PathBoundary::try_new_create(data_base.join(app_name))?,
+            cache: PathBoundary::try_new_create(cache_base.join(app_name))?,
+        })
     }
-    
-    fn scan_user_media(&amp;self) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-        // Access standard user media directories securely
-        let media_directories = vec![
-            ("Pictures", PathBoundary::&lt;()&gt;::try_new_os_pictures()?),
-            ("Music", PathBoundary::&lt;()&gt;::try_new_os_audio()?),
-            ("Videos", PathBoundary::&lt;()&gt;::try_new_os_videos()?),
-            ("Downloads", PathBoundary::&lt;()&gt;::try_new_os_downloads()?),
-        ];
-        
-        for (dir_name, dir_path) in media_directories {
-            println!("📂 Scanning {}: {}", dir_name, dir_path.strictpath_display());
-            
-            // In a real app, recursively scan for media files
-            // All file operations stay within secure boundaries
-            if dir_path.exists() {
-                println!("   ✅ Directory accessible and secure");
-            }
+}
+
+fn use_app_directories() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let dirs = AppDirectories::new("MyApp")?;
+
+    // Config: user preferences
+    let prefs = dirs.config.strict_join("preferences.json")?;
+    prefs.write(br#"{"theme": "dark"}"#)?;
+
+    // Data: persistent application data
+    let database = dirs.data.strict_join("app.db")?;
+    database.write(b"database content")?;
+
+    // Cache: temporary/regenerable data
+    let thumbnail = dirs.cache.strict_join("thumbs/image1.jpg")?;
+    thumbnail.create_parent_dir_all()?;
+    thumbnail.write(b"thumbnail data")?;
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="user-content-directories-1"><a class="header" href="#user-content-directories-1">User Content Directories</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+struct Downloads;
+struct Documents;
+
+fn access_user_content() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Downloads directory
+    if let Some(downloads) = dirs::download_dir() {
+        let boundary: PathBoundary&lt;Downloads&gt; =
+            PathBoundary::try_new(&amp;downloads)?;
+
+        // Safe access to user-selected file
+        let user_input = "report.pdf"; // From file picker or CLI
+        let file = boundary.strict_join(user_input)?;
+
+        if file.exists() {
+            let data = file.read()?;
+            println!("Processing: {} bytes", data.len());
         }
-        
+    }
+
+    // Documents directory
+    if let Some(documents) = dirs::document_dir() {
+        let boundary: PathBoundary&lt;Documents&gt; =
+            PathBoundary::try_new(&amp;documents)?;
+
+        let export = boundary.strict_join("exports/data.csv")?;
+        export.create_parent_dir_all()?;
+        export.write(b"col1,col2\nval1,val2\n")?;
+
+        println!("Exported to: {}", export.strictpath_display());
+    }
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="available-directories-via-dirs-crate"><a class="header" href="#available-directories-via-dirs-crate">Available Directories (via <code>dirs</code> crate)</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Function</th><th>Linux</th><th>Windows</th><th>macOS</th></tr></thead><tbody>
+<tr><td><code>config_dir()</code></td><td><code>~/.config</code></td><td><code>%APPDATA%</code></td><td><code>~/Library/Application Support</code></td></tr>
+<tr><td><code>data_dir()</code></td><td><code>~/.local/share</code></td><td><code>%APPDATA%</code></td><td><code>~/Library/Application Support</code></td></tr>
+<tr><td><code>cache_dir()</code></td><td><code>~/.cache</code></td><td><code>%LOCALAPPDATA%</code></td><td><code>~/Library/Caches</code></td></tr>
+<tr><td><code>config_local_dir()</code></td><td><code>~/.config</code></td><td><code>%LOCALAPPDATA%</code></td><td><code>~/Library/Application Support</code></td></tr>
+<tr><td><code>data_local_dir()</code></td><td><code>~/.local/share</code></td><td><code>%LOCALAPPDATA%</code></td><td><code>~/Library/Application Support</code></td></tr>
+<tr><td><code>download_dir()</code></td><td><code>~/Downloads</code></td><td><code>%USERPROFILE%\Downloads</code></td><td><code>~/Downloads</code></td></tr>
+<tr><td><code>document_dir()</code></td><td><code>~/Documents</code></td><td><code>%USERPROFILE%\Documents</code></td><td><code>~/Documents</code></td></tr>
+<tr><td><code>picture_dir()</code></td><td><code>~/Pictures</code></td><td><code>%USERPROFILE%\Pictures</code></td><td><code>~/Pictures</code></td></tr>
+<tr><td><code>video_dir()</code></td><td><code>~/Videos</code></td><td><code>%USERPROFILE%\Videos</code></td><td><code>~/Movies</code></td></tr>
+<tr><td><code>audio_dir()</code></td><td><code>~/Music</code></td><td><code>%USERPROFILE%\Music</code></td><td><code>~/Music</code></td></tr>
+</tbody></table>
+</div>
+<hr />
+<h2 id="complete-example-cross-platform-app"><a class="header" href="#complete-example-cross-platform-app">Complete Example: Cross-Platform App</a></h2>
+<pre><pre class="playground"><code class="language-rust">use strict_path::PathBoundary;
+use serde::{Deserialize, Serialize};
+
+struct AppConfig;
+struct AppData;
+struct AppCache;
+
+#[derive(Serialize, Deserialize)]
+struct UserPreferences {
+    theme: String,
+    language: String,
+}
+
+struct MyApp {
+    config_dir: PathBoundary&lt;AppConfig&gt;,
+    data_dir: PathBoundary&lt;AppData&gt;,
+    cache_dir: PathBoundary&lt;AppCache&gt;,
+}
+
+impl MyApp {
+    fn new(app_name: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Get OS-specific directories
+        let config_base = dirs::config_dir()
+            .ok_or("No config directory")?;
+        let data_base = dirs::data_dir()
+            .ok_or("No data directory")?;
+        let cache_base = dirs::cache_dir()
+            .ok_or("No cache directory")?;
+
+        // Create app-specific boundaries
+        Ok(Self {
+            config_dir: PathBoundary::try_new_create(
+                config_base.join(app_name)
+            )?,
+            data_dir: PathBoundary::try_new_create(
+                data_base.join(app_name)
+            )?,
+            cache_dir: PathBoundary::try_new_create(
+                cache_base.join(app_name)
+            )?,
+        })
+    }
+
+    fn save_preferences(&amp;self, prefs: &amp;UserPreferences)
+        -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt;
+    {
+        let prefs_file = self.config_dir.strict_join("preferences.json")?;
+        let json = serde_json::to_string_pretty(prefs)?;
+        prefs_file.write(json.as_bytes())?;
         Ok(())
     }
-    
-    fn manage_cache(&amp;self) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-        // Create cache subdirectories securely
-        let thumbnails_dir = self.cache_dir.strict_join("thumbnails")?;
-        let metadata_dir = self.cache_dir.strict_join("metadata")?;
-        
-        thumbnails_dir.create_dir_all()?;
-        metadata_dir.create_dir_all()?;
-        
-        println!("🖼️ Thumbnails: {}", thumbnails_dir.strictpath_display());
-        println!("📝 Metadata: {}", metadata_dir.strictpath_display());
-        
+
+    fn load_preferences(&amp;self)
+        -&gt; Result&lt;UserPreferences, Box&lt;dyn std::error::Error&gt;&gt;
+    {
+        let prefs_file = self.config_dir.strict_join("preferences.json")?;
+        let json = prefs_file.read_to_string()?;
+        Ok(serde_json::from_str(&amp;json)?)
+    }
+
+    fn save_data(&amp;self, filename: &amp;str, data: &amp;[u8])
+        -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt;
+    {
+        let file = self.data_dir.strict_join(filename)?;
+        file.create_parent_dir_all()?;
+        file.write(data)?;
+        Ok(())
+    }
+
+    fn cache_thumbnail(&amp;self, id: &amp;str, thumbnail: &amp;[u8])
+        -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt;
+    {
+        let cache_file = self.cache_dir
+            .strict_join(&amp;format!("thumbnails/{}.jpg", id))?;
+        cache_file.create_parent_dir_all()?;
+        cache_file.write(thumbnail)?;
         Ok(())
     }
 }
 
 fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let app = MediaOrganizerApp::new("MediaOrganizer")?;
-    app.scan_user_media()?;
-    app.manage_cache()?;
+    let app = MyApp::new("MyAwesomeApp")?;
+
+    // Save user preferences
+    let prefs = UserPreferences {
+        theme: "dark".to_string(),
+        language: "en".to_string(),
+    };
+    app.save_preferences(&amp;prefs)?;
+
+    // Save application data
+    app.save_data("database/users.db", b"user data")?;
+
+    // Cache a thumbnail
+    app.cache_thumbnail("image123", b"thumbnail bytes")?;
+
+    // Load preferences back
+    let loaded_prefs = app.load_preferences()?;
+    println!("Theme: {}", loaded_prefs.theme);
+
     Ok(())
 }</code></pre></pre>
-<h2 id="error-handling"><a class="header" href="#error-handling">Error Handling</a></h2>
-<p>OS directory functions return <code>StrictPathError</code> when:</p>
-<ul>
-<li>The directory doesn't exist and cannot be created</li>
-<li>Permission denied accessing the directory</li>
-<li>The OS doesn't support the requested directory type</li>
-<li>Invalid characters in the application name</li>
-</ul>
+<hr />
+<h2 id="why-direct-integration"><a class="header" href="#why-direct-integration">Why Direct Integration?</a></h2>
+<p><strong>Benefits of using <code>dirs</code> directly:</strong></p>
+<ol>
+<li>✅ <strong>Full control</strong> - Access all <code>dirs</code> functions and options</li>
+<li>✅ <strong>No version coupling</strong> - Use any version of <code>dirs</code> you want</li>
+<li>✅ <strong>Explicit dependencies</strong> - Clear what your project uses</li>
+<li>✅ <strong>Reduced bloat</strong> - No unnecessary feature flags</li>
+<li>✅ <strong>One extra line</strong> - Small price for explicit security</li>
+</ol>
+<p><strong>Pattern:</strong></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use strict_path::{PathBoundary, StrictPathError};
+</span>// Get directory from dirs crate
+let base_dir = dirs::config_dir().ok_or("No config")?;
 
-match PathBoundary::&lt;()&gt;::try_new_os_config("My App") {
-    Ok(config_dir) =&gt; println!("Config: {}", config_dir.strictpath_display()),
-    Err(StrictPathError::PathResolutionError(msg)) =&gt; {
-        eprintln!("Failed to resolve config directory: {}", msg);
-    }
-    Err(e) =&gt; eprintln!("Other error: {}", e),
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="platform-compatibility"><a class="header" href="#platform-compatibility">Platform Compatibility</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Method</th><th>Linux</th><th>Windows</th><th>macOS</th><th>Notes</th></tr></thead><tbody>
-<tr><td><code>try_new_os_config</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_data</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_cache</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_config_local</code></td><td>✅</td><td>✅</td><td>❌</td><td>Returns error on macOS</td></tr>
-<tr><td><code>try_new_os_data_local</code></td><td>✅</td><td>✅</td><td>❌</td><td>Returns error on macOS</td></tr>
-<tr><td><code>try_new_os_home</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_desktop</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_documents</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_downloads</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_pictures</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_audio</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_videos</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_executables</code></td><td>✅</td><td>❌</td><td>✅</td><td>Unix only</td></tr>
-<tr><td><code>try_new_os_runtime</code></td><td>✅</td><td>❌</td><td>✅</td><td>Unix only</td></tr>
-<tr><td><code>try_new_os_state</code></td><td>✅</td><td>❌</td><td>❌</td><td>Linux only</td></tr>
-</tbody></table>
-</div>
-<h2 id="integration-with-dirs-crate"><a class="header" href="#integration-with-dirs-crate">Integration with <code>dirs</code> Crate</a></h2>
-<p>This feature integrates with the <a href="https://github.com/dirs-dev/dirs-rs"><code>dirs</code></a> crate v6.0.0, which provides the underlying OS directory discovery. The <code>strict-path</code> crate adds:</p>
-<ul>
-<li><strong>Security</strong>: All directory access happens within <code>PathBoundary</code> restrictions</li>
-<li><strong>Type Safety</strong>: Compile-time guarantees about directory boundaries</li>
-<li><strong>Symlink Safety</strong>: Safe resolution of symbolic links and junctions</li>
-<li><strong>Cross-Platform</strong>: Consistent API across Windows, macOS, and Linux</li>
-<li><strong>Application Scoping</strong>: Automatic subdirectory creation for app-specific storage</li>
-</ul>
-<h3 id="relationship-to-dirs-functions"><a class="header" href="#relationship-to-dirs-functions">Relationship to <code>dirs</code> Functions</a></h3>
-<div class="table-wrapper"><table><thead><tr><th><code>strict-path</code> Method</th><th><code>dirs</code> Function</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><code>try_new_os_config</code></td><td><code>dirs::config_dir()</code> + join</td><td>App config storage</td></tr>
-<tr><td><code>try_new_os_data</code></td><td><code>dirs::data_dir()</code> + join</td><td>App data storage</td></tr>
-<tr><td><code>try_new_os_cache</code></td><td><code>dirs::cache_dir()</code> + join</td><td>App cache storage</td></tr>
-<tr><td><code>try_new_os_config_local</code></td><td><code>dirs::config_local_dir()</code> + join</td><td>Local config (non-roaming)</td></tr>
-<tr><td><code>try_new_os_data_local</code></td><td><code>dirs::data_local_dir()</code> + join</td><td>Local data (non-roaming)</td></tr>
-<tr><td><code>try_new_os_home</code></td><td><code>dirs::home_dir()</code></td><td>User home directory</td></tr>
-<tr><td><code>try_new_os_desktop</code></td><td><code>dirs::desktop_dir()</code></td><td>Desktop folder</td></tr>
-<tr><td><code>try_new_os_documents</code></td><td><code>dirs::document_dir()</code></td><td>Documents folder</td></tr>
-<tr><td><code>try_new_os_downloads</code></td><td><code>dirs::download_dir()</code></td><td>Downloads folder</td></tr>
-<tr><td><code>try_new_os_pictures</code></td><td><code>dirs::picture_dir()</code></td><td>Pictures folder</td></tr>
-<tr><td><code>try_new_os_audio</code></td><td><code>dirs::audio_dir()</code></td><td>Music/Audio folder</td></tr>
-<tr><td><code>try_new_os_videos</code></td><td><code>dirs::video_dir()</code></td><td>Videos folder</td></tr>
-<tr><td><code>try_new_os_executables</code></td><td><code>dirs::executable_dir()</code></td><td>User binaries (Unix)</td></tr>
-<tr><td><code>try_new_os_runtime</code></td><td><code>dirs::runtime_dir()</code></td><td>Runtime files (Unix)</td></tr>
-<tr><td><code>try_new_os_state</code></td><td><code>dirs::state_dir()</code> + join</td><td>State data (Linux)</td></tr>
-</tbody></table>
-</div>
-<p>For more details on the underlying directory locations, see the <a href="https://docs.rs/dirs/"><code>dirs</code> crate documentation</a>.</p>
-<h2 id="best-practices-5"><a class="header" href="#best-practices-5">Best Practices</a></h2>
-<h3 id="1-application-naming"><a class="header" href="#1-application-naming">1. Application Naming</a></h3>
-<p>Use consistent, filesystem-safe application names:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Good
-let config = PathBoundary::&lt;()&gt;::try_new_os_config("MyApp")?;
+// Create boundary with strict-path
+let boundary = PathBoundary::try_new_create(base_dir.join("myapp"))?;
 
-// Avoid special characters that might cause issues
-let config = PathBoundary::&lt;()&gt;::try_new_os_config("My App &amp; Tools")?; // Risky
+// Use safe operations
+let file = boundary.strict_join(user_input)?;
 <span class="boring">}</span></code></pre></pre>
-<h3 id="2-graceful-fallbacks"><a class="header" href="#2-graceful-fallbacks">2. Graceful Fallbacks</a></h3>
-<p>Handle platform-specific directories gracefully:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Try platform-specific first, fall back to generic
-let data_dir = PathBoundary::&lt;()&gt;::try_new_os_data_local("MyApp")
-    .or_else(|_| PathBoundary::&lt;()&gt;::try_new_os_data("MyApp"))?;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="3-directory-creation"><a class="header" href="#3-directory-creation">3. Directory Creation</a></h3>
-<p>Create application subdirectories as needed:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config("MyApp")?;
-let themes_dir = config_dir.strict_join("themes")?;
-themes_dir.create_dir_all()?;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="4-cross-platform-testing"><a class="header" href="#4-cross-platform-testing">4. Cross-Platform Testing</a></h3>
-<p>Test your application on all target platforms to verify directory behavior:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_config_directory_creation() {
-        let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config("TestApp").unwrap();
-        assert!(config_dir.exists() || config_dir.create_dir_all().is_ok());
-    }
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
+<hr />
+<h2 id="see-also-1"><a class="header" href="#see-also-1">See Also</a></h2>
 <ul>
-<li><a href="./examples.html">Real-World Examples</a> - Complete application examples</li>
-<li><a href="./chapter_1.html">Getting Started</a> - Basic <code>strict-path</code> concepts</li>
-<li><a href="https://crates.io/crates/dirs"><code>dirs</code> crate</a> - Underlying OS directory library</li>
-<li><a href="https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html">XDG Base Directory Specification</a></li>
-<li><a href="https://docs.microsoft.com/en-us/windows/win32/shell/knownfolderid">Windows Known Folder API</a></li>
+<li><strong><a href="./ecosystem_integration.html">Ecosystem Integration Guide</a></strong> - Comprehensive integration patterns</li>
+<li><strong><a href="./tutorial/stage6_features.html">Tutorial: Stage 6</a></strong> - Ecosystem integration tutorial</li>
+<li><strong><a href="./best_practices.html">Best Practices</a></strong> - Application architecture patterns</li>
 </ul>
+<hr />
+<h2 id="legacy-feature-flag-deprecated"><a class="header" href="#legacy-feature-flag-deprecated">Legacy Feature Flag (Deprecated)</a></h2>
+<blockquote>
+<p>⚠️ <strong>Deprecated</strong>: The <code>dirs</code> feature flag is deprecated in favor of direct integration.</p>
+</blockquote>
+<p>The previous feature-based approach:</p>
+<pre><code class="language-toml">strict-path = { version = "0.1", features = ["dirs"] }
+</code></pre>
+<p>Provided methods like <code>PathBoundary::try_new_os_config()</code>, but this couples <code>strict-path</code> to the <code>dirs</code> crate version and hides the integration.</p>
+<p><strong>Migration is trivial:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// OLD (with dirs feature):
+let boundary = PathBoundary::try_new_os_config("myapp")?;
+
+// NEW (direct integration):
+let config_base = dirs::config_dir().ok_or("No config")?;
+let boundary = PathBoundary::try_new_create(config_base.join("myapp"))?;
+<span class="boring">}</span></code></pre></pre>
+<p>The new approach gives you full control and makes the integration explicit.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="best-practices--guidelines"><a class="header" href="#best-practices--guidelines">Best Practices &amp; Guidelines</a></h1>
 <blockquote>
 <p><em>Your complete guide to using strict-path correctly and ergonomically.</em></p>
@@ -6748,13 +6856,17 @@ mod tests {
 <hr />
 <h2 id="pick-the-right-type-quick-reference"><a class="header" href="#pick-the-right-type-quick-reference">Pick The Right Type (Quick Reference)</a></h2>
 <h3 id="30-second-decision-guide"><a class="header" href="#30-second-decision-guide">30-Second Decision Guide</a></h3>
-<p><strong>External/untrusted segments</strong> (HTTP, DB, manifests, LLM output, archive entries):</p>
 <ul>
-<li><strong>Detection (90% of cases):</strong> <code>StrictPath::with_boundary(..).strict_join(..)</code> â€” detects escapes, rejects attacks</li>
-<li><strong>Containment (10% of cases):</strong> <code>VirtualPath::with_root(..).virtual_join(..)</code> â€” silently clamps escapes, isolates users</li>
+<li><strong>Path/PathBuf</strong> (std): When the path comes from a safe source within your control, not external input.</li>
+<li><strong>StrictPath</strong>: When you want to restrict paths to a specific boundary and error if they escape.</li>
+<li><strong>VirtualPath</strong>: When you want to provide path freedom under isolation.</li>
 </ul>
-<p><strong>Internal/trusted paths</strong> (hardcoded, CLI, env): Use <code>Path</code>/<code>PathBuf</code>; only validate when combining with untrusted segments.</p>
 <p><strong>For policy reuse across many joins:</strong> Keep a <code>PathBoundary</code> or <code>VirtualRoot</code> and call <code>strict_join(..)</code>/<code>virtual_join(..)</code> repeatedly.</p>
+<p><strong>Quick patterns:</strong></p>
+<ul>
+<li><strong>Detection (90% of cases):</strong> <code>StrictPath::with_boundary(..).strict_join(..)</code> — detects escapes, rejects attacks</li>
+<li><strong>Containment (10% of cases):</strong> <code>VirtualPath::with_root(..).virtual_join(..)</code> — silently clamps escapes, isolates users</li>
+</ul>
 <h3 id="decision-matrix-by-source"><a class="header" href="#decision-matrix-by-source">Decision Matrix by Source</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Source</th><th>Typical Input</th><th>Default Choice</th><th>Notes</th></tr></thead><tbody>
 <tr><td>ðŸŒ <strong>HTTP/Web</strong></td><td>URL segments, form fields</td><td>VirtualPath or StrictPath</td><td>VirtualPath for UI display, StrictPath for system I/O</td></tr>
@@ -7031,7 +7143,7 @@ println!("User: {}", vpath.virtualpath_display()); // VirtualPath only
 <p>For detailed anti-patterns and fixes, see: <strong><a href="../anti_patterns.html">Anti-Patterns Guide â†’</a></strong></p>
 <hr />
 <p>That's it! This page is your quick reference. Dive into the focused chapters when you need details.</p>
-<p>For source-level API documentation: <strong><a href="../../strict_path/index.html">API Reference (strict-path crate docs) â†’</a></strong></p>
+<p>For source-level API documentation: <strong><a href="https://docs.rs/strict-path">API Reference (docs.rs) →</a></strong></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="why-every-simple-solution-fails"><a class="header" href="#why-every-simple-solution-fails">Why Every "Simple" Solution Fails</a></h1>
 <blockquote>
 <p><em>The path security rabbit hole is deeper than you think.</em></p>
@@ -9123,7 +9235,8 @@ let jail = VirtualRoot::try_new("./user_data")?;
 </span><span class="boring">fn main() {
 </span>let uploads_dir = PathBoundary::try_new("./uploads")?;
 let config_dir = PathBoundary::try_new("./config")?;
-let user_data = VirtualRoot::try_new("./user_data")?;
+let user_id = "alice";
+let user_data = VirtualRoot::try_new(format!("./user_data/{user_id}"))?;
 <span class="boring">}</span></code></pre></pre>
 <p>Now <code>uploads_dir.strict_join("photo.jpg")</code> reads naturally as "uploads directory join photo.jpg".</p>
 <h2 id="functions-that-accept-dangerous-inputs"><a class="header" href="#functions-that-accept-dangerous-inputs">Functions That Accept Dangerous Inputs</a></h2>
@@ -9219,7 +9332,7 @@ vpath.interop_path();
 <p>This section collects high-signal, copy-pasteable guidance for day-to-day use without re-explaining the security model. Each page is short and focused so you can jump directly to what you need.</p>
 <h2 id="new-to-strict-path"><a class="header" href="#new-to-strict-path">New to strict-path?</a></h2>
 <p>Start with <strong>Daily Usage Patterns</strong> for common workflows and real-world examples.</p>
-<h2 id="quick-reference"><a class="header" href="#quick-reference">Quick Reference</a></h2>
+<h2 id="quick-reference-1"><a class="header" href="#quick-reference-1">Quick Reference</a></h2>
 <ul>
 <li><strong>Builtin I/O Operations</strong>: Complete guide to file/directory operations, when to use builtin methods vs <code>std::fs</code></li>
 <li><strong>Generic Functions &amp; Markers</strong>: Write reusable functions with <code>&lt;M&gt;</code>, understand when to use generic vs specific markers</li>
@@ -9232,219 +9345,7 @@ vpath.interop_path();
 <li><strong>Canonicalized vs Lexical</strong>: Choosing the right solution for your use case</li>
 </ul>
 <p>For in-depth design and security rationale, see Best Practices and Anti-Patterns. This section stays focused on ergonomics.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="builtin-io-operations"><a class="header" href="#builtin-io-operations">Builtin I/O Operations</a></h1>
-<p><code>strict-path</code> provides safe I/O helpers that maintain boundary security while eliminating the need for raw <code>std::fs</code> calls on leaked paths.</p>
-<h2 id="why-use-builtin-methods"><a class="header" href="#why-use-builtin-methods">Why Use Builtin Methods?</a></h2>
-<p><strong>Security</strong>: All operations stay within validated boundaries<br />
-<strong>Ergonomics</strong>: No need to call <code>.interop_path()</code> for common operations<br />
-<strong>Correctness</strong>: Type-checked paths guarantee safety at compile time</p>
-<h2 id="file-operations"><a class="header" href="#file-operations">File Operations</a></h2>
-<h3 id="reading-files"><a class="header" href="#reading-files">Reading Files</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::PathBoundary;
-
-let config_dir = PathBoundary::try_new("/etc/myapp")?;
-let config_file = config_dir.strict_join("config.toml")?;
-
-// Read entire file as string
-let contents = config_file.read_to_string()?;
-
-// Read as bytes
-let bytes = config_file.read()?;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="writing-files"><a class="header" href="#writing-files">Writing Files</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::VirtualRoot;
-
-let user_docs = VirtualRoot::try_new("/home/user/documents")?;
-let report = user_docs.virtual_join("reports/summary.txt")?;
-
-// Ensure parent directories exist
-report.create_parent_dir_all()?;
-
-// Write string content
-report.write("Monthly Summary\n\nTotal: 42")?;
-
-// Write bytes
-report.write_bytes(b"Binary data")?;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="file-handles"><a class="header" href="#file-handles">File Handles</a></h3>
-<p>For streaming or more control, use file handles:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use std::io::{Read, Write};
-
-// Create or truncate file, get writable handle
-let mut file = report.create_file()?;
-file.write_all(b"Line 1\n")?;
-file.write_all(b"Line 2\n")?;
-
-// Open for reading
-let mut file = report.open_file()?;
-let mut contents = String::new();
-file.read_to_string(&amp;mut contents)?;
-<span class="boring">}</span></code></pre></pre>
-<h2 id="directory-operations"><a class="header" href="#directory-operations">Directory Operations</a></h2>
-<h3 id="creating-directories"><a class="header" href="#creating-directories">Creating Directories</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Create single directory (parent must exist)
-let subdir = config_dir.strict_join("plugins")?;
-subdir.create_dir()?;
-
-// Create all parent directories if missing
-let nested = config_dir.strict_join("data/cache/temp")?;
-nested.create_dir_all()?;
-
-// Non-recursive variant (VirtualPath)
-let vdir = user_docs.virtual_join("archive")?;
-vdir.create_dir_non_recursive()?; // Fails if parent missing
-<span class="boring">}</span></code></pre></pre>
-<h3 id="listing-directory-contents"><a class="header" href="#listing-directory-contents">Listing Directory Contents</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Discovery: enumerate entries
-for entry in config_dir.read_dir()? {
-    let entry = entry?;
-    let name = entry.file_name();
-    
-    // Re-validate discovered path before use
-    let validated = config_dir.strict_join(&amp;name)?;
-    println!("Found: {}", validated.strictpath_display());
-}
-<span class="boring">}</span></code></pre></pre>
-<h3 id="removing-directories"><a class="header" href="#removing-directories">Removing Directories</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Remove empty directory
-subdir.remove_dir()?;
-
-// Remove directory and all contents (dangerous!)
-nested.remove_dir_all()?;
-<span class="boring">}</span></code></pre></pre>
-<h2 id="metadata-operations"><a class="header" href="#metadata-operations">Metadata Operations</a></h2>
-<h3 id="checking-existence-and-type"><a class="header" href="#checking-existence-and-type">Checking Existence and Type</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Check if path exists
-if config_file.exists() {
-    println!("Config file found");
-}
-
-// Check type
-if config_file.is_file() {
-    println!("It's a file");
-}
-
-if config_dir.is_dir() {
-    println!("It's a directory");
-}
-<span class="boring">}</span></code></pre></pre>
-<h3 id="getting-metadata"><a class="header" href="#getting-metadata">Getting Metadata</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Get full metadata
-let metadata = config_file.metadata()?;
-
-println!("Size: {} bytes", metadata.len());
-println!("Read-only: {}", metadata.permissions().readonly());
-println!("Modified: {:?}", metadata.modified()?);
-<span class="boring">}</span></code></pre></pre>
-<h3 id="symlink-metadata-dont-follow-links"><a class="header" href="#symlink-metadata-dont-follow-links">Symlink Metadata (Don't Follow Links)</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Get metadata without following symlinks
-let link_meta = config_file.symlink_metadata()?;
-
-if link_meta.is_symlink() {
-    println!("This is a symbolic link");
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="copy-rename-and-link-operations"><a class="header" href="#copy-rename-and-link-operations">Copy, Rename, and Link Operations</a></h2>
-<h3 id="copying-files"><a class="header" href="#copying-files">Copying Files</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let source = config_dir.strict_join("template.conf")?;
-let dest = config_dir.strict_join("active.conf")?;
-
-// Copy file, returns bytes copied
-let bytes = source.strict_copy(&amp;dest)?;
-println!("Copied {} bytes", bytes);
-<span class="boring">}</span></code></pre></pre>
-<h3 id="renamingmoving"><a class="header" href="#renamingmoving">Renaming/Moving</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let old_name = config_dir.strict_join("draft.txt")?;
-let new_name = config_dir.strict_join("final.txt")?;
-
-// Move/rename within same boundary
-old_name.strict_rename(&amp;new_name)?;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="creating-links"><a class="header" href="#creating-links">Creating Links</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Symbolic link
-let target = config_dir.strict_join("current")?;
-let link = config_dir.strict_join("link-to-current")?;
-target.strict_symlink(&amp;link)?;
-
-// Hard link
-target.strict_hard_link(&amp;link)?;
-<span class="boring">}</span></code></pre></pre>
-<h2 id="builtin-vs-stdfs-comparison"><a class="header" href="#builtin-vs-stdfs-comparison">Builtin vs std::fs Comparison</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Operation</th><th><code>strict-path</code></th><th><code>std::fs</code></th><th>Why Prefer Builtin?</th></tr></thead><tbody>
-<tr><td>Read file</td><td><code>.read_to_string()?</code></td><td><code>fs::read_to_string(path.interop_path())?</code></td><td>Shorter, stays typed</td></tr>
-<tr><td>Write file</td><td><code>.write("content")?</code></td><td><code>fs::write(path.interop_path(), "content")?</code></td><td>No interop needed</td></tr>
-<tr><td>Copy file</td><td><code>.strict_copy(&amp;dest)?</code></td><td><code>fs::copy(src.interop_path(), dst.interop_path())?</code></td><td>Both paths validated</td></tr>
-<tr><td>Metadata</td><td><code>.metadata()?</code></td><td><code>fs::metadata(path.interop_path())?</code></td><td>Cleaner, same result</td></tr>
-<tr><td>Create dir</td><td><code>.create_dir_all()?</code></td><td><code>fs::create_dir_all(path.interop_path())?</code></td><td>Type-safe path</td></tr>
-</tbody></table>
-</div>
-<h2 id="when-to-use-interop_path"><a class="header" href="#when-to-use-interop_path">When to Use interop_path()</a></h2>
-<p><strong>Only for unavoidable third-party crates</strong> that demand <code>AsRef&lt;Path&gt;</code>:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// ✅ GOOD: Third-party crate requires AsRef&lt;Path&gt;
-let image = config_dir.strict_join("logo.png")?;
-let img = image::open(image.interop_path())?; // No choice
-
-// ❌ BAD: Using interop when builtin exists
-std::fs::read_to_string(image.interop_path())?; // Use .read_to_string() instead
-
-// ✅ GOOD: Use builtin
-let contents = image.read_to_string()?;
-<span class="boring">}</span></code></pre></pre>
-<h2 id="virtualpath-io-operations"><a class="header" href="#virtualpath-io-operations">VirtualPath I/O Operations</a></h2>
-<p>All methods work on <code>VirtualPath</code> too, maintaining virtual display semantics:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let user_root = VirtualRoot::try_new("/var/lib/app/users/alice")?;
-let doc = user_root.virtual_join("documents/readme.txt")?;
-
-// All I/O operations available
-doc.create_parent_dir_all()?;
-doc.write("Welcome to your virtual filesystem!")?;
-
-// Display shows virtual path
-println!("Wrote to: {}", doc.virtualpath_display()); // "/documents/readme.txt"
-
-// But I/O happens at real system location
-println!("System location: {}", doc.as_unvirtual().strictpath_display());
-<span class="boring">}</span></code></pre></pre>
-<h2 id="performance-notes"><a class="header" href="#performance-notes">Performance Notes</a></h2>
-<p><strong>No overhead</strong>: Builtin methods call <code>std::fs</code> internally with zero abstraction cost.<br />
-<strong>Same syscalls</strong>: Operations compile to identical machine code as direct <code>std::fs</code> usage.<br />
-<strong>Validation cost</strong>: Only paid once during <code>strict_join</code>/<code>virtual_join</code>, not on every I/O operation.</p>
-<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
-<ul>
-<li><strong>Use builtin methods for all common I/O operations</strong></li>
-<li><strong>Reserve <code>.interop_path()</code> for third-party crates</strong></li>
-<li><strong>Both <code>StrictPath</code> and <code>VirtualPath</code> support the full I/O API</strong></li>
-<li><strong>No performance penalty vs raw <code>std::fs</code></strong></li>
-<li><strong>Type safety and boundary security maintained automatically</strong></li>
-</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="builtin-io-operations--strict-path-provides-safe-io-helpers-that-maintain-boundary-security-while-eliminating-the-need-for-raw-stdfs-calls-on-leaked-paths---why-use-builtin-methods--security-all-operations-stay-within-validated-boundaries---ergonomics-no-need-to-call-interop_path-for-common-operations---correctness-type-checked-paths-guarantee-safety-at-compile-time---file-operations---reading-files--rust-use-strict_pathpathboundary--let-config_dir--pathboundarytry_newetcmyapp-let-config_file--config_dirstrict_joinconfigtoml---read-entire-file-as-string-let-contents--config_fileread_to_string---read-as-bytes-let-bytes--config_fileread----writing-files--rust-use-strict_pathvirtualroot--let-user_docs--virtualroottry_newformathomeuserdocuments-let-report--user_docsvirtual_joinreportssummarytxt---ensure-parent-directories-exist-reportcreate_parent_dir_all---write-string-content-reportwritemonthly-summarynntotal-42---write-bytes-reportwrite_bytesbbinary-data----file-handles--for-streaming-or-more-control-use-file-handles--rust-use-stdioread-write---create-or-truncate-file-get-writable-handle-let-mut-file--reportcreate_file-filewrite_allbline-1n-filewrite_allbline-2n---open-for-reading-let-mut-file--reportopen_file-let-mut-contents--stringnew-fileread_to_stringmut-contents----directory-operations---creating-directories--rust--create-single-directory-parent-must-exist-let-subdir--config_dirstrict_joinplugins-subdircreate_dir---create-all-parent-directories-if-missing-let-nested--config_dirstrict_joindatacachetemp-nestedcreate_dir_all---non-recursive-variant-virtualpath-let-vdir--user_docsvirtual_joinarchive-vdircreate_dir_non_recursive--fails-if-parent-missing----listing-directory-contents--rust--discovery-enumerate-entries-for-entry-in-config_dirread_dir------let-entry--entry-----let-name--entryfile_name-----------re-validate-discovered-path-before-use-----let-validated--config_dirstrict_joinname-----printlnfound--validatedstrictpath_display-----removing-directories--rust--remove-empty-directory-subdirremove_dir---remove-directory-and-all-contents-dangerous-nestedremove_dir_all----metadata-operations---checking-existence-and-type--rust--check-if-path-exists-if-config_fileexists------printlnconfig-file-found----check-type-if-config_fileis_file------printlnits-a-file---if-config_diris_dir------printlnits-a-directory-----getting-metadata--rust--get-full-metadata-let-metadata--config_filemetadata--printlnsize--bytes-metadatalen-printlnread-only--metadatapermissionsreadonly-printlnmodified--metadatamodified----symlink-metadata-dont-follow-links--rust--get-metadata-without-following-symlinks-let-link_meta--config_filesymlink_metadata--if-link_metais_symlink------printlnthis-is-a-symbolic-link-----copy-rename-and-link-operations---copying-files--rust-let-source--config_dirstrict_jointemplateconf-let-dest--config_dirstrict_joinactiveconf---copy-file-returns-bytes-copied-let-bytes--sourcestrict_copydest-printlncopied--bytes-bytes----renamingmoving--rust-let-old_name--config_dirstrict_joindrafttxt-let-new_name--config_dirstrict_joinfinaltxt---moverename-within-same-boundary-old_namestrict_renamenew_name----creating-links--rust--symbolic-link-let-target--config_dirstrict_joincurrent-let-link--config_dirstrict_joinlink-to-current-targetstrict_symlinklink---hard-link-targetstrict_hard_linklink----builtin-vs-stdfs-comparison---operation---strict-path-----------stdfs--------------------------------------------why-prefer-builtin--------------------------------------------------------------------------------------------------------------------read-file---read_to_string----fsread_to_stringpathinterop_path-----------shorter-stays-typed---write-file--writecontent----fswritepathinterop_path-content---------no-interop-needed------copy-file---strict_copydest--fscopysrcinterop_path-dstinterop_path--both-paths-validated---metadata----metadata----------fsmetadatapathinterop_path-----------------cleaner-same-result---create-dir--create_dir_all----fscreate_dir_allpathinterop_path-----------type-safe-path----------when-to-use-interop_path--only-for-unavoidable-third-party-crates-that-demand-asrefpath--rust---good-third-party-crate-requires-asrefpath-let-image--config_dirstrict_joinlogopng-let-img--imageopenimageinterop_path--no-choice----bad-using-interop-when-builtin-exists-stdfsread_to_stringimageinterop_path--use-read_to_string-instead----good-use-builtin-let-contents--imageread_to_string----virtualpath-io-operations--all-methods-work-on-virtualpath-too-maintaining-virtual-display-semantics--rust-let-user_id--alicenlet-user_root--virtualroottry_newformatvarlibappusersuser_id-let-doc--user_rootvirtual_joindocumentsreadmetxt---all-io-operations-available-doccreate_parent_dir_all-docwritewelcome-to-your-virtual-filesystem---display-shows-virtual-path-printlnwrote-to--docvirtualpath_display--documentsreadmetxt---but-io-happens-at-real-system-location-printlnsystem-location--docas_unvirtualstrictpath_display----performance-notes--no-overhead-builtin-methods-call-stdfs-internally-with-zero-abstraction-cost---same-syscalls-operations-compile-to-identical-machine-code-as-direct-stdfs-usage---validation-cost-only-paid-once-during-strict_joinvirtual_join-not-on-every-io-operation---summary----use-builtin-methods-for-all-common-io-operations---reserve-interop_path-for-third-party-crates---both-strictpath-and-virtualpath-support-the-full-io-api---no-performance-penalty-vs-raw-stdfs---type-safety-and-boundary-security-maintained-automatically"><a class="header" href="#builtin-io-operations--strict-path-provides-safe-io-helpers-that-maintain-boundary-security-while-eliminating-the-need-for-raw-stdfs-calls-on-leaked-paths---why-use-builtin-methods--security-all-operations-stay-within-validated-boundaries---ergonomics-no-need-to-call-interop_path-for-common-operations---correctness-type-checked-paths-guarantee-safety-at-compile-time---file-operations---reading-files--rust-use-strict_pathpathboundary--let-config_dir--pathboundarytry_newetcmyapp-let-config_file--config_dirstrict_joinconfigtoml---read-entire-file-as-string-let-contents--config_fileread_to_string---read-as-bytes-let-bytes--config_fileread----writing-files--rust-use-strict_pathvirtualroot--let-user_docs--virtualroottry_newformathomeuserdocuments-let-report--user_docsvirtual_joinreportssummarytxt---ensure-parent-directories-exist-reportcreate_parent_dir_all---write-string-content-reportwritemonthly-summarynntotal-42---write-bytes-reportwrite_bytesbbinary-data----file-handles--for-streaming-or-more-control-use-file-handles--rust-use-stdioread-write---create-or-truncate-file-get-writable-handle-let-mut-file--reportcreate_file-filewrite_allbline-1n-filewrite_allbline-2n---open-for-reading-let-mut-file--reportopen_file-let-mut-contents--stringnew-fileread_to_stringmut-contents----directory-operations---creating-directories--rust--create-single-directory-parent-must-exist-let-subdir--config_dirstrict_joinplugins-subdircreate_dir---create-all-parent-directories-if-missing-let-nested--config_dirstrict_joindatacachetemp-nestedcreate_dir_all---non-recursive-variant-virtualpath-let-vdir--user_docsvirtual_joinarchive-vdircreate_dir_non_recursive--fails-if-parent-missing----listing-directory-contents--rust--discovery-enumerate-entries-for-entry-in-config_dirread_dir------let-entry--entry-----let-name--entryfile_name-----------re-validate-discovered-path-before-use-----let-validated--config_dirstrict_joinname-----printlnfound--validatedstrictpath_display-----removing-directories--rust--remove-empty-directory-subdirremove_dir---remove-directory-and-all-contents-dangerous-nestedremove_dir_all----metadata-operations---checking-existence-and-type--rust--check-if-path-exists-if-config_fileexists------printlnconfig-file-found----check-type-if-config_fileis_file------printlnits-a-file---if-config_diris_dir------printlnits-a-directory-----getting-metadata--rust--get-full-metadata-let-metadata--config_filemetadata--printlnsize--bytes-metadatalen-printlnread-only--metadatapermissionsreadonly-printlnmodified--metadatamodified----symlink-metadata-dont-follow-links--rust--get-metadata-without-following-symlinks-let-link_meta--config_filesymlink_metadata--if-link_metais_symlink------printlnthis-is-a-symbolic-link-----copy-rename-and-link-operations---copying-files--rust-let-source--config_dirstrict_jointemplateconf-let-dest--config_dirstrict_joinactiveconf---copy-file-returns-bytes-copied-let-bytes--sourcestrict_copydest-printlncopied--bytes-bytes----renamingmoving--rust-let-old_name--config_dirstrict_joindrafttxt-let-new_name--config_dirstrict_joinfinaltxt---moverename-within-same-boundary-old_namestrict_renamenew_name----creating-links--rust--symbolic-link-let-target--config_dirstrict_joincurrent-let-link--config_dirstrict_joinlink-to-current-targetstrict_symlinklink---hard-link-targetstrict_hard_linklink----builtin-vs-stdfs-comparison---operation---strict-path-----------stdfs--------------------------------------------why-prefer-builtin--------------------------------------------------------------------------------------------------------------------read-file---read_to_string----fsread_to_stringpathinterop_path-----------shorter-stays-typed---write-file--writecontent----fswritepathinterop_path-content---------no-interop-needed------copy-file---strict_copydest--fscopysrcinterop_path-dstinterop_path--both-paths-validated---metadata----metadata----------fsmetadatapathinterop_path-----------------cleaner-same-result---create-dir--create_dir_all----fscreate_dir_allpathinterop_path-----------type-safe-path----------when-to-use-interop_path--only-for-unavoidable-third-party-crates-that-demand-asrefpath--rust---good-third-party-crate-requires-asrefpath-let-image--config_dirstrict_joinlogopng-let-img--imageopenimageinterop_path--no-choice----bad-using-interop-when-builtin-exists-stdfsread_to_stringimageinterop_path--use-read_to_string-instead----good-use-builtin-let-contents--imageread_to_string----virtualpath-io-operations--all-methods-work-on-virtualpath-too-maintaining-virtual-display-semantics--rust-let-user_id--alicenlet-user_root--virtualroottry_newformatvarlibappusersuser_id-let-doc--user_rootvirtual_joindocumentsreadmetxt---all-io-operations-available-doccreate_parent_dir_all-docwritewelcome-to-your-virtual-filesystem---display-shows-virtual-path-printlnwrote-to--docvirtualpath_display--documentsreadmetxt---but-io-happens-at-real-system-location-printlnsystem-location--docas_unvirtualstrictpath_display----performance-notes--no-overhead-builtin-methods-call-stdfs-internally-with-zero-abstraction-cost---same-syscalls-operations-compile-to-identical-machine-code-as-direct-stdfs-usage---validation-cost-only-paid-once-during-strict_joinvirtual_join-not-on-every-io-operation---summary----use-builtin-methods-for-all-common-io-operations---reserve-interop_path-for-third-party-crates---both-strictpath-and-virtualpath-support-the-full-io-api---no-performance-penalty-vs-raw-stdfs---type-safety-and-boundary-security-maintained-automatically">Builtin I/O Operations`strict-path` provides safe I/O helpers that maintain boundary security while eliminating the need for raw `std::fs` calls on leaked paths.## Why Use Builtin Methods?**Security**: All operations stay within validated boundaries  **Ergonomics**: No need to call `.interop_path()` for common operations  **Correctness**: Type-checked paths guarantee safety at compile time## File Operations### Reading Files```rustuse strict_path::PathBoundary;let config_dir = PathBoundary::try_new("/etc/myapp")?;let config_file = config_dir.strict_join("config.toml")?;// Read entire file as stringlet contents = config_file.read_to_string()?;// Read as byteslet bytes = config_file.read()?;```### Writing Files```rustuse strict_path::VirtualRoot;let user_docs = VirtualRoot::try_new(format!("/home/{user}/documents"))?;let report = user_docs.virtual_join("reports/summary.txt")?;// Ensure parent directories existreport.create_parent_dir_all()?;// Write string contentreport.write("Monthly Summary\n\nTotal: 42")?;// Write bytesreport.write_bytes(b"Binary data")?;```### File HandlesFor streaming or more control, use file handles:```rustuse std::io::{Read, Write};// Create or truncate file, get writable handlelet mut file = report.create_file()?;file.write_all(b"Line 1\n")?;file.write_all(b"Line 2\n")?;// Open for readinglet mut file = report.open_file()?;let mut contents = String::new();file.read_to_string(&amp;mut contents)?;```## Directory Operations### Creating Directories```rust// Create single directory (parent must exist)let subdir = config_dir.strict_join("plugins")?;subdir.create_dir()?;// Create all parent directories if missinglet nested = config_dir.strict_join("data/cache/temp")?;nested.create_dir_all()?;// Non-recursive variant (VirtualPath)let vdir = user_docs.virtual_join("archive")?;vdir.create_dir_non_recursive()?; // Fails if parent missing```### Listing Directory Contents```rust// Discovery: enumerate entriesfor entry in config_dir.read_dir()? {    let entry = entry?;    let name = entry.file_name();        // Re-validate discovered path before use    let validated = config_dir.strict_join(&amp;name)?;    println!("Found: {}", validated.strictpath_display());}```### Removing Directories```rust// Remove empty directorysubdir.remove_dir()?;// Remove directory and all contents (dangerous!)nested.remove_dir_all()?;```## Metadata Operations### Checking Existence and Type```rust// Check if path existsif config_file.exists() {    println!("Config file found");}// Check typeif config_file.is_file() {    println!("It's a file");}if config_dir.is_dir() {    println!("It's a directory");}```### Getting Metadata```rust// Get full metadatalet metadata = config_file.metadata()?;println!("Size: {} bytes", metadata.len());println!("Read-only: {}", metadata.permissions().readonly());println!("Modified: {:?}", metadata.modified()?);```### Symlink Metadata (Don't Follow Links)```rust// Get metadata without following symlinkslet link_meta = config_file.symlink_metadata()?;if link_meta.is_symlink() {    println!("This is a symbolic link");}```## Copy, Rename, and Link Operations### Copying Files```rustlet source = config_dir.strict_join("template.conf")?;let dest = config_dir.strict_join("active.conf")?;// Copy file, returns bytes copiedlet bytes = source.strict_copy(&amp;dest)?;println!("Copied {} bytes", bytes);```### Renaming/Moving```rustlet old_name = config_dir.strict_join("draft.txt")?;let new_name = config_dir.strict_join("final.txt")?;// Move/rename within same boundaryold_name.strict_rename(&amp;new_name)?;```### Creating Links```rust// Symbolic linklet target = config_dir.strict_join("current")?;let link = config_dir.strict_join("link-to-current")?;target.strict_symlink(&amp;link)?;// Hard linktarget.strict_hard_link(&amp;link)?;```## Builtin vs std::fs Comparison| Operation  | `strict-path`          | `std::fs`                                           | Why Prefer Builtin?  || ---------- | ---------------------- | --------------------------------------------------- | -------------------- || Read file  | `.read_to_string()?`   | `fs::read_to_string(path.interop_path())?`          | Shorter, stays typed || Write file | `.write("content")?`   | `fs::write(path.interop_path(), "content")?`        | No interop needed    || Copy file  | `.strict_copy(&amp;dest)?` | `fs::copy(src.interop_path(), dst.interop_path())?` | Both paths validated || Metadata   | `.metadata()?`         | `fs::metadata(path.interop_path())?`                | Cleaner, same result || Create dir | `.create_dir_all()?`   | `fs::create_dir_all(path.interop_path())?`          | Type-safe path       |## When to Use interop_path()**Only for unavoidable third-party crates** that demand `AsRef&lt;Path&gt;`:```rust// ✅ GOOD: Third-party crate requires AsRef&lt;Path&gt;let image = config_dir.strict_join("logo.png")?;let img = image::open(image.interop_path())?; // No choice// ❌ BAD: Using interop when builtin existsstd::fs::read_to_string(image.interop_path())?; // Use .read_to_string() instead// ✅ GOOD: Use builtinlet contents = image.read_to_string()?;```## VirtualPath I/O OperationsAll methods work on `VirtualPath` too, maintaining virtual display semantics:```rustlet user_id = "alice";\nlet user_root = VirtualRoot::try_new(format!("/var/lib/app/users/{user_id}"))?;let doc = user_root.virtual_join("documents/readme.txt")?;// All I/O operations availabledoc.create_parent_dir_all()?;doc.write("Welcome to your virtual filesystem!")?;// Display shows virtual pathprintln!("Wrote to: {}", doc.virtualpath_display()); // "/documents/readme.txt"// But I/O happens at real system locationprintln!("System location: {}", doc.as_unvirtual().strictpath_display());```## Performance Notes**No overhead**: Builtin methods call `std::fs` internally with zero abstraction cost.  **Same syscalls**: Operations compile to identical machine code as direct `std::fs` usage.  **Validation cost**: Only paid once during `strict_join`/`virtual_join`, not on every I/O operation.## Summary- **Use builtin methods for all common I/O operations**- **Reserve `.interop_path()` for third-party crates**- **Both `StrictPath` and `VirtualPath` support the full I/O API**- **No performance penalty vs raw `std::fs`**- **Type safety and boundary security maintained automatically**</a></h1>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="generic-functions-and-marker-patterns"><a class="header" href="#generic-functions-and-marker-patterns">Generic Functions and Marker Patterns</a></h1>
 <p>Learn how to write reusable functions that work with any marker type using Rust's generics.</p>
 <h2 id="the-m-pattern"><a class="header" href="#the-m-pattern">The <code>&lt;M&gt;</code> Pattern</a></h2>
@@ -9714,7 +9615,7 @@ fn process(path: &amp;StrictPath&lt;()&gt;) { ... }
 // Good: preserve marker
 fn process&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) { ... }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="best-practices-6"><a class="header" href="#best-practices-6">Best Practices</a></h2>
+<h2 id="best-practices-5"><a class="header" href="#best-practices-5">Best Practices</a></h2>
 <h3 id="-start-generic-add-constraints-as-needed"><a class="header" href="#-start-generic-add-constraints-as-needed">✅ Start Generic, Add Constraints as Needed</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -9755,7 +9656,7 @@ fn file_size&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;u
 // ✅ Specific domain logic
 fn charge_storage_fees(path: &amp;StrictPath&lt;BillingData&gt;) -&gt; Result&lt;Amount&gt; { ... }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
 <ul>
 <li><strong><code>&lt;M&gt;</code> means "works with any marker"</strong></li>
 <li><strong>Use generics for reusable utilities</strong></li>
@@ -9766,6 +9667,45 @@ fn charge_storage_fees(path: &amp;StrictPath&lt;BillingData&gt;) -&gt; Result&lt
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="daily-usage-patterns"><a class="header" href="#daily-usage-patterns">Daily Usage Patterns</a></h1>
 <p>Common workflows and patterns for everyday <code>strict-path</code> usage.</p>
+<h2 id="typical-workflow"><a class="header" href="#typical-workflow">Typical Workflow</a></h2>
+<ul>
+<li>Establish a root (policy type): <code>PathBoundary</code> for strict detection, or <code>VirtualRoot</code> for virtual containment.</li>
+<li>Accept safe types in internal APIs: <code>&amp;StrictPath&lt;Marker&gt;</code> / <code>&amp;VirtualPath&lt;Marker&gt;</code> (or roots + raw segments).</li>
+<li>Validate any untrusted input (CLI, config, DB, user I/O) via <code>strict_join</code>/<code>virtual_join</code> before any I/O.</li>
+</ul>
+<p>Strict link creation (hard link)</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+let boundary: PathBoundary = PathBoundary::try_new_create("./link_demo")?;
+let target = boundary.strict_join("data/target.txt")?;
+target.create_parent_dir_all()?;
+target.write(b"hello")?;
+
+// Create a sibling hard link under the same directory
+target.strict_hard_link("alias.txt")?; // mirrors std::fs::hard_link
+
+let alias = boundary.strict_join("data/alias.txt")?;
+assert_eq!(alias.read_to_string()?, "hello");
+<span class="boring">}</span></code></pre></pre>
+<p>Virtual link creation (hard link)</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualRoot;
+
+let tenant_id = "tenant42";
+let vroot: VirtualRoot = VirtualRoot::try_new_create(format!("./vlink_demo/{tenant_id}"))?;
+let vtarget = vroot.virtual_join("/data/target.txt")?;
+vtarget.create_parent_dir_all()?;
+vtarget.write(b"hi")?;
+
+// Create a sibling hard link (virtual semantics)
+vtarget.virtual_hard_link("alias.txt")?;
+
+let valias = vroot.virtual_join("/data/alias.txt")?;
+assert_eq!(valias.read_to_string()?, "hi");
+<span class="boring">}</span></code></pre></pre>
 <h2 id="pattern-1-validate-user-input"><a class="header" href="#pattern-1-validate-user-input">Pattern 1: Validate User Input</a></h2>
 <p><strong>Problem</strong>: User provides a filename, you need to ensure it stays in your directory.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -10168,7 +10108,7 @@ match file.read_to_string() {
     Err(e) =&gt; return Err(e.into()),
 }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="summary-2"><a class="header" href="#summary-2">Summary</a></h2>
+<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
 <ul>
 <li><strong>Always validate user input through <code>strict_join</code>/<code>virtual_join</code></strong></li>
 <li><strong>Create boundaries once, reuse for multiple paths</strong></li>
@@ -10535,8 +10475,8 @@ This section is for contributors, library developers, and curious developers who
 </blockquote>
 <p>If you're just using strict-path in your project, you probably want:</p>
 <ul>
-<li><a href="./chapter_1.html">Getting Started</a> - Learn the basic API</li>
-<li><a href="./examples.html">Real-World Examples</a> - See practical usage patterns</li>
+<li><a href="./getting_started.html">Getting Started</a> - Learn the basic API</li>
+<li><a href="./examples/overview.html">Real-World Examples</a> - See practical usage patterns</li>
 </ul>
 <h2 id="whats-in-this-section"><a class="header" href="#whats-in-this-section">What's in This Section</a></h2>
 <p>This section covers the internal design decisions and patterns that make strict-path secure and maintainable:</p>

@@ -345,7 +345,8 @@ let bob_doc = bob_root.virtual_join("/secret.txt")?;
 <p>Understanding the difference:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>let alice_root = VirtualRoot::try_new_create("user_data_alice")?;
+</span>let username = "alice";
+let alice_root = VirtualRoot::try_new_create(format!("user_data_{username}"))?;
 let doc = alice_root.virtual_join("/reports/january.pdf")?;
 
 // What the user sees:

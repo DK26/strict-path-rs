@@ -212,13 +212,17 @@
 <hr />
 <h2 id="pick-the-right-type-quick-reference"><a class="header" href="#pick-the-right-type-quick-reference">Pick The Right Type (Quick Reference)</a></h2>
 <h3 id="30-second-decision-guide"><a class="header" href="#30-second-decision-guide">30-Second Decision Guide</a></h3>
-<p><strong>External/untrusted segments</strong> (HTTP, DB, manifests, LLM output, archive entries):</p>
 <ul>
-<li><strong>Detection (90% of cases):</strong> <code>StrictPath::with_boundary(..).strict_join(..)</code> â€” detects escapes, rejects attacks</li>
-<li><strong>Containment (10% of cases):</strong> <code>VirtualPath::with_root(..).virtual_join(..)</code> â€” silently clamps escapes, isolates users</li>
+<li><strong>Path/PathBuf</strong> (std): When the path comes from a safe source within your control, not external input.</li>
+<li><strong>StrictPath</strong>: When you want to restrict paths to a specific boundary and error if they escape.</li>
+<li><strong>VirtualPath</strong>: When you want to provide path freedom under isolation.</li>
 </ul>
-<p><strong>Internal/trusted paths</strong> (hardcoded, CLI, env): Use <code>Path</code>/<code>PathBuf</code>; only validate when combining with untrusted segments.</p>
 <p><strong>For policy reuse across many joins:</strong> Keep a <code>PathBoundary</code> or <code>VirtualRoot</code> and call <code>strict_join(..)</code>/<code>virtual_join(..)</code> repeatedly.</p>
+<p><strong>Quick patterns:</strong></p>
+<ul>
+<li><strong>Detection (90% of cases):</strong> <code>StrictPath::with_boundary(..).strict_join(..)</code> — detects escapes, rejects attacks</li>
+<li><strong>Containment (10% of cases):</strong> <code>VirtualPath::with_root(..).virtual_join(..)</code> — silently clamps escapes, isolates users</li>
+</ul>
 <h3 id="decision-matrix-by-source"><a class="header" href="#decision-matrix-by-source">Decision Matrix by Source</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Source</th><th>Typical Input</th><th>Default Choice</th><th>Notes</th></tr></thead><tbody>
 <tr><td>ðŸŒ <strong>HTTP/Web</strong></td><td>URL segments, form fields</td><td>VirtualPath or StrictPath</td><td>VirtualPath for UI display, StrictPath for system I/O</td></tr>
@@ -495,7 +499,7 @@ println!("User: {}", vpath.virtualpath_display()); // VirtualPath only
 <p>For detailed anti-patterns and fixes, see: <strong><a href="../anti_patterns.html">Anti-Patterns Guide â†’</a></strong></p>
 <hr />
 <p>That's it! This page is your quick reference. Dive into the focused chapters when you need details.</p>
-<p>For source-level API documentation: <strong><a href="../../strict_path/index.html">API Reference (strict-path crate docs) â†’</a></strong></p>
+<p>For source-level API documentation: <strong><a href="https://docs.rs/strict-path">API Reference (docs.rs) →</a></strong></p>
 
                     </main>
 

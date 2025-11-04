@@ -181,303 +181,7 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="type-system-guarantees-in-signatures"><a class="header" href="#type-system-guarantees-in-signatures">Type-System Guarantees in Signatures</a></h1>
-<p>One of strict-path's most powerful features is its <strong>marker type system</strong> that lets you encode domain-specific path guarantees in function signatures. This makes incorrect path usage a compile-time error rather than a runtime vulnerability.</p>
-<h2 id="what-are-markers"><a class="header" href="#what-are-markers">What Are Markers?</a></h2>
-<p>A marker is a zero-cost type parameter that describes what a path contains or how it should be used. Markers have no runtime representation - they exist purely to help the type system prevent mistakes.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::{PathBoundary, StrictPath};
-
-// Define markers for different content domains
-struct PublicAssets;   // CSS, JS, images for website
-struct UserUploads;    // Documents uploaded by users  
-struct TempFiles;      // Temporary processing files
-struct ConfigFiles;    // Application configuration
-
-// Use markers to create domain-specific boundaries
-let public_assets_dir: PathBoundary&lt;PublicAssets&gt; = PathBoundary::try_new("static")?;
-let user_uploads_dir: PathBoundary&lt;UserUploads&gt; = PathBoundary::try_new("uploads")?;
-let temp_files_dir: PathBoundary&lt;TempFiles&gt; = PathBoundary::try_new("temp")?;
-let app_config_dir: PathBoundary&lt;ConfigFiles&gt; = PathBoundary::try_new("config")?;
-
-// Join paths with their appropriate markers
-let css_file: StrictPath&lt;PublicAssets&gt; = public_assets_dir.strict_join("style.css")?;
-let user_doc: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("report.pdf")?;
-let temp_file: StrictPath&lt;TempFiles&gt; = temp_files_dir.strict_join("processing.tmp")?;
-let app_config: StrictPath&lt;ConfigFiles&gt; = app_config_dir.strict_join("settings.json")?;
-<span class="boring">}</span></code></pre></pre>
-<h2 id="why-markers-matter"><a class="header" href="#why-markers-matter">Why Markers Matter</a></h2>
-<p>Without markers, it's easy to accidentally mix up different types of paths:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Without markers - dangerous mix-ups are possible
-fn process_user_upload(file_path: &amp;StrictPath) -&gt; io::Result&lt;()&gt; {
-    // Is this a user file? Config file? Temp file? 
-    // No way to know from the type!
-    file_path.read_to_string()
-}
-
-// With markers - impossible to mix up domains  
-fn process_user_upload(user_file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; io::Result&lt;String&gt; {
-    // Clear: this function ONLY processes user uploads
-    user_file.read_to_string() 
-}
-
-fn load_app_config(config_file: &amp;StrictPath&lt;ConfigFiles&gt;) -&gt; io::Result&lt;AppConfig&gt; {
-    // Clear: this function ONLY loads config files
-    let content = config_file.read_to_string()?;
-    serde_json::from_str(&amp;content)
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="compile-time-safety"><a class="header" href="#compile-time-safety">Compile-Time Safety</a></h2>
-<p>With markers, the compiler prevents domain mix-ups:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let user_doc: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("report.pdf")?;
-let app_config: StrictPath&lt;ConfigFiles&gt; = app_config_dir.strict_join("settings.json")?;
-
-// ✅ These work - correct marker types
-process_user_upload(&amp;user_doc)?;
-load_app_config(&amp;app_config)?;
-
-// ❌ These are compile errors - marker type mismatch!
-// process_user_upload(&amp;app_config)?;  // Can't pass ConfigFiles to UserUploads function
-// load_app_config(&amp;user_doc)?;        // Can't pass UserUploads to ConfigFiles function
-<span class="boring">}</span></code></pre></pre>
-<p><strong>The power</strong>: If your code compiles, you know you're not accidentally processing config files as user uploads, or serving user uploads as public assets!</p>
-<h2 id="function-signature-patterns"><a class="header" href="#function-signature-patterns">Function Signature Patterns</a></h2>
-<h3 id="pattern-1-accept-validated-paths"><a class="header" href="#pattern-1-accept-validated-paths">Pattern 1: Accept Validated Paths</a></h3>
-<p>When the caller has already validated the path, accept the typed path directly:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn serve_public_asset(asset: &amp;StrictPath&lt;PublicAssets&gt;) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
-    // Caller proved this is a public asset - we can serve it safely
-    asset.read()
-}
-
-fn delete_user_file(user_file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; io::Result&lt;()&gt; {
-    // Caller proved this is a user upload - safe to delete
-    user_file.remove_file()
-}
-
-fn backup_config(config_file: &amp;StrictPath&lt;ConfigFiles&gt;, backup_dir: &amp;StrictPath&lt;BackupStorage&gt;) -&gt; io::Result&lt;()&gt; {
-    let content = config_file.read()?;
-    let backup_name = format!("config-{}.json", chrono::Utc::now().format("%Y%m%d"));
-    let backup_path = backup_dir.strict_join(&amp;backup_name)?;
-    backup_path.write(content)
-}
-<span class="boring">}</span></code></pre></pre>
-<h3 id="pattern-2-validate-inside-helper"><a class="header" href="#pattern-2-validate-inside-helper">Pattern 2: Validate Inside Helper</a></h3>
-<p>When the helper needs to validate user input, accept the boundary plus untrusted segment:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn save_user_upload(
-    uploads_dir: &amp;PathBoundary&lt;UserUploads&gt;, 
-    filename: &amp;str,  // untrusted input
-    content: &amp;[u8]
-) -&gt; io::Result&lt;()&gt; {
-    // Validate the untrusted filename
-    let user_file = uploads_dir.strict_join(filename)?;
-    user_file.create_parent_dir_all()?;
-    user_file.write(content)
-}
-
-fn load_config_by_name(
-    config_dir: &amp;PathBoundary&lt;ConfigFiles&gt;, 
-    config_name: &amp;str  // untrusted input
-) -&gt; io::Result&lt;serde_json::Value&gt; {
-    // Validate the untrusted config name
-    let config_file = config_dir.strict_join(config_name)?; 
-    let content = config_file.read_to_string()?;
-    serde_json::from_str(&amp;content).map_err(Into::into)
-}
-<span class="boring">}</span></code></pre></pre>
-<h3 id="pattern-3-multiple-domain-access"><a class="header" href="#pattern-3-multiple-domain-access">Pattern 3: Multiple Domain Access</a></h3>
-<p>Some functions need to work with multiple domains - use multiple parameters:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn generate_report(
-    user_data: &amp;StrictPath&lt;UserUploads&gt;,
-    template: &amp;StrictPath&lt;PublicAssets&gt;, 
-    temp_reports_dir: &amp;PathBoundary&lt;TempFiles&gt;
-) -&gt; io::Result&lt;StrictPath&lt;TempFiles&gt;&gt; {
-    let data = user_data.read_to_string()?;
-    let template_content = template.read_to_string()?;
-    
-    // Process data with template...
-    let report = process_template(&amp;template_content, &amp;data);
-    
-    let report_file = temp_reports_dir.strict_join("report.html")?;
-    report_file.write(report)?;
-    Ok(report_file)
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="marker-best-practices"><a class="header" href="#marker-best-practices">Marker Best Practices</a></h2>
-<h3 id="use-descriptive-domain-names"><a class="header" href="#use-descriptive-domain-names">Use Descriptive Domain Names</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// ✅ Good - describes what the paths contain
-struct UserHomes;
-struct ProductImages; 
-struct DatabaseBackups;
-struct AuditLogs;
-
-// ❌ Avoid - generic or implementation-focused names
-struct Files;
-struct Directory;
-struct Database;
-struct Secure;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="create-markers-for-business-domains"><a class="header" href="#create-markers-for-business-domains">Create Markers for Business Domains</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// ✅ Good - matches your application's business logic
-struct CustomerDocuments;
-struct FinancialReports;
-struct ProductCatalog; 
-struct EmployeeRecords;
-struct MarketingAssets;
-
-// ❌ Avoid - technical implementation details as primary markers
-struct JsonFiles;
-struct ReadOnlyData;
-struct EncryptedStorage;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="use-meaningful-function-names"><a class="header" href="#use-meaningful-function-names">Use Meaningful Function Names</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// ✅ Good - function names explain business intent
-fn archive_customer_document(doc: &amp;StrictPath&lt;CustomerDocuments&gt;) -&gt; io::Result&lt;()&gt; { ... }
-fn publish_marketing_asset(asset: &amp;StrictPath&lt;MarketingAssets&gt;) -&gt; io::Result&lt;()&gt; { ... }
-fn audit_financial_report(report: &amp;StrictPath&lt;FinancialReports&gt;) -&gt; io::Result&lt;()&gt; { ... }
-
-// ❌ Avoid - generic names that don't explain purpose  
-fn process_file(path: &amp;StrictPath&lt;SomeMarker&gt;) -&gt; io::Result&lt;()&gt; { ... }
-fn handle_data(path: &amp;StrictPath&lt;SomeMarker&gt;) -&gt; io::Result&lt;()&gt; { ... }
-<span class="boring">}</span></code></pre></pre>
-<h2 id="advanced-marker-patterns"><a class="header" href="#advanced-marker-patterns">Advanced Marker Patterns</a></h2>
-<h3 id="hierarchical-markers"><a class="header" href="#hierarchical-markers">Hierarchical Markers</a></h3>
-<p>You can create marker hierarchies for more sophisticated type safety:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>struct MediaFiles;
-struct Images;
-struct Videos;
-struct Documents;
-
-// Use PhantomData for hierarchical relationships
-struct MediaFile&lt;T&gt;(std::marker::PhantomData&lt;T&gt;);
-
-type ImageFile = MediaFile&lt;Images&gt;;
-type VideoFile = MediaFile&lt;Videos&gt;;
-type DocumentFile = MediaFile&lt;Documents&gt;;
-
-fn process_image(img: &amp;StrictPath&lt;ImageFile&gt;) -&gt; io::Result&lt;()&gt; { ... }
-fn process_video(vid: &amp;StrictPath&lt;VideoFile&gt;) -&gt; io::Result&lt;()&gt; { ... }
-fn process_document(doc: &amp;StrictPath&lt;DocumentFile&gt;) -&gt; io::Result&lt;()&gt; { ... }
-<span class="boring">}</span></code></pre></pre>
-<h3 id="environment-specific-markers"><a class="header" href="#environment-specific-markers">Environment-Specific Markers</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>struct Production;
-struct Staging;  
-struct Development;
-
-struct ConfigFile&lt;Env&gt;(std::marker::PhantomData&lt;Env&gt;);
-
-type ProdConfig = ConfigFile&lt;Production&gt;;
-type StagingConfig = ConfigFile&lt;Staging&gt;;
-type DevConfig = ConfigFile&lt;Development&gt;;
-
-fn deploy_to_production(config: &amp;StrictPath&lt;ProdConfig&gt;) -&gt; io::Result&lt;()&gt; {
-    // Only production configs can be deployed to production
-    apply_production_config(config)
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="integration-with-serde"><a class="header" href="#integration-with-serde">Integration with Serde</a></h2>
-<p>When deserializing paths from configuration, you still need runtime validation:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use serde::Deserialize;
-
-#[derive(Deserialize)]
-struct AppConfig {
-    upload_directory: String,  // Raw path from config
-    static_directory: String,  // Raw path from config
-}
-
-fn load_app_config() -&gt; Result&lt;(PathBoundary&lt;UserUploads&gt;, PathBoundary&lt;PublicAssets&gt;), ConfigError&gt; {
-    let config: AppConfig = serde_json::from_str(&amp;config_json)?;
-    
-    // Validate raw config paths into typed boundaries
-    let user_uploads_dir = PathBoundary::&lt;UserUploads&gt;::try_new_create(&amp;config.upload_directory)?;
-    let public_assets_dir = PathBoundary::&lt;PublicAssets&gt;::try_new_create(&amp;config.static_directory)?;
-    
-    Ok((user_uploads_dir, public_assets_dir))
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="zero-runtime-cost"><a class="header" href="#zero-runtime-cost">Zero Runtime Cost</a></h2>
-<p>It's important to understand that markers are zero-cost abstractions:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// These have identical runtime performance
-let generic_path: StrictPath = some_root.strict_join("file.txt")?;
-let typed_path: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("file.txt")?;
-
-// The marker information is erased at compile time
-assert_eq!(
-    std::mem::size_of::&lt;StrictPath&gt;(), 
-    std::mem::size_of::&lt;StrictPath&lt;UserUploads&gt;&gt;()
-);
-<span class="boring">}</span></code></pre></pre>
-<p>All the type safety benefits come at compile time with no runtime overhead!</p>
-<h2 id="strictpath-vs-virtualpath-symlink-semantics"><a class="header" href="#strictpath-vs-virtualpath-symlink-semantics">StrictPath vs VirtualPath: Symlink Semantics</a></h2>
-<p>One critical difference between <code>StrictPath</code> and <code>VirtualPath</code> is how they handle symlinks:</p>
-<h3 id="strictpath-system-filesystem-semantics"><a class="header" href="#strictpath-system-filesystem-semantics">StrictPath: System Filesystem Semantics</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::StrictPath;
-
-// StrictPath follows symlinks and validates targets
-let boundary = StrictPath::with_boundary_create("system_root")?;
-
-// If "system_root/config_link" symlinks to "/etc/app.conf":
-let config = boundary.strict_join("config_link");
-// ❌ Error if target is outside boundary
-// ✅ OK if target resolves to path inside boundary
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Use for:</strong> Shared system resources, config files, traditional filesystem operations</p>
-<h3 id="virtualpath-virtual-filesystem-semantics"><a class="header" href="#virtualpath-virtual-filesystem-semantics">VirtualPath: Virtual Filesystem Semantics</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::VirtualPath;
-
-// VirtualPath clamps absolute symlink targets to virtual root
-let vroot = VirtualPath::with_root("user_sandbox")?;
-
-// If "user_sandbox/config_link" symlinks to "/etc/app.conf":
-let config = vroot.virtual_join("config_link")?;
-// ✅ Always OK - target clamped to "user_sandbox/etc/app.conf"
-
-println!("Virtual: {}", config.virtualpath_display());
-// Output: /etc/app.conf (from user's perspective)
-
-println!("System: {}", config.as_unvirtual().strictpath_display());  
-// Output: user_sandbox/etc/app.conf (actually safe!)
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Use for:</strong> Multi-tenant systems, archive extraction, sandboxed environments, container-like semantics</p>
-<p><strong>Key Insight:</strong> In a virtual filesystem, absolute paths (whether from user input or symlink targets) are <em>always</em> relative to the virtual root. This makes <code>VirtualPath</code> perfect for untrusted inputs where you want graceful containment rather than explicit rejection.</p>
-<h2 id="common-patterns-summary"><a class="header" href="#common-patterns-summary">Common Patterns Summary</a></h2>
-<ol>
-<li><strong>Validate once, use everywhere</strong>: Create typed paths at boundaries, pass typed paths to functions</li>
-<li><strong>Encode intent in signatures</strong>: Function parameters should clearly show what domains they work with</li>
-<li><strong>Separate validation from business logic</strong>: Keep path validation separate from file processing</li>
-<li><strong>Use meaningful marker names</strong>: Markers should describe business domains, not technical implementation</li>
-<li><strong>Fail at compile time</strong>: Structure your code so domain mix-ups become type errors</li>
-<li><strong>Choose the right semantics</strong>: Use <code>StrictPath</code> for system operations (validation), <code>VirtualPath</code> for sandboxing (clamping)</li>
-</ol>
-<p>The type system becomes your ally in preventing path-related security bugs and logic errors!</p>
+                        <h1 id="type-system-guarantees-in-signatures--one-of-strict-paths-most-powerful-features-is-its-marker-type-system-that-lets-you-encode-domain-specific-path-guarantees-in-function-signatures-this-makes-incorrect-path-usage-a-compile-time-error-rather-than-a-runtime-vulnerability---what-are-markers--a-marker-is-a-zero-cost-type-parameter-that-describes-what-a-path-contains-or-how-it-should-be-used-markers-have-no-runtime-representation---they-exist-purely-to-help-the-type-system-prevent-mistakes--rust-use-strict_pathpathboundary-strictpath---define-markers-for-different-content-domains-struct-publicassets----css-js-images-for-website-struct-useruploads-----documents-uploaded-by-users---struct-tempfiles-------temporary-processing-files-struct-configfiles-----application-configuration---use-markers-to-create-domain-specific-boundaries-let-public_assets_dir-pathboundarypublicassets--pathboundarytry_newstatic-let-user_uploads_dir-pathboundaryuseruploads--pathboundarytry_newuploads-let-temp_files_dir-pathboundarytempfiles--pathboundarytry_newtemp-let-app_config_dir-pathboundaryconfigfiles--pathboundarytry_newconfig---join-paths-with-their-appropriate-markers-let-css_file-strictpathpublicassets--public_assets_dirstrict_joinstylecss-let-user_doc-strictpathuseruploads--user_uploads_dirstrict_joinreportpdf-let-temp_file-strictpathtempfiles--temp_files_dirstrict_joinprocessingtmp-let-app_config-strictpathconfigfiles--app_config_dirstrict_joinsettingsjson----why-markers-matter--without-markers-its-easy-to-accidentally-mix-up-different-types-of-paths--rust--without-markers---dangerous-mix-ups-are-possible-fn-process_user_uploadfile_path-strictpath---ioresult-------is-this-a-user-file-config-file-temp-file-------no-way-to-know-from-the-type-----file_pathread_to_string----with-markers---impossible-to-mix-up-domains---fn-process_user_uploaduser_file-strictpathuseruploads---ioresultstring-------clear-this-function-only-processes-user-uploads-----user_fileread_to_string----fn-load_app_configconfig_file-strictpathconfigfiles---ioresultappconfig-------clear-this-function-only-loads-config-files-----let-content--config_fileread_to_string-----serde_jsonfrom_strcontent-----compile-time-safety--with-markers-the-compiler-prevents-domain-mix-ups--rust-let-user_doc-strictpathuseruploads--user_uploads_dirstrict_joinreportpdf-let-app_config-strictpathconfigfiles--app_config_dirstrict_joinsettingsjson----these-work---correct-marker-types-process_user_uploaduser_doc-load_app_configapp_config----these-are-compile-errors---marker-type-mismatch--process_user_uploadapp_config---cant-pass-configfiles-to-useruploads-function--load_app_configuser_doc---------cant-pass-useruploads-to-configfiles-function---the-power-if-your-code-compiles-you-know-youre-not-accidentally-processing-config-files-as-user-uploads-or-serving-user-uploads-as-public-assets---function-signature-patterns---pattern-1-accept-validated-paths--when-the-caller-has-already-validated-the-path-accept-the-typed-path-directly--rust-fn-serve_public_assetasset-strictpathpublicassets---ioresultvecu8-------caller-proved-this-is-a-public-asset---we-can-serve-it-safely-----assetread---fn-delete_user_fileuser_file-strictpathuseruploads---ioresult-------caller-proved-this-is-a-user-upload---safe-to-delete-----user_fileremove_file---fn-backup_configconfig_file-strictpathconfigfiles-backup_dir-strictpathbackupstorage---ioresult------let-content--config_fileread-----let-backup_name--formatconfig-json-chronoutcnowformatymd-----let-backup_path--backup_dirstrict_joinbackup_name-----backup_pathwritecontent-----pattern-2-validate-inside-helper--when-the-helper-needs-to-validate-user-input-accept-the-boundary-plus-untrusted-segment--rust-fn-save_user_upload-----uploads_dir-pathboundaryuseruploads------filename-str---untrusted-input-----content-u8----ioresult-------validate-the-untrusted-filename-----let-user_file--uploads_dirstrict_joinfilename-----user_filecreate_parent_dir_all-----user_filewritecontent---fn-load_config_by_name-----config_dir-pathboundaryconfigfiles------config_name-str---untrusted-input----ioresultserde_jsonvalue-------validate-the-untrusted-config-name-----let-config_file--config_dirstrict_joinconfig_name------let-content--config_fileread_to_string-----serde_jsonfrom_strcontentmap_errintointo-----pattern-3-multiple-domain-access--some-functions-need-to-work-with-multiple-domains---use-multiple-parameters--rust-fn-generate_report-----user_data-strictpathuseruploads-----template-strictpathpublicassets------temp_reports_dir-pathboundarytempfiles----ioresultstrictpathtempfiles------let-data--user_dataread_to_string-----let-template_content--templateread_to_string-----------process-data-with-template-----let-report--process_templatetemplate_content-data----------let-report_file--temp_reports_dirstrict_joinreporthtml-----report_filewritereport-----okreport_file-----marker-best-practices---use-descriptive-domain-names--rust---good---describes-what-the-paths-contain-struct-userhomes-struct-productimages--struct-databasebackups-struct-auditlogs----avoid---generic-or-implementation-focused-names-struct-files-struct-directory-struct-database-struct-secure----create-markers-for-business-domains--rust---good---matches-your-applications-business-logic-struct-customerdocuments-struct-financialreports-struct-productcatalog--struct-employeerecords-struct-marketingassets----avoid---technical-implementation-details-as-primary-markers-struct-jsonfiles-struct-readonlydata-struct-encryptedstorage----use-meaningful-function-names--rust---good---function-names-explain-business-intent-fn-archive_customer_documentdoc-strictpathcustomerdocuments---ioresult----fn-publish_marketing_assetasset-strictpathmarketingassets---ioresult----fn-audit_financial_reportreport-strictpathfinancialreports---ioresult-------avoid---generic-names-that-dont-explain-purpose---fn-process_filepath-strictpathsomemarker---ioresult----fn-handle_datapath-strictpathsomemarker---ioresult-------advanced-marker-patterns---hierarchical-markers--you-can-create-marker-hierarchies-for-more-sophisticated-type-safety--rust-struct-mediafiles-struct-images-struct-videos-struct-documents---use-phantomdata-for-hierarchical-relationships-struct-mediafiletstdmarkerphantomdatat--type-imagefile--mediafileimages-type-videofile--mediafilevideos-type-documentfile--mediafiledocuments--fn-process_imageimg-strictpathimagefile---ioresult----fn-process_videovid-strictpathvideofile---ioresult----fn-process_documentdoc-strictpathdocumentfile---ioresult-------environment-specific-markers--rust-struct-production-struct-staging---struct-development--struct-configfileenvstdmarkerphantomdataenv--type-prodconfig--configfileproduction-type-stagingconfig--configfilestaging-type-devconfig--configfiledevelopment--fn-deploy_to_productionconfig-strictpathprodconfig---ioresult-------only-production-configs-can-be-deployed-to-production-----apply_production_configconfig-----integration-with-serde--when-deserializing-paths-from-configuration-you-still-need-runtime-validation--rust-use-serdedeserialize--derivedeserialize-struct-appconfig------upload_directory-string---raw-path-from-config-----static_directory-string---raw-path-from-config---fn-load_app_config---resultpathboundaryuseruploads-pathboundarypublicassets-configerror------let-config-appconfig--serde_jsonfrom_strconfig_json-----------validate-raw-config-paths-into-typed-boundaries-----let-user_uploads_dir--pathboundaryuseruploadstry_new_createconfigupload_directory-----let-public_assets_dir--pathboundarypublicassetstry_new_createconfigstatic_directory----------okuser_uploads_dir-public_assets_dir-----zero-runtime-cost--its-important-to-understand-that-markers-are-zero-cost-abstractions--rust--these-have-identical-runtime-performance-let-generic_path-strictpath--some_rootstrict_joinfiletxt-let-typed_path-strictpathuseruploads--user_uploads_dirstrict_joinfiletxt---the-marker-information-is-erased-at-compile-time-assert_eq-----stdmemsize_ofstrictpath------stdmemsize_ofstrictpathuseruploads----all-the-type-safety-benefits-come-at-compile-time-with-no-runtime-overhead---strictpath-vs-virtualpath-symlink-semantics--one-critical-difference-between-strictpath-and-virtualpath-is-how-they-handle-symlinks---strictpath-system-filesystem-semantics--rust-use-strict_pathstrictpath---strictpath-follows-symlinks-and-validates-targets-let-boundary--strictpathwith_boundary_createsystem_root---if-system_rootconfig_link-symlinks-to-etcappconf-let-config--boundarystrict_joinconfig_link---error-if-target-is-outside-boundary---ok-if-target-resolves-to-path-inside-boundary---use-for-shared-system-resources-config-files-traditional-filesystem-operations---virtualpath-virtual-filesystem-semantics----rust-use-strict_pathvirtualpath---virtualpath-clamps-absolute-symlink-targets-to-virtual-root-let-vroot--virtualpathwith_rootformatuser_user_id_sandbox---if-user_sandboxconfig_link-symlinks-to-etcappconf-let-config--vrootvirtual_joinconfig_link---always-ok---target-clamped-to-user_sandboxetcappconf--printlnvirtual--configvirtualpath_display--output-etcappconf-from-users-perspective--printlnsystem--configas_unvirtualstrictpath_display----output-user_sandboxetcappconf-actually-safe---use-for-multi-tenant-systems-archive-extraction-sandboxed-environments-container-like-semantics--key-insight-in-a-virtual-filesystem-absolute-paths-whether-from-user-input-or-symlink-targets-are-always-relative-to-the-virtual-root-this-makes-virtualpath-perfect-for-untrusted-inputs-where-you-want-graceful-containment-rather-than-explicit-rejection---common-patterns-summary--1-validate-once-use-everywhere-create-typed-paths-at-boundaries-pass-typed-paths-to-functions-2-encode-intent-in-signatures-function-parameters-should-clearly-show-what-domains-they-work-with-3-separate-validation-from-business-logic-keep-path-validation-separate-from-file-processing-4-use-meaningful-marker-names-markers-should-describe-business-domains-not-technical-implementation-5-fail-at-compile-time-structure-your-code-so-domain-mix-ups-become-type-errors-6-choose-the-right-semantics-use-strictpath-for-system-operations-validation-virtualpath-for-sandboxing-clamping--the-type-system-becomes-your-ally-in-preventing-path-related-security-bugs-and-logic-errors"><a class="header" href="#type-system-guarantees-in-signatures--one-of-strict-paths-most-powerful-features-is-its-marker-type-system-that-lets-you-encode-domain-specific-path-guarantees-in-function-signatures-this-makes-incorrect-path-usage-a-compile-time-error-rather-than-a-runtime-vulnerability---what-are-markers--a-marker-is-a-zero-cost-type-parameter-that-describes-what-a-path-contains-or-how-it-should-be-used-markers-have-no-runtime-representation---they-exist-purely-to-help-the-type-system-prevent-mistakes--rust-use-strict_pathpathboundary-strictpath---define-markers-for-different-content-domains-struct-publicassets----css-js-images-for-website-struct-useruploads-----documents-uploaded-by-users---struct-tempfiles-------temporary-processing-files-struct-configfiles-----application-configuration---use-markers-to-create-domain-specific-boundaries-let-public_assets_dir-pathboundarypublicassets--pathboundarytry_newstatic-let-user_uploads_dir-pathboundaryuseruploads--pathboundarytry_newuploads-let-temp_files_dir-pathboundarytempfiles--pathboundarytry_newtemp-let-app_config_dir-pathboundaryconfigfiles--pathboundarytry_newconfig---join-paths-with-their-appropriate-markers-let-css_file-strictpathpublicassets--public_assets_dirstrict_joinstylecss-let-user_doc-strictpathuseruploads--user_uploads_dirstrict_joinreportpdf-let-temp_file-strictpathtempfiles--temp_files_dirstrict_joinprocessingtmp-let-app_config-strictpathconfigfiles--app_config_dirstrict_joinsettingsjson----why-markers-matter--without-markers-its-easy-to-accidentally-mix-up-different-types-of-paths--rust--without-markers---dangerous-mix-ups-are-possible-fn-process_user_uploadfile_path-strictpath---ioresult-------is-this-a-user-file-config-file-temp-file-------no-way-to-know-from-the-type-----file_pathread_to_string----with-markers---impossible-to-mix-up-domains---fn-process_user_uploaduser_file-strictpathuseruploads---ioresultstring-------clear-this-function-only-processes-user-uploads-----user_fileread_to_string----fn-load_app_configconfig_file-strictpathconfigfiles---ioresultappconfig-------clear-this-function-only-loads-config-files-----let-content--config_fileread_to_string-----serde_jsonfrom_strcontent-----compile-time-safety--with-markers-the-compiler-prevents-domain-mix-ups--rust-let-user_doc-strictpathuseruploads--user_uploads_dirstrict_joinreportpdf-let-app_config-strictpathconfigfiles--app_config_dirstrict_joinsettingsjson----these-work---correct-marker-types-process_user_uploaduser_doc-load_app_configapp_config----these-are-compile-errors---marker-type-mismatch--process_user_uploadapp_config---cant-pass-configfiles-to-useruploads-function--load_app_configuser_doc---------cant-pass-useruploads-to-configfiles-function---the-power-if-your-code-compiles-you-know-youre-not-accidentally-processing-config-files-as-user-uploads-or-serving-user-uploads-as-public-assets---function-signature-patterns---pattern-1-accept-validated-paths--when-the-caller-has-already-validated-the-path-accept-the-typed-path-directly--rust-fn-serve_public_assetasset-strictpathpublicassets---ioresultvecu8-------caller-proved-this-is-a-public-asset---we-can-serve-it-safely-----assetread---fn-delete_user_fileuser_file-strictpathuseruploads---ioresult-------caller-proved-this-is-a-user-upload---safe-to-delete-----user_fileremove_file---fn-backup_configconfig_file-strictpathconfigfiles-backup_dir-strictpathbackupstorage---ioresult------let-content--config_fileread-----let-backup_name--formatconfig-json-chronoutcnowformatymd-----let-backup_path--backup_dirstrict_joinbackup_name-----backup_pathwritecontent-----pattern-2-validate-inside-helper--when-the-helper-needs-to-validate-user-input-accept-the-boundary-plus-untrusted-segment--rust-fn-save_user_upload-----uploads_dir-pathboundaryuseruploads------filename-str---untrusted-input-----content-u8----ioresult-------validate-the-untrusted-filename-----let-user_file--uploads_dirstrict_joinfilename-----user_filecreate_parent_dir_all-----user_filewritecontent---fn-load_config_by_name-----config_dir-pathboundaryconfigfiles------config_name-str---untrusted-input----ioresultserde_jsonvalue-------validate-the-untrusted-config-name-----let-config_file--config_dirstrict_joinconfig_name------let-content--config_fileread_to_string-----serde_jsonfrom_strcontentmap_errintointo-----pattern-3-multiple-domain-access--some-functions-need-to-work-with-multiple-domains---use-multiple-parameters--rust-fn-generate_report-----user_data-strictpathuseruploads-----template-strictpathpublicassets------temp_reports_dir-pathboundarytempfiles----ioresultstrictpathtempfiles------let-data--user_dataread_to_string-----let-template_content--templateread_to_string-----------process-data-with-template-----let-report--process_templatetemplate_content-data----------let-report_file--temp_reports_dirstrict_joinreporthtml-----report_filewritereport-----okreport_file-----marker-best-practices---use-descriptive-domain-names--rust---good---describes-what-the-paths-contain-struct-userhomes-struct-productimages--struct-databasebackups-struct-auditlogs----avoid---generic-or-implementation-focused-names-struct-files-struct-directory-struct-database-struct-secure----create-markers-for-business-domains--rust---good---matches-your-applications-business-logic-struct-customerdocuments-struct-financialreports-struct-productcatalog--struct-employeerecords-struct-marketingassets----avoid---technical-implementation-details-as-primary-markers-struct-jsonfiles-struct-readonlydata-struct-encryptedstorage----use-meaningful-function-names--rust---good---function-names-explain-business-intent-fn-archive_customer_documentdoc-strictpathcustomerdocuments---ioresult----fn-publish_marketing_assetasset-strictpathmarketingassets---ioresult----fn-audit_financial_reportreport-strictpathfinancialreports---ioresult-------avoid---generic-names-that-dont-explain-purpose---fn-process_filepath-strictpathsomemarker---ioresult----fn-handle_datapath-strictpathsomemarker---ioresult-------advanced-marker-patterns---hierarchical-markers--you-can-create-marker-hierarchies-for-more-sophisticated-type-safety--rust-struct-mediafiles-struct-images-struct-videos-struct-documents---use-phantomdata-for-hierarchical-relationships-struct-mediafiletstdmarkerphantomdatat--type-imagefile--mediafileimages-type-videofile--mediafilevideos-type-documentfile--mediafiledocuments--fn-process_imageimg-strictpathimagefile---ioresult----fn-process_videovid-strictpathvideofile---ioresult----fn-process_documentdoc-strictpathdocumentfile---ioresult-------environment-specific-markers--rust-struct-production-struct-staging---struct-development--struct-configfileenvstdmarkerphantomdataenv--type-prodconfig--configfileproduction-type-stagingconfig--configfilestaging-type-devconfig--configfiledevelopment--fn-deploy_to_productionconfig-strictpathprodconfig---ioresult-------only-production-configs-can-be-deployed-to-production-----apply_production_configconfig-----integration-with-serde--when-deserializing-paths-from-configuration-you-still-need-runtime-validation--rust-use-serdedeserialize--derivedeserialize-struct-appconfig------upload_directory-string---raw-path-from-config-----static_directory-string---raw-path-from-config---fn-load_app_config---resultpathboundaryuseruploads-pathboundarypublicassets-configerror------let-config-appconfig--serde_jsonfrom_strconfig_json-----------validate-raw-config-paths-into-typed-boundaries-----let-user_uploads_dir--pathboundaryuseruploadstry_new_createconfigupload_directory-----let-public_assets_dir--pathboundarypublicassetstry_new_createconfigstatic_directory----------okuser_uploads_dir-public_assets_dir-----zero-runtime-cost--its-important-to-understand-that-markers-are-zero-cost-abstractions--rust--these-have-identical-runtime-performance-let-generic_path-strictpath--some_rootstrict_joinfiletxt-let-typed_path-strictpathuseruploads--user_uploads_dirstrict_joinfiletxt---the-marker-information-is-erased-at-compile-time-assert_eq-----stdmemsize_ofstrictpath------stdmemsize_ofstrictpathuseruploads----all-the-type-safety-benefits-come-at-compile-time-with-no-runtime-overhead---strictpath-vs-virtualpath-symlink-semantics--one-critical-difference-between-strictpath-and-virtualpath-is-how-they-handle-symlinks---strictpath-system-filesystem-semantics--rust-use-strict_pathstrictpath---strictpath-follows-symlinks-and-validates-targets-let-boundary--strictpathwith_boundary_createsystem_root---if-system_rootconfig_link-symlinks-to-etcappconf-let-config--boundarystrict_joinconfig_link---error-if-target-is-outside-boundary---ok-if-target-resolves-to-path-inside-boundary---use-for-shared-system-resources-config-files-traditional-filesystem-operations---virtualpath-virtual-filesystem-semantics----rust-use-strict_pathvirtualpath---virtualpath-clamps-absolute-symlink-targets-to-virtual-root-let-vroot--virtualpathwith_rootformatuser_user_id_sandbox---if-user_sandboxconfig_link-symlinks-to-etcappconf-let-config--vrootvirtual_joinconfig_link---always-ok---target-clamped-to-user_sandboxetcappconf--printlnvirtual--configvirtualpath_display--output-etcappconf-from-users-perspective--printlnsystem--configas_unvirtualstrictpath_display----output-user_sandboxetcappconf-actually-safe---use-for-multi-tenant-systems-archive-extraction-sandboxed-environments-container-like-semantics--key-insight-in-a-virtual-filesystem-absolute-paths-whether-from-user-input-or-symlink-targets-are-always-relative-to-the-virtual-root-this-makes-virtualpath-perfect-for-untrusted-inputs-where-you-want-graceful-containment-rather-than-explicit-rejection---common-patterns-summary--1-validate-once-use-everywhere-create-typed-paths-at-boundaries-pass-typed-paths-to-functions-2-encode-intent-in-signatures-function-parameters-should-clearly-show-what-domains-they-work-with-3-separate-validation-from-business-logic-keep-path-validation-separate-from-file-processing-4-use-meaningful-marker-names-markers-should-describe-business-domains-not-technical-implementation-5-fail-at-compile-time-structure-your-code-so-domain-mix-ups-become-type-errors-6-choose-the-right-semantics-use-strictpath-for-system-operations-validation-virtualpath-for-sandboxing-clamping--the-type-system-becomes-your-ally-in-preventing-path-related-security-bugs-and-logic-errors">Type-System Guarantees in SignaturesOne of strict-path's most powerful features is its **marker type system** that lets you encode domain-specific path guarantees in function signatures. This makes incorrect path usage a compile-time error rather than a runtime vulnerability.## What Are Markers?A marker is a zero-cost type parameter that describes what a path contains or how it should be used. Markers have no runtime representation - they exist purely to help the type system prevent mistakes.```rustuse strict_path::{PathBoundary, StrictPath};// Define markers for different content domainsstruct PublicAssets;   // CSS, JS, images for websitestruct UserUploads;    // Documents uploaded by users  struct TempFiles;      // Temporary processing filesstruct ConfigFiles;    // Application configuration// Use markers to create domain-specific boundarieslet public_assets_dir: PathBoundary&lt;PublicAssets&gt; = PathBoundary::try_new("static")?;let user_uploads_dir: PathBoundary&lt;UserUploads&gt; = PathBoundary::try_new("uploads")?;let temp_files_dir: PathBoundary&lt;TempFiles&gt; = PathBoundary::try_new("temp")?;let app_config_dir: PathBoundary&lt;ConfigFiles&gt; = PathBoundary::try_new("config")?;// Join paths with their appropriate markerslet css_file: StrictPath&lt;PublicAssets&gt; = public_assets_dir.strict_join("style.css")?;let user_doc: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("report.pdf")?;let temp_file: StrictPath&lt;TempFiles&gt; = temp_files_dir.strict_join("processing.tmp")?;let app_config: StrictPath&lt;ConfigFiles&gt; = app_config_dir.strict_join("settings.json")?;```## Why Markers MatterWithout markers, it's easy to accidentally mix up different types of paths:```rust// Without markers - dangerous mix-ups are possiblefn process_user_upload(file_path: &amp;StrictPath) -&gt; io::Result&lt;()&gt; {    // Is this a user file? Config file? Temp file?     // No way to know from the type!    file_path.read_to_string()}// With markers - impossible to mix up domains  fn process_user_upload(user_file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; io::Result&lt;String&gt; {    // Clear: this function ONLY processes user uploads    user_file.read_to_string() }fn load_app_config(config_file: &amp;StrictPath&lt;ConfigFiles&gt;) -&gt; io::Result&lt;AppConfig&gt; {    // Clear: this function ONLY loads config files    let content = config_file.read_to_string()?;    serde_json::from_str(&amp;content)}```## Compile-Time SafetyWith markers, the compiler prevents domain mix-ups:```rustlet user_doc: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("report.pdf")?;let app_config: StrictPath&lt;ConfigFiles&gt; = app_config_dir.strict_join("settings.json")?;// ✅ These work - correct marker typesprocess_user_upload(&amp;user_doc)?;load_app_config(&amp;app_config)?;// ❌ These are compile errors - marker type mismatch!// process_user_upload(&amp;app_config)?;  // Can't pass ConfigFiles to UserUploads function// load_app_config(&amp;user_doc)?;        // Can't pass UserUploads to ConfigFiles function```**The power**: If your code compiles, you know you're not accidentally processing config files as user uploads, or serving user uploads as public assets!## Function Signature Patterns### Pattern 1: Accept Validated PathsWhen the caller has already validated the path, accept the typed path directly:```rustfn serve_public_asset(asset: &amp;StrictPath&lt;PublicAssets&gt;) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {    // Caller proved this is a public asset - we can serve it safely    asset.read()}fn delete_user_file(user_file: &amp;StrictPath&lt;UserUploads&gt;) -&gt; io::Result&lt;()&gt; {    // Caller proved this is a user upload - safe to delete    user_file.remove_file()}fn backup_config(config_file: &amp;StrictPath&lt;ConfigFiles&gt;, backup_dir: &amp;StrictPath&lt;BackupStorage&gt;) -&gt; io::Result&lt;()&gt; {    let content = config_file.read()?;    let backup_name = format!("config-{}.json", chrono::Utc::now().format("%Y%m%d"));    let backup_path = backup_dir.strict_join(&amp;backup_name)?;    backup_path.write(content)}```### Pattern 2: Validate Inside HelperWhen the helper needs to validate user input, accept the boundary plus untrusted segment:```rustfn save_user_upload(    uploads_dir: &amp;PathBoundary&lt;UserUploads&gt;,     filename: &amp;str,  // untrusted input    content: &amp;[u8]) -&gt; io::Result&lt;()&gt; {    // Validate the untrusted filename    let user_file = uploads_dir.strict_join(filename)?;    user_file.create_parent_dir_all()?;    user_file.write(content)}fn load_config_by_name(    config_dir: &amp;PathBoundary&lt;ConfigFiles&gt;,     config_name: &amp;str  // untrusted input) -&gt; io::Result&lt;serde_json::Value&gt; {    // Validate the untrusted config name    let config_file = config_dir.strict_join(config_name)?;     let content = config_file.read_to_string()?;    serde_json::from_str(&amp;content).map_err(Into::into)}```### Pattern 3: Multiple Domain AccessSome functions need to work with multiple domains - use multiple parameters:```rustfn generate_report(    user_data: &amp;StrictPath&lt;UserUploads&gt;,    template: &amp;StrictPath&lt;PublicAssets&gt;,     temp_reports_dir: &amp;PathBoundary&lt;TempFiles&gt;) -&gt; io::Result&lt;StrictPath&lt;TempFiles&gt;&gt; {    let data = user_data.read_to_string()?;    let template_content = template.read_to_string()?;        // Process data with template...    let report = process_template(&amp;template_content, &amp;data);        let report_file = temp_reports_dir.strict_join("report.html")?;    report_file.write(report)?;    Ok(report_file)}```## Marker Best Practices### Use Descriptive Domain Names```rust// ✅ Good - describes what the paths containstruct UserHomes;struct ProductImages; struct DatabaseBackups;struct AuditLogs;// ❌ Avoid - generic or implementation-focused namesstruct Files;struct Directory;struct Database;struct Secure;```### Create Markers for Business Domains```rust// ✅ Good - matches your application's business logicstruct CustomerDocuments;struct FinancialReports;struct ProductCatalog; struct EmployeeRecords;struct MarketingAssets;// ❌ Avoid - technical implementation details as primary markersstruct JsonFiles;struct ReadOnlyData;struct EncryptedStorage;```### Use Meaningful Function Names```rust// ✅ Good - function names explain business intentfn archive_customer_document(doc: &amp;StrictPath&lt;CustomerDocuments&gt;) -&gt; io::Result&lt;()&gt; { ... }fn publish_marketing_asset(asset: &amp;StrictPath&lt;MarketingAssets&gt;) -&gt; io::Result&lt;()&gt; { ... }fn audit_financial_report(report: &amp;StrictPath&lt;FinancialReports&gt;) -&gt; io::Result&lt;()&gt; { ... }// ❌ Avoid - generic names that don't explain purpose  fn process_file(path: &amp;StrictPath&lt;SomeMarker&gt;) -&gt; io::Result&lt;()&gt; { ... }fn handle_data(path: &amp;StrictPath&lt;SomeMarker&gt;) -&gt; io::Result&lt;()&gt; { ... }```## Advanced Marker Patterns### Hierarchical MarkersYou can create marker hierarchies for more sophisticated type safety:```ruststruct MediaFiles;struct Images;struct Videos;struct Documents;// Use PhantomData for hierarchical relationshipsstruct MediaFile&lt;T&gt;(std::marker::PhantomData&lt;T&gt;);type ImageFile = MediaFile&lt;Images&gt;;type VideoFile = MediaFile&lt;Videos&gt;;type DocumentFile = MediaFile&lt;Documents&gt;;fn process_image(img: &amp;StrictPath&lt;ImageFile&gt;) -&gt; io::Result&lt;()&gt; { ... }fn process_video(vid: &amp;StrictPath&lt;VideoFile&gt;) -&gt; io::Result&lt;()&gt; { ... }fn process_document(doc: &amp;StrictPath&lt;DocumentFile&gt;) -&gt; io::Result&lt;()&gt; { ... }```### Environment-Specific Markers```ruststruct Production;struct Staging;  struct Development;struct ConfigFile&lt;Env&gt;(std::marker::PhantomData&lt;Env&gt;);type ProdConfig = ConfigFile&lt;Production&gt;;type StagingConfig = ConfigFile&lt;Staging&gt;;type DevConfig = ConfigFile&lt;Development&gt;;fn deploy_to_production(config: &amp;StrictPath&lt;ProdConfig&gt;) -&gt; io::Result&lt;()&gt; {    // Only production configs can be deployed to production    apply_production_config(config)}```## Integration with SerdeWhen deserializing paths from configuration, you still need runtime validation:```rustuse serde::Deserialize;#[derive(Deserialize)]struct AppConfig {    upload_directory: String,  // Raw path from config    static_directory: String,  // Raw path from config}fn load_app_config() -&gt; Result&lt;(PathBoundary&lt;UserUploads&gt;, PathBoundary&lt;PublicAssets&gt;), ConfigError&gt; {    let config: AppConfig = serde_json::from_str(&amp;config_json)?;        // Validate raw config paths into typed boundaries    let user_uploads_dir = PathBoundary::&lt;UserUploads&gt;::try_new_create(&amp;config.upload_directory)?;    let public_assets_dir = PathBoundary::&lt;PublicAssets&gt;::try_new_create(&amp;config.static_directory)?;        Ok((user_uploads_dir, public_assets_dir))}```## Zero Runtime CostIt's important to understand that markers are zero-cost abstractions:```rust// These have identical runtime performancelet generic_path: StrictPath = some_root.strict_join("file.txt")?;let typed_path: StrictPath&lt;UserUploads&gt; = user_uploads_dir.strict_join("file.txt")?;// The marker information is erased at compile timeassert_eq!(    std::mem::size_of::&lt;StrictPath&gt;(),     std::mem::size_of::&lt;StrictPath&lt;UserUploads&gt;&gt;());```All the type safety benefits come at compile time with no runtime overhead!## StrictPath vs VirtualPath: Symlink SemanticsOne critical difference between `StrictPath` and `VirtualPath` is how they handle symlinks:### StrictPath: System Filesystem Semantics```rustuse strict_path::StrictPath;// StrictPath follows symlinks and validates targetslet boundary = StrictPath::with_boundary_create("system_root")?;// If "system_root/config_link" symlinks to "/etc/app.conf":let config = boundary.strict_join("config_link");// ❌ Error if target is outside boundary// ✅ OK if target resolves to path inside boundary```**Use for:** Shared system resources, config files, traditional filesystem operations### VirtualPath: Virtual Filesystem Semantics  ```rustuse strict_path::VirtualPath;// VirtualPath clamps absolute symlink targets to virtual rootlet vroot = VirtualPath::with_root(format!("user_{user_id}_sandbox"))?;// If "user_sandbox/config_link" symlinks to "/etc/app.conf":let config = vroot.virtual_join("config_link")?;// ✅ Always OK - target clamped to "user_sandbox/etc/app.conf"println!("Virtual: {}", config.virtualpath_display());// Output: /etc/app.conf (from user's perspective)println!("System: {}", config.as_unvirtual().strictpath_display());  // Output: user_sandbox/etc/app.conf (actually safe!)```**Use for:** Multi-tenant systems, archive extraction, sandboxed environments, container-like semantics**Key Insight:** In a virtual filesystem, absolute paths (whether from user input or symlink targets) are *always* relative to the virtual root. This makes `VirtualPath` perfect for untrusted inputs where you want graceful containment rather than explicit rejection.## Common Patterns Summary1. **Validate once, use everywhere**: Create typed paths at boundaries, pass typed paths to functions2. **Encode intent in signatures**: Function parameters should clearly show what domains they work with3. **Separate validation from business logic**: Keep path validation separate from file processing4. **Use meaningful marker names**: Markers should describe business domains, not technical implementation5. **Fail at compile time**: Structure your code so domain mix-ups become type errors6. **Choose the right semantics**: Use `StrictPath` for system operations (validation), `VirtualPath` for sandboxing (clamping)The type system becomes your ally in preventing path-related security bugs and logic errors!</a></h1>
 
                     </main>
 

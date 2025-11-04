@@ -183,15 +183,33 @@
                     <main>
                         <h1 id="os-standard-directories"><a class="header" href="#os-standard-directories">OS Standard Directories</a></h1>
 <blockquote>
-<p><strong>Feature</strong>: <code>dirs</code> - Enable with <code>features = ["dirs"]</code> in your <code>Cargo.toml</code></p>
+<p><strong>Recommended: Use the <a href="https://crates.io/crates/dirs"><code>dirs</code></a> crate directly with <code>PathBoundary::try_new()</code></strong></p>
 </blockquote>
-<p>The <code>strict-path</code> crate provides seamless integration with operating system standard directories through the <a href="https://crates.io/crates/dirs"><code>dirs</code></a> crate. This enables cross-platform applications to securely access user and system directories like configuration, data storage, cache, and user content locations.</p>
-<p><strong>Quick Start:</strong></p>
+<p>This page shows how to integrate <code>strict-path</code> with the <code>dirs</code> crate for cross-platform OS standard directories.</p>
+<h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
 <pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-beta.2", features = ["dirs"] }
+strict-path = "0.1"
+dirs = "5.0"  # Add dirs directly
 </code></pre>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+// Platform-specific config directory
+let config_base = dirs::config_dir()
+    .ok_or("No config directory")?;
+
+// Create app-specific boundary
+let app_config = config_base.join("myapp");
+let boundary = PathBoundary::try_new_create(&amp;app_config)?;
+
+// Safe operations within boundary
+let settings = boundary.strict_join("settings.toml")?;
+settings.write(b"[app]\nversion = '1.0'\n")?;
+<span class="boring">}</span></code></pre></pre>
+<hr />
 <h2 id="cross-platform-standards"><a class="header" href="#cross-platform-standards">Cross-Platform Standards</a></h2>
-<p>The integration follows established cross-platform directory standards:</p>
+<p>The <code>dirs</code> crate follows established cross-platform directory standards:</p>
 <h3 id="linux-xdg-base-directory-specification"><a class="header" href="#linux-xdg-base-directory-specification">Linux (XDG Base Directory Specification)</a></h3>
 <ul>
 <li><strong>Config</strong>: <code>$XDG_CONFIG_HOME</code> or <code>~/.config</code></li>
@@ -213,337 +231,300 @@ strict-path = { version = "0.1.0-beta.2", features = ["dirs"] }
 <li><strong>Data</strong>: <code>~/Library/Application Support</code></li>
 <li><strong>Cache</strong>: <code>~/Library/Caches</code></li>
 </ul>
-<h2 id="api-reference"><a class="header" href="#api-reference">API Reference</a></h2>
-<p>Both <code>PathBoundary</code> and <code>VirtualRoot</code> provide comprehensive OS directory constructors:</p>
-<h3 id="application-directories"><a class="header" href="#application-directories">Application Directories</a></h3>
-<h4 id="try_new_os_configapp_name-str"><a class="header" href="#try_new_os_configapp_name-str"><code>try_new_os_config(app_name: &amp;str)</code></a></h4>
-<p>Creates a secure boundary for application configuration storage.</p>
+<hr />
+<h2 id="integration-patterns"><a class="header" href="#integration-patterns">Integration Patterns</a></h2>
+<h3 id="application-configuration"><a class="header" href="#application-configuration">Application Configuration</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::PathBoundary;
 
-let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config("MyApp")?;
-let config_file = config_dir.strict_join("settings.json")?;
-config_file.write(r#"{"theme": "dark"}"#)?;
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Platform paths:</strong></p>
-<ul>
-<li>Linux: <code>~/.config/MyApp/</code></li>
-<li>Windows: <code>%APPDATA%/MyApp/</code></li>
-<li>macOS: <code>~/Library/Application Support/MyApp/</code></li>
-</ul>
-<h4 id="try_new_os_dataapp_name-str"><a class="header" href="#try_new_os_dataapp_name-str"><code>try_new_os_data(app_name: &amp;str)</code></a></h4>
-<p>Creates a secure boundary for application data storage.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let data_dir = PathBoundary::&lt;()&gt;::try_new_os_data("MyApp")?;
-let database = data_dir.strict_join("app.db")?;
-database.write(b"SQLite database content")?;
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Platform paths:</strong></p>
-<ul>
-<li>Linux: <code>~/.local/share/MyApp/</code></li>
-<li>Windows: <code>%APPDATA%/MyApp/</code></li>
-<li>macOS: <code>~/Library/Application Support/MyApp/</code></li>
-</ul>
-<h4 id="try_new_os_cacheapp_name-str"><a class="header" href="#try_new_os_cacheapp_name-str"><code>try_new_os_cache(app_name: &amp;str)</code></a></h4>
-<p>Creates a secure boundary for application cache storage.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let cache_dir = PathBoundary::&lt;()&gt;::try_new_os_cache("MyApp")?;
-let thumbnail_cache = cache_dir.strict_join("thumbnails/")?;
-thumbnail_cache.create_dir_all()?;
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Platform paths:</strong></p>
-<ul>
-<li>Linux: <code>~/.cache/MyApp/</code></li>
-<li>Windows: <code>%LOCALAPPDATA%/MyApp/</code></li>
-<li>macOS: <code>~/Library/Caches/MyApp/</code></li>
-</ul>
-<h3 id="platform-specific-directories"><a class="header" href="#platform-specific-directories">Platform-Specific Directories</a></h3>
-<h4 id="try_new_os_config_localapp_name-str-windowslinux-only"><a class="header" href="#try_new_os_config_localapp_name-str-windowslinux-only"><code>try_new_os_config_local(app_name: &amp;str)</code> (Windows/Linux only)</a></h4>
-<p>Creates a local (non-roaming) config directory boundary.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(any(target_os = "windows", target_os = "linux"))]
-let local_config = PathBoundary::&lt;()&gt;::try_new_os_config_local("MyApp")?;
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Platform paths:</strong></p>
-<ul>
-<li>Linux: <code>~/.config/MyApp/</code> (same as config)</li>
-<li>Windows: <code>%LOCALAPPDATA%/MyApp/</code> (non-roaming)</li>
-<li>macOS: Not available (returns <code>Err</code>)</li>
-</ul>
-<h4 id="try_new_os_data_localapp_name-str-windowslinux-only"><a class="header" href="#try_new_os_data_localapp_name-str-windowslinux-only"><code>try_new_os_data_local(app_name: &amp;str)</code> (Windows/Linux only)</a></h4>
-<p>Creates a local (non-roaming) data directory boundary.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(any(target_os = "windows", target_os = "linux"))]
-let local_data = PathBoundary::&lt;()&gt;::try_new_os_data_local("MyApp")?;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="user-content-directories"><a class="header" href="#user-content-directories">User Content Directories</a></h3>
-<h4 id="standard-user-folders"><a class="header" href="#standard-user-folders">Standard User Folders</a></h4>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// User's home directory
-let home_dir = PathBoundary::&lt;()&gt;::try_new_os_home()?;
+struct AppConfig;
 
-// Desktop folder
-let desktop_dir = PathBoundary::&lt;()&gt;::try_new_os_desktop()?;
+fn setup_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let config_base = dirs::config_dir()
+        .ok_or("No config directory available")?;
 
-// Documents folder  
-let documents_dir = PathBoundary::&lt;()&gt;::try_new_os_documents()?;
+    let app_config = config_base.join("myapp");
+    let boundary: PathBoundary&lt;AppConfig&gt; =
+        PathBoundary::try_new_create(&amp;app_config)?;
 
-// Downloads folder
-let downloads_dir = PathBoundary::&lt;()&gt;::try_new_os_downloads()?;
+    // Platform-specific locations:
+    // Linux:   ~/.config/myapp/
+    // Windows: C:\Users\Alice\AppData\Roaming\myapp\
+    // macOS:   ~/Library/Application Support/myapp/
+
+    let settings = boundary.strict_join("settings.toml")?;
+    settings.write(b"[app]\ntheme = 'dark'\n")?;
+
+    println!("Config saved to: {}", settings.strictpath_display());
+
+    Ok(())
+}
 <span class="boring">}</span></code></pre></pre>
-<h4 id="media-directories"><a class="header" href="#media-directories">Media Directories</a></h4>
+<h3 id="multi-directory-application"><a class="header" href="#multi-directory-application">Multi-Directory Application</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// Pictures/Photos
-let pictures_dir = PathBoundary::&lt;()&gt;::try_new_os_pictures()?;
+</span>use strict_path::PathBoundary;
 
-// Music/Audio files
-let audio_dir = PathBoundary::&lt;()&gt;::try_new_os_audio()?;
+struct Config;
+struct Data;
+struct Cache;
 
-// Videos/Movies
-let videos_dir = PathBoundary::&lt;()&gt;::try_new_os_videos()?;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="system-directories"><a class="header" href="#system-directories">System Directories</a></h3>
-<h4 id="try_new_os_executables-unix-only"><a class="header" href="#try_new_os_executables-unix-only"><code>try_new_os_executables()</code> (Unix only)</a></h4>
-<p>Creates a boundary for user executable binaries.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(unix)]
-let bin_dir = PathBoundary::&lt;()&gt;::try_new_os_executables()?;
-// Typically ~/.local/bin on Linux
-<span class="boring">}</span></code></pre></pre>
-<h4 id="try_new_os_runtime-unix-only"><a class="header" href="#try_new_os_runtime-unix-only"><code>try_new_os_runtime()</code> (Unix only)</a></h4>
-<p>Creates a boundary for runtime files like sockets and PIDs.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(unix)]
-let runtime_dir = PathBoundary::&lt;()&gt;::try_new_os_runtime()?;
-// Uses $XDG_RUNTIME_DIR or falls back to /tmp
-<span class="boring">}</span></code></pre></pre>
-<h4 id="try_new_os_state-linux-only"><a class="header" href="#try_new_os_state-linux-only"><code>try_new_os_state()</code> (Linux only)</a></h4>
-<p>Creates a boundary for application state data.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(target_os = "linux")]
-let state_dir = PathBoundary::&lt;()&gt;::try_new_os_state("MyApp")?;
-// Uses $XDG_STATE_HOME or ~/.local/state/MyApp
-<span class="boring">}</span></code></pre></pre>
-<h2 id="virtual-root-integration"><a class="header" href="#virtual-root-integration">Virtual Root Integration</a></h2>
-<p>All OS directory constructors are available on <code>VirtualRoot</code> as well:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::VirtualRoot;
-
-// Create virtual root for user documents
-let docs_root = VirtualRoot::&lt;()&gt;::try_new_os_documents()?;
-
-// User sees clean virtual paths, system handles real location
-let project_file = docs_root.virtual_join("projects/my-app/notes.txt")?;
-println!("Virtual path: {}", project_file.virtualpath_display());
-// Output: "/projects/my-app/notes.txt"
-
-println!("Real path: {}", project_file.as_unvirtual().strictpath_display());
-// Output: "/home/user/Documents/projects/my-app/notes.txt" (Linux example)
-<span class="boring">}</span></code></pre></pre>
-<h2 id="complete-application-example"><a class="header" href="#complete-application-example">Complete Application Example</a></h2>
-<p>Here's a realistic media organizer application demonstrating the OS directories integration:</p>
-<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, VirtualRoot};
-use std::collections::HashMap;
-
-#[derive(Debug)]
-struct MediaOrganizerApp {
-    config_dir: PathBoundary&lt;()&gt;,
-    data_dir: PathBoundary&lt;()&gt;,
-    cache_dir: PathBoundary&lt;()&gt;,
+struct AppDirectories {
+    config: PathBoundary&lt;Config&gt;,
+    data: PathBoundary&lt;Data&gt;,
+    cache: PathBoundary&lt;Cache&gt;,
 }
 
-impl MediaOrganizerApp {
+impl AppDirectories {
     fn new(app_name: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
-        // Initialize with OS standard directories
-        let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config(app_name)?;
-        let data_dir = PathBoundary::&lt;()&gt;::try_new_os_data(app_name)?;
-        let cache_dir = PathBoundary::&lt;()&gt;::try_new_os_cache(app_name)?;
-        
-        println!("📁 Config: {}", config_dir.strictpath_display());
-        println!("💾 Data: {}", data_dir.strictpath_display());
-        println!("🗄️ Cache: {}", cache_dir.strictpath_display());
-        
-        Ok(Self { config_dir, data_dir, cache_dir })
+        let config_base = dirs::config_dir()
+            .ok_or("No config directory")?;
+        let data_base = dirs::data_dir()
+            .ok_or("No data directory")?;
+        let cache_base = dirs::cache_dir()
+            .ok_or("No cache directory")?;
+
+        Ok(Self {
+            config: PathBoundary::try_new_create(config_base.join(app_name))?,
+            data: PathBoundary::try_new_create(data_base.join(app_name))?,
+            cache: PathBoundary::try_new_create(cache_base.join(app_name))?,
+        })
     }
-    
-    fn scan_user_media(&amp;self) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-        // Access standard user media directories securely
-        let media_directories = vec![
-            ("Pictures", PathBoundary::&lt;()&gt;::try_new_os_pictures()?),
-            ("Music", PathBoundary::&lt;()&gt;::try_new_os_audio()?),
-            ("Videos", PathBoundary::&lt;()&gt;::try_new_os_videos()?),
-            ("Downloads", PathBoundary::&lt;()&gt;::try_new_os_downloads()?),
-        ];
-        
-        for (dir_name, dir_path) in media_directories {
-            println!("📂 Scanning {}: {}", dir_name, dir_path.strictpath_display());
-            
-            // In a real app, recursively scan for media files
-            // All file operations stay within secure boundaries
-            if dir_path.exists() {
-                println!("   ✅ Directory accessible and secure");
-            }
+}
+
+fn use_app_directories() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let dirs = AppDirectories::new("MyApp")?;
+
+    // Config: user preferences
+    let prefs = dirs.config.strict_join("preferences.json")?;
+    prefs.write(br#"{"theme": "dark"}"#)?;
+
+    // Data: persistent application data
+    let database = dirs.data.strict_join("app.db")?;
+    database.write(b"database content")?;
+
+    // Cache: temporary/regenerable data
+    let thumbnail = dirs.cache.strict_join("thumbs/image1.jpg")?;
+    thumbnail.create_parent_dir_all()?;
+    thumbnail.write(b"thumbnail data")?;
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="user-content-directories"><a class="header" href="#user-content-directories">User Content Directories</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+struct Downloads;
+struct Documents;
+
+fn access_user_content() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Downloads directory
+    if let Some(downloads) = dirs::download_dir() {
+        let boundary: PathBoundary&lt;Downloads&gt; =
+            PathBoundary::try_new(&amp;downloads)?;
+
+        // Safe access to user-selected file
+        let user_input = "report.pdf"; // From file picker or CLI
+        let file = boundary.strict_join(user_input)?;
+
+        if file.exists() {
+            let data = file.read()?;
+            println!("Processing: {} bytes", data.len());
         }
-        
+    }
+
+    // Documents directory
+    if let Some(documents) = dirs::document_dir() {
+        let boundary: PathBoundary&lt;Documents&gt; =
+            PathBoundary::try_new(&amp;documents)?;
+
+        let export = boundary.strict_join("exports/data.csv")?;
+        export.create_parent_dir_all()?;
+        export.write(b"col1,col2\nval1,val2\n")?;
+
+        println!("Exported to: {}", export.strictpath_display());
+    }
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="available-directories-via-dirs-crate"><a class="header" href="#available-directories-via-dirs-crate">Available Directories (via <code>dirs</code> crate)</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Function</th><th>Linux</th><th>Windows</th><th>macOS</th></tr></thead><tbody>
+<tr><td><code>config_dir()</code></td><td><code>~/.config</code></td><td><code>%APPDATA%</code></td><td><code>~/Library/Application Support</code></td></tr>
+<tr><td><code>data_dir()</code></td><td><code>~/.local/share</code></td><td><code>%APPDATA%</code></td><td><code>~/Library/Application Support</code></td></tr>
+<tr><td><code>cache_dir()</code></td><td><code>~/.cache</code></td><td><code>%LOCALAPPDATA%</code></td><td><code>~/Library/Caches</code></td></tr>
+<tr><td><code>config_local_dir()</code></td><td><code>~/.config</code></td><td><code>%LOCALAPPDATA%</code></td><td><code>~/Library/Application Support</code></td></tr>
+<tr><td><code>data_local_dir()</code></td><td><code>~/.local/share</code></td><td><code>%LOCALAPPDATA%</code></td><td><code>~/Library/Application Support</code></td></tr>
+<tr><td><code>download_dir()</code></td><td><code>~/Downloads</code></td><td><code>%USERPROFILE%\Downloads</code></td><td><code>~/Downloads</code></td></tr>
+<tr><td><code>document_dir()</code></td><td><code>~/Documents</code></td><td><code>%USERPROFILE%\Documents</code></td><td><code>~/Documents</code></td></tr>
+<tr><td><code>picture_dir()</code></td><td><code>~/Pictures</code></td><td><code>%USERPROFILE%\Pictures</code></td><td><code>~/Pictures</code></td></tr>
+<tr><td><code>video_dir()</code></td><td><code>~/Videos</code></td><td><code>%USERPROFILE%\Videos</code></td><td><code>~/Movies</code></td></tr>
+<tr><td><code>audio_dir()</code></td><td><code>~/Music</code></td><td><code>%USERPROFILE%\Music</code></td><td><code>~/Music</code></td></tr>
+</tbody></table>
+</div>
+<hr />
+<h2 id="complete-example-cross-platform-app"><a class="header" href="#complete-example-cross-platform-app">Complete Example: Cross-Platform App</a></h2>
+<pre><pre class="playground"><code class="language-rust">use strict_path::PathBoundary;
+use serde::{Deserialize, Serialize};
+
+struct AppConfig;
+struct AppData;
+struct AppCache;
+
+#[derive(Serialize, Deserialize)]
+struct UserPreferences {
+    theme: String,
+    language: String,
+}
+
+struct MyApp {
+    config_dir: PathBoundary&lt;AppConfig&gt;,
+    data_dir: PathBoundary&lt;AppData&gt;,
+    cache_dir: PathBoundary&lt;AppCache&gt;,
+}
+
+impl MyApp {
+    fn new(app_name: &amp;str) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        // Get OS-specific directories
+        let config_base = dirs::config_dir()
+            .ok_or("No config directory")?;
+        let data_base = dirs::data_dir()
+            .ok_or("No data directory")?;
+        let cache_base = dirs::cache_dir()
+            .ok_or("No cache directory")?;
+
+        // Create app-specific boundaries
+        Ok(Self {
+            config_dir: PathBoundary::try_new_create(
+                config_base.join(app_name)
+            )?,
+            data_dir: PathBoundary::try_new_create(
+                data_base.join(app_name)
+            )?,
+            cache_dir: PathBoundary::try_new_create(
+                cache_base.join(app_name)
+            )?,
+        })
+    }
+
+    fn save_preferences(&amp;self, prefs: &amp;UserPreferences)
+        -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt;
+    {
+        let prefs_file = self.config_dir.strict_join("preferences.json")?;
+        let json = serde_json::to_string_pretty(prefs)?;
+        prefs_file.write(json.as_bytes())?;
         Ok(())
     }
-    
-    fn manage_cache(&amp;self) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-        // Create cache subdirectories securely
-        let thumbnails_dir = self.cache_dir.strict_join("thumbnails")?;
-        let metadata_dir = self.cache_dir.strict_join("metadata")?;
-        
-        thumbnails_dir.create_dir_all()?;
-        metadata_dir.create_dir_all()?;
-        
-        println!("🖼️ Thumbnails: {}", thumbnails_dir.strictpath_display());
-        println!("📝 Metadata: {}", metadata_dir.strictpath_display());
-        
+
+    fn load_preferences(&amp;self)
+        -&gt; Result&lt;UserPreferences, Box&lt;dyn std::error::Error&gt;&gt;
+    {
+        let prefs_file = self.config_dir.strict_join("preferences.json")?;
+        let json = prefs_file.read_to_string()?;
+        Ok(serde_json::from_str(&amp;json)?)
+    }
+
+    fn save_data(&amp;self, filename: &amp;str, data: &amp;[u8])
+        -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt;
+    {
+        let file = self.data_dir.strict_join(filename)?;
+        file.create_parent_dir_all()?;
+        file.write(data)?;
+        Ok(())
+    }
+
+    fn cache_thumbnail(&amp;self, id: &amp;str, thumbnail: &amp;[u8])
+        -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt;
+    {
+        let cache_file = self.cache_dir
+            .strict_join(&amp;format!("thumbnails/{}.jpg", id))?;
+        cache_file.create_parent_dir_all()?;
+        cache_file.write(thumbnail)?;
         Ok(())
     }
 }
 
 fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let app = MediaOrganizerApp::new("MediaOrganizer")?;
-    app.scan_user_media()?;
-    app.manage_cache()?;
+    let app = MyApp::new("MyAwesomeApp")?;
+
+    // Save user preferences
+    let prefs = UserPreferences {
+        theme: "dark".to_string(),
+        language: "en".to_string(),
+    };
+    app.save_preferences(&amp;prefs)?;
+
+    // Save application data
+    app.save_data("database/users.db", b"user data")?;
+
+    // Cache a thumbnail
+    app.cache_thumbnail("image123", b"thumbnail bytes")?;
+
+    // Load preferences back
+    let loaded_prefs = app.load_preferences()?;
+    println!("Theme: {}", loaded_prefs.theme);
+
     Ok(())
 }</code></pre></pre>
-<h2 id="error-handling"><a class="header" href="#error-handling">Error Handling</a></h2>
-<p>OS directory functions return <code>StrictPathError</code> when:</p>
-<ul>
-<li>The directory doesn't exist and cannot be created</li>
-<li>Permission denied accessing the directory</li>
-<li>The OS doesn't support the requested directory type</li>
-<li>Invalid characters in the application name</li>
-</ul>
+<hr />
+<h2 id="why-direct-integration"><a class="header" href="#why-direct-integration">Why Direct Integration?</a></h2>
+<p><strong>Benefits of using <code>dirs</code> directly:</strong></p>
+<ol>
+<li>✅ <strong>Full control</strong> - Access all <code>dirs</code> functions and options</li>
+<li>✅ <strong>No version coupling</strong> - Use any version of <code>dirs</code> you want</li>
+<li>✅ <strong>Explicit dependencies</strong> - Clear what your project uses</li>
+<li>✅ <strong>Reduced bloat</strong> - No unnecessary feature flags</li>
+<li>✅ <strong>One extra line</strong> - Small price for explicit security</li>
+</ol>
+<p><strong>Pattern:</strong></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use strict_path::{PathBoundary, StrictPathError};
+</span>// Get directory from dirs crate
+let base_dir = dirs::config_dir().ok_or("No config")?;
 
-match PathBoundary::&lt;()&gt;::try_new_os_config("My App") {
-    Ok(config_dir) =&gt; println!("Config: {}", config_dir.strictpath_display()),
-    Err(StrictPathError::PathResolutionError(msg)) =&gt; {
-        eprintln!("Failed to resolve config directory: {}", msg);
-    }
-    Err(e) =&gt; eprintln!("Other error: {}", e),
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="platform-compatibility"><a class="header" href="#platform-compatibility">Platform Compatibility</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Method</th><th>Linux</th><th>Windows</th><th>macOS</th><th>Notes</th></tr></thead><tbody>
-<tr><td><code>try_new_os_config</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_data</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_cache</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_config_local</code></td><td>✅</td><td>✅</td><td>❌</td><td>Returns error on macOS</td></tr>
-<tr><td><code>try_new_os_data_local</code></td><td>✅</td><td>✅</td><td>❌</td><td>Returns error on macOS</td></tr>
-<tr><td><code>try_new_os_home</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_desktop</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_documents</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_downloads</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_pictures</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_audio</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_videos</code></td><td>✅</td><td>✅</td><td>✅</td><td></td></tr>
-<tr><td><code>try_new_os_executables</code></td><td>✅</td><td>❌</td><td>✅</td><td>Unix only</td></tr>
-<tr><td><code>try_new_os_runtime</code></td><td>✅</td><td>❌</td><td>✅</td><td>Unix only</td></tr>
-<tr><td><code>try_new_os_state</code></td><td>✅</td><td>❌</td><td>❌</td><td>Linux only</td></tr>
-</tbody></table>
-</div>
-<h2 id="integration-with-dirs-crate"><a class="header" href="#integration-with-dirs-crate">Integration with <code>dirs</code> Crate</a></h2>
-<p>This feature integrates with the <a href="https://github.com/dirs-dev/dirs-rs"><code>dirs</code></a> crate v6.0.0, which provides the underlying OS directory discovery. The <code>strict-path</code> crate adds:</p>
-<ul>
-<li><strong>Security</strong>: All directory access happens within <code>PathBoundary</code> restrictions</li>
-<li><strong>Type Safety</strong>: Compile-time guarantees about directory boundaries</li>
-<li><strong>Symlink Safety</strong>: Safe resolution of symbolic links and junctions</li>
-<li><strong>Cross-Platform</strong>: Consistent API across Windows, macOS, and Linux</li>
-<li><strong>Application Scoping</strong>: Automatic subdirectory creation for app-specific storage</li>
-</ul>
-<h3 id="relationship-to-dirs-functions"><a class="header" href="#relationship-to-dirs-functions">Relationship to <code>dirs</code> Functions</a></h3>
-<div class="table-wrapper"><table><thead><tr><th><code>strict-path</code> Method</th><th><code>dirs</code> Function</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><code>try_new_os_config</code></td><td><code>dirs::config_dir()</code> + join</td><td>App config storage</td></tr>
-<tr><td><code>try_new_os_data</code></td><td><code>dirs::data_dir()</code> + join</td><td>App data storage</td></tr>
-<tr><td><code>try_new_os_cache</code></td><td><code>dirs::cache_dir()</code> + join</td><td>App cache storage</td></tr>
-<tr><td><code>try_new_os_config_local</code></td><td><code>dirs::config_local_dir()</code> + join</td><td>Local config (non-roaming)</td></tr>
-<tr><td><code>try_new_os_data_local</code></td><td><code>dirs::data_local_dir()</code> + join</td><td>Local data (non-roaming)</td></tr>
-<tr><td><code>try_new_os_home</code></td><td><code>dirs::home_dir()</code></td><td>User home directory</td></tr>
-<tr><td><code>try_new_os_desktop</code></td><td><code>dirs::desktop_dir()</code></td><td>Desktop folder</td></tr>
-<tr><td><code>try_new_os_documents</code></td><td><code>dirs::document_dir()</code></td><td>Documents folder</td></tr>
-<tr><td><code>try_new_os_downloads</code></td><td><code>dirs::download_dir()</code></td><td>Downloads folder</td></tr>
-<tr><td><code>try_new_os_pictures</code></td><td><code>dirs::picture_dir()</code></td><td>Pictures folder</td></tr>
-<tr><td><code>try_new_os_audio</code></td><td><code>dirs::audio_dir()</code></td><td>Music/Audio folder</td></tr>
-<tr><td><code>try_new_os_videos</code></td><td><code>dirs::video_dir()</code></td><td>Videos folder</td></tr>
-<tr><td><code>try_new_os_executables</code></td><td><code>dirs::executable_dir()</code></td><td>User binaries (Unix)</td></tr>
-<tr><td><code>try_new_os_runtime</code></td><td><code>dirs::runtime_dir()</code></td><td>Runtime files (Unix)</td></tr>
-<tr><td><code>try_new_os_state</code></td><td><code>dirs::state_dir()</code> + join</td><td>State data (Linux)</td></tr>
-</tbody></table>
-</div>
-<p>For more details on the underlying directory locations, see the <a href="https://docs.rs/dirs/"><code>dirs</code> crate documentation</a>.</p>
-<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
-<h3 id="1-application-naming"><a class="header" href="#1-application-naming">1. Application Naming</a></h3>
-<p>Use consistent, filesystem-safe application names:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Good
-let config = PathBoundary::&lt;()&gt;::try_new_os_config("MyApp")?;
+// Create boundary with strict-path
+let boundary = PathBoundary::try_new_create(base_dir.join("myapp"))?;
 
-// Avoid special characters that might cause issues
-let config = PathBoundary::&lt;()&gt;::try_new_os_config("My App &amp; Tools")?; // Risky
+// Use safe operations
+let file = boundary.strict_join(user_input)?;
 <span class="boring">}</span></code></pre></pre>
-<h3 id="2-graceful-fallbacks"><a class="header" href="#2-graceful-fallbacks">2. Graceful Fallbacks</a></h3>
-<p>Handle platform-specific directories gracefully:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Try platform-specific first, fall back to generic
-let data_dir = PathBoundary::&lt;()&gt;::try_new_os_data_local("MyApp")
-    .or_else(|_| PathBoundary::&lt;()&gt;::try_new_os_data("MyApp"))?;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="3-directory-creation"><a class="header" href="#3-directory-creation">3. Directory Creation</a></h3>
-<p>Create application subdirectories as needed:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config("MyApp")?;
-let themes_dir = config_dir.strict_join("themes")?;
-themes_dir.create_dir_all()?;
-<span class="boring">}</span></code></pre></pre>
-<h3 id="4-cross-platform-testing"><a class="header" href="#4-cross-platform-testing">4. Cross-Platform Testing</a></h3>
-<p>Test your application on all target platforms to verify directory behavior:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_config_directory_creation() {
-        let config_dir = PathBoundary::&lt;()&gt;::try_new_os_config("TestApp").unwrap();
-        assert!(config_dir.exists() || config_dir.create_dir_all().is_ok());
-    }
-}
-<span class="boring">}</span></code></pre></pre>
+<hr />
 <h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
 <ul>
-<li><a href="./examples.html">Real-World Examples</a> - Complete application examples</li>
-<li><a href="./chapter_1.html">Getting Started</a> - Basic <code>strict-path</code> concepts</li>
-<li><a href="https://crates.io/crates/dirs"><code>dirs</code> crate</a> - Underlying OS directory library</li>
-<li><a href="https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html">XDG Base Directory Specification</a></li>
-<li><a href="https://docs.microsoft.com/en-us/windows/win32/shell/knownfolderid">Windows Known Folder API</a></li>
+<li><strong><a href="./ecosystem_integration.html">Ecosystem Integration Guide</a></strong> - Comprehensive integration patterns</li>
+<li><strong><a href="./tutorial/stage6_features.html">Tutorial: Stage 6</a></strong> - Ecosystem integration tutorial</li>
+<li><strong><a href="./best_practices.html">Best Practices</a></strong> - Application architecture patterns</li>
 </ul>
+<hr />
+<h2 id="legacy-feature-flag-deprecated"><a class="header" href="#legacy-feature-flag-deprecated">Legacy Feature Flag (Deprecated)</a></h2>
+<blockquote>
+<p>⚠️ <strong>Deprecated</strong>: The <code>dirs</code> feature flag is deprecated in favor of direct integration.</p>
+</blockquote>
+<p>The previous feature-based approach:</p>
+<pre><code class="language-toml">strict-path = { version = "0.1", features = ["dirs"] }
+</code></pre>
+<p>Provided methods like <code>PathBoundary::try_new_os_config()</code>, but this couples <code>strict-path</code> to the <code>dirs</code> crate version and hides the integration.</p>
+<p><strong>Migration is trivial:</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// OLD (with dirs feature):
+let boundary = PathBoundary::try_new_os_config("myapp")?;
+
+// NEW (direct integration):
+let config_base = dirs::config_dir().ok_or("No config")?;
+let boundary = PathBoundary::try_new_create(config_base.join("myapp"))?;
+<span class="boring">}</span></code></pre></pre>
+<p>The new approach gives you full control and makes the integration explicit.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="axum_tutorial/chapter3_user_storage.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="ecosystem_integration.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
@@ -557,7 +538,7 @@ mod tests {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="axum_tutorial/chapter3_user_storage.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="ecosystem_integration.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 

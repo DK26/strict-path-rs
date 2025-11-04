@@ -185,6 +185,13 @@
 <h2 id="what-is-strict-path"><a class="header" href="#what-is-strict-path">What is strict-path?</a></h2>
 <p>Have you ever worried about users trying to access files they shouldn't? Like when someone enters <code>../../../etc/passwd</code> to try to escape from a safe directory? That's called a "directory traversal" attack, and it's surprisingly common.</p>
 <p><strong>strict-path strictly enforces path boundaries to prevent directory traversal attacks.</strong> It creates safe boundaries that paths cannot escape from. It comes in two modes: StrictPath (via PathBoundary) which detects and rejects escape attempts, and VirtualPath (via VirtualRoot) which contains and redirects escape attempts within a virtual sandbox.</p>
+<h2 id="which-type-should-i-use"><a class="header" href="#which-type-should-i-use">Which Type Should I Use?</a></h2>
+<ul>
+<li><strong>Path/PathBuf</strong> (std): When the path comes from a safe source within your control, not external input.</li>
+<li><strong>StrictPath</strong>: When you want to restrict paths to a specific boundary and error if they escape.</li>
+<li><strong>VirtualPath</strong>: When you want to provide path freedom under isolation.</li>
+</ul>
+<p>See the <strong><a href="./best_practices.html#pick-the-right-type-quick-reference">Complete Decision Matrix →</a></strong> for detailed guidance.</p>
 <h2 id="why-should-you-care"><a class="header" href="#why-should-you-care">Why Should You Care?</a></h2>
 <p>Directory traversal vulnerabilities are everywhere:</p>
 <ul>
@@ -194,8 +201,26 @@
 <li>Systems that extract archives (ZIP files, etc.)</li>
 </ul>
 <p>Getting path security wrong can expose your entire filesystem to attackers. With strict-path, the Rust compiler helps ensure you can't make these mistakes.</p>
+<h2 id="get-secure-in-30-seconds"><a class="header" href="#get-secure-in-30-seconds">Get Secure in 30 Seconds</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+// GET /download?file=report.pdf
+let user_input = request.query_param("file"); // Untrusted: "report.pdf" or "../../etc/passwd"
+let untrusted_user_input = user_input.to_string();
+
+let file = StrictPath::with_boundary("/var/app/downloads")?
+    .strict_join(&amp;untrusted_user_input)?; // Validates untrusted input - attack blocked!
+
+let contents = file.read()?; // Built-in safe I/O
+<span class="boring">}</span></code></pre></pre>
+<p><strong>That's it.</strong> Simple, safe, and path traversal attacks are blocked automatically.</p>
+<blockquote>
+<p><strong>Analogy:</strong> <code>StrictPath</code> is to paths what prepared statements are to SQL. The boundary is your prepared statement (the policy). The untrusted segment is the parameter (validated safely). Injection attempts become inert.</p>
+</blockquote>
 <h2 id="your-first-pathboundary"><a class="header" href="#your-first-pathboundary">Your First PathBoundary</a></h2>
-<p>Let's start with a simple example. Say you're building a web app where users can upload and download their files, but you want to keep them contained in a specific directory:</p>
+<p>For reusable boundaries (e.g., passing to functions), use <code>PathBoundary</code>:</p>
 <pre><pre class="playground"><code class="language-rust">use strict_path::PathBoundary;
 
 fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
@@ -203,16 +228,17 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     // This creates the directory if it doesn't exist
     let user_files_dir = PathBoundary::try_new_create("user_files")?;
 
-    // Now any path we validate through this path boundary will be contained
-    // within the "user_files" directory
-
-    // ✅ This is SAFE - creates "user_files/documents/report.txt"
-    let report = user_files_dir.strict_join("documents/report.txt")?;
+    // Simulate user input from HTTP request, CLI args, form data, etc.
+    let user_input = "documents/report.txt"; // In real code: from request.form_data()
+    
+    // ✅ This is SAFE - validates and creates "user_files/documents/report.txt"
+    let report = user_files_dir.strict_join(user_input)?;
     report.create_parent_dir_all()?;
     report.write("Quarterly report contents")?;
 
     // ❌ This would FAIL - can't escape the path boundary!
-    // let _bad = user_files_dir.strict_join("../../../etc/passwd")?; // Error!
+    let attack_input = "../../../etc/passwd"; // Attacker-controlled input
+    // let _bad = user_files_dir.strict_join(attack_input)?; // Error!
 
     let display = report.strictpath_display();
     println!("Safe path: {display}");

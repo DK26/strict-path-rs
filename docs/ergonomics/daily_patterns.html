@@ -183,6 +183,45 @@
                     <main>
                         <h1 id="daily-usage-patterns"><a class="header" href="#daily-usage-patterns">Daily Usage Patterns</a></h1>
 <p>Common workflows and patterns for everyday <code>strict-path</code> usage.</p>
+<h2 id="typical-workflow"><a class="header" href="#typical-workflow">Typical Workflow</a></h2>
+<ul>
+<li>Establish a root (policy type): <code>PathBoundary</code> for strict detection, or <code>VirtualRoot</code> for virtual containment.</li>
+<li>Accept safe types in internal APIs: <code>&amp;StrictPath&lt;Marker&gt;</code> / <code>&amp;VirtualPath&lt;Marker&gt;</code> (or roots + raw segments).</li>
+<li>Validate any untrusted input (CLI, config, DB, user I/O) via <code>strict_join</code>/<code>virtual_join</code> before any I/O.</li>
+</ul>
+<p>Strict link creation (hard link)</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+let boundary: PathBoundary = PathBoundary::try_new_create("./link_demo")?;
+let target = boundary.strict_join("data/target.txt")?;
+target.create_parent_dir_all()?;
+target.write(b"hello")?;
+
+// Create a sibling hard link under the same directory
+target.strict_hard_link("alias.txt")?; // mirrors std::fs::hard_link
+
+let alias = boundary.strict_join("data/alias.txt")?;
+assert_eq!(alias.read_to_string()?, "hello");
+<span class="boring">}</span></code></pre></pre>
+<p>Virtual link creation (hard link)</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualRoot;
+
+let tenant_id = "tenant42";
+let vroot: VirtualRoot = VirtualRoot::try_new_create(format!("./vlink_demo/{tenant_id}"))?;
+let vtarget = vroot.virtual_join("/data/target.txt")?;
+vtarget.create_parent_dir_all()?;
+vtarget.write(b"hi")?;
+
+// Create a sibling hard link (virtual semantics)
+vtarget.virtual_hard_link("alias.txt")?;
+
+let valias = vroot.virtual_join("/data/alias.txt")?;
+assert_eq!(valias.read_to_string()?, "hi");
+<span class="boring">}</span></code></pre></pre>
 <h2 id="pattern-1-validate-user-input"><a class="header" href="#pattern-1-validate-user-input">Pattern 1: Validate User Input</a></h2>
 <p><strong>Problem</strong>: User provides a filename, you need to ensure it stays in your directory.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]

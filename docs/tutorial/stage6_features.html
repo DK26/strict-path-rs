@@ -181,414 +181,241 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="stage-6-feature-integration--ecosystem-integration-with-safe-boundaries"><a class="header" href="#stage-6-feature-integration--ecosystem-integration-with-safe-boundaries">Stage 6: Feature Integration — Ecosystem Integration with Safe Boundaries</a></h1>
+                        <h1 id="stage-6-ecosystem-integration"><a class="header" href="#stage-6-ecosystem-integration">Stage 6: Ecosystem Integration</a></h1>
 <blockquote>
-<p><em>"Integrate with OS directories, temp files, and app-specific paths — safely."</em></p>
+<p><em>"Compose strict-path with ecosystem tools — security primitives, not wrappers."</em></p>
 </blockquote>
-<p>You've mastered the core concepts: boundaries, markers, authorization, and virtual paths. Now you'll learn how to integrate strict-path with your ecosystem using <strong>feature-gated constructors</strong> that work seamlessly with popular Rust crates.</p>
-<h2 id="the-problem-external-directory-apis"><a class="header" href="#the-problem-external-directory-apis">The Problem: External Directory APIs</a></h2>
-<p>Your app needs to work with standard directories:</p>
-<ul>
-<li><strong>User config:</strong> <code>~/.config/myapp/</code> (Linux) or <code>C:\Users\Alice\AppData\Roaming\myapp\</code> (Windows)</li>
-<li><strong>Temp files:</strong> System temp directory with automatic cleanup</li>
-<li><strong>Downloads:</strong> User's Downloads folder</li>
-<li><strong>App directories:</strong> Portable app-specific paths</li>
-</ul>
-<p>But you still need <strong>boundary enforcement</strong>! Otherwise, untrusted input can escape these directories too.</p>
-<h2 id="the-solution-feature-gated-constructors"><a class="header" href="#the-solution-feature-gated-constructors">The Solution: Feature-Gated Constructors</a></h2>
-<p>Enable features in <code>Cargo.toml</code>:</p>
-<pre><code class="language-toml">[dependencies]
-strict-path = { version = "0.1.0-beta.2", features = ["dirs", "tempfile", "app-path", "serde"] }
-</code></pre>
-<p>Now you get special constructors that combine external crate APIs with strict-path's boundary enforcement.</p>
-<h2 id="feature-dirs--os-standard-directories"><a class="header" href="#feature-dirs--os-standard-directories">Feature: <code>dirs</code> — OS Standard Directories</a></h2>
-<p>The <code>dirs</code> feature adds constructors for platform-specific user directories:</p>
+<p>You've mastered the core concepts: boundaries, markers, authorization, and virtual paths. Now you'll learn how to integrate <code>strict-path</code> with popular Rust ecosystem crates for real-world applications.</p>
+<h2 id="the-philosophy"><a class="header" href="#the-philosophy">The Philosophy</a></h2>
+<p><strong><code>strict-path</code> provides security primitives. You compose them with ecosystem tools.</strong></p>
+<p>We don't wrap external crates behind feature flags. Instead, we show you how to use them together effectively — giving you full control and explicit security.</p>
+<hr />
+<h2 id="quick-integration-examples"><a class="header" href="#quick-integration-examples">Quick Integration Examples</a></h2>
+<h3 id="temporary-directories-tempfile"><a class="header" href="#temporary-directories-tempfile">Temporary Directories (<code>tempfile</code>)</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use tempfile::TempDir;
+
+fn process_upload() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create temp directory with RAII cleanup
+    let temp_dir = tempfile::tempdir()?;
+
+    // Establish strict boundary
+    let upload_boundary = PathBoundary::try_new(temp_dir.path())?;
+
+    // Safe operations within boundary
+    let user_file = upload_boundary.strict_join("user/data.txt")?;
+    user_file.create_parent_dir_all()?;
+    user_file.write(b"uploaded content")?;
+
+    // Escape attempts are blocked
+    match upload_boundary.strict_join("../../etc/passwd") {
+        Ok(_) =&gt; panic!("Should not escape!"),
+        Err(e) =&gt; println!("✓ Attack blocked: {}", e),
+    }
+
+    Ok(())
+    // temp_dir automatically deleted when dropped
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Why this works</strong>: RAII cleanup from <code>tempfile</code>, security from <code>strict-path</code>.</p>
+<hr />
+<h3 id="portable-app-paths-app-path"><a class="header" href="#portable-app-paths-app-path">Portable App Paths (<code>app-path</code>)</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use app_path::AppPath;
+
+fn setup_portable_app() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Executable-relative path
+    let app_path = AppPath::new("MyPortableApp");
+    let app_dir = app_path.get_app_dir();
+
+    // Establish boundary
+    let boundary = PathBoundary::try_new_create(&amp;app_dir)?;
+
+    // Safe config access
+    let config = boundary.strict_join("config/settings.ini")?;
+    config.create_parent_dir_all()?;
+    config.write(b"[settings]\nportable=true\n")?;
+
+    println!("App directory: {}", boundary.strictpath_display());
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Use cases</strong>: USB drives, CI/CD, containers with custom paths.</p>
+<hr />
+<h3 id="os-directories-dirs"><a class="header" href="#os-directories-dirs">OS Directories (<code>dirs</code>)</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::PathBoundary;
 
-struct AppConfig;
-struct UserDownloads;
-struct UserDocuments;
+fn setup_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Platform-specific config directory
+    let config_base = dirs::config_dir()
+        .ok_or("No config directory")?;
 
-fn use_os_directories() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Get user's config directory (platform-specific)
-    let config_dir: PathBoundary&lt;AppConfig&gt; = PathBoundary::try_new_os_config("myapp")?;
-    // Linux: ~/.config/myapp/
+    // App-specific subdirectory boundary
+    let app_config = config_base.join("myapp");
+    let boundary = PathBoundary::try_new_create(&amp;app_config)?;
+
+    // Cross-platform locations:
+    // Linux:   ~/.config/myapp/
     // Windows: C:\Users\Alice\AppData\Roaming\myapp\
-    // macOS: ~/Library/Application Support/myapp/
+    // macOS:   ~/Library/Application Support/myapp/
 
-    let config_file = config_dir.strict_join("settings.toml")?;
-    config_file.write(b"theme = dark\nlanguage = en")?;
-    println!("Config: {}", config_file.strictpath_display());
-
-    // Get user's downloads directory
-    let downloads_dir: PathBoundary&lt;UserDownloads&gt; = PathBoundary::try_new_os_downloads()?;
-    let export_file = downloads_dir.strict_join("export.csv")?;
-    export_file.write(b"col1,col2\nval1,val2")?;
-    println!("Export: {}", export_file.strictpath_display());
-
-    // Get user's documents directory
-    let docs_dir: PathBoundary&lt;UserDocuments&gt; = PathBoundary::try_new_os_documents()?;
-    let report = docs_dir.strict_join("report.pdf")?;
-    report.write(b"PDF content")?;
-    println!("Report: {}", report.strictpath_display());
+    let settings = boundary.strict_join("settings.toml")?;
+    settings.write(b"[app]\nversion = '1.0'\n")?;
 
     Ok(())
 }
 <span class="boring">}</span></code></pre></pre>
-<h3 id="available-os-directory-constructors"><a class="header" href="#available-os-directory-constructors">Available OS Directory Constructors</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Constructor</th><th>Linux</th><th>Windows</th><th>macOS</th></tr></thead><tbody>
-<tr><td><code>try_new_os_config("app")</code></td><td><code>~/.config/app/</code></td><td><code>C:\Users\...\AppData\Roaming\app\</code></td><td><code>~/Library/Application Support/app/</code></td></tr>
-<tr><td><code>try_new_os_data("app")</code></td><td><code>~/.local/share/app/</code></td><td><code>C:\Users\...\AppData\Roaming\app\</code></td><td><code>~/Library/Application Support/app/</code></td></tr>
-<tr><td><code>try_new_os_cache("app")</code></td><td><code>~/.cache/app/</code></td><td><code>C:\Users\...\AppData\Local\app\</code></td><td><code>~/Library/Caches/app/</code></td></tr>
-<tr><td><code>try_new_os_downloads()</code></td><td><code>~/Downloads/</code></td><td><code>C:\Users\...\Downloads\</code></td><td><code>~/Downloads/</code></td></tr>
-<tr><td><code>try_new_os_documents()</code></td><td><code>~/Documents/</code></td><td><code>C:\Users\...\Documents\</code></td><td><code>~/Documents/</code></td></tr>
-<tr><td><code>try_new_os_pictures()</code></td><td><code>~/Pictures/</code></td><td><code>C:\Users\...\Pictures\</code></td><td><code>~/Pictures/</code></td></tr>
-<tr><td><code>try_new_os_videos()</code></td><td><code>~/Videos/</code></td><td><code>C:\Users\...\Videos\</code></td><td><code>~/Videos/</code></td></tr>
-<tr><td><code>try_new_os_music()</code></td><td><code>~/Music/</code></td><td><code>C:\Users\...\Music\</code></td><td><code>~/Music/</code></td></tr>
-</tbody></table>
-</div>
-<p>See the <a href="../os_directories.html">OS Directories chapter</a> for the complete list and details.</p>
-<h3 id="try-it-cross-platform-config-manager"><a class="header" href="#try-it-cross-platform-config-manager">Try It: Cross-Platform Config Manager</a></h3>
-<pre><pre class="playground"><code class="language-rust">use strict_path::PathBoundary;
-
-struct AppSettings;
-
-fn save_user_settings(theme: &amp;str, language: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Works on Linux, Windows, and macOS automatically!
-    let config_dir: PathBoundary&lt;AppSettings&gt; = 
-        PathBoundary::try_new_os_config("myapp")?;
-
-    let settings_file = config_dir.strict_join("settings.toml")?;
-    let content = format!("theme = {}\nlanguage = {}\n", theme, language);
-    settings_file.write(content.as_bytes())?;
-
-    println!("Settings saved to: {}", settings_file.strictpath_display());
-    Ok(())
-}
-
-fn load_user_settings() -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
-    let config_dir: PathBoundary&lt;AppSettings&gt; = 
-        PathBoundary::try_new_os_config("myapp")?;
-
-    let settings_file = config_dir.strict_join("settings.toml")?;
-    Ok(settings_file.read_to_string()?)
-}
-
-fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    save_user_settings("dark", "en")?;
-    let settings = load_user_settings()?;
-    println!("Loaded settings:\n{}", settings);
-    Ok(())
-}</code></pre></pre>
-<h2 id="feature-tempfile--automatic-cleanup-with-raii"><a class="header" href="#feature-tempfile--automatic-cleanup-with-raii">Feature: <code>tempfile</code> — Automatic Cleanup with RAII</a></h2>
-<p>The <code>tempfile</code> feature works with the <code>tempfile</code> crate for automatic cleanup:</p>
-<pre><pre class="playground"><code class="language-rust">use strict_path::PathBoundary;
-use tempfile::TempDir;
-
-struct WorkDir;
-
-fn process_with_temp() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Create temporary directory (cleaned up automatically when dropped)
-    let temp = TempDir::new()?;
-    
-    println!("Created temp directory: {:?}", temp.path());
-
-    // Wrap in PathBoundary for safe operations
-    let work_dir: PathBoundary&lt;WorkDir&gt; = PathBoundary::try_new(temp.path())?;
-
-    // Do work inside temp directory — all paths validated!
-    let intermediate = work_dir.strict_join("intermediate.json")?;
-    intermediate.write(b"{\"status\": \"processing\"}")?;
-
-    let output = work_dir.strict_join("output.txt")?;
-    output.write(b"Final result")?;
-
-    // Try to escape — fails!
-    match work_dir.strict_join("../../../etc/passwd") {
-        Ok(_) =&gt; println!("❌ Escape succeeded (should not happen!)"),
-        Err(e) =&gt; println!("✅ Escape blocked: {}", e),
-    }
-
-    println!("Work directory: {}", work_dir.strictpath_display());
-    println!("Output file: {}", output.strictpath_display());
-
-    // When this function returns, `temp` is dropped → directory deleted automatically
-    Ok(())
-}
-
-fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    process_with_temp()?;
-    println!("Temp directory has been automatically cleaned up!");
-    Ok(())
-}</code></pre></pre>
-<p><strong>Key benefits:</strong></p>
-<ul>
-<li>✅ <strong>RAII cleanup</strong> — temp directory deleted when <code>TempDir</code> drops</li>
-<li>✅ <strong>Boundary enforcement</strong> — even in temp directories, paths can't escape</li>
-<li>✅ <strong>No manual cleanup</strong> — Rust handles it for you</li>
-</ul>
-<h3 id="try-it-safe-archive-processing"><a class="header" href="#try-it-safe-archive-processing">Try It: Safe Archive Processing</a></h3>
+<hr />
+<h3 id="serialization-serde-via-fromstr"><a class="header" href="#serialization-serde-via-fromstr">Serialization (<code>serde</code> via <code>FromStr</code>)</a></h3>
+<p><code>PathBoundary</code> and <code>VirtualRoot</code> implement <code>FromStr</code>, so they deserialize automatically:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::PathBoundary;
-use tempfile::TempDir;
+use serde::Deserialize;
 
-struct ArchiveExtract;
-
-fn extract_and_process_archive(archive_data: &amp;[u8]) 
-    -&gt; Result&lt;Vec&lt;String&gt;, Box&lt;dyn std::error::Error&gt;&gt; 
-{
-    // Create temp directory for extraction
-    let temp = TempDir::new()?;
-    let extract_dir: PathBoundary&lt;ArchiveExtract&gt; = 
-        PathBoundary::try_new(temp.path())?;
-
-    // Simulate extracting files (in reality, use zip crate)
-    let file1 = extract_dir.strict_join("readme.txt")?;
-    file1.write(b"Archive contents...")?;
-
-    let file2 = extract_dir.strict_join("data/values.csv")?;
-    file2.create_parent_dir_all()?;
-    file2.write(b"col1,col2\n1,2")?;
-
-    // Even if archive contains hostile paths, they're validated
-    match extract_dir.strict_join("../../../evil.sh") {
-        Ok(_) =&gt; println!("❌ Hostile path accepted!"),
-        Err(e) =&gt; println!("✅ Hostile path blocked: {}", e),
-    }
-
-    // Collect extracted files
-    let mut files = Vec::new();
-    files.push(file1.strictpath_display().to_string());
-    files.push(file2.strictpath_display().to_string());
-
-    // Temp directory deleted automatically when function returns
-    Ok(files)
-}
-<span class="boring">}</span></code></pre></pre>
-<h2 id="feature-app-path--portable-application-directories"><a class="header" href="#feature-app-path--portable-application-directories">Feature: <code>app-path</code> — Portable Application Directories</a></h2>
-<p>The <code>app-path</code> feature provides portable app-specific paths with environment variable overrides:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::PathBoundary;
-
-struct AppLogs;
-struct AppData;
-
-fn setup_app_directories() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Get app-specific log directory with environment override support
-    // If MYAPP_LOGS_DIR is set, uses that path
-    // Otherwise, uses platform-specific app directory + "logs" subdirectory
-    let logs_dir: PathBoundary&lt;AppLogs&gt; = 
-        PathBoundary::try_new_app_path("logs", Some("MYAPP_LOGS_DIR"))?;
-    
-    let error_log = logs_dir.strict_join("errors.log")?;
-    error_log.write(b"[ERROR] Example error message\n")?;
-
-    let access_log = logs_dir.strict_join("access.log")?;
-    access_log.write(b"[INFO] User accessed /api/data\n")?;
-
-    println!("Logs directory: {}", logs_dir.strictpath_display());
-
-    // Get app-specific data directory with environment override support
-    let data_dir: PathBoundary&lt;AppData&gt; = 
-        PathBoundary::try_new_app_path("data", Some("MYAPP_DATA_DIR"))?;
-
-    let database = data_dir.strict_join("app.db")?;
-    database.write(b"SQLite database content")?;
-
-    println!("Data directory: {}", data_dir.strictpath_display());
-
-    Ok(())
-}
-<span class="boring">}</span></code></pre></pre>
-<h3 id="environment-variable-overrides"><a class="header" href="#environment-variable-overrides">Environment Variable Overrides</a></h3>
-<p>You can override the default locations using environment variables:</p>
-<pre><code class="language-bash"># Override logs directory
-export MYAPP_LOGS_DIR=/custom/log/path
-
-# Override data directory
-export MYAPP_DATA_DIR=/custom/data/path
-</code></pre>
-<p><strong>When the environment variable is set, the path is resolved to the final directory — no subdirectory append happens.</strong></p>
-<p>This is useful for:</p>
-<ul>
-<li>✅ Testing with custom paths</li>
-<li>✅ Deployment-specific configurations</li>
-<li>✅ Docker container mounts</li>
-<li>✅ CI/CD pipelines</li>
-</ul>
-<h2 id="feature-serde--safe-deserialization-with-validation"><a class="header" href="#feature-serde--safe-deserialization-with-validation">Feature: <code>serde</code> — Safe Deserialization with Validation</a></h2>
-<p>The <code>serde</code> feature adds safe serialization/deserialization with automatic validation:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::{PathBoundary, StrictPath, serde_ext::WithBoundary};
-use serde::{Deserialize, Serialize};
-
-struct ConfigFiles;
-struct DataFiles;
-
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct AppConfig {
-    app_name: String,
-    
-    // Deserialize with validation through boundary
-    #[serde(deserialize_with = "deserialize_log_file")]
-    log_file: StrictPath&lt;ConfigFiles&gt;,
-    
-    #[serde(deserialize_with = "deserialize_data_file")]
-    data_file: StrictPath&lt;DataFiles&gt;,
-}
+    // Deserializes via FromStr automatically
+    upload_dir: PathBoundary,
+    data_dir: PathBoundary,
 
-fn deserialize_log_file&lt;'de, D&gt;(deserializer: D) 
-    -&gt; Result&lt;StrictPath&lt;ConfigFiles&gt;, D::Error&gt;
-where
-    D: serde::Deserializer&lt;'de&gt;,
-{
-    let config_dir: PathBoundary&lt;ConfigFiles&gt; = 
-        PathBoundary::try_new("config").map_err(serde::de::Error::custom)?;
-    
-    // Use WithBoundary seed to validate during deserialization
-    let seed = WithBoundary(&amp;config_dir);
-    seed.deserialize(deserializer)
-}
-
-fn deserialize_data_file&lt;'de, D&gt;(deserializer: D) 
-    -&gt; Result&lt;StrictPath&lt;DataFiles&gt;, D::Error&gt;
-where
-    D: serde::Deserializer&lt;'de&gt;,
-{
-    let data_dir: PathBoundary&lt;DataFiles&gt; = 
-        PathBoundary::try_new("data").map_err(serde::de::Error::custom)?;
-    
-    let seed = WithBoundary(&amp;data_dir);
-    seed.deserialize(deserializer)
+    // Validate these manually
+    user_paths: Vec&lt;String&gt;,
 }
 
 fn load_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let json = r#"{
-        "app_name": "MyApp",
-        "log_file": "logs/app.log",
-        "data_file": "db/app.db"
+        "upload_dir": "./uploads",
+        "data_dir": "./data",
+        "user_paths": ["file1.txt", "../../etc/passwd"]
     }"#;
 
     let config: AppConfig = serde_json::from_str(json)?;
-    
-    println!("App: {}", config.app_name);
-    println!("Log file: {}", config.log_file.strictpath_display());
-    println!("Data file: {}", config.data_file.strictpath_display());
 
-    // Try loading config with hostile paths
-    let evil_json = r#"{
-        "app_name": "EvilApp",
-        "log_file": "../../../etc/passwd",
-        "data_file": "db/app.db"
-    }"#;
-
-    match serde_json::from_str::&lt;AppConfig&gt;(evil_json) {
-        Ok(_) =&gt; println!("❌ Hostile config accepted!"),
-        Err(e) =&gt; println!("✅ Hostile config rejected: {}", e),
+    // Boundaries are ready to use
+    for path_str in &amp;config.user_paths {
+        match config.upload_dir.strict_join(path_str) {
+            Ok(safe_path) =&gt; {
+                safe_path.write(b"uploaded")?;
+                println!("✓ {}", safe_path.strictpath_display());
+            }
+            Err(e) =&gt; {
+                eprintln!("✗ Blocked '{}': {}", path_str, e);
+            }
+        }
     }
 
     Ok(())
 }
 <span class="boring">}</span></code></pre></pre>
-<p><strong>Key point:</strong> Deserialization validates paths through boundaries — <strong>untrusted config files can't escape!</strong></p>
-<h2 id="combining-features-real-world-application"><a class="header" href="#combining-features-real-world-application">Combining Features: Real-World Application</a></h2>
-<p>Here's how you'd combine multiple features in a real application:</p>
-<pre><pre class="playground"><code class="language-rust">use strict_path::{PathBoundary, VirtualRoot};
+<p><strong>Key insight</strong>: Explicit validation is a feature, not a bug. Security operations should be visible.</p>
+<hr />
+<h2 id="real-world-application"><a class="header" href="#real-world-application">Real-World Application</a></h2>
+<p>Combining all integrations:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{PathBoundary, VirtualRoot};
 use tempfile::TempDir;
+use serde::Deserialize;
 
 struct AppConfig;
-struct AppLogs;
 struct UserFiles;
 struct TempProcessing;
 
-struct Application {
+#[derive(Deserialize)]
+struct Config {
     config_dir: PathBoundary&lt;AppConfig&gt;,
-    logs_dir: PathBoundary&lt;AppLogs&gt;,
-    user_files_root: VirtualRoot&lt;UserFiles&gt;,
+}
+
+struct Application {
+    config: PathBoundary&lt;AppConfig&gt;,
+    user_root: VirtualRoot&lt;UserFiles&gt;,
 }
 
 impl Application {
     fn new(user_id: u64) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
-        // OS-specific config directory
-        let config_dir = PathBoundary::try_new_os_config("myapp")?;
-        
-        // App-specific log directory (with env override support)
-        let logs_dir = PathBoundary::try_new_app_path("logs", None)?;
-        
-        // Per-user virtual root for file isolation
+        // OS-specific config
+        let config_base = dirs::config_dir()
+            .ok_or("No config directory")?;
+        let config = PathBoundary::try_new_create(
+            config_base.join("myapp")
+        )?;
+
+        // Per-user virtual root
         let user_storage = format!("users/user_{}", user_id);
-        let user_files_root = VirtualRoot::try_new_create(user_storage)?;
+        let user_root = VirtualRoot::try_new_create(user_storage)?;
 
-        Ok(Self {
-            config_dir,
-            logs_dir,
-            user_files_root,
-        })
+        Ok(Self { config, user_root })
     }
 
-    fn load_config(&amp;self, config_name: &amp;str) -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; {
-        let config_file = self.config_dir.strict_join(config_name)?;
-        Ok(config_file.read_to_string()?)
-    }
-
-    fn log_event(&amp;self, message: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-        let log_file = self.logs_dir.strict_join("app.log")?;
-        let mut log = log_file.read_to_string().unwrap_or_default();
-        log.push_str(message);
-        log.push('\n');
-        log_file.write(log.as_bytes())?;
-        Ok(())
-    }
-
-    fn process_user_file(&amp;self, filename: &amp;str) 
-        -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; 
+    fn process_file(&amp;self, filename: &amp;str)
+        -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt;
     {
-        // Use temp directory for processing
+        // Temp directory for processing
         let temp = TempDir::new()?;
-        let temp_dir: PathBoundary&lt;TempProcessing&gt; = 
+        let temp_dir: PathBoundary&lt;TempProcessing&gt; =
             PathBoundary::try_new(temp.path())?;
 
         // Get user file (virtual path)
-        let user_file = self.user_files_root.virtual_join(filename)?;
+        let user_file = self.user_root.virtual_join(filename)?;
         let data = user_file.read()?;
 
-        // Process in temp directory
+        // Process in temp
         let temp_file = temp_dir.strict_join("processing.tmp")?;
         temp_file.write(&amp;data)?;
 
-        // Log the operation
-        self.log_event(&amp;format!("Processed file: {}", filename))?;
-
-        // Return result
         Ok(format!("Processed {} bytes", data.len()))
+        // temp auto-cleaned
     }
 }
-
-fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let app = Application::new(123)?;
-    
-    // Load config from OS-specific directory
-    let config = app.load_config("settings.toml").unwrap_or_default();
-    println!("Config: {}", config);
-
-    // Process user file using temp directory
-    let result = app.process_user_file("documents/report.pdf")?;
-    println!("Result: {}", result);
-
-    Ok(())
-}</code></pre></pre>
+<span class="boring">}</span></code></pre></pre>
+<hr />
+<h2 id="why-no-feature-flags"><a class="header" href="#why-no-feature-flags">Why No Feature Flags?</a></h2>
+<p><strong>Previous approach (deprecated):</strong></p>
+<pre><code class="language-toml">strict-path = { version = "0.1", features = ["tempfile", "dirs", "app-path", "serde"] }
+</code></pre>
+<p><strong>New approach (recommended):</strong></p>
+<pre><code class="language-toml">strict-path = "0.1"
+tempfile = "3.0"
+dirs = "5.0"
+app-path = "1.0"
+</code></pre>
+<p><strong>Benefits:</strong></p>
+<ol>
+<li>✅ <strong>Full control</strong> - Access all options of external crates</li>
+<li>✅ <strong>No version coupling</strong> - Use any version you want</li>
+<li>✅ <strong>Explicit dependencies</strong> - Clear what you're using</li>
+<li>✅ <strong>Reduced bloat</strong> - Pay only for what you import</li>
+<li>✅ <strong>Visible security</strong> - Validation is explicit in code</li>
+</ol>
+<p><strong>Trade-off</strong>: One extra line of code for explicit, secure integration.</p>
+<hr />
+<h2 id="complete-integration-guide"><a class="header" href="#complete-integration-guide">Complete Integration Guide</a></h2>
+<p>For comprehensive examples, patterns, and best practices, see:</p>
+<p><strong><a href="../ecosystem_integration.html">📚 Ecosystem Integration Guide →</a></strong></p>
+<p>This guide covers:</p>
+<ul>
+<li>Temporary directories with RAII cleanup</li>
+<li>Portable application paths with env overrides</li>
+<li>OS standard directories (cross-platform)</li>
+<li>Serialization/deserialization patterns</li>
+<li>Multi-directory application architecture</li>
+<li>Web API integration examples</li>
+</ul>
+<hr />
 <h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
-<p>✅ <strong><code>dirs</code> feature</strong> — OS-specific user directories (config, downloads, documents, etc.)<br />
-✅ <strong><code>tempfile</code> feature</strong> — RAII temp directories with boundary enforcement<br />
-✅ <strong><code>app-path</code> feature</strong> — Portable app paths with env override support<br />
-✅ <strong><code>serde</code> feature</strong> — Safe deserialization with automatic validation<br />
-✅ <strong>Combine features</strong> — Build real-world apps with ecosystem integration<br />
-✅ <strong>Boundaries everywhere</strong> — Even external directories enforce security</p>
+<p>✅ <strong>Compose, don't wrap</strong> — Use ecosystem crates directly
+✅ <strong>Explicit validation</strong> — Security operations are visible
+✅ <strong>Full control</strong> — No feature coupling or version constraints
+✅ <strong>One extra line</strong> — Small cost for explicit security
+✅ <strong>FromStr support</strong> — Boundaries deserialize automatically</p>
 <h2 id="the-final-complete-guarantee"><a class="header" href="#the-final-complete-guarantee">The Final Complete Guarantee</a></h2>
 <blockquote>
 <p><strong>By combining all stages, you achieve:</strong></p>
@@ -601,24 +428,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 </ol>
 <p><strong>All enforced at compile time with zero runtime overhead.</strong></p>
 </blockquote>
-<h2 id="feature-combinations"><a class="header" href="#feature-combinations">Feature Combinations</a></h2>
-<p>Features can be combined as needed:</p>
-<pre><code class="language-toml">[dependencies]
-strict-path = { 
-    version = "0.1.0-beta.2", 
-    features = ["dirs", "serde", "tempfile", "app-path"] 
-}
-</code></pre>
-<p>All combinations work seamlessly together - choose the features your application needs.</p>
-<h2 id="design-philosophy"><a class="header" href="#design-philosophy">Design Philosophy</a></h2>
-<p>All optional features:</p>
-<ul>
-<li><strong>Maintain security</strong>: Never compromise path boundary enforcement</li>
-<li><strong>Zero-cost when unused</strong>: Features add no overhead if not enabled</li>
-<li><strong>Composable</strong>: Features work together seamlessly</li>
-<li><strong>Platform-aware</strong>: Handle platform differences gracefully</li>
-<li><strong>Standards-compliant</strong>: Follow established conventions and specifications</li>
-</ul>
+<hr />
 <h2 id="congratulations-"><a class="header" href="#congratulations-">Congratulations! 🎉</a></h2>
 <p>You've completed the full tutorial! You now understand:</p>
 <ul>
@@ -626,15 +436,15 @@ strict-path = {
 <li>✅ How markers prevent domain mix-ups</li>
 <li>✅ How <code>change_marker()</code> encodes authorization</li>
 <li>✅ How <code>VirtualPath</code> provides user-friendly sandboxing</li>
-<li>✅ How features integrate with the Rust ecosystem</li>
+<li>✅ How to integrate with the Rust ecosystem</li>
 </ul>
 <h2 id="whats-next"><a class="header" href="#whats-next">What's Next?</a></h2>
 <p>Explore these resources to deepen your knowledge:</p>
 <ul>
+<li><strong><a href="../ecosystem_integration.html">Ecosystem Integration Guide</a></strong> — Comprehensive integration patterns</li>
 <li><strong><a href="../examples/overview.html">Real-World Examples</a></strong> — Copy-pasteable patterns for web servers, CLI tools, archives</li>
 <li><strong><a href="../best_practices.html">Best Practices</a></strong> — Decision matrices, design patterns, and guidelines</li>
 <li><strong><a href="../anti_patterns.html">Anti-Patterns</a></strong> — Common mistakes and how to fix them</li>
-<li><strong><a href="../os_directories.html">OS Directories</a></strong> — Complete API reference for all OS directory constructors</li>
 <li><strong><a href="../axum_tutorial/overview.html">Axum Tutorial</a></strong> — Build a complete web service with strict-path</li>
 </ul>
 <p><strong>You're ready to build secure systems!</strong> 🚀</p>
@@ -642,20 +452,24 @@ strict-path = {
 <p><strong>Quick Reference Card:</strong></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// OS directories
-let config = PathBoundary::&lt;MyConfig&gt;::try_new_os_config("app")?;
-let downloads = PathBoundary::&lt;Downloads&gt;::try_new_os_downloads()?;
+</span>// Temporary directories
+let temp = tempfile::tempdir()?;
+let boundary = PathBoundary::try_new(temp.path())?;
 
-// Temp directories
-let temp = TempDir::new()?;
-let work = PathBoundary::&lt;Work&gt;::try_new(temp.path())?;
+// Portable app paths
+let app_dir = app_path::AppPath::new("MyApp").get_app_dir();
+let boundary = PathBoundary::try_new(&amp;app_dir)?;
 
-// App paths (with env override)
-let logs = PathBoundary::&lt;Logs&gt;::try_new_app_path("logs", None)?;
+// OS directories
+let config = dirs::config_dir().ok_or("No config")?;
+let boundary = PathBoundary::try_new_create(config.join("myapp"))?;
 
-// Serde validation
-#[serde(deserialize_with = "deserialize_with_boundary")]
-log_file: StrictPath&lt;ConfigFiles&gt;
+// Deserialization (FromStr)
+#[derive(Deserialize)]
+struct Config {
+    boundary: PathBoundary,  // Automatic via FromStr
+    user_path: String,        // Manual validation
+}
 <span class="boring">}</span></code></pre></pre>
 <p><strong><a href="./overview.html">← Back to Tutorial Overview</a></strong></p>
 
