@@ -6,6 +6,14 @@ Have you ever worried about users trying to access files they shouldn't? Like wh
 
 **strict-path strictly enforces path boundaries to prevent directory traversal attacks.** It creates safe boundaries that paths cannot escape from. It comes in two modes: StrictPath (via PathBoundary) which detects and rejects escape attempts, and VirtualPath (via VirtualRoot) which contains and redirects escape attempts within a virtual sandbox.
 
+## Which Type Should I Use?
+
+- **Path/PathBuf** (std): When the path comes from a safe source within your control, not external input.
+- **StrictPath**: When you want to restrict paths to a specific boundary and error if they escape.
+- **VirtualPath**: When you want to provide path freedom under isolation.
+
+See the **[Complete Decision Matrix →](./best_practices.md#pick-the-right-type-quick-reference)** for detailed guidance.
+
 ## Why Should You Care?
 
 Directory traversal vulnerabilities are everywhere:

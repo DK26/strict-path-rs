@@ -39,13 +39,15 @@ For detailed explanations and comprehensive examples, see these focused chapters
 
 ### 30-Second Decision Guide
 
-**External/untrusted segments** (HTTP, DB, manifests, LLM output, archive entries):
-- **Detection (90% of cases):** `StrictPath::with_boundary(..).strict_join(..)` â€” detects escapes, rejects attacks
-- **Containment (10% of cases):** `VirtualPath::with_root(..).virtual_join(..)` â€” silently clamps escapes, isolates users
-
-**Internal/trusted paths** (hardcoded, CLI, env): Use `Path`/`PathBuf`; only validate when combining with untrusted segments.
+- **Path/PathBuf** (std): When the path comes from a safe source within your control, not external input.
+- **StrictPath**: When you want to restrict paths to a specific boundary and error if they escape.
+- **VirtualPath**: When you want to provide path freedom under isolation.
 
 **For policy reuse across many joins:** Keep a `PathBoundary` or `VirtualRoot` and call `strict_join(..)`/`virtual_join(..)` repeatedly.
+
+**Quick patterns:**
+- **Detection (90% of cases):** `StrictPath::with_boundary(..).strict_join(..)` — detects escapes, rejects attacks
+- **Containment (10% of cases):** `VirtualPath::with_root(..).virtual_join(..)` — silently clamps escapes, isolates users
 
 ### Decision Matrix by Source
 
