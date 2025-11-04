@@ -10,7 +10,8 @@ echo
 
 # Try to find cargo in common locations  
 if ! command -v cargo &> /dev/null; then
-    # Try common cargo locations across platforms
+    # Try 
+ common cargo locations across platforms
     CARGO_PATHS=(
         "$HOME/.cargo/bin/cargo"
         "$HOME/.cargo/bin/cargo.exe" 
@@ -22,10 +23,11 @@ if ! command -v cargo &> /dev/null; then
     for cargo_path in "${CARGO_PATHS[@]}"; do
         if [[ -x "$cargo_path" ]]; then
             export PATH="$(dirname "$cargo_path"):$PATH"
-            echo "✓ Found cargo at: $cargo_path"
+            echo "✅ Found cargo at: $cargo_path"
             break
         fi
     done
+ 
     
     # Final check
     if ! command -v cargo &> /dev/null; then
@@ -34,7 +36,7 @@ if ! command -v cargo &> /dev/null; then
     fi
 fi
 
-echo "✓ Using cargo: $(command -v cargo)"
+echo "✅ Using cargo: $(command -v cargo)"
 
 # Check Rust version
 RUST_VERSION=$(rustc --version)
@@ -53,13 +55,14 @@ run_check() {
     if eval "$command"; then
         end_time=$(date +%s)
         duration=$((end_time - start_time))
-        echo "✓ $name completed in ${duration}s"
+        echo "✅ $name 
+ completed in ${duration}s"
         echo
         return 0
     else
         end_time=$(date +%s)
         duration=$((end_time - start_time))
-        echo "✗ $name failed after ${duration}s"
+        echo "❌ $name failed after ${duration}s"
         echo "❌ Validation checks failed."
         exit 1
     fi
@@ -76,14 +79,15 @@ run_fix() {
     
     if eval "$command"; then
         end_time=$(date +%s)
-        duration=$((end_time - start_time))
-        echo "✓ $name auto-fix completed in ${duration}s"
+     
+    duration=$((end_time - start_time))
+        echo "✅ $name auto-fix completed in ${duration}s"
         echo
         return 0
     else
         end_time=$(date +%s)
         duration=$((end_time - start_time))
-        echo "✗ $name auto-fix failed after ${duration}s"
+        echo "❌ $name auto-fix failed after ${duration}s"
         echo "⚠️  Continuing with checks anyway..."
         echo
         return 1
@@ -92,7 +96,8 @@ run_fix() {
 
 # Check if we're in the right directory
 if [[ ! -f "Cargo.toml" ]]; then
-    echo "❌ Cargo.toml not found. Are you in the project root?"
+    echo "❌ Cargo.toml not found. Are you in the 
+ project root?"
     exit 1
 fi
 
@@ -116,7 +121,8 @@ check_utf8_encoding() {
     
     # Method 1: Use file command if available (most reliable)
     if command -v file >/dev/null 2>&1; then
-        local file_output=$(file "$file")
+       
+  local file_output=$(file "$file")
         # Check for UTF-8, ASCII, text files, or source files (which are typically UTF-8)
         if echo "$file_output" | grep -q "UTF-8\|ASCII\|text\|[Ss]ource"; then
             echo "✅ $file: UTF-8 encoding verified (file command)"
@@ -125,7 +131,8 @@ check_utf8_encoding() {
             echo "❌ $file is not UTF-8 encoded:"
             echo "   File command output: $file_output"
             return 1
-        fi
+     
+    fi
     fi
     
     # Method 2: Try to read with Python UTF-8 (fallback)
@@ -143,6 +150,7 @@ except UnicodeDecodeError as e:
             return 0
         else
             return 1
+ 
         fi
     fi
     
@@ -158,7 +166,8 @@ check_no_bom() {
     # Check for UTF-8 BOM (EF BB BF) which should not be present
     if command -v xxd >/dev/null 2>&1; then
         if head -c 3 "$file" | xxd | grep -qE "ef[ ]?bb[ ]?bf"; then
-            echo "❌ $file contains UTF-8 BOM (should be UTF-8 without BOM)"
+            echo "❌ $file contains UTF-8 BOM 
+ (should be UTF-8 without BOM)"
             echo "   This can cause issues with Cargo publish and GitHub Actions"
             echo "   Fix with: tail -c +4 '$file' > temp && mv temp '$file'"
             return 1
@@ -166,7 +175,8 @@ check_no_bom() {
         echo "✅ $file: No BOM detected (correct)"
     elif command -v od >/dev/null 2>&1; then
         if head -c 3 "$file" | od -t x1 | grep -qE "ef[ ]?bb[ ]?bf"; then
-            echo "❌ $file contains UTF-8 BOM (should be UTF-8 without BOM)"
+          
+   echo "❌ $file contains UTF-8 BOM (should be UTF-8 without BOM)"
             echo "   This can cause issues with Cargo publish and GitHub Actions"
             echo "   Fix with: tail -c +4 '$file' > temp && mv temp '$file'"
             return 1
@@ -183,7 +193,8 @@ check_utf8_encoding "README.md" || exit 1
 check_no_bom "README.md" || exit 1
 
 echo "📄 Checking Cargo.toml..."
-check_utf8_encoding "Cargo.toml" || exit 1
+check_utf8_encoding "Cargo.toml" 
+ || exit 1
 
 echo "📄 Checking strict-path/Cargo.toml..."
 check_utf8_encoding "strict-path/Cargo.toml" || exit 1
@@ -207,7 +218,8 @@ run_fix "Format strict-path" "cargo fmt -p strict-path"
 run_fix "Clippy Fixable Issues (strict-path)" "cargo clippy -p strict-path --fix --allow-dirty --allow-staged --all-targets --all-features"
 run_fix "Format strict-path (after clippy fix)" "cargo fmt -p strict-path"
 
-echo "🦀 Running validation checks (no compilation/testing)..."
+echo "🦀 
+ Running validation checks (no compilation/testing)..."
 echo
 
 # Run validation checks
@@ -227,7 +239,8 @@ run_check "Clippy Lint (strict-path, no features)" "cargo clippy -p strict-path 
 # Check documentation generation (no compilation of code, just docs)
 run_check "Documentation Check (strict-path)" "RUSTDOCFLAGS='-D warnings' cargo doc -p strict-path --no-deps --document-private-items --all-features"
 
-echo "🎉 All validation checks passed!"
+echo "🎉 
+ All validation checks passed!"
 echo "💡 This was a fast check focusing on validation only."
 echo "💡 Run ci-local.sh for full CI including compilation and testing."
 echo "💡 Remember to review and commit any auto-fixes made."
