@@ -53,6 +53,35 @@ Fixed by directly replacing the corrupted byte sequences with the correct UTF-8 
 
 ## Next Steps
 
-The fix has been committed to the local `docs` branch. The `docs` branch needs to be pushed to origin separately as it contains the mdbook source and generated documentation files.
+The fix has been committed to the local `docs` branch (commit `fe3c862`). 
 
-**Note**: The `docs` branch is independent from the main code repository and requires separate handling for publishing the documentation fixes.
+### To Push the Documentation Fixes
+
+The `docs` branch needs to be pushed to origin to publish the emoji fixes to the live documentation site. This requires manual action as the docs branch is independent from the main code repository.
+
+**Option 1: Push from local repository**
+```bash
+git checkout docs
+git push origin docs
+```
+
+**Option 2: Push from GitHub CLI (if available)**
+```bash
+gh repo clone DK26/strict-path-rs
+cd strict-path-rs
+git fetch origin docs:docs
+git checkout docs
+git push origin docs
+```
+
+### Verification
+
+After pushing, the fixes will be visible in the live documentation at:
+https://dk26.github.io/strict-path-rs/
+
+Specifically check:
+- https://dk26.github.io/strict-path-rs/best_practices.html
+
+All emojis should display correctly: 📚 🌐 ⚙️ 📂 🤖 📦 🏢 and symbols: → — – ' ≠ ✅ ❌
+
+**Note**: The `docs` branch contains the mdbook source (`docs_src/`) and generated HTML files (`docs/`). It is kept separate from the main codebase to maintain a clean documentation deployment workflow.
