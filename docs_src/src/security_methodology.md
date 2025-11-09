@@ -160,7 +160,7 @@ Modern threats include AI agents processing untrusted paths from various sources
 
 We deliberately limit our public API surface to reduce the possibility of misuse:
 
-- **No leaky trait implementations**: No `AsRef<Path>`, `Deref<Target = Path>`, or implicit conversions that bypass validation
+- **No leaky trait implementations on secure path values**: `StrictPath`/`VirtualPath` do not implement `AsRef<Path>`, `Deref<Target = Path>`, or implicit conversions that bypass validation. Policy types (`PathBoundary`/`VirtualRoot`) may implement `AsRef<Path>`/interop helpers for ergonomics.
 - **Controlled constructors**: Only specific, well-audited entry points for creating secure path types
 - **Helper API restrictions**: New public functions require explicit maintainer approval to prevent API drift
 - **Dimension separation**: Strict and virtual paths have separate, non-interchangeable operations

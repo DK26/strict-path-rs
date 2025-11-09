@@ -201,12 +201,13 @@ use strict_path::PathBoundary;
 fn process_upload(
     data: &[u8]
 ) -> Result<ProcessedData, Box<dyn std::error::Error>> {
-    // Create temp directory with RAII cleanup
-    let temp_dir = PathBoundary::<()>::try_new_temp()?;
+    // Create temp directory with RAII cleanup (tempfile)
+    let tmp = tempfile::tempdir()?;
+    let temp_dir = PathBoundary::<()>::try_new(tmp.path())?;
     
     // Write input
     let input_file = temp_dir.strict_join("input.dat")?;
-    input_file.write_bytes(data)?;
+    input_file.write(data)?;
     
     // Process
     let output_file = temp_dir.strict_join("output.dat")?;
@@ -354,7 +355,7 @@ impl FileService {
     fn save_file(&self, name: &str, data: &[u8]) -> Result<FileRecord, Box<dyn std::error::Error>> {
         // Validate before using
         let file = self.boundary.strict_join(name)?;
-        file.write_bytes(data)?;
+        file.write(data)?;
         
         // Store relative path in DB
         Ok(FileRecord {

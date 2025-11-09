@@ -373,12 +373,13 @@ fn safe_extract_zip(
 fn process_upload(
     data: &amp;[u8]
 ) -&gt; Result&lt;ProcessedData, Box&lt;dyn std::error::Error&gt;&gt; {
-    // Create temp directory with RAII cleanup
-    let temp_dir = PathBoundary::&lt;()&gt;::try_new_temp()?;
+    // Create temp directory with RAII cleanup (tempfile)
+    let tmp = tempfile::tempdir()?;
+    let temp_dir = PathBoundary::&lt;()&gt;::try_new(tmp.path())?;
     
     // Write input
     let input_file = temp_dir.strict_join("input.dat")?;
-    input_file.write_bytes(data)?;
+    input_file.write(data)?;
     
     // Process
     let output_file = temp_dir.strict_join("output.dat")?;
@@ -518,7 +519,7 @@ impl FileService {
     fn save_file(&amp;self, name: &amp;str, data: &amp;[u8]) -&gt; Result&lt;FileRecord, Box&lt;dyn std::error::Error&gt;&gt; {
         // Validate before using
         let file = self.boundary.strict_join(name)?;
-        file.write_bytes(data)?;
+        file.write(data)?;
         
         // Store relative path in DB
         Ok(FileRecord {

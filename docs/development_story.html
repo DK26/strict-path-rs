@@ -274,7 +274,7 @@
 <ul>
 <li><strong>app-path</strong>: My own crate for easily referring to files near our executable, ensuring operations cannot escape our application directory</li>
 <li><strong>dirs</strong>: Cross-platform access to system directories</li>
-<li><strong>tempfile</strong>: Generate temporary directories with <code>PathBoundary::try_new_temp()</code></li>
+<li><strong>tempfile</strong>: Generate temporary directories and pass them to <code>PathBoundary::try_new(temp.path())</code></li>
 </ul>
 <h3 id="api-simplification"><a class="header" href="#api-simplification">API Simplification</a></h3>
 <p>I kept improving demo examples and API clarity. Eventually, I realized: <code>StrictPath</code> contains the boundary path within it, just as <code>VirtualRoot</code> contains its root path (which is a <code>StrictPath</code>).</p>

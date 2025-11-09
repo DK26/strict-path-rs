@@ -133,7 +133,7 @@ I wanted to explore additional features by integrating with popular crates:
 
 - **app-path**: My own crate for easily referring to files near our executable, ensuring operations cannot escape our application directory
 - **dirs**: Cross-platform access to system directories  
-- **tempfile**: Generate temporary directories with `PathBoundary::try_new_temp()`
+- **tempfile**: Generate temporary directories and pass them to `PathBoundary::try_new(temp.path())`
 
 ### API Simplification
 

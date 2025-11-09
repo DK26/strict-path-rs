@@ -326,7 +326,7 @@ for entry in archive.entries()? {
 <h3 id="22-minimal-api-surface-for-minimal-error-margin"><a class="header" href="#22-minimal-api-surface-for-minimal-error-margin">2.2 Minimal API Surface for Minimal Error Margin</a></h3>
 <p>We deliberately limit our public API surface to reduce the possibility of misuse:</p>
 <ul>
-<li><strong>No leaky trait implementations</strong>: No <code>AsRef&lt;Path&gt;</code>, <code>Deref&lt;Target = Path&gt;</code>, or implicit conversions that bypass validation</li>
+<li><strong>No leaky trait implementations on secure path values</strong>: <code>StrictPath</code>/<code>VirtualPath</code> do not implement <code>AsRef&lt;Path&gt;</code>, <code>Deref&lt;Target = Path&gt;</code>, or implicit conversions that bypass validation. Policy types (<code>PathBoundary</code>/<code>VirtualRoot</code>) may implement <code>AsRef&lt;Path&gt;</code>/interop helpers for ergonomics.</li>
 <li><strong>Controlled constructors</strong>: Only specific, well-audited entry points for creating secure path types</li>
 <li><strong>Helper API restrictions</strong>: New public functions require explicit maintainer approval to prevent API drift</li>
 <li><strong>Dimension separation</strong>: Strict and virtual paths have separate, non-interchangeable operations</li>

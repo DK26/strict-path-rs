@@ -2553,7 +2553,7 @@ for entry in archive.entries()? {
 <h3 id="22-minimal-api-surface-for-minimal-error-margin"><a class="header" href="#22-minimal-api-surface-for-minimal-error-margin">2.2 Minimal API Surface for Minimal Error Margin</a></h3>
 <p>We deliberately limit our public API surface to reduce the possibility of misuse:</p>
 <ul>
-<li><strong>No leaky trait implementations</strong>: No <code>AsRef&lt;Path&gt;</code>, <code>Deref&lt;Target = Path&gt;</code>, or implicit conversions that bypass validation</li>
+<li><strong>No leaky trait implementations on secure path values</strong>: <code>StrictPath</code>/<code>VirtualPath</code> do not implement <code>AsRef&lt;Path&gt;</code>, <code>Deref&lt;Target = Path&gt;</code>, or implicit conversions that bypass validation. Policy types (<code>PathBoundary</code>/<code>VirtualRoot</code>) may implement <code>AsRef&lt;Path&gt;</code>/interop helpers for ergonomics.</li>
 <li><strong>Controlled constructors</strong>: Only specific, well-audited entry points for creating secure path types</li>
 <li><strong>Helper API restrictions</strong>: New public functions require explicit maintainer approval to prevent API drift</li>
 <li><strong>Dimension separation</strong>: Strict and virtual paths have separate, non-interchangeable operations</li>
@@ -9345,7 +9345,220 @@ vpath.interop_path();
 <li><strong>Canonicalized vs Lexical</strong>: Choosing the right solution for your use case</li>
 </ul>
 <p>For in-depth design and security rationale, see Best Practices and Anti-Patterns. This section stays focused on ergonomics.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="builtin-io-operations--strict-path-provides-safe-io-helpers-that-maintain-boundary-security-while-eliminating-the-need-for-raw-stdfs-calls-on-leaked-paths---why-use-builtin-methods--security-all-operations-stay-within-validated-boundaries---ergonomics-no-need-to-call-interop_path-for-common-operations---correctness-type-checked-paths-guarantee-safety-at-compile-time---file-operations---reading-files--rust-use-strict_pathpathboundary--let-config_dir--pathboundarytry_newetcmyapp-let-config_file--config_dirstrict_joinconfigtoml---read-entire-file-as-string-let-contents--config_fileread_to_string---read-as-bytes-let-bytes--config_fileread----writing-files--rust-use-strict_pathvirtualroot--let-user_docs--virtualroottry_newformathomeuserdocuments-let-report--user_docsvirtual_joinreportssummarytxt---ensure-parent-directories-exist-reportcreate_parent_dir_all---write-string-content-reportwritemonthly-summarynntotal-42---write-bytes-reportwrite_bytesbbinary-data----file-handles--for-streaming-or-more-control-use-file-handles--rust-use-stdioread-write---create-or-truncate-file-get-writable-handle-let-mut-file--reportcreate_file-filewrite_allbline-1n-filewrite_allbline-2n---open-for-reading-let-mut-file--reportopen_file-let-mut-contents--stringnew-fileread_to_stringmut-contents----directory-operations---creating-directories--rust--create-single-directory-parent-must-exist-let-subdir--config_dirstrict_joinplugins-subdircreate_dir---create-all-parent-directories-if-missing-let-nested--config_dirstrict_joindatacachetemp-nestedcreate_dir_all---non-recursive-variant-virtualpath-let-vdir--user_docsvirtual_joinarchive-vdircreate_dir_non_recursive--fails-if-parent-missing----listing-directory-contents--rust--discovery-enumerate-entries-for-entry-in-config_dirread_dir------let-entry--entry-----let-name--entryfile_name-----------re-validate-discovered-path-before-use-----let-validated--config_dirstrict_joinname-----printlnfound--validatedstrictpath_display-----removing-directories--rust--remove-empty-directory-subdirremove_dir---remove-directory-and-all-contents-dangerous-nestedremove_dir_all----metadata-operations---checking-existence-and-type--rust--check-if-path-exists-if-config_fileexists------printlnconfig-file-found----check-type-if-config_fileis_file------printlnits-a-file---if-config_diris_dir------printlnits-a-directory-----getting-metadata--rust--get-full-metadata-let-metadata--config_filemetadata--printlnsize--bytes-metadatalen-printlnread-only--metadatapermissionsreadonly-printlnmodified--metadatamodified----symlink-metadata-dont-follow-links--rust--get-metadata-without-following-symlinks-let-link_meta--config_filesymlink_metadata--if-link_metais_symlink------printlnthis-is-a-symbolic-link-----copy-rename-and-link-operations---copying-files--rust-let-source--config_dirstrict_jointemplateconf-let-dest--config_dirstrict_joinactiveconf---copy-file-returns-bytes-copied-let-bytes--sourcestrict_copydest-printlncopied--bytes-bytes----renamingmoving--rust-let-old_name--config_dirstrict_joindrafttxt-let-new_name--config_dirstrict_joinfinaltxt---moverename-within-same-boundary-old_namestrict_renamenew_name----creating-links--rust--symbolic-link-let-target--config_dirstrict_joincurrent-let-link--config_dirstrict_joinlink-to-current-targetstrict_symlinklink---hard-link-targetstrict_hard_linklink----builtin-vs-stdfs-comparison---operation---strict-path-----------stdfs--------------------------------------------why-prefer-builtin--------------------------------------------------------------------------------------------------------------------read-file---read_to_string----fsread_to_stringpathinterop_path-----------shorter-stays-typed---write-file--writecontent----fswritepathinterop_path-content---------no-interop-needed------copy-file---strict_copydest--fscopysrcinterop_path-dstinterop_path--both-paths-validated---metadata----metadata----------fsmetadatapathinterop_path-----------------cleaner-same-result---create-dir--create_dir_all----fscreate_dir_allpathinterop_path-----------type-safe-path----------when-to-use-interop_path--only-for-unavoidable-third-party-crates-that-demand-asrefpath--rust---good-third-party-crate-requires-asrefpath-let-image--config_dirstrict_joinlogopng-let-img--imageopenimageinterop_path--no-choice----bad-using-interop-when-builtin-exists-stdfsread_to_stringimageinterop_path--use-read_to_string-instead----good-use-builtin-let-contents--imageread_to_string----virtualpath-io-operations--all-methods-work-on-virtualpath-too-maintaining-virtual-display-semantics--rust-let-user_id--alicenlet-user_root--virtualroottry_newformatvarlibappusersuser_id-let-doc--user_rootvirtual_joindocumentsreadmetxt---all-io-operations-available-doccreate_parent_dir_all-docwritewelcome-to-your-virtual-filesystem---display-shows-virtual-path-printlnwrote-to--docvirtualpath_display--documentsreadmetxt---but-io-happens-at-real-system-location-printlnsystem-location--docas_unvirtualstrictpath_display----performance-notes--no-overhead-builtin-methods-call-stdfs-internally-with-zero-abstraction-cost---same-syscalls-operations-compile-to-identical-machine-code-as-direct-stdfs-usage---validation-cost-only-paid-once-during-strict_joinvirtual_join-not-on-every-io-operation---summary----use-builtin-methods-for-all-common-io-operations---reserve-interop_path-for-third-party-crates---both-strictpath-and-virtualpath-support-the-full-io-api---no-performance-penalty-vs-raw-stdfs---type-safety-and-boundary-security-maintained-automatically"><a class="header" href="#builtin-io-operations--strict-path-provides-safe-io-helpers-that-maintain-boundary-security-while-eliminating-the-need-for-raw-stdfs-calls-on-leaked-paths---why-use-builtin-methods--security-all-operations-stay-within-validated-boundaries---ergonomics-no-need-to-call-interop_path-for-common-operations---correctness-type-checked-paths-guarantee-safety-at-compile-time---file-operations---reading-files--rust-use-strict_pathpathboundary--let-config_dir--pathboundarytry_newetcmyapp-let-config_file--config_dirstrict_joinconfigtoml---read-entire-file-as-string-let-contents--config_fileread_to_string---read-as-bytes-let-bytes--config_fileread----writing-files--rust-use-strict_pathvirtualroot--let-user_docs--virtualroottry_newformathomeuserdocuments-let-report--user_docsvirtual_joinreportssummarytxt---ensure-parent-directories-exist-reportcreate_parent_dir_all---write-string-content-reportwritemonthly-summarynntotal-42---write-bytes-reportwrite_bytesbbinary-data----file-handles--for-streaming-or-more-control-use-file-handles--rust-use-stdioread-write---create-or-truncate-file-get-writable-handle-let-mut-file--reportcreate_file-filewrite_allbline-1n-filewrite_allbline-2n---open-for-reading-let-mut-file--reportopen_file-let-mut-contents--stringnew-fileread_to_stringmut-contents----directory-operations---creating-directories--rust--create-single-directory-parent-must-exist-let-subdir--config_dirstrict_joinplugins-subdircreate_dir---create-all-parent-directories-if-missing-let-nested--config_dirstrict_joindatacachetemp-nestedcreate_dir_all---non-recursive-variant-virtualpath-let-vdir--user_docsvirtual_joinarchive-vdircreate_dir_non_recursive--fails-if-parent-missing----listing-directory-contents--rust--discovery-enumerate-entries-for-entry-in-config_dirread_dir------let-entry--entry-----let-name--entryfile_name-----------re-validate-discovered-path-before-use-----let-validated--config_dirstrict_joinname-----printlnfound--validatedstrictpath_display-----removing-directories--rust--remove-empty-directory-subdirremove_dir---remove-directory-and-all-contents-dangerous-nestedremove_dir_all----metadata-operations---checking-existence-and-type--rust--check-if-path-exists-if-config_fileexists------printlnconfig-file-found----check-type-if-config_fileis_file------printlnits-a-file---if-config_diris_dir------printlnits-a-directory-----getting-metadata--rust--get-full-metadata-let-metadata--config_filemetadata--printlnsize--bytes-metadatalen-printlnread-only--metadatapermissionsreadonly-printlnmodified--metadatamodified----symlink-metadata-dont-follow-links--rust--get-metadata-without-following-symlinks-let-link_meta--config_filesymlink_metadata--if-link_metais_symlink------printlnthis-is-a-symbolic-link-----copy-rename-and-link-operations---copying-files--rust-let-source--config_dirstrict_jointemplateconf-let-dest--config_dirstrict_joinactiveconf---copy-file-returns-bytes-copied-let-bytes--sourcestrict_copydest-printlncopied--bytes-bytes----renamingmoving--rust-let-old_name--config_dirstrict_joindrafttxt-let-new_name--config_dirstrict_joinfinaltxt---moverename-within-same-boundary-old_namestrict_renamenew_name----creating-links--rust--symbolic-link-let-target--config_dirstrict_joincurrent-let-link--config_dirstrict_joinlink-to-current-targetstrict_symlinklink---hard-link-targetstrict_hard_linklink----builtin-vs-stdfs-comparison---operation---strict-path-----------stdfs--------------------------------------------why-prefer-builtin--------------------------------------------------------------------------------------------------------------------read-file---read_to_string----fsread_to_stringpathinterop_path-----------shorter-stays-typed---write-file--writecontent----fswritepathinterop_path-content---------no-interop-needed------copy-file---strict_copydest--fscopysrcinterop_path-dstinterop_path--both-paths-validated---metadata----metadata----------fsmetadatapathinterop_path-----------------cleaner-same-result---create-dir--create_dir_all----fscreate_dir_allpathinterop_path-----------type-safe-path----------when-to-use-interop_path--only-for-unavoidable-third-party-crates-that-demand-asrefpath--rust---good-third-party-crate-requires-asrefpath-let-image--config_dirstrict_joinlogopng-let-img--imageopenimageinterop_path--no-choice----bad-using-interop-when-builtin-exists-stdfsread_to_stringimageinterop_path--use-read_to_string-instead----good-use-builtin-let-contents--imageread_to_string----virtualpath-io-operations--all-methods-work-on-virtualpath-too-maintaining-virtual-display-semantics--rust-let-user_id--alicenlet-user_root--virtualroottry_newformatvarlibappusersuser_id-let-doc--user_rootvirtual_joindocumentsreadmetxt---all-io-operations-available-doccreate_parent_dir_all-docwritewelcome-to-your-virtual-filesystem---display-shows-virtual-path-printlnwrote-to--docvirtualpath_display--documentsreadmetxt---but-io-happens-at-real-system-location-printlnsystem-location--docas_unvirtualstrictpath_display----performance-notes--no-overhead-builtin-methods-call-stdfs-internally-with-zero-abstraction-cost---same-syscalls-operations-compile-to-identical-machine-code-as-direct-stdfs-usage---validation-cost-only-paid-once-during-strict_joinvirtual_join-not-on-every-io-operation---summary----use-builtin-methods-for-all-common-io-operations---reserve-interop_path-for-third-party-crates---both-strictpath-and-virtualpath-support-the-full-io-api---no-performance-penalty-vs-raw-stdfs---type-safety-and-boundary-security-maintained-automatically">Builtin I/O Operations`strict-path` provides safe I/O helpers that maintain boundary security while eliminating the need for raw `std::fs` calls on leaked paths.## Why Use Builtin Methods?**Security**: All operations stay within validated boundaries  **Ergonomics**: No need to call `.interop_path()` for common operations  **Correctness**: Type-checked paths guarantee safety at compile time## File Operations### Reading Files```rustuse strict_path::PathBoundary;let config_dir = PathBoundary::try_new("/etc/myapp")?;let config_file = config_dir.strict_join("config.toml")?;// Read entire file as stringlet contents = config_file.read_to_string()?;// Read as byteslet bytes = config_file.read()?;```### Writing Files```rustuse strict_path::VirtualRoot;let user_docs = VirtualRoot::try_new(format!("/home/{user}/documents"))?;let report = user_docs.virtual_join("reports/summary.txt")?;// Ensure parent directories existreport.create_parent_dir_all()?;// Write string contentreport.write("Monthly Summary\n\nTotal: 42")?;// Write bytesreport.write_bytes(b"Binary data")?;```### File HandlesFor streaming or more control, use file handles:```rustuse std::io::{Read, Write};// Create or truncate file, get writable handlelet mut file = report.create_file()?;file.write_all(b"Line 1\n")?;file.write_all(b"Line 2\n")?;// Open for readinglet mut file = report.open_file()?;let mut contents = String::new();file.read_to_string(&amp;mut contents)?;```## Directory Operations### Creating Directories```rust// Create single directory (parent must exist)let subdir = config_dir.strict_join("plugins")?;subdir.create_dir()?;// Create all parent directories if missinglet nested = config_dir.strict_join("data/cache/temp")?;nested.create_dir_all()?;// Non-recursive variant (VirtualPath)let vdir = user_docs.virtual_join("archive")?;vdir.create_dir_non_recursive()?; // Fails if parent missing```### Listing Directory Contents```rust// Discovery: enumerate entriesfor entry in config_dir.read_dir()? {    let entry = entry?;    let name = entry.file_name();        // Re-validate discovered path before use    let validated = config_dir.strict_join(&amp;name)?;    println!("Found: {}", validated.strictpath_display());}```### Removing Directories```rust// Remove empty directorysubdir.remove_dir()?;// Remove directory and all contents (dangerous!)nested.remove_dir_all()?;```## Metadata Operations### Checking Existence and Type```rust// Check if path existsif config_file.exists() {    println!("Config file found");}// Check typeif config_file.is_file() {    println!("It's a file");}if config_dir.is_dir() {    println!("It's a directory");}```### Getting Metadata```rust// Get full metadatalet metadata = config_file.metadata()?;println!("Size: {} bytes", metadata.len());println!("Read-only: {}", metadata.permissions().readonly());println!("Modified: {:?}", metadata.modified()?);```### Symlink Metadata (Don't Follow Links)```rust// Get metadata without following symlinkslet link_meta = config_file.symlink_metadata()?;if link_meta.is_symlink() {    println!("This is a symbolic link");}```## Copy, Rename, and Link Operations### Copying Files```rustlet source = config_dir.strict_join("template.conf")?;let dest = config_dir.strict_join("active.conf")?;// Copy file, returns bytes copiedlet bytes = source.strict_copy(&amp;dest)?;println!("Copied {} bytes", bytes);```### Renaming/Moving```rustlet old_name = config_dir.strict_join("draft.txt")?;let new_name = config_dir.strict_join("final.txt")?;// Move/rename within same boundaryold_name.strict_rename(&amp;new_name)?;```### Creating Links```rust// Symbolic linklet target = config_dir.strict_join("current")?;let link = config_dir.strict_join("link-to-current")?;target.strict_symlink(&amp;link)?;// Hard linktarget.strict_hard_link(&amp;link)?;```## Builtin vs std::fs Comparison| Operation  | `strict-path`          | `std::fs`                                           | Why Prefer Builtin?  || ---------- | ---------------------- | --------------------------------------------------- | -------------------- || Read file  | `.read_to_string()?`   | `fs::read_to_string(path.interop_path())?`          | Shorter, stays typed || Write file | `.write("content")?`   | `fs::write(path.interop_path(), "content")?`        | No interop needed    || Copy file  | `.strict_copy(&amp;dest)?` | `fs::copy(src.interop_path(), dst.interop_path())?` | Both paths validated || Metadata   | `.metadata()?`         | `fs::metadata(path.interop_path())?`                | Cleaner, same result || Create dir | `.create_dir_all()?`   | `fs::create_dir_all(path.interop_path())?`          | Type-safe path       |## When to Use interop_path()**Only for unavoidable third-party crates** that demand `AsRef&lt;Path&gt;`:```rust// ✅ GOOD: Third-party crate requires AsRef&lt;Path&gt;let image = config_dir.strict_join("logo.png")?;let img = image::open(image.interop_path())?; // No choice// ❌ BAD: Using interop when builtin existsstd::fs::read_to_string(image.interop_path())?; // Use .read_to_string() instead// ✅ GOOD: Use builtinlet contents = image.read_to_string()?;```## VirtualPath I/O OperationsAll methods work on `VirtualPath` too, maintaining virtual display semantics:```rustlet user_id = "alice";\nlet user_root = VirtualRoot::try_new(format!("/var/lib/app/users/{user_id}"))?;let doc = user_root.virtual_join("documents/readme.txt")?;// All I/O operations availabledoc.create_parent_dir_all()?;doc.write("Welcome to your virtual filesystem!")?;// Display shows virtual pathprintln!("Wrote to: {}", doc.virtualpath_display()); // "/documents/readme.txt"// But I/O happens at real system locationprintln!("System location: {}", doc.as_unvirtual().strictpath_display());```## Performance Notes**No overhead**: Builtin methods call `std::fs` internally with zero abstraction cost.  **Same syscalls**: Operations compile to identical machine code as direct `std::fs` usage.  **Validation cost**: Only paid once during `strict_join`/`virtual_join`, not on every I/O operation.## Summary- **Use builtin methods for all common I/O operations**- **Reserve `.interop_path()` for third-party crates**- **Both `StrictPath` and `VirtualPath` support the full I/O API**- **No performance penalty vs raw `std::fs`**- **Type safety and boundary security maintained automatically**</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="builtin-io-operations"><a class="header" href="#builtin-io-operations">Builtin I/O Operations</a></h1>
+<p><code>strict-path</code> provides safe I/O helpers that maintain boundary security while eliminating the need for raw <code>std::fs</code> calls on leaked paths.</p>
+<h2 id="why-use-builtin-methods"><a class="header" href="#why-use-builtin-methods">Why Use Builtin Methods?</a></h2>
+<p><strong>Security</strong>: All operations stay within validated boundaries<br />
+<strong>Ergonomics</strong>: No need to call <code>.interop_path()</code> for common operations<br />
+<strong>Correctness</strong>: Type-checked paths guarantee safety at compile time</p>
+<h2 id="file-operations"><a class="header" href="#file-operations">File Operations</a></h2>
+<h3 id="reading-files"><a class="header" href="#reading-files">Reading Files</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+let config_dir = PathBoundary::try_new("/etc/myapp")?;
+let config_file = config_dir.strict_join("config.toml")?;
+
+// Read entire file as string
+let contents = config_file.read_to_string()?;
+
+// Read as bytes
+let bytes = config_file.read()?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="writing-files"><a class="header" href="#writing-files">Writing Files</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualRoot;
+
+let user_docs = VirtualRoot::try_new(format!("/home/{user}/documents"))?;
+let report = user_docs.virtual_join("reports/summary.txt")?;
+
+// Ensure parent directories exist
+report.create_parent_dir_all()?;
+
+// Write string content
+report.write("Monthly Summary\n\nTotal: 42")?;
+
+// Write bytes
+report.write(b"Binary data")?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="file-handles"><a class="header" href="#file-handles">File Handles</a></h3>
+<p>For streaming or more control, use file handles:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::io::{Read, Write};
+
+// Create or truncate file, get writable handle
+let mut file = report.create_file()?;
+file.write_all(b"Line 1\n")?;
+file.write_all(b"Line 2\n")?;
+
+// Open for reading
+let mut file = report.open_file()?;
+let mut contents = String::new();
+file.read_to_string(&amp;mut contents)?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="directory-operations"><a class="header" href="#directory-operations">Directory Operations</a></h2>
+<h3 id="creating-directories"><a class="header" href="#creating-directories">Creating Directories</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Create single directory (parent must exist)
+let subdir = config_dir.strict_join("plugins")?;
+subdir.create_dir()?;
+
+// Create all parent directories if missing
+let nested = config_dir.strict_join("data/cache/temp")?;
+nested.create_dir_all()?;
+
+// Non-recursive create (VirtualPath)
+let vdir = user_docs.virtual_join("archive")?;
+vdir.create_dir()?; // Fails if parent missing; use create_dir_all for recursive
+<span class="boring">}</span></code></pre></pre>
+<h3 id="listing-directory-contents"><a class="header" href="#listing-directory-contents">Listing Directory Contents</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Discovery: enumerate entries
+for entry in config_dir.read_dir()? {
+    let entry = entry?;
+    let name = entry.file_name();
+    
+    // Re-validate discovered path before use
+    let validated = config_dir.strict_join(&amp;name)?;
+    println!("Found: {}", validated.strictpath_display());
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="removing-directories"><a class="header" href="#removing-directories">Removing Directories</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Remove empty directory
+subdir.remove_dir()?;
+
+// Remove directory and all contents (dangerous!)
+nested.remove_dir_all()?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="metadata-operations"><a class="header" href="#metadata-operations">Metadata Operations</a></h2>
+<h3 id="checking-existence-and-type"><a class="header" href="#checking-existence-and-type">Checking Existence and Type</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Check if path exists
+if config_file.exists() {
+    println!("Config file found");
+}
+
+// Check type
+if config_file.is_file() {
+    println!("It's a file");
+}
+
+if config_dir.is_dir() {
+    println!("It's a directory");
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="getting-metadata"><a class="header" href="#getting-metadata">Getting Metadata</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Get full metadata
+let metadata = config_file.metadata()?;
+
+println!("Size: {} bytes", metadata.len());
+println!("Read-only: {}", metadata.permissions().readonly());
+println!("Modified: {:?}", metadata.modified()?);
+<span class="boring">}</span></code></pre></pre>
+<h3 id="symlink-metadata-dont-follow-links"><a class="header" href="#symlink-metadata-dont-follow-links">Symlink Metadata (Don't Follow Links)</a></h3>
+<p><code>strict-path</code> exposes a builtin for getting metadata without following symlinks:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Get metadata without following symlinks
+let link_meta = config_file.symlink_metadata()?;
+
+if link_meta.file_type().is_symlink() {
+    println!("This is a symbolic link");
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="copy-rename-and-link-operations"><a class="header" href="#copy-rename-and-link-operations">Copy, Rename, and Link Operations</a></h2>
+<h3 id="copying-files"><a class="header" href="#copying-files">Copying Files</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let source = config_dir.strict_join("template.conf")?;
+let dest = config_dir.strict_join("active.conf")?;
+
+// Copy file, returns bytes copied
+let bytes = source.strict_copy(&amp;dest)?;
+println!("Copied {} bytes", bytes);
+<span class="boring">}</span></code></pre></pre>
+<h3 id="renamingmoving"><a class="header" href="#renamingmoving">Renaming/Moving</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let old_name = config_dir.strict_join("draft.txt")?;
+let new_name = config_dir.strict_join("final.txt")?;
+
+// Move/rename within same boundary
+old_name.strict_rename(&amp;new_name)?;
+<span class="boring">}</span></code></pre></pre>
+<h3 id="creating-links"><a class="header" href="#creating-links">Creating Links</a></h3>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Symbolic link
+let target = config_dir.strict_join("current")?;
+let link = config_dir.strict_join("link-to-current")?;
+target.strict_symlink(&amp;link)?;
+
+// Hard link
+target.strict_hard_link(&amp;link)?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="builtin-vs-stdfs-comparison"><a class="header" href="#builtin-vs-stdfs-comparison">Builtin vs std::fs Comparison</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Operation</th><th><code>strict-path</code></th><th><code>std::fs</code></th><th>Why Prefer Builtin?</th></tr></thead><tbody>
+<tr><td>Read file</td><td><code>.read_to_string()?</code></td><td><code>fs::read_to_string(path.interop_path())?</code></td><td>Shorter, stays typed</td></tr>
+<tr><td>Write file</td><td><code>.write("content")?</code></td><td><code>fs::write(path.interop_path(), "content")?</code></td><td>No interop needed</td></tr>
+<tr><td>Copy file</td><td><code>.strict_copy(&amp;dest)?</code></td><td><code>fs::copy(src.interop_path(), dst.interop_path())?</code></td><td>Both paths validated</td></tr>
+<tr><td>Metadata</td><td><code>.metadata()?</code></td><td><code>fs::metadata(path.interop_path())?</code></td><td>Cleaner, same result</td></tr>
+<tr><td>Create dir</td><td><code>.create_dir_all()?</code></td><td><code>fs::create_dir_all(path.interop_path())?</code></td><td>Type-safe path</td></tr>
+</tbody></table>
+</div>
+<h2 id="when-to-use-interop_path"><a class="header" href="#when-to-use-interop_path">When to Use interop_path()</a></h2>
+<p><strong>Only for unavoidable third-party crates</strong> that demand <code>AsRef&lt;Path&gt;</code>:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ GOOD: Third-party crate requires AsRef&lt;Path&gt;
+let image = config_dir.strict_join("logo.png")?;
+let img = image::open(image.interop_path())?; // No choice
+
+// ❌ BAD: Using interop when builtin exists
+std::fs::read_to_string(image.interop_path())?; // Use .read_to_string() instead
+
+// ✅ GOOD: Use builtin
+let contents = image.read_to_string()?;
+<span class="boring">}</span></code></pre></pre>
+<h2 id="virtualpath-io-operations"><a class="header" href="#virtualpath-io-operations">VirtualPath I/O Operations</a></h2>
+<p>All methods work on <code>VirtualPath</code> too, maintaining virtual display semantics:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let user_id = "alice";\nlet user_root = VirtualRoot::try_new(format!("/var/lib/app/users/{user_id}"))?;
+let doc = user_root.virtual_join("documents/readme.txt")?;
+
+// All I/O operations available
+doc.create_parent_dir_all()?;
+doc.write("Welcome to your virtual filesystem!")?;
+
+// Display shows virtual path
+println!("Wrote to: {}", doc.virtualpath_display()); // "/documents/readme.txt"
+
+// But I/O happens at real system location
+println!("System location: {}", doc.as_unvirtual().strictpath_display());
+<span class="boring">}</span></code></pre></pre>
+<h2 id="performance-notes"><a class="header" href="#performance-notes">Performance Notes</a></h2>
+<p><strong>No overhead</strong>: Builtin methods call <code>std::fs</code> internally with zero abstraction cost.<br />
+<strong>Same syscalls</strong>: Operations compile to identical machine code as direct <code>std::fs</code> usage.<br />
+<strong>Validation cost</strong>: Only paid once during <code>strict_join</code>/<code>virtual_join</code>, not on every I/O operation.</p>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<ul>
+<li><strong>Use builtin methods for all common I/O operations</strong></li>
+<li><strong>Reserve <code>.interop_path()</code> for third-party crates</strong></li>
+<li><strong>Both <code>StrictPath</code> and <code>VirtualPath</code> support the full I/O API</strong></li>
+<li><strong>No performance penalty vs raw <code>std::fs</code></strong></li>
+<li><strong>Type safety and boundary security maintained automatically</strong></li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="generic-functions-and-marker-patterns"><a class="header" href="#generic-functions-and-marker-patterns">Generic Functions and Marker Patterns</a></h1>
 <p>Learn how to write reusable functions that work with any marker type using Rust's generics.</p>
 <h2 id="the-m-pattern"><a class="header" href="#the-m-pattern">The <code>&lt;M&gt;</code> Pattern</a></h2>
@@ -9656,7 +9869,7 @@ fn file_size&lt;M&gt;(path: &amp;StrictPath&lt;M&gt;) -&gt; std::io::Result&lt;u
 // ✅ Specific domain logic
 fn charge_storage_fees(path: &amp;StrictPath&lt;BillingData&gt;) -&gt; Result&lt;Amount&gt; { ... }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
 <ul>
 <li><strong><code>&lt;M&gt;</code> means "works with any marker"</strong></li>
 <li><strong>Use generics for reusable utilities</strong></li>
@@ -9857,12 +10070,13 @@ fn safe_extract_zip(
 fn process_upload(
     data: &amp;[u8]
 ) -&gt; Result&lt;ProcessedData, Box&lt;dyn std::error::Error&gt;&gt; {
-    // Create temp directory with RAII cleanup
-    let temp_dir = PathBoundary::&lt;()&gt;::try_new_temp()?;
+    // Create temp directory with RAII cleanup (tempfile)
+    let tmp = tempfile::tempdir()?;
+    let temp_dir = PathBoundary::&lt;()&gt;::try_new(tmp.path())?;
     
     // Write input
     let input_file = temp_dir.strict_join("input.dat")?;
-    input_file.write_bytes(data)?;
+    input_file.write(data)?;
     
     // Process
     let output_file = temp_dir.strict_join("output.dat")?;
@@ -10002,7 +10216,7 @@ impl FileService {
     fn save_file(&amp;self, name: &amp;str, data: &amp;[u8]) -&gt; Result&lt;FileRecord, Box&lt;dyn std::error::Error&gt;&gt; {
         // Validate before using
         let file = self.boundary.strict_join(name)?;
-        file.write_bytes(data)?;
+        file.write(data)?;
         
         // Store relative path in DB
         Ok(FileRecord {
@@ -10108,7 +10322,7 @@ match file.read_to_string() {
     Err(e) =&gt; return Err(e.into()),
 }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
+<h2 id="summary-2"><a class="header" href="#summary-2">Summary</a></h2>
 <ul>
 <li><strong>Always validate user input through <code>strict_join</code>/<code>virtual_join</code></strong></li>
 <li><strong>Create boundaries once, reuse for multiple paths</strong></li>
@@ -10825,7 +11039,7 @@ let safe_user_file = safe_dir.strict_join("user_file.txt")?; // Returns StrictPa
 <ul>
 <li><strong>app-path</strong>: My own crate for easily referring to files near our executable, ensuring operations cannot escape our application directory</li>
 <li><strong>dirs</strong>: Cross-platform access to system directories</li>
-<li><strong>tempfile</strong>: Generate temporary directories with <code>PathBoundary::try_new_temp()</code></li>
+<li><strong>tempfile</strong>: Generate temporary directories and pass them to <code>PathBoundary::try_new(temp.path())</code></li>
 </ul>
 <h3 id="api-simplification"><a class="header" href="#api-simplification">API Simplification</a></h3>
 <p>I kept improving demo examples and API clarity. Eventually, I realized: <code>StrictPath</code> contains the boundary path within it, just as <code>VirtualRoot</code> contains its root path (which is a <code>StrictPath</code>).</p>
