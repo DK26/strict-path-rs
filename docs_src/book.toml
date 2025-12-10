@@ -1,7 +1,6 @@
 [book]
 authors = ["David Krasnitsky"]
 language = "en"
-multilingual = false
 src = "src"
 title = "The Complete StrictPath Guide"
 description = "Comprehensive guide to strict-path: Type-safe path boundaries preventing directory traversal attacks"
