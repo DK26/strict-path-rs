@@ -28,9 +28,11 @@ use std::sync::Arc;
 /// # use strict_path::{PathBoundary, Result};
 /// # fn main() -> Result<()> {
 /// let boundary = PathBoundary::<()>::try_new_create("./sandbox")?;
+/// // Untrusted input from request/CLI/config/etc.
+/// let user_input = "sub/file.txt";
 /// // Use the public API that exercises the same validation pipeline
 /// // as this internal helper.
-/// let file = boundary.strict_join("sub/file.txt")?;
+/// let file = boundary.strict_join(user_input)?;
 /// assert!(file.interop_path().to_string_lossy().contains("sandbox"));
 /// # Ok(())
 /// # }
@@ -67,7 +69,9 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
 /// # use strict_path::PathBoundary;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let boundary = PathBoundary::<()>::try_new_create("./data")?;
-/// let file = boundary.strict_join("logs/app.log")?;
+/// // Untrusted input from request/CLI/config/etc.
+/// let requested_file = "logs/app.log";
+/// let file = boundary.strict_join(requested_file)?;
 /// println!("{}", file.strictpath_display());
 /// # Ok(())
 /// # }

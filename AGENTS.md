@@ -7,16 +7,40 @@ Operational guide for AI assistants and automation working in this repository.
 **Before making ANY suggestions or implementations:**
 
 1. **Check MCP Memory Server** - Read user preferences, frustrations, and project context stored in memory
-2. **Read `LLM_API_REFERENCE.md`** - Understand existing API design, patterns, and anti-patterns
-3. **Read relevant source files** - Study how existing features are implemented
-4. **Read issue discussion** - Understand the problem context and any prior discussions
+2. **Read relevant source files** - Study how existing features are implemented
+3. **Read issue discussion** - Understand the problem context and any prior discussions
+4. **CHECK FOR EXISTING FUNCTIONALITY** - Before implementing anything, verify it doesn't already exist in the codebase
 
 **NEVER propose designs without understanding:**
 - How the existing codebase works
 - What patterns are already established
 - What the actual requirements are
+- **What functionality already exists** - avoid redundant implementations
 
 **Failure to read documentation first wastes everyone's time and produces incorrect designs.**
+
+## CRITICAL: CHECK FOR EXISTING FUNCTIONALITY BEFORE IMPLEMENTING
+
+**When asked to implement or add functionality, you MUST:**
+
+1. **SEARCH the codebase first** - Use `grep_search` or `semantic_search` to find if the feature already exists
+2. **READ the source files** - Check module implementations and rustdoc comments for existing methods
+3. **CHECK the type definitions** - Look in relevant modules for similar implementations
+4. **VERIFY it doesn't exist** - Only after confirming absence should you propose implementation
+
+**Common mistakes that waste time:**
+- Implementing a method that already exists with a different name
+- Adding functionality that's already provided by a different API
+- Creating helpers that duplicate existing methods
+- Not checking if a feature is already implemented but just needs documentation
+
+**Before writing ANY new code, ask yourself:**
+- Does this functionality already exist somewhere?
+- Is there a similar method I should check first?
+- Have I searched the codebase for related implementations?
+- Did I check the API reference documentation?
+
+**The rule:** SEARCH FIRST, IMPLEMENT SECOND. Always.
 
 ## CRITICAL: UNDERSTAND BEFORE CHANGING
 
@@ -50,7 +74,7 @@ Operational guide for AI assistants and automation working in this repository.
 ## Project Overview
 
 - Purpose: Prevent directory traversal with safe path boundaries and safe symlinks.
-- Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError` (see LLM_API_REFERENCE.md).
+- Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError`.
 - Security model: "Restrict every external path." Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
 - Foundation: Built on `soft-canonicalize` for resolution; canonicalization handles Windows 8.3 short names transparently.
 
@@ -137,9 +161,12 @@ let boundary = strict_path.change_marker::<NewMarker>().try_into_boundary()?;
 // (Marker is already preserved; change_marker() does nothing useful here)
 ```
 
-## Anti‑Patterns (Tell‑offs)safe path boundaries and safe symlinks.
-- Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError` (see LLM_API_REFERENCE.md).
-- Security model: “Restrict every external path.” Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
+## Anti‑Patterns (Tell‑offs)
+
+Quick reminder of core principles:
+- Purpose: Prevent directory traversal with safe path boundaries and safe symlinks.
+- Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError`.
+- Security model: "Restrict every external path." Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
 - Foundation: Built on `soft-canonicalize` for resolution; Windows 8.3 short‑name handling is considered a security surface.
 
 Do not implement leaky trait impls for secure types:
@@ -165,7 +192,7 @@ Do not implement leaky trait impls for secure types:
   - Set up once: `git worktree add .docs docs` (or `git worktree add -B docs .docs origin/docs` if remote only).
   - Read/edit: `.docs/docs_src/src/*.md` files.
   - Preview: `cd .docs/docs_src && mdbook serve -o`.
-- Docs: `README.md`, `LLM_API_REFERENCE.md`.
+- Docs: `README.md`, `LLM_API_REFERENCE.md` (for crate users), `LLM_USER.md` (for crate users).
 
 ## Benchmarks Structure (Workspace-Level)
 

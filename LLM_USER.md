@@ -151,24 +151,25 @@ Use these when writing or generating code. Names make the dimension explicit.
   - Conversions: `into_strictpath()` (dir must exist)
   - Display & interop: `strictpath_display()`, `interop_path()`
   - I/O at root: `read_dir()`, `remove_dir()`, `remove_dir_all()`, `metadata()`
-  - Links: `strict_symlink(&StrictPath<T>)`, `strict_hard_link(&StrictPath<T>)`
+  - Links: `strict_symlink<P: AsRef<Path>>(link_path)`, `strict_hard_link<P: AsRef<Path>>(link_path)`
 
 - StrictPath<T> (validated system path)
   - Sugar roots: `with_boundary(path)`, `with_boundary_create(path)`
   - Join/mutate: `strict_join(..)`, `strictpath_parent()`, `strictpath_with_file_name(..)`, `strictpath_with_extension(..)`
   - Display & interop: `strictpath_display()`, `interop_path()`
   - Conversions: `try_into_boundary(_create)`, `virtualize()` [feature: virtual-path], `unstrict()` (escape hatch)
-  - I/O: `exists()`, `is_file()`, `is_dir()`, `metadata()`, `read_dir()`
+- I/O: `exists()`, `is_file()`, `is_dir()`, `metadata()`, `read_dir()`
     - File ops: `read()`, `read_to_string()`, `write(..)`, `create_file()`, `open_file()`
     - Dir ops: `create_dir()`, `create_dir_all()`, `create_parent_dir()`, `create_parent_dir_all()`, `remove_file()`, `remove_dir()`, `remove_dir_all()`
-  - Copy/move/links: `strict_copy(..)`, `strict_rename(..)`, `strict_symlink(&Self)`, `strict_hard_link(&Self)`
+    - Symlink-safe metadata: `symlink_metadata()` (does not follow symlinks)
+  - Copy/move/links: `strict_copy(..)`, `strict_rename(..)`, `strict_symlink<P: AsRef<Path>>(link_path)`, `strict_hard_link<P: AsRef<Path>>(link_path)`
 
 - VirtualRoot<T> (policy root; virtual dimension) [feature: virtual-path]
   - Constructors: `try_new(path)`, `try_new_create(path)`
   - Validation: `virtual_join(input) -> Result<VirtualPath<T>>`
   - Conversions: `into_virtualpath()` (dir must exist), `as_unvirtual() -> &PathBoundary<T>`, `unvirtual() -> PathBoundary<T>`
   - Display & interop: `interop_path()`, root I/O: `read_dir()`, `remove_dir()`, `remove_dir_all()`, `metadata()`
-  - Links: `virtual_symlink(&VirtualPath<T>)`, `virtual_hard_link(&VirtualPath<T>)`
+  - Links: `virtual_symlink<P: AsRef<Path>>(link_path)`, `virtual_hard_link<P: AsRef<Path>>(link_path)`
 
 - VirtualPath<T> (clamped virtual path; user-facing) [feature: virtual-path]
   - Sugar roots: `with_root(path)`, `with_root_create(path)`

@@ -24,13 +24,12 @@ strict-path = "0.1.0-rc.1"
 use strict_path::StrictPath;
 
 // GET /download?file=report.pdf
-let user_input = request.query_param("file"); // Untrusted: "report.pdf" or "../../etc/passwd"
-let untrusted_user_input = user_input.to_string();
+let untrusted_user_input = request.query_param("file").to_string(); // Untrusted: "report.pdf" or "../../etc/passwd"
 
 let file = StrictPath::with_boundary("/var/app/downloads")?
     .strict_join(&untrusted_user_input)?; // Validates untrusted input - attack blocked!
 
-let contents = file.read()?; // Built-in safe I/O
+let contents = file.read()?; // Safe built-in I/O sugar operation
 ```
 
 **That's it.** Simple, safe, and path traversal attacks are blocked automatically.

@@ -35,10 +35,10 @@ Audience and usage: This page is a minimal-context, copy/paste guide for tool-ca
 - Feature `junctions` (Windows-only, opt-in): Enables built-in NTFS junction helpers
 
 	- What you get when enabled (Windows):
-		- `StrictPath::strict_junction(&self, link_path: &Self) -> io::Result<()>`
-		- `PathBoundary::strict_junction(&self, link_path: &StrictPath<_>) -> io::Result<()>`
-		- `VirtualPath::virtual_junction(&self, link_path: &Self) -> io::Result<()>`
-		- `VirtualRoot::virtual_junction(&self, link_path: &VirtualPath<_>) -> io::Result<()>`
+		- `StrictPath::strict_junction<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>`
+		- `PathBoundary::strict_junction<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>`
+		- `VirtualPath::virtual_junction<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>`
+		- `VirtualRoot::virtual_junction<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>`
 	- Notes: Junctions are directory-only. Parents are not created automatically. Same-boundary rules apply.
 	- Enable in Cargo.toml (Windows):
 		```toml
@@ -212,6 +212,7 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.interop_path()` → Pass into third-party APIs expecting `AsRef<Path>`
 - `.exists()` → Check if path exists (built-in)
 - I/O helpers available: `.read()`, `.write(..)`, `.create_file()`, `.open_file()`, `.create_parent_dir_all()`
+ - `.symlink_metadata()` → Get metadata without following symlinks
 
 ## Built-in I/O Methods (Always Use These!)
 
@@ -233,6 +234,7 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.read_dir()` → Iterate directory entries
 - `.remove_dir()` → Delete empty directory
 - `.remove_dir_all()` → Delete directory and all contents
+ - `.symlink_metadata()` → Get metadata without following symlinks
 
 **Path Manipulation**:
 - `.strict_join(path)` / `.virtual_join(path)` → Safely append segment
@@ -241,11 +243,11 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.strictpath_with_extension()` / `.virtualpath_with_extension()` → Replace extension
 
 **File System Operations**:
-- `.strict_copy(dest)` → Copy file to destination
-- `.strict_rename(dest)` → Move/rename file
-- `.strict_symlink(link_path)` → Create symbolic link
-- `.strict_hard_link(link_path)` → Create hard link
-- `.strict_junction(link_path)` → Create NTFS directory junction (Windows, feature = "junctions")
+- `.strict_copy(dest)` → Copy file to destination (accepts `AsRef<Path>`)
+- `.strict_rename(dest)` → Move/rename file (accepts `AsRef<Path>`)
+- `.strict_symlink(link_path)` → Create symbolic link (accepts `AsRef<Path>`)
+- `.strict_hard_link(link_path)` → Create hard link (accepts `AsRef<Path>`)
+- `.strict_junction(link_path)` → Create NTFS directory junction (Windows, feature = "junctions", accepts `AsRef<Path>`)
 
 **Why This Matters:**
 ```rust
@@ -267,9 +269,9 @@ if safe_path.exists() {  // ✅ Use the built-in method
 - ✅ **Only for third-party `AsRef<Path>` APIs**: use `.interop_path()` (never `.unstrict()`)
 - Do not bypass: never call std fs ops on raw `Path`/`PathBuf` built from untrusted input.
 - Marker types prevent mixing distinct restrictions at compile time: use when you have multiple storage areas.
-- We do not implement `AsRef<Path>` on `StrictPath`/`VirtualPath`. When an unavoidable third-party API expects `AsRef<Path>`, pass `.interop_path()`.
+- We do not implement `AsRef<Path>` on secure path values (`StrictPath`/`VirtualPath`). When an unavoidable third-party API expects `AsRef<Path>`, pass `.interop_path()`.
 	Note: `.interop_path()` returns `&OsStr`, which already satisfies `AsRef<Path>` — you do not need to wrap it in `Path::new(..)` or `PathBuf::from(..)`.
-	For roots/policy types, use `PathBoundary::interop_path()` and `VirtualRoot::interop_path()` similarly. These types intentionally do not implement `AsRef<Path>` either; interop is explicit via the dedicated method.
+	For roots/policy types, use `PathBoundary::interop_path()` and `VirtualRoot::interop_path()` similarly. Note: in this crate, `PathBoundary` and `VirtualRoot` also implement `AsRef<Path>` for ergonomics; this does not exist on `StrictPath`/`VirtualPath` by design.
 - Interop doesn't require `.unstrict()`: prefer `.interop_path()` for those third-party adapters; call `.unstrict()` only when an owned `PathBuf` is strictly required.
 - `.interop_path()` returns `&OsStr` (which is `AsRef<Path>`), not `&Path` — use it directly for external APIs.
 - Never wrap `.interop_path()` in `Path::new()` to use `Path::join`/`parent` — they bypass security checks. Use `strict_join` / `virtualpath_parent` instead.
@@ -444,10 +446,10 @@ match boundary.strict_join(user_input) {
 - strictpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
 - strict_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<()>
 - strict_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<u64>
-- strict_symlink(&self, link_path: &Self) -> io::Result<()>
-- strict_hard_link(&self, link_path: &Self) -> io::Result<()>
-- strict_junction(&self, link_path: &Self) -> io::Result<()>  // Windows-only, feature: junctions
-- strict_hard_link(&self, link_path: &Self) -> io::Result<()>
+- strict_symlink<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>
+- strict_hard_link<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>
+- strict_junction<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>  // Windows-only, feature: junctions
+- symlink_metadata(&self) -> io::Result<std::fs::Metadata>  // metadata without following symlinks
 
 All operations prevent traversal and symlink/junction escapes. Do not use `std::path::Path::join` on untrusted input; use the explicit `strict_*/virtual_*` operations documented below.
 
@@ -618,8 +620,8 @@ PathBoundary<Marker>
 - interop_path(&self) -> &OsStr  // for unavoidable third-party `AsRef<Path>` adapters only
 - strictpath_display(&self) -> std::path::Display<'_>
 - virtualize(self) -> VirtualRoot<Marker>
-- strict_symlink(&self, link_path: &StrictPath<Marker>) -> io::Result<()>
-- strict_hard_link(&self, link_path: &StrictPath<Marker>) -> io::Result<()>
+- strict_symlink<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>
+- strict_hard_link<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>
 - read_dir(&self) -> io::Result<std::fs::ReadDir>
 - remove_dir(&self) -> io::Result<()>
 - remove_dir_all(&self) -> io::Result<()>
@@ -642,8 +644,8 @@ Note: `.unstrict()` is an explicit escape hatch. Interop doesn’t require it �
 - strictpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self>
 - strict_rename<P: AsRef<Path>>(&self, dest: P) -> io::Result<()>
 - strict_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<u64>
-- strict_symlink(&self, link_path: &Self) -> io::Result<()>
-- strict_hard_link(&self, link_path: &Self) -> io::Result<()>
+- strict_symlink<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>
+- strict_hard_link<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>
 - strictpath_file_name(&self) -> Option<&OsStr>
 - strictpath_file_stem(&self) -> Option<&OsStr>
 - strictpath_extension(&self) -> Option<&OsStr>
@@ -674,8 +676,8 @@ VirtualRoot<Marker>
 - virtual_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<VirtualPath<Marker>>
 - into_virtualpath(self) -> Result<VirtualPath<Marker>>  // convert root into virtual path (directory must exist)
 - metadata(&self) -> io::Result<std::fs::Metadata>
-- virtual_symlink(&self, link_path: &VirtualPath<Marker>) -> io::Result<()>
-- virtual_hard_link(&self, link_path: &VirtualPath<Marker>) -> io::Result<()>
+- virtual_symlink<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>
+- virtual_hard_link<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>
 - interop_path(&self) -> &OsStr  // third-party `AsRef<Path>` adapters only
 - exists(&self) -> bool
 - as_unvirtual(&self) -> &PathBoundary<Marker>
@@ -699,8 +701,9 @@ VirtualPath<Marker>
 - virtual_copy<P: AsRef<Path>>(&self, dest: P) -> io::Result<u64>
 - create_file(&self) -> io::Result<std::fs::File>
 - open_file(&self) -> io::Result<std::fs::File>
-- virtual_symlink(&self, link_path: &Self) -> io::Result<()>
-- virtual_hard_link(&self, link_path: &Self) -> io::Result<()>
+- virtual_symlink<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>
+- virtual_hard_link<P: AsRef<Path>>(&self, link_path: P) -> io::Result<()>
+- symlink_metadata(&self) -> io::Result<std::fs::Metadata>  // metadata without following symlinks
 - virtualpath_file_name(&self) -> Option<&OsStr>
 - virtualpath_file_stem(&self) -> Option<&OsStr>
 - virtualpath_extension(&self) -> Option<&OsStr>
