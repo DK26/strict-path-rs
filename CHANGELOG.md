@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-rc.2] - 2025-12-11
+
+### Fixed
+- **Critical security fix**: Upgrade `soft-canonicalize` from 0.4.5 → 0.5.2 to address indirect `/proc/PID/root` symlink bypass
+  - Indirect symlinks to `/proc/self/root` (e.g., `/tmp/link -> /proc/self/root`) now correctly preserve the `/proc` path instead of resolving to `/` (host root)
+  - Fixes container isolation bypass where `PathBoundary::try_new("/proc/12345/root")` would silently become `/`, making all security checks useless
+  - Upstream fix in `proc-canonicalize` v0.0.3 adds post-check detection and correction
+  - See [soft-canonicalize#44](https://github.com/DK26/soft-canonicalize-rs/issues/44) for details
+- **Windows junction verbatim prefix fix**: Add `strip_verbatim_prefix` helper to work around junction crate bug #30
+  - `\\?\` prefix caused `ERROR_INVALID_NAME` (123) on created junctions
+- **Windows anchored path fix**: Fix `soft-canonicalize` anchored_canonicalize producing malformed verbatim paths on Windows (`\\?\C:foo` instead of `\\?\C:\foo`)
+
+### Added
+- **New method**: `symlink_metadata()` for `StrictPath` and `VirtualPath`
+  - Query link metadata without following symlinks
+  - Useful for distinguishing symlinks from regular files/directories
+- **Comprehensive `/proc` symlink security tests** (1500+ lines):
+  - Black-box attacker-perspective escape attempts
+  - White-box internal behavior and edge cases
+  - CVE resistance tests: runc-style and container runtime escape patterns
+  - PathBoundary/VirtualRoot container boundary tests
+  - All `/proc` magic variants: `/proc/self/{root,cwd}`, `/proc/thread-self/root`, `/proc/{PID}/{root,cwd}`
+  - Indirect symlink chains (2x and 3x deep) to `/proc` magic paths
+  - VirtualRoot isolation through indirect symlinks
+  - Edge cases: Unicode, long paths, empty segments
+
+### Changed
+- **BREAKING**: Updated `soft-canonicalize` dependency from 0.4.5 → 0.5.2
+  - Includes critical security fix for indirect `/proc/PID/root` symlink bypass
+  - Linux container environments now properly enforce isolation boundaries
+
+### Documentation
+- **Renamed LLM documentation files** (Issue #31):
+  - `LLM_API_REFERENCE.md` → `LLM_CONTEXT_FULL.md` (full API reference)
+  - `LLM_USER.md` → `LLM_CONTEXT.md` (Context7-style guide)
+  - Deprecation stubs created at old locations with redirects
+- **Aligned messaging with project description**:
+  - "Handle paths from external or unknown sources securely"
+  - Added soft-canonicalize + proc-canonicalize foundation details
+  - Added "minimal, restrictive, explicit" API philosophy
+  - Note "security > performance" trade-off
+- **Updated AGENTS.md** with "CHECK FOR EXISTING FUNCTIONALITY" guidance
+- **Improved doctests** with descriptive untrusted input variable names
+
+### CI
+- Updated push branch from `main` to `dev` (#32)
+
 ## [0.1.0-rc.1] - 2025-10-21
 
 Release candidate for 0.1.0 stable release.
