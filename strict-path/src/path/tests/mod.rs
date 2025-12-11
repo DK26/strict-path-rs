@@ -8,6 +8,8 @@ mod method_coverage;
 mod methods;
 // Linux /proc/PID/root magic symlink security tests (soft-canonicalize issue #44)
 #[cfg(target_os = "linux")]
+mod proc_comprehensive_coverage;
+#[cfg(target_os = "linux")]
 mod proc_indirect_symlink;
 #[cfg(target_os = "linux")]
 mod proc_magic_symlink;
