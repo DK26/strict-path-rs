@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Stage 4: Authorization with change_marker() - The Complete StrictPath Guide</title>
+        <title>Chapter 5: Virtual Paths for User Sandboxing - The Complete StrictPath Guide</title>
 
 
         <!-- Custom HTML head -->
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-55fd61e2.js";
+            window.path_to_searchindex_js = "../searchindex-fcfdc226.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c8b1e92a.js"></script>
+        <script src="../toc-21247364.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -146,7 +146,7 @@
                         <a href="https://github.com/DK26/strict-path-rs" title="Git repository" aria-label="Git repository">
                             <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
                         </a>
-                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/tutorial/stage4_authorization.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                        <a href="https://github.com/DK26/strict-path-rs/edit/docs/docs_src/src/tutorial/chapter5_virtual_paths.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
                             <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
                         </a>
 
@@ -180,489 +180,474 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="stage-4-authorization-with-change_marker--compile-time-authorization-proofs"><a class="header" href="#stage-4-authorization-with-change_marker--compile-time-authorization-proofs">Stage 4: Authorization with <code>change_marker()</code> — Compile-Time Authorization Proofs</a></h1>
+                        <h1 id="chapter-5-virtual-paths--containment-for-sandboxes"><a class="header" href="#chapter-5-virtual-paths--containment-for-sandboxes">Chapter 5: Virtual Paths — Containment for Sandboxes</a></h1>
 <blockquote>
-<p><em>“The compiler can mathematically prove that authorization happened first.”</em></p>
+<p><em>“Contain escape attempts for multi-tenant isolation and security research.”</em></p>
 </blockquote>
-<p>In Stage 3, you learned how markers prevent domain mix-ups. Now you’ll learn how to <strong>encode authorization</strong> in markers using <code>change_marker()</code>, so the compiler can mathematically prove that authorization checks weren’t forgotten.</p>
-<h2 id="the-authorization-problem"><a class="header" href="#the-authorization-problem">The Authorization Problem</a></h2>
-<p>Markers prevent domain confusion. But what about <strong>permissions</strong>? How do we encode “this user is authorized to write to this directory”?</p>
-<h3 id="traditional-approach-runtime-checks-everywhere"><a class="header" href="#traditional-approach-runtime-checks-everywhere">Traditional Approach: Runtime Checks Everywhere</a></h3>
+<p>In Chapter 4, you learned how to encode authorization in markers. Now you’ll learn how <code>VirtualPath</code> extends <code>StrictPath</code> with <strong>virtual filesystem semantics</strong> — designed for scenarios where path escapes are <strong>expected but must be controlled</strong>.</p>
+<p><strong>Important</strong>: VirtualPath is opt-in via the <code>virtual-path</code> feature. Use it only when you need <strong>containment</strong> (multi-tenant systems, malware sandboxes) rather than <strong>detection</strong> (archive extraction, file uploads).</p>
+<h2 id="the-problem-with-strictpath-for-user-ux"><a class="header" href="#the-problem-with-strictpath-for-user-ux">The Problem with StrictPath for User UX</a></h2>
+<p><code>StrictPath</code> is perfect for system operations, but it exposes real filesystem paths:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::StrictPath;
 
-struct UserFiles;
+fn show_user_files() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let username = "alice";
+    let uploads_dir = StrictPath::with_boundary_create(
+        format!("/var/app/users/{username}/uploads"),
+    )?;
+    let file = uploads_dir.strict_join("documents/report.pdf")?;
 
-// ❌ Problem: Authorization check inside every operation
-fn write_user_file(path: &amp;StrictPath&lt;UserFiles&gt;, user_id: &amp;str, data: &amp;[u8]) 
-    -&gt; std::io::Result&lt;()&gt; 
-{
-    if !is_authorized(user_id) {  // Runtime check (can forget!)
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::PermissionDenied, 
-            "Unauthorized"
-        ));
-    }
-    path.write(data)
-}
+    // User sees ugly system path
+    println!("Your file: {}", file.strictpath_display());
+    // Output: /var/app/users/alice/uploads/documents/report.pdf
+    
+    // User thinks: "Why do I need to know about /var/app/users/alice?"
+    // "I just want to see: /documents/report.pdf"
 
-fn delete_user_file(path: &amp;StrictPath&lt;UserFiles&gt;, user_id: &amp;str) 
-    -&gt; std::io::Result&lt;()&gt; 
-{
-    if !is_authorized(user_id) {  // Repeated check (can forget!)
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::PermissionDenied, 
-            "Unauthorized"
-        ));
-    }
-    path.remove_file()
-}
-
-fn read_user_file(path: &amp;StrictPath&lt;UserFiles&gt;, user_id: &amp;str) 
-    -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; 
-{
-    // Oops! Forgot the authorization check here! 🚨
-    path.read()
-}
-
-fn is_authorized(user_id: &amp;str) -&gt; bool {
-    user_id == "alice"
+    Ok(())
 }
 <span class="boring">}</span></code></pre>
 <p><strong>Problems:</strong></p>
 <ul>
-<li>❌ Authorization checks scattered everywhere</li>
-<li>❌ Easy to forget a check (see <code>read_user_file</code>)</li>
-<li>❌ No compile-time guarantee that authorization happened</li>
-<li>❌ Code review has to catch missing checks (humans are fallible)</li>
+<li>❌ Users see internal directory structure</li>
+<li>❌ Paths are long and confusing</li>
+<li>❌ Exposes system architecture details</li>
+<li>❌ Not user-friendly for file browsers, cloud storage UI, etc.</li>
 </ul>
-<h3 id="better-approach-encode-authorization-in-the-type"><a class="header" href="#better-approach-encode-authorization-in-the-type">Better Approach: Encode Authorization in the Type</a></h3>
-<p>Instead of <strong>checking</strong> authorization repeatedly, we <strong>encode</strong> it in the type once:</p>
+<h2 id="the-solution-virtualpath"><a class="header" href="#the-solution-virtualpath">The Solution: VirtualPath</a></h2>
+<p><code>VirtualPath</code> provides a <strong>virtual root</strong> — users see paths starting from <code>/</code>, but the system enforces the real boundary:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualPath;
+
+fn show_user_files_virtually() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Create a virtual root (system boundary: /var/app/users/{user}/uploads)
+    let username = "alice";
+    let user_vroot = VirtualPath::with_root(
+        format!("/var/app/users/{username}/uploads"),
+    )?;
+    
+    let file = user_vroot.virtual_join("documents/report.pdf")?;
+
+    // User sees clean virtual path
+    println!("Your file: {}", file.virtualpath_display());
+    // Output: /documents/report.pdf
+    
+    // User thinks: "Perfect! That's my file."
+
+    // System still operates on real path
+    file.write(b"File contents")?;  
+    // Actually writes to: /var/app/users/alice/uploads/documents/report.pdf
+
+    println!("System path: {}", file.as_unvirtual().strictpath_display());
+    // Output: /var/app/users/alice/uploads/documents/report.pdf
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre>
+<h2 id="clamping-vs-rejecting"><a class="header" href="#clamping-vs-rejecting">Clamping vs. Rejecting</a></h2>
+<p>This is the <strong>key difference</strong> between <code>VirtualPath</code> and <code>StrictPath</code>:</p>
+<h3 id="strictpath-rejects-escapes"><a class="header" href="#strictpath-rejects-escapes">StrictPath: Rejects Escapes</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::StrictPath;
 
-// Resource marker: describes WHAT directory
-struct UserFiles;
+fn strict_behavior() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let boundary = StrictPath::with_boundary_create("./sandbox")?;
 
-// Permission markers: describe LEVEL of access
-struct ReadOnly;
-struct ReadWrite;
+    // Normal path works
+    let file1 = boundary.strict_join("data/file.txt")?;
+    println!("✅ Valid: {}", file1.strictpath_display());
 
-// Authorization gate: validates token → returns authorized marker
-fn authenticate_user_access(
-    token: &amp;str,
-    path: StrictPath&lt;(UserFiles, ReadOnly)&gt;
-) -&gt; Option&lt;StrictPath&lt;(UserFiles, ReadWrite)&gt;&gt; {
-    // ✅ Authorization: Token validated (checked once here!)
-    if validate_token(token) {
-        // Transform marker to encode proven authorization
-        Some(path.change_marker::&lt;(UserFiles, ReadWrite)&gt;())
-    } else {
-        None
+    // Attack attempt: FAILS with error
+    let file2 = boundary.strict_join("../../../etc/passwd");
+    match file2 {
+        Ok(_) =&gt; println!("✅ Valid path"),
+        Err(e) =&gt; println!("❌ Error: {}", e),  // PathEscapesBoundary
     }
-}
 
-fn validate_token(token: &amp;str) -&gt; bool {
-    token == "valid-token-12345"  // Real apps: JWT validation, database lookup, etc.
-}
-
-// Functions accept paths that already prove authorization
-fn write_user_file(path: &amp;StrictPath&lt;(UserFiles, ReadWrite)&gt;, data: &amp;[u8]) 
-    -&gt; std::io::Result&lt;()&gt; 
-{
-    // No authorization check needed! Type proves it already happened.
-    path.write(data)
-}
-
-fn delete_user_file(path: &amp;StrictPath&lt;(UserFiles, ReadWrite)&gt;) 
-    -&gt; std::io::Result&lt;()&gt; 
-{
-    // No authorization check needed! Type proves it already happened.
-    path.remove_file()
-}
-
-fn read_user_file(path: &amp;StrictPath&lt;(UserFiles, ReadOnly)&gt;) 
-    -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; 
-{
-    // ReadOnly access is sufficient for reading
-    path.read()
+    Ok(())
 }
 <span class="boring">}</span></code></pre>
-<h2 id="understanding-change_marker"><a class="header" href="#understanding-change_marker">Understanding <code>change_marker()</code></a></h2>
-<h3 id="what-change_marker-is-not"><a class="header" href="#what-change_marker-is-not">What <code>change_marker()</code> Is NOT</a></h3>
+<h3 id="virtualpath-clamps-escapes"><a class="header" href="#virtualpath-clamps-escapes">VirtualPath: Clamps Escapes</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// ❌ WRONG way to think about it:
-// "change_marker() grants permissions"
-// "change_marker() does authorization"
+</span>use strict_path::VirtualPath;
+
+fn virtual_behavior() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let vroot = VirtualPath::with_root("./sandbox")?;
+
+    // Normal path works
+    let file1 = vroot.virtual_join("data/file.txt")?;
+    println!("Virtual: {}", file1.virtualpath_display());  // /data/file.txt
+
+    // Attack attempt: CLAMPED safely
+    let file2 = vroot.virtual_join("../../../etc/passwd")?;  // No error!
+    println!("Virtual: {}", file2.virtualpath_display());    // /etc/passwd (clamped!)
+    
+    // But system path is still safe:
+    println!("System: {}", file2.as_unvirtual().strictpath_display());
+    // Output: sandbox/etc/passwd (still inside boundary!)
+
+    Ok(())
+}
 <span class="boring">}</span></code></pre>
-<h3 id="what-change_marker-actually-does"><a class="header" href="#what-change_marker-actually-does">What <code>change_marker()</code> Actually Does</a></h3>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// ✅ RIGHT way to think about it:
-// "change_marker() ENCODES proven authorization in the type"
-// "change_marker() transforms the marker AFTER authorization passed"
-<span class="boring">}</span></code></pre>
-<p><strong>The pattern:</strong></p>
-<ol>
-<li>✅ <strong>Check authorization</strong> (token validation, capability check, etc.)</li>
-<li>✅ <strong>If authorized:</strong> call <code>change_marker()</code> to encode that fact in the type</li>
-<li>✅ <strong>Pass the new type</strong> to functions that require authorization</li>
-<li>✅ <strong>The compiler proves</strong> authorization happened (can’t get the marker any other way!)</li>
-</ol>
-<h2 id="using-it-complete-example"><a class="header" href="#using-it-complete-example">Using It: Complete Example</a></h2>
-<pre class="playground"><code class="language-rust">use strict_path::StrictPath;
+<p><strong>Key difference:</strong></p>
+<ul>
+<li><strong><code>StrictPath</code>:</strong> Escape attempt → <strong>Error</strong> (explicit rejection)</li>
+<li><strong><code>VirtualPath</code>:</strong> Escape attempt → <strong>Clamped to boundary</strong> (graceful containment)</li>
+</ul>
+<h2 id="when-to-use-which"><a class="header" href="#when-to-use-which">When to Use Which</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Scenario</th><th>Use</th><th>Why</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Web API validation</strong></td><td><code>StrictPath</code></td><td>Fail fast on invalid input</td></tr>
+<tr><td><strong>System config files</strong></td><td><code>StrictPath</code></td><td>Reject malformed paths explicitly</td></tr>
+<tr><td><strong>User file browser</strong></td><td><code>VirtualPath</code></td><td>Show clean <code>/</code> paths, clamp escapes gracefully</td></tr>
+<tr><td><strong>Archive extraction</strong></td><td><code>VirtualPath</code></td><td>Hostile archive entries can’t escape</td></tr>
+<tr><td><strong>Cloud storage UI</strong></td><td><code>VirtualPath</code></td><td>Users see <code>/MyFiles/</code> instead of system paths</td></tr>
+<tr><td><strong>LLM file operations</strong></td><td><code>StrictPath</code></td><td>LLM-generated paths validated strictly</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Rule of thumb:</strong></p>
+<ul>
+<li><strong>System-facing?</strong> → <code>StrictPath</code> (explicit errors)</li>
+<li><strong>User-facing?</strong> → <code>VirtualPath</code> (graceful clamping)</li>
+</ul>
+<h2 id="try-it-yourself-per-user-sandboxes"><a class="header" href="#try-it-yourself-per-user-sandboxes">Try It Yourself: Per-User Sandboxes</a></h2>
+<p>Here’s a realistic example of per-user isolation:</p>
+<pre class="playground"><code class="language-rust">use strict_path::{VirtualPath, VirtualRoot};
 
 struct UserFiles;
-struct ReadOnly;
-struct ReadWrite;
 
-fn handle_request(token: &amp;str, filename: &amp;str, data: Option&lt;&amp;[u8]&gt;) 
-    -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; 
-{
-    // Start with read-only access (no authorization yet)
-    let user_files_dir: StrictPath&lt;(UserFiles, ReadOnly)&gt; = 
-        StrictPath::with_boundary_create("user_files")?;
+fn create_user_workspace(user_id: u64) -&gt; Result&lt;VirtualRoot&lt;UserFiles&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+    // Each user gets their own virtual root
+    let user_dir = format!("users/user_{}", user_id);
+    Ok(VirtualRoot::try_new_create(user_dir)?)
+}
+
+fn user_file_browser(user_id: u64) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let user_workspace = create_user_workspace(user_id)?;
+
+    // User uploads files (they see clean paths)
+    let doc = user_workspace.virtual_join("Documents/report.pdf")?;
+    doc.create_parent_dir_all()?;
+    doc.write(b"User document content")?;
+
+    println!("User {} sees: {}", user_id, doc.virtualpath_display());
+    // Output: /Documents/report.pdf
+
+    println!("System stores at: {}", doc.as_unvirtual().strictpath_display());
+    // Output: users/user_123/Documents/report.pdf
+
+    // Even if user tries to escape, they stay in their sandbox
+    let sneaky = user_workspace.virtual_join("../../../etc/passwd")?;
+    println!("Attack clamped to: {}", sneaky.virtualpath_display());
+    // Output: /etc/passwd (virtual)
     
-    let file_path = user_files_dir.strict_join(filename)?;
+    println!("Actually safe at: {}", sneaky.as_unvirtual().strictpath_display());
+    // Output: users/user_123/etc/passwd (still in their sandbox!)
 
-    // Anyone can read with ReadOnly marker
-    let _content = read_user_file(&amp;file_path)?;
-    println!("✅ Read succeeded (no authorization needed)");
+    Ok(())
+}
 
-    // Try to upgrade to ReadWrite by authenticating
-    if let Some(writable_path) = authenticate_user_access(token, file_path) {
-        // ✅ Token validated! Now we have ReadWrite access
-        println!("✅ Authorization succeeded");
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    user_file_browser(123)?;
+    user_file_browser(456)?;
+    Ok(())
+}</code></pre>
+<h2 id="virtualpath--strictpath--virtual-view"><a class="header" href="#virtualpath--strictpath--virtual-view">VirtualPath = StrictPath + Virtual View</a></h2>
+<p>Under the hood, <code>VirtualPath</code> <strong>wraps a <code>StrictPath</code></strong> and adds a virtual display layer:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualPath;
+
+fn demonstrate_duality() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let vpath = VirtualPath::with_root("./data")?.virtual_join("file.txt")?;
+
+    // Virtual view (user-facing)
+    println!("Virtual: {}", vpath.virtualpath_display());
+    // Output: /file.txt
+
+    // System view (actual filesystem path)
+    println!("System: {}", vpath.as_unvirtual().strictpath_display());
+    // Output: data/file.txt
+
+    // All StrictPath operations work
+    vpath.write(b"Hello, virtual world!")?;
+    let content = vpath.read_to_string()?;
+    println!("Content: {}", content);
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre>
+<p><strong>The relationship:</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>VirtualPath&lt;Marker&gt; = StrictPath&lt;Marker&gt; + virtual display semantics
+<span class="boring">}</span></code></pre>
+<h2 id="symlinks-and-virtual-paths-the-critical-difference"><a class="header" href="#symlinks-and-virtual-paths-the-critical-difference">Symlinks and Virtual Paths: The Critical Difference</a></h2>
+<p>This is where <code>VirtualPath</code> truly shines as a <strong>virtual filesystem</strong>. It doesn’t just clamp relative path escapes — it also <strong>clamps absolute symlink targets</strong>:</p>
+<h3 id="strictpath-validates-symlink-targets"><a class="header" href="#strictpath-validates-symlink-targets">StrictPath: Validates Symlink Targets</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::StrictPath;
+
+fn strict_symlink_behavior() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let boundary = StrictPath::with_boundary_create("./sandbox")?;
+
+    // If "sandbox/config_link" symlinks to "/etc/passwd":
+    let symlink_path = boundary.strict_join("config_link");
+    match symlink_path {
+        Ok(_) =&gt; println!("✅ Symlink target is inside boundary"),
+        Err(e) =&gt; println!("❌ Symlink escapes boundary: {}", e),
+    }
+    
+    // StrictPath follows the symlink and validates the *target* is inside boundary
+    // If target is outside → Error (PathEscapesBoundary)
+
+    Ok(())
+}
+<span class="boring">}</span></code></pre>
+<h3 id="virtualpath-clamps-symlink-targets"><a class="header" href="#virtualpath-clamps-symlink-targets">VirtualPath: Clamps Symlink Targets</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::VirtualPath;
+
+fn virtual_symlink_behavior() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let vroot = VirtualPath::with_root("./sandbox")?;
+
+    // If "sandbox/config_link" symlinks to "/etc/passwd":
+    let symlink_path = vroot.virtual_join("config_link")?;  // No error!
+    
+    println!("Virtual view: {}", symlink_path.virtualpath_display());
+    // Output: /etc/passwd (clamped to virtual root!)
+    
+    println!("System path: {}", symlink_path.as_unvirtual().strictpath_display());
+    // Output: sandbox/etc/passwd (safely inside boundary!)
+
+    // VirtualPath treats absolute symlink targets as *relative to the virtual root*
+    // The symlink target "/etc/passwd" becomes "sandbox/etc/passwd"
+    
+    Ok(())
+}
+<span class="boring">}</span></code></pre>
+<p><strong>The Key Insight:</strong></p>
+<p>In a <strong>virtual filesystem</strong> (container, chroot, sandbox), absolute paths are <em>always</em> relative to the virtual root. This applies whether the absolute path comes from:</p>
+<ul>
+<li>User input: <code>vroot.virtual_join("/etc/passwd")</code> → clamped</li>
+<li>Symlink target: <code>config_link -&gt; /etc/passwd</code> → clamped</li>
+</ul>
+<p><strong>Why This Matters:</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Scenario</th><th>StrictPath Behavior</th><th>VirtualPath Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td>User input <code>"../../../etc/passwd"</code></td><td>❌ Error (rejected)</td><td>✅ Clamped to <code>/etc/passwd</code> in vroot</td></tr>
+<tr><td>Symlink <code>link -&gt; /etc/passwd</code></td><td>❌ Error if outside</td><td>✅ Clamped to vroot <code>/etc/passwd</code></td></tr>
+<tr><td>Archive entry <code>"/sensitive/data"</code></td><td>❌ Error (rejected)</td><td>✅ Clamped to vroot <code>/sensitive/data</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Use Cases:</strong></p>
+<ul>
+<li><strong>Archive extraction:</strong> Malicious archives with absolute symlinks are automatically safe</li>
+<li><strong>Multi-tenant storage:</strong> User A’s symlink can’t escape to user B’s files</li>
+<li><strong>Container-like semantics:</strong> Perfect for sandboxed environments where <code>/</code> means “root of this container”</li>
+</ul>
+<p><strong>Key point:</strong> <code>VirtualPath</code> implements <strong>true virtual filesystem semantics</strong> where absolute paths (from any source) are interpreted relative to the virtual root. This is not a “trust everything” mode — it’s a mathematically consistent sandbox model.</p>
+<h2 id="real-world-example-cloud-file-storage"><a class="header" href="#real-world-example-cloud-file-storage">Real-World Example: Cloud File Storage</a></h2>
+<pre class="playground"><code class="language-rust">use strict_path::{VirtualPath, VirtualRoot};
+
+struct CloudStorage;
+
+struct UserCloudStorage {
+    user_id: u64,
+    vroot: VirtualRoot&lt;CloudStorage&gt;,
+}
+
+impl UserCloudStorage {
+    fn new(user_id: u64) -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
+        let storage_path = format!("cloud_storage/user_{}", user_id);
+        let vroot = VirtualRoot::try_new_create(storage_path)?;
+        Ok(Self { user_id, vroot })
+    }
+
+    fn upload_file(&amp;self, virtual_path: &amp;str, data: &amp;[u8]) 
+        -&gt; Result&lt;String, Box&lt;dyn std::error::Error&gt;&gt; 
+    {
+        let file = self.vroot.virtual_join(virtual_path)?;
+        file.create_parent_dir_all()?;
+        file.write(data)?;
         
-        if let Some(data) = data {
-            write_user_file(&amp;writable_path, data)?;
-            println!("✅ Write succeeded (authorization proven by type)");
+        // Return clean virtual path for UI display
+        Ok(file.virtualpath_display().to_string())
+    }
+
+    fn download_file(&amp;self, virtual_path: &amp;str) 
+        -&gt; Result&lt;Vec&lt;u8&gt;, Box&lt;dyn std::error::Error&gt;&gt; 
+    {
+        let file = self.vroot.virtual_join(virtual_path)?;
+        Ok(file.read()?)
+    }
+
+    fn list_files(&amp;self, virtual_dir: &amp;str) 
+        -&gt; Result&lt;Vec&lt;String&gt;, Box&lt;dyn std::error::Error&gt;&gt; 
+    {
+        let dir = self.vroot.virtual_join(virtual_dir)?;
+        let mut files = Vec::new();
+        
+        for entry in dir.read_dir()? {
+            let entry = entry?;
+            let vpath = self.vroot.virtual_join(entry.file_name().to_string_lossy().as_ref())?;
+            files.push(vpath.virtualpath_display().to_string());
         }
         
-        delete_user_file(&amp;writable_path)?;
-        println!("✅ Delete succeeded (authorization proven by type)");
-    } else {
-        println!("❌ Authorization failed — cannot write or delete");
+        Ok(files)
     }
-
-    Ok(())
-}
-
-fn authenticate_user_access(
-    token: &amp;str,
-    path: StrictPath&lt;(UserFiles, ReadOnly)&gt;
-) -&gt; Option&lt;StrictPath&lt;(UserFiles, ReadWrite)&gt;&gt; {
-    if validate_token(token) {
-        Some(path.change_marker())
-    } else {
-        None
-    }
-}
-
-fn validate_token(token: &amp;str) -&gt; bool {
-    token == "valid-token-12345"
-}
-
-fn read_user_file(path: &amp;StrictPath&lt;(UserFiles, ReadOnly)&gt;) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
-    path.read()
-}
-
-fn write_user_file(path: &amp;StrictPath&lt;(UserFiles, ReadWrite)&gt;, data: &amp;[u8]) -&gt; std::io::Result&lt;()&gt; {
-    path.write(data)
-}
-
-fn delete_user_file(path: &amp;StrictPath&lt;(UserFiles, ReadWrite)&gt;) -&gt; std::io::Result&lt;()&gt; {
-    path.remove_file()
 }
 
 fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    // Valid token — authorization succeeds
-    handle_request("valid-token-12345", "notes.txt", Some(b"New content"))?;
+    let alice_storage = UserCloudStorage::new(1001)?;
+
+    // Upload files (user sees clean paths)
+    let path1 = alice_storage.upload_file("Photos/vacation.jpg", b"photo data")?;
+    let path2 = alice_storage.upload_file("Documents/report.pdf", b"document data")?;
     
-    // Invalid token — authorization fails
-    handle_request("invalid-token", "notes.txt", Some(b"Hack attempt"))?;
-    
-    Ok(())
-}</code></pre>
-<h2 id="tuple-markers-composing-resources-and-permissions"><a class="header" href="#tuple-markers-composing-resources-and-permissions">Tuple Markers: Composing Resources and Permissions</a></h2>
-<p>Notice we’re using <strong>tuple markers</strong>: <code>(UserFiles, ReadOnly)</code> and <code>(UserFiles, ReadWrite)</code>.</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>struct UserFiles;      // First element: WHAT resource
-struct ReadOnly;       // Second element: WHAT permission level
-struct ReadWrite;
+    println!("Uploaded: {}", path1);  // /Photos/vacation.jpg
+    println!("Uploaded: {}", path2);  // /Documents/report.pdf
 
-// Composed together:
-// StrictPath&lt;(UserFiles, ReadOnly)&gt;   = User files with read-only access
-// StrictPath&lt;(UserFiles, ReadWrite)&gt;  = User files with read-write access
-<span class="boring">}</span></code></pre>
-<p><strong>Why tuples?</strong></p>
-<ul>
-<li>✅ <strong>Flexible composition:</strong> Mix and match resources with permissions</li>
-<li>✅ <strong>Easy to transform:</strong> <code>change_marker()</code> can swap out permission levels</li>
-<li>✅ <strong>Standard Rust idiom:</strong> No need to learn special syntax</li>
-</ul>
-<h2 id="try-it-yourself-capability-based-authorization"><a class="header" href="#try-it-yourself-capability-based-authorization">Try It Yourself: Capability-Based Authorization</a></h2>
-<p>Here’s a more sophisticated example with multiple capability levels:</p>
-<pre class="playground"><code class="language-rust">use strict_path::StrictPath;
+    // Download files
+    let data = alice_storage.download_file("/Documents/report.pdf")?;
+    println!("Downloaded {} bytes", data.len());
 
-struct ProjectFiles;
-struct CanRead;
-struct CanWrite;
-struct CanDelete;
-
-// Check user role and return appropriate marker
-fn grant_project_access(
-    user_role: &amp;str,
-    path: StrictPath&lt;ProjectFiles&gt;
-) -&gt; Option&lt;StrictPath&lt;(ProjectFiles, CanRead, CanWrite, CanDelete)&gt;&gt; {
-    // ✅ Authorization: Role checked
-    if user_role == "admin" {
-        // Admin gets full access (read + write + delete)
-        Some(path.change_marker::&lt;(ProjectFiles, CanRead, CanWrite, CanDelete)&gt;())
-    } else {
-        None
-    }
-}
-
-fn grant_editor_access(
-    user_role: &amp;str,
-    path: StrictPath&lt;ProjectFiles&gt;
-) -&gt; Option&lt;StrictPath&lt;(ProjectFiles, CanRead, CanWrite)&gt;&gt; {
-    // ✅ Authorization: Role checked
-    if user_role == "editor" || user_role == "admin" {
-        // Editors can read and write (but not delete)
-        Some(path.change_marker::&lt;(ProjectFiles, CanRead, CanWrite)&gt;())
-    } else {
-        None
-    }
-}
-
-fn grant_readonly_access(
-    user_role: &amp;str,
-    path: StrictPath&lt;ProjectFiles&gt;
-) -&gt; Option&lt;StrictPath&lt;(ProjectFiles, CanRead)&gt;&gt; {
-    // ✅ Authorization: Role checked
-    if user_role == "viewer" || user_role == "editor" || user_role == "admin" {
-        Some(path.change_marker::&lt;(ProjectFiles, CanRead)&gt;())
-    } else {
-        None
-    }
-}
-
-// Functions require specific capabilities in their signature
-fn read_project(path: &amp;StrictPath&lt;(ProjectFiles, CanRead)&gt;) -&gt; std::io::Result&lt;String&gt; {
-    path.read_to_string()
-}
-
-fn update_project(path: &amp;StrictPath&lt;(ProjectFiles, CanRead, CanWrite)&gt;) -&gt; std::io::Result&lt;()&gt; {
-    path.write(b"Updated project data")
-}
-
-fn delete_project(path: &amp;StrictPath&lt;(ProjectFiles, CanRead, CanWrite, CanDelete)&gt;) -&gt; std::io::Result&lt;()&gt; {
-    path.remove_file()
-}
-
-fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let projects_dir: StrictPath&lt;ProjectFiles&gt; = 
-        StrictPath::with_boundary_create("projects")?;
-    
-    let project = projects_dir.strict_join("proposal.md")?;
-
-    // Viewer can only read
-    if let Some(readonly_path) = grant_readonly_access("viewer", project.clone()) {
-        read_project(&amp;readonly_path)?;
-        println!("✅ Viewer: read succeeded");
-        // update_project(&amp;readonly_path)?;  // ❌ Won't compile: missing CanWrite
-    }
-
-    // Editor can read and write
-    if let Some(editor_path) = grant_editor_access("editor", project.clone()) {
-        read_project(&amp;editor_path)?;      // ✅ Has CanRead
-        update_project(&amp;editor_path)?;    // ✅ Has CanRead + CanWrite
-        println!("✅ Editor: read and write succeeded");
-        // delete_project(&amp;editor_path)?; // ❌ Won't compile: missing CanDelete
-    }
-
-    // Admin can do everything
-    if let Some(admin_path) = grant_project_access("admin", project) {
-        read_project(&amp;admin_path)?;      // ✅ Has CanRead
-        update_project(&amp;admin_path)?;    // ✅ Has CanRead + CanWrite
-        delete_project(&amp;admin_path)?;    // ✅ Has CanRead + CanWrite + CanDelete
-        println!("✅ Admin: full access succeeded");
-    }
+    // User tries to escape — safely clamped
+    let evil_path = alice_storage.upload_file("../../../etc/passwd", b"attack")?;
+    println!("Attack clamped to: {}", evil_path);  // /etc/passwd (in user's sandbox!)
 
     Ok(())
 }</code></pre>
-<h2 id="head-first-moment-passport-stamps"><a class="header" href="#head-first-moment-passport-stamps">Head First Moment: Passport Stamps</a></h2>
-<p>Think of <code>change_marker()</code> like <strong>stamping a passport</strong>:</p>
-<ol>
-<li><strong>You apply for a visa</strong> (submit token for validation)</li>
-<li><strong>Visa office checks credentials</strong> (authorization function validates token)</li>
-<li><strong>If approved, they stamp your passport</strong> (call <code>change_marker()</code>)</li>
-<li><strong>Guards at checkpoints check your stamp</strong> (functions check marker type)</li>
-</ol>
-<p>The stamp doesn’t grant permission — <strong>the visa office did that</strong>. The stamp just <strong>proves</strong> permission was granted.</p>
-<p><strong>Functions check your stamp (marker), not your visa application (token).</strong></p>
-<p>This means:</p>
+<h2 id="markers-work-with-virtualpath-too"><a class="header" href="#markers-work-with-virtualpath-too">Markers Work with VirtualPath Too</a></h2>
+<p>Just like <code>StrictPath</code>, you can use markers with <code>VirtualPath</code>:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::{VirtualPath, VirtualRoot};
+
+struct UserPhotos;
+struct UserDocuments;
+
+fn organize_virtual_storage(user_id: u64) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Each domain gets its own virtual root
+    let photos_vroot: VirtualRoot&lt;UserPhotos&gt; = 
+        VirtualRoot::try_new_create(format!("users/user_{}/photos", user_id))?;
+    
+    let docs_vroot: VirtualRoot&lt;UserDocuments&gt; = 
+        VirtualRoot::try_new_create(format!("users/user_{}/documents", user_id))?;
+
+    let photo = photos_vroot.virtual_join("vacation.jpg")?;  // VirtualPath&lt;UserPhotos&gt;
+    let doc = docs_vroot.virtual_join("report.pdf")?;        // VirtualPath&lt;UserDocuments&gt;
+
+    process_photo(&amp;photo)?;              // ✅ Correct type
+    process_document(&amp;doc)?;             // ✅ Correct type
+    // process_photo(&amp;doc)?;             // ❌ Compile error!
+
+    Ok(())
+}
+
+fn process_photo(photo: &amp;VirtualPath&lt;UserPhotos&gt;) -&gt; std::io::Result&lt;()&gt; {
+    println!("Processing photo: {}", photo.virtualpath_display());
+    Ok(())
+}
+
+fn process_document(doc: &amp;VirtualPath&lt;UserDocuments&gt;) -&gt; std::io::Result&lt;()&gt; {
+    println!("Processing document: {}", doc.virtualpath_display());
+    Ok(())
+}
+<span class="boring">}</span></code></pre>
+<h2 id="head-first-moment-storefront-facade"><a class="header" href="#head-first-moment-storefront-facade">Head First Moment: Storefront Facade</a></h2>
+<p><code>VirtualPath</code> is like a <strong>storefront with a clean facade</strong>:</p>
 <ul>
-<li>✅ Authorization happens <strong>once</strong> (at the visa office)</li>
-<li>✅ Every checkpoint trusts the stamp (no re-checking)</li>
-<li>✅ Can’t forge a stamp (only way to get marker is through auth function)</li>
-<li>✅ Compiler ensures you have the right stamp for each checkpoint</li>
+<li><strong>Customers see:</strong> Beautiful <code>/Products/Item</code> URLs</li>
+<li><strong>Behind the scenes:</strong> Files stored at <code>/var/www/store/inventory/category-5/sku-12345/item.jpg</code></li>
 </ul>
-<h2 id="the-authorization-pattern-summary"><a class="header" href="#the-authorization-pattern-summary">The Authorization Pattern Summary</a></h2>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// 1️⃣ Define resource and permission markers
-struct Resource;
-struct ReadOnly;
-struct ReadWrite;
-
-// 2️⃣ Create authorization gate
-fn authorize(token: &amp;str, path: StrictPath&lt;(Resource, ReadOnly)&gt;) 
-    -&gt; Option&lt;StrictPath&lt;(Resource, ReadWrite)&gt;&gt; 
-{
-    if validate(token) {                        // ✅ Check authorization
-        Some(path.change_marker())              // ✅ Encode in type
-    } else {
-        None                                    // ❌ Authorization failed
-    }
-}
-
-// 3️⃣ Functions require authorized marker
-fn protected_operation(path: &amp;StrictPath&lt;(Resource, ReadWrite)&gt;) {
-    // No authorization check needed!
-    // Type proves authorization already happened.
-}
-<span class="boring">}</span></code></pre>
-<h2 id="real-world-example-web-api"><a class="header" href="#real-world-example-web-api">Real-World Example: Web API</a></h2>
-<p>Here’s how you’d use this in a web server:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::StrictPath;
-
-struct ApiUploads;
-struct AuthToken(String);
-struct ReadAccess;
-struct WriteAccess;
-
-// Authorization: Validate JWT token
-fn authorize_write_access(
-    token: &amp;AuthToken,
-    path: StrictPath&lt;(ApiUploads, ReadAccess)&gt;
-) -&gt; Result&lt;StrictPath&lt;(ApiUploads, ReadAccess, WriteAccess)&gt;, AuthError&gt; {
-    // ✅ Authorization: Validate JWT token
-    if verify_jwt(&amp;token.0)? {
-        Ok(path.change_marker())
-    } else {
-        Err(AuthError::InvalidToken)
-    }
-}
-
-fn verify_jwt(token: &amp;str) -&gt; Result&lt;bool, AuthError&gt; {
-    // Real implementation would:
-    // - Verify signature
-    // - Check expiration
-    // - Validate claims
-    Ok(token.starts_with("Bearer "))
-}
-
-// API handlers
-fn handle_read(uploads: &amp;StrictPath&lt;(ApiUploads, ReadAccess)&gt;, filename: &amp;str) 
-    -&gt; Result&lt;Vec&lt;u8&gt;, ApiError&gt; 
-{
-    let file = uploads.strict_join(filename)?;
-    Ok(file.read()?)
-}
-
-fn handle_write(
-    uploads: &amp;StrictPath&lt;(ApiUploads, ReadAccess, WriteAccess)&gt;, 
-    filename: &amp;str,
-    data: &amp;[u8]
-) -&gt; Result&lt;(), ApiError&gt; 
-{
-    let file = uploads.strict_join(filename)?;
-    Ok(file.write(data)?)
-}
-
-#[derive(Debug)]
-enum AuthError {
-    InvalidToken,
-}
-
-#[derive(Debug)]
-enum ApiError {
-    PathError(strict_path::StrictPathError),
-    IoError(std::io::Error),
-}
-
-impl From&lt;strict_path::StrictPathError&gt; for ApiError {
-    fn from(e: strict_path::StrictPathError) -&gt; Self {
-        ApiError::PathError(e)
-    }
-}
-
-impl From&lt;std::io::Error&gt; for ApiError {
-    fn from(e: std::io::Error) -&gt; Self {
-        ApiError::IoError(e)
-    }
-}
-<span class="boring">}</span></code></pre>
+<p>The facade (virtual path) makes for better UX. The real structure (strict path) handles the actual filesystem operations.</p>
+<p><strong>Best of both worlds:</strong></p>
+<ul>
+<li>Users see clean, understandable paths</li>
+<li>System operates on real, validated paths</li>
+<li>Security boundary enforced throughout</li>
+</ul>
+<h2 id="when-to-use-virtualpath-vs-strictpath"><a class="header" href="#when-to-use-virtualpath-vs-strictpath">When to Use VirtualPath vs. StrictPath</a></h2>
+<h3 id="use-virtualpath-containment-when"><a class="header" href="#use-virtualpath-containment-when">Use VirtualPath (Containment) When:</a></h3>
+<ul>
+<li>✅ <strong>Multi-tenant systems</strong> — each user needs isolated <code>/</code> view</li>
+<li>✅ <strong>Malware sandboxes</strong> — observe behavior while containing escapes</li>
+<li>✅ <strong>Archive analysis</strong> — safely study suspicious archives in research environments</li>
+<li>✅ <strong>Container-like plugins</strong> — modules get their own filesystem view</li>
+<li>✅ <strong>Security research</strong> — simulate contained environments</li>
+<li>✅ Path escapes are <strong>expected but must be controlled</strong></li>
+</ul>
+<h3 id="use-strictpath-detection-when"><a class="header" href="#use-strictpath-detection-when">Use StrictPath (Detection) When:</a></h3>
+<ul>
+<li>✅ <strong>Production archive extraction</strong> — detect malicious paths, reject compromised archives, alert users</li>
+<li>✅ <strong>File uploads</strong> — reject user paths with traversal attempts</li>
+<li>✅ <strong>Config loading</strong> — fail on untrusted paths that try to escape</li>
+<li>✅ <strong>System resources</strong> — logs, cache, assets with strict boundaries</li>
+<li>✅ Path escapes indicate <strong>malicious intent</strong> that must be detected</li>
+</ul>
+<p><strong>Key Insight for Archives</strong>: Use StrictPath for <strong>production extraction</strong> (detect and reject attacks). Use VirtualPath for <strong>research/sandboxing</strong> (safely analyze suspicious archives while containing their behavior).</p>
 <h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
-<p>✅ <strong><code>change_marker()</code> encodes proven authorization</strong> (doesn’t grant it)<br>✅ <strong>Tuple markers compose resources and permissions</strong><br>✅ <strong>Authorization happens once</strong> — type system enforces it everywhere<br>✅ <strong>Impossible to bypass</strong> — only way to get the marker is through auth gate<br>✅ <strong>Compiler catches missing authorization</strong> — won’t compile without proper marker</p>
-<h2 id="the-complete-guarantee-so-far"><a class="header" href="#the-complete-guarantee-so-far">The Complete Guarantee So Far</a></h2>
+<p>✅ <strong><code>VirtualPath</code> = <code>StrictPath</code> + virtual <code>/</code> view</strong><br>✅ <strong>Clamping behavior</strong> — escapes are contained, not rejected<br>✅ <strong>User-friendly display</strong> — show clean paths in UIs<br>✅ <strong>Per-user sandboxes</strong> — each user gets their own virtual root<br>✅ <strong>Markers work</strong> — domain separation applies to virtual paths too<br>✅ <strong>Symlinks still validated</strong> — not a “trust everything” mode<br>✅ <strong>Opt-in feature</strong> — requires <code>virtual-path</code> in <code>Cargo.toml</code></p>
+<h2 id="the-complete-guarantee"><a class="header" href="#the-complete-guarantee">The Complete Guarantee</a></h2>
 <blockquote>
-<p><strong>If a function accepts <code>StrictPath&lt;(Resource, Permission)&gt;</code>, the compiler mathematically proves that:</strong></p>
+<p><strong>If you have a <code>VirtualPath&lt;Marker&gt;</code>, the compiler guarantees:</strong></p>
 <ol>
-<li>✅ The path cannot escape its boundary (Stage 1)</li>
-<li>✅ The path is in the correct domain (Stage 3)</li>
-<li>✅ Authorization was granted for that permission level (Stage 4)</li>
+<li>✅ The path cannot escape its boundary (Chapter 1)</li>
+<li>✅ The path is in the correct domain (Chapter 3)</li>
+<li>✅ Virtual display is always rooted at <code>/</code> (Chapter 5)</li>
+<li>✅ System operations use the validated real path (Chapter 5)</li>
 </ol>
 </blockquote>
-<p><strong>This is compile-time authorization.</strong> Forget a check? Won’t compile. Use the wrong permission level? Won’t compile. Bypass authorization? Impossible.</p>
 <h2 id="whats-next"><a class="header" href="#whats-next">What’s Next?</a></h2>
-<p>You’ve mastered authorization with markers. But what about <strong>user-facing applications</strong> where you want to show clean paths like <code>/documents/file.txt</code> instead of ugly system paths?</p>
-<p>That’s where <code>VirtualPath</code> comes in…</p>
-<p><strong><a href="./stage5_virtual_paths.html">Continue to Stage 5: Virtual Paths →</a></strong></p>
+<p>You now understand both <code>StrictPath</code> and <code>VirtualPath</code>. But how do you integrate with <strong>external ecosystem crates</strong> like OS directories, temp files, and app-specific paths?</p>
+<p>That’s where <strong>feature-gated constructors</strong> come in…</p>
+<p><strong><a href="./chapter6_features.html">Continue to Chapter 6: Feature Integration →</a></strong></p>
 <hr>
 <p><strong>Quick Reference:</strong></p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// Define markers
-struct Resource;
-struct ReadOnly;
-struct ReadWrite;
+</span>// Create virtual root
+let vroot = VirtualPath::with_root("./path")?;
 
-// Authorization gate
-fn authorize(token: &amp;str, path: StrictPath&lt;(Resource, ReadOnly)&gt;) 
-    -&gt; Option&lt;StrictPath&lt;(Resource, ReadWrite)&gt;&gt; 
-{
-    if validate(token) {
-        Some(path.change_marker())  // Encode authorization
-    } else {
-        None
-    }
-}
+// Validate and clamp
+let vpath = vroot.virtual_join(untrusted_input)?;
 
-// Protected function
-fn protected(path: &amp;StrictPath&lt;(Resource, ReadWrite)&gt;) {
-    // No auth check needed — type proves it!
-}
+// Display
+println!("Virtual: {}", vpath.virtualpath_display());      // /file.txt
+println!("System: {}", vpath.as_unvirtual().strictpath_display());  // path/file.txt
+
+// I/O operations
+vpath.write(data)?;
+let content = vpath.read_to_string()?;
 <span class="boring">}</span></code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../tutorial/stage3_markers.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../tutorial/chapter4_authorization.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../tutorial/stage5_virtual_paths.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../tutorial/chapter6_features.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -672,11 +657,11 @@ fn protected(path: &amp;StrictPath&lt;(Resource, ReadWrite)&gt;) {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../tutorial/stage3_markers.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../tutorial/chapter4_authorization.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../tutorial/stage5_virtual_paths.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../tutorial/chapter6_features.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

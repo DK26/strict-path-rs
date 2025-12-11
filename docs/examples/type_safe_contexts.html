@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-55fd61e2.js";
+            window.path_to_searchindex_js = "../searchindex-fcfdc226.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c8b1e92a.js"></script>
+        <script src="../toc-21247364.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -226,11 +226,11 @@ fn load_config(path: &amp;StrictPath&lt;ConfigData&gt;) -&gt; Result&lt;String, 
 
 fn example_type_safety() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     // Create context-specific boundaries
-    let assets_root: VirtualRoot&lt;WebAssets&gt; = VirtualRoot::try_new("public")?;
+    let assets_root: VirtualRoot&lt;WebAssets&gt; = VirtualRoot::try_new("./public")?;
     let user_id = "alice";
     let uploads_root: VirtualRoot&lt;UserFiles&gt; =
-        VirtualRoot::try_new(format!("uploads/{user_id}"))?;
-    let config_boundary: PathBoundary&lt;ConfigData&gt; = PathBoundary::try_new("config")?;
+        VirtualRoot::try_new(format!("./uploads/{user_id}"))?;
+    let config_boundary: PathBoundary&lt;ConfigData&gt; = PathBoundary::try_new("./config")?;
 
     // Create paths with proper contexts
     let css: VirtualPath&lt;WebAssets&gt; = assets_root.virtual_join("app.css")?;
@@ -300,8 +300,8 @@ struct WebServer {
 impl WebServer {
     fn new() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
         Ok(Self {
-            assets: VirtualRoot::try_new("public")?,
-            config: PathBoundary::try_new("config")?,
+            assets: VirtualRoot::try_new("./public")?,
+            config: PathBoundary::try_new("./config")?,
         })
     }
     
@@ -403,9 +403,9 @@ fn backup_database(
 
 fn example_permissions() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let docs_ro: PathBoundary&lt;(Documents, ReadOnly)&gt; = 
-        PathBoundary::try_new("documents")?;
+        PathBoundary::try_new("./documents")?;
     let docs_rw: PathBoundary&lt;(Documents, ReadWrite)&gt; = 
-        PathBoundary::try_new("documents")?;
+        PathBoundary::try_new("./documents")?;
     
     let file_ro = docs_ro.strict_join("report.txt")?;
     let file_rw = docs_rw.strict_join("report.txt")?;
@@ -450,7 +450,7 @@ fn write_file(path: &amp;StrictPath&lt;(UserFiles, ReadWrite)&gt;, content: &amp
 
 // Usage:
 let boundary: PathBoundary&lt;(UserFiles, ReadOnly)&gt; = 
-    PathBoundary::try_new("uploads")?;
+    PathBoundary::try_new("./uploads")?;
 let file_ro = boundary.strict_join("document.txt")?;
 
 // Can't write yet - read-only marker
@@ -461,7 +461,7 @@ if let Ok(file_rw) = authenticate_and_upgrade(file_ro, check_permissions()) {
     write_file(&amp;file_rw, b"data")?;  // ✅ Now allowed
 }
 <span class="boring">}</span></code></pre>
-<p>See the <a href="../authorization_security.html">Authorization &amp; Permissions</a> chapter for more details.</p>
+<p>See the <a href="../tutorial/chapter4_authorization.html">Authorization &amp; Permissions</a> chapter for more details.</p>
 <h2 id="shared-logic-across-contexts"><a class="header" href="#shared-logic-across-contexts">Shared Logic Across Contexts</a></h2>
 <p>Use generics when logic applies to any context:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -569,9 +569,9 @@ fn read_asset(path: &amp;StrictPath&lt;WebAssets&gt;) -&gt; std::io::Result&lt;V
 <span class="boring">}</span></code></pre>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <ul>
-<li>See <a href="../authorization_security.html">Authorization &amp; Permissions</a> for advanced marker patterns</li>
+<li>See <a href="../tutorial/chapter4_authorization.html">Authorization &amp; Permissions</a> for advanced marker patterns</li>
 <li>See <a href="./web_upload_service.html">Web Upload Service</a> for practical multi-context usage</li>
-<li>See <a href="../tutorial/stage3_markers.html">Tutorial Stage 3</a> for marker basics</li>
+<li>See <a href="../tutorial/chapter3_markers.html">Tutorial Chapter 3</a> for marker basics</li>
 </ul>
 
                     </main>

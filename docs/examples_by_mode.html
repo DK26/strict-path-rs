@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-55fd61e2.js";
+            window.path_to_searchindex_js = "searchindex-fcfdc226.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-c8b1e92a.js"></script>
+        <script src="toc-21247364.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -329,7 +329,7 @@ let user_file = Path::new(user_input); // user_input = "../../../etc/passwd"
 std::fs::write(user_file, data)?; // System compromised!
 
 // ✅ CORRECT - Validate first with StrictPath
-let uploads = PathBoundary::try_new("uploads")?;
+let uploads = PathBoundary::try_new("./uploads")?;
 let safe_file = uploads.strict_join(user_input)?; // Attack rejected
 safe_file.write(data)?;
 <span class="boring">}</span></code></pre>
@@ -377,7 +377,7 @@ safe_file.write(data)?;
 <li><strong><a href="./best_practices.html#pick-the-right-type">Best Practices: Full Decision Matrix</a></strong> - 15+ scenarios with detailed guidance</li>
 <li><strong><a href="./best_practices.html#security-philosophy-detect-vs-contain">Security Philosophy: Detect vs Contain</a></strong> - Deep dive into the fundamental distinction</li>
 <li><strong><a href="./examples/overview.html">Real-World Examples</a></strong> - Complete, production-ready implementations</li>
-<li><strong><a href="./tutorial/stage5_virtual_paths.html">Tutorial: Stage 5 - Virtual Paths</a></strong> - Understanding VirtualPath semantics</li>
+<li><strong><a href="./tutorial/chapter5_virtual_paths.html">Tutorial: Chapter 5 - Virtual Paths</a></strong> - Understanding VirtualPath semantics</li>
 </ul>
 
                     </main>

@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-55fd61e2.js";
+            window.path_to_searchindex_js = "../searchindex-fcfdc226.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c8b1e92a.js"></script>
+        <script src="../toc-21247364.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -219,7 +219,7 @@ struct ConfigManager {
 impl ConfigManager {
     fn new() -&gt; Result&lt;Self, Box&lt;dyn std::error::Error&gt;&gt; {
         // Create a jail for configuration files
-        let config_dir = PathBoundary::try_new_create("app_config")?;
+        let config_dir = PathBoundary::try_new_create("./app_config")?;
         Ok(Self { config_dir })
     }
     
@@ -304,7 +304,7 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 <h3 id="1-bounded-configuration-directory"><a class="header" href="#1-bounded-configuration-directory">1. Bounded Configuration Directory</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>let config_dir = PathBoundary::try_new_create("app_config")?;
+</span>let config_dir = PathBoundary::try_new_create("./app_config")?;
 <span class="boring">}</span></code></pre>
 <p>All configuration operations are restricted to this directory.</p>
 <h3 id="2-validated-file-names"><a class="header" href="#2-validated-file-names">2. Validated File Names</a></h3>
@@ -358,7 +358,7 @@ fn deserialize_config_file&lt;'de, D&gt;(deserializer: D) -&gt; Result&lt;Strict
 where
     D: serde::Deserializer&lt;'de&gt;,
 {
-    let boundary = PathBoundary::&lt;ConfigFiles&gt;::try_new("config")?;
+    let boundary = PathBoundary::&lt;ConfigFiles&gt;::try_new("./config")?;
     let path_str = String::deserialize(deserializer)?;
     boundary.strict_join(&amp;path_str).map_err(serde::de::Error::custom)
 }

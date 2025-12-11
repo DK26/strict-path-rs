@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-55fd61e2.js";
+            window.path_to_searchindex_js = "../searchindex-fcfdc226.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c8b1e92a.js"></script>
+        <script src="../toc-21247364.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -186,18 +186,18 @@
 </blockquote>
 <p>This tutorial builds your understanding step-by-step, from basic path validation to compile-time authorization guarantees. Each section introduces <strong>one concept at a time</strong>, with runnable examples you can copy and paste.</p>
 <h2 id="what-youll-learn"><a class="header" href="#what-youll-learn">What You’ll Learn</a></h2>
-<p><strong>Stage 1: <a href="./stage1_basic_promise.html">The Basic Promise</a></strong><br>Learn how <code>StrictPath</code> makes path escapes mathematically impossible, without any markers yet.</p>
-<p><strong>Stage 2: <a href="./stage2_mixup_problem.html">The Mix-Up Problem</a></strong><br>Discover the confusing problem that emerges when you have multiple boundaries.</p>
-<p><strong>Stage 3: <a href="./stage3_markers.html">Markers to the Rescue</a></strong><br>See how markers solve the mix-up problem with compile-time domain separation.</p>
-<p><strong>Stage 4: <a href="./stage4_authorization.html">Authorization with change_marker()</a></strong><br>Learn to encode authorization requirements in the type system using <code>change_marker()</code>.</p>
-<p><strong>Stage 5: <a href="./stage5_virtual_paths.html">Virtual Paths</a></strong><br>Understand how <code>VirtualPath</code> extends <code>StrictPath</code> with user-friendly sandboxing semantics.</p>
-<p><strong>Stage 6: <a href="./stage6_features.html">Feature Integration</a></strong><br>Integrate with your ecosystem using feature-gated constructors (<code>dirs</code>, <code>tempfile</code>, <code>app-path</code>, <code>serde</code>).</p>
+<p><strong>Chapter 1: <a href="./chapter1_basic_promise.html">The Basic Promise</a></strong><br>Learn how <code>StrictPath</code> makes path escapes mathematically impossible, without any markers yet.</p>
+<p><strong>Chapter 2: <a href="./chapter2_mixup_problem.html">The Mix-Up Problem</a></strong><br>Discover the confusing problem that emerges when you have multiple boundaries.</p>
+<p><strong>Chapter 3: <a href="./chapter3_markers.html">Markers to the Rescue</a></strong><br>See how markers solve the mix-up problem with compile-time domain separation.</p>
+<p><strong>Chapter 4: <a href="./chapter4_authorization.html">Authorization with change_marker()</a></strong><br>Learn to encode authorization requirements in the type system using <code>change_marker()</code>.</p>
+<p><strong>Chapter 5: <a href="./chapter5_virtual_paths.html">Virtual Paths</a></strong><br>Understand how <code>VirtualPath</code> extends <code>StrictPath</code> with user-friendly sandboxing semantics.</p>
+<p><strong>Chapter 6: <a href="./chapter6_features.html">Feature Integration</a></strong><br>Integrate with your ecosystem using feature-gated constructors (<code>dirs</code>, <code>tempfile</code>, <code>app-path</code>, <code>serde</code>).</p>
 <h2 id="the-progressive-guarantee"><a class="header" href="#the-progressive-guarantee">The Progressive Guarantee</a></h2>
-<p>As you progress through the stages, the compiler’s guarantees grow stronger:</p>
+<p>As you progress through the chapters, the compiler’s guarantees grow stronger:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Stage</th><th>What You Master</th><th>The Guarantee</th></tr>
+<tr><th>Chapter</th><th>What You Master</th><th>The Guarantee</th></tr>
 </thead>
 <tbody>
 <tr><td><strong>1</strong></td><td>Basic boundaries</td><td>Path cannot escape</td></tr>
@@ -220,7 +220,7 @@
 </ul>
 </blockquote>
 <p>Ready? Let’s unlock the security vault. 🔐</p>
-<p><strong><a href="./stage1_basic_promise.html">Start with Stage 1: The Basic Promise →</a></strong></p>
+<p><strong><a href="./chapter1_basic_promise.html">Start with Chapter 1: The Basic Promise →</a></strong></p>
 
                     </main>
 
@@ -230,7 +230,7 @@
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../tutorial/stage1_basic_promise.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../tutorial/chapter1_basic_promise.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -244,7 +244,7 @@
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../tutorial/stage1_basic_promise.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../tutorial/chapter1_basic_promise.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-55fd61e2.js";
+            window.path_to_searchindex_js = "../searchindex-fcfdc226.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c8b1e92a.js"></script>
+        <script src="../toc-21247364.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -562,17 +562,16 @@ fn is_immutable_asset(path: &amp;StrictPath&lt;WebAssets&gt;) -&gt; bool {
 <h2 id="key-takeaways"><a class="header" href="#key-takeaways">Key Takeaways</a></h2>
 <p>✅ <strong>Single validation point</strong> - <code>strict_join()</code> handles all path security<br>✅ <strong>Type-safe helpers</strong> - Functions accept <code>StrictPath&lt;WebAssets&gt;</code> only<br>✅ <strong>Automatic attack blocking</strong> - No manual checks needed<br>✅ <strong>Clear error handling</strong> - Failed validation returns appropriate HTTP errors<br>✅ <strong>Content-type safety</strong> - Based on validated path extension</p>
 <h2 id="whats-next"><a class="header" href="#whats-next">What’s Next?</a></h2>
-<p>Now that we can serve static assets securely, let’s add user authentication:</p>
-<p><strong><a href="./chapter3_authentication.html">Chapter 3: User Authentication →</a></strong></p>
+<p>Now that we can serve static assets securely, let’s add per-user file storage:</p>
+<p><strong><a href="./chapter3_user_storage.html">Chapter 3: Per-User Storage →</a></strong></p>
 <p>In the next chapter, we’ll:</p>
 <ul>
-<li>Implement simple session-based authentication</li>
 <li>Create per-user <code>VirtualRoot</code> instances</li>
-<li>Use authorization markers with <code>change_marker()</code></li>
-<li>Protect routes with middleware</li>
+<li>Implement isolated file storage per user</li>
+<li>Use virtual paths for user-friendly display</li>
 </ul>
 <hr>
-<p><strong>Navigation:</strong><br><a href="./chapter1_setup.html">← Chapter 1</a> | <a href="./overview.html">Tutorial Overview</a> | <a href="./chapter3_authentication.html">Chapter 3 →</a></p>
+<p><strong>Navigation:</strong><br><a href="./chapter1_setup.html">← Chapter 1</a> | <a href="./overview.html">Tutorial Overview</a> | <a href="./chapter3_user_storage.html">Chapter 3 →</a></p>
 
                     </main>
 

@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-55fd61e2.js";
+            window.path_to_searchindex_js = "searchindex-fcfdc226.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-c8b1e92a.js"></script>
+        <script src="toc-21247364.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -189,7 +189,8 @@
 <h2 id="security-measures-taken"><a class="header" href="#security-measures-taken">Security Measures Taken</a></h2>
 <h3 id="llm-aware-documentation"><a class="header" href="#llm-aware-documentation">LLM-Aware Documentation</a></h3>
 <ul>
-<li><strong>Complete API summary file dedicated to an LLM</strong> - <a href="https://github.com/DK26/strict-path-rs/blob/main/LLM_API_REFERENCE.md"><code>LLM_API_REFERENCE.md</code></a> provides usage-first guidance</li>
+<li><strong>Complete API summary file dedicated to an LLM</strong> - <a href="https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md"><code>LLM_CONTEXT_FULL.md</code></a> provides usage-first guidance</li>
+<li><strong>Context7-style usage guide</strong> - <a href="https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md"><code>LLM_CONTEXT.md</code></a> for lighter-weight LLM context</li>
 <li><strong>Code comments in a style that tooling agents can reason with</strong> - Explicit function documentation with SUMMARY/PARAMETERS/RETURNS/ERRORS/EXAMPLE sections</li>
 </ul>
 <h3 id="api-design-philosophy"><a class="header" href="#api-design-philosophy">API Design Philosophy</a></h3>
@@ -304,7 +305,7 @@ let resolved = soft_canonicalize("config/../data/file.txt")?;
 
 // strict-path: high-level security (uses soft-canonicalize internally)
 use strict_path::StrictPath;
-let safe_path = StrictPath::with_boundary("data")?
+let safe_path = StrictPath::with_boundary("./data")?
     .strict_join("../file.txt")?;  // Returns Err if outside "data"
 safe_path.read_to_string()?;       // Built-in secure I/O
 <span class="boring">}</span></code></pre>

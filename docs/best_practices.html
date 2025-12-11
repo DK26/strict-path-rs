@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-55fd61e2.js";
+            window.path_to_searchindex_js = "searchindex-fcfdc226.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-c8b1e92a.js"></script>
+        <script src="toc-21247364.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -284,7 +284,7 @@
 </span><span class="boring">fn main() {
 </span>use strict_path::PathBoundary;
 
-// âŒ SLOW: 1000 canonicalizations
+// ❌ SLOW: 1000 canonicalizations
 for name in files {
     let boundary = PathBoundary::try_new(base)?;
     boundary.strict_join(name)?;
@@ -402,7 +402,7 @@ for name in files {
 <p><strong>Variables reflect domain, not type:</strong></p>
 <ul>
 <li>✅ Good: <code>config_dir</code>, <code>uploads_root</code>, <code>archive_src</code>, <code>tenant_vroot</code></li>
-<li>âŒ Bad: <code>boundary</code>, <code>jail</code>, <code>source_</code> prefix, <code>_path</code> suffix</li>
+<li>❌ Bad: <code>boundary</code>, <code>jail</code>, <code>source_</code> prefix, <code>_path</code> suffix</li>
 </ul>
 <p><strong>Keep names consistent</strong> with the directory they represent.</p>
 <hr>
@@ -503,7 +503,7 @@ println!("User: {}", vpath.virtualpath_display()); // VirtualPath only
 <li>Call <code>interop_path()</code> only for <code>AsRef&lt;Path&gt;</code> APIs</li>
 <li>Name variables by domain (<code>uploads_root</code>, <code>config_dir</code>)</li>
 </ul>
-<p>âŒ <strong>DON’T:</strong></p>
+<p>❌ <strong>DON’T:</strong></p>
 <ul>
 <li>Wrap secure types in <code>Path::new()</code> / <code>PathBuf::from()</code></li>
 <li>Use <code>std::path</code> methods on leaked paths</li>
@@ -513,7 +513,7 @@ println!("User: {}", vpath.virtualpath_display()); // VirtualPath only
 </ul>
 <hr>
 <h2 id="anti-patterns-reference"><a class="header" href="#anti-patterns-reference">Anti-Patterns Reference</a></h2>
-<p>For detailed anti-patterns and fixes, see: <strong><a href="../anti_patterns.html">Anti-Patterns Guide →</a></strong></p>
+<p>For detailed anti-patterns and fixes, see: <strong><a href="./anti_patterns.html">Anti-Patterns Guide →</a></strong></p>
 <hr>
 <p>That’s it! This page is your quick reference. Dive into the focused chapters when you need details.</p>
 <p>For source-level API documentation: <strong><a href="https://docs.rs/strict-path">API Reference (docs.rs) →</a></strong></p>

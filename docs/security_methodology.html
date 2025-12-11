@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-55fd61e2.js";
+            window.path_to_searchindex_js = "searchindex-fcfdc226.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-c8b1e92a.js"></script>
+        <script src="toc-21247364.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -206,7 +206,7 @@
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Attack attempt: ../../sensitive.doc:stream
-let boundary = PathBoundary::try_new("archive_extract")?;
+let boundary = PathBoundary::try_new("./archive_extract")?;
 match boundary.strict_join("../../sensitive.doc:stream") {
     Ok(_) =&gt; unreachable!("Never succeeds"),
     Err(e) =&gt; println!("🛡️ ADS attack blocked: {e}"),
@@ -223,7 +223,7 @@ match boundary.strict_join("../../sensitive.doc:stream") {
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Validation and resolution happen atomically
-let boundary = PathBoundary::try_new("workspace")?;
+let boundary = PathBoundary::try_new("./workspace")?;
 let safe_path = boundary.strict_join("config.toml")?; // Resolves symlinks NOW
 safe_path.read_to_string()?; // Uses already-resolved path, no race
 <span class="boring">}</span></code></pre>
