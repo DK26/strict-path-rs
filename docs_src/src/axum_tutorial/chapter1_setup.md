@@ -106,10 +106,10 @@ impl AppState {
     /// Create new application state with initialized boundaries
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         // Create boundary for public assets
-        let assets = PathBoundary::try_new_create("public")?;
+        let assets = PathBoundary::try_new_create("./public")?;
         
         // Create boundary for config files
-        let config = PathBoundary::try_new_create("config")?;
+        let config = PathBoundary::try_new_create("./config")?;
         
         Ok(Self {
             assets: Arc::new(assets),

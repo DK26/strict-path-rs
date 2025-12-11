@@ -123,8 +123,8 @@ fn load_config(config_dir: &PathBoundary, name: &str) -> std::io::Result<String>
 use strict_path::{PathBoundary, StrictPath};
 
 fn example_workflow() -> std::io::Result<()> {
-    let reports_dir = PathBoundary::try_new("reports")?;
-    let config_dir = PathBoundary::try_new("config")?;
+    let reports_dir = PathBoundary::try_new("./reports")?;
+    let config_dir = PathBoundary::try_new("./config")?;
     
     // Pattern 1: Validation at call site
     let report = reports_dir.strict_join("q4_2025.pdf")?;

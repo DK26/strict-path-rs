@@ -7,12 +7,12 @@
 # Tutorial
 
 - [Tutorial: Step-by-Step Guide](./tutorial/overview.md)
-  - [Stage 1: The Basic Promise](./tutorial/stage1_basic_promise.md)
-  - [Stage 2: The Mix-Up Problem](./tutorial/stage2_mixup_problem.md)
-  - [Stage 3: Markers to the Rescue](./tutorial/stage3_markers.md)
-  - [Stage 4: Authorization with change_marker()](./tutorial/stage4_authorization.md)
-  - [Stage 5: Virtual Paths for User Sandboxing](./tutorial/stage5_virtual_paths.md)
-  - [Stage 6: Feature Integration](./tutorial/stage6_features.md)
+  - [Chapter 1: The Basic Promise](./tutorial/chapter1_basic_promise.md)
+  - [Chapter 2: The Mix-Up Problem](./tutorial/chapter2_mixup_problem.md)
+  - [Chapter 3: Markers to the Rescue](./tutorial/chapter3_markers.md)
+  - [Chapter 4: Authorization with change_marker()](./tutorial/chapter4_authorization.md)
+  - [Chapter 5: Virtual Paths for User Sandboxing](./tutorial/chapter5_virtual_paths.md)
+  - [Chapter 6: Feature Integration](./tutorial/chapter6_features.md)
 
 ---
 

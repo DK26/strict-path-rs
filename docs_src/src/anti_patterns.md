@@ -86,7 +86,7 @@ if safe_path.exists() {
 
 **❌ What not to do:**
 ```rust
-let uploads_dir = PathBoundary::try_new("uploads")?;
+let uploads_dir = PathBoundary::try_new("./uploads")?;
 let leaked = Path::new(uploads_dir.interop_path());
 let dangerous = leaked.join("../../../etc/passwd");  // Can escape!
 ```
@@ -95,7 +95,7 @@ let dangerous = leaked.join("../../../etc/passwd");  // Can escape!
 
 **✅ Do this instead:**
 ```rust
-let uploads_dir = PathBoundary::try_new("uploads")?;
+let uploads_dir = PathBoundary::try_new("./uploads")?;
 // This will return an error instead of escaping:
 let safe_result = uploads_dir.strict_join("../../../etc/passwd");
 match safe_result {
@@ -151,7 +151,7 @@ Now `uploads_dir.strict_join("photo.jpg")` reads naturally as "uploads directory
 ```rust
 fn save_file(filename: &str, data: &[u8]) -> std::io::Result<()> {
     // Every function has to validate - error prone!
-    let uploads = PathBoundary::try_new("uploads")?;
+    let uploads = PathBoundary::try_new("./uploads")?;
     let safe_path = uploads.strict_join(filename)?;
     safe_path.write(data)
 }

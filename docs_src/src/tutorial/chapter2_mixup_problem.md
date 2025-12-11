@@ -1,8 +1,8 @@
-# Stage 2: The Mix-Up Problem — When You Have Multiple Boundaries
+# Chapter 2: The Mix-Up Problem — When You Have Multiple Boundaries
 
 > *"Wait, which uploads folder is this again?"*
 
-In Stage 1, you learned that `StrictPath` guarantees paths can't escape their boundaries. Perfect! But real applications need **multiple** safe directories. That's where a new problem emerges...
+In Chapter 1, you learned that `StrictPath` guarantees paths can't escape their boundaries. Perfect! But real applications need **multiple** safe directories. That's where a new problem emerges...
 
 ## Real-World Complexity
 
@@ -13,13 +13,13 @@ use strict_path::StrictPath;
 
 fn file_server() -> Result<(), Box<dyn std::error::Error>> {
     // User uploads
-    let uploads_dir = StrictPath::with_boundary_create("user_uploads")?;
+    let uploads_dir = StrictPath::with_boundary_create("./data/user_uploads")?;
     
     // Public web assets (CSS, JS, images)
-    let assets_dir = StrictPath::with_boundary_create("public_assets")?;
+    let assets_dir = StrictPath::with_boundary_create("./public/assets")?;
     
     // System configuration files
-    let config_dir = StrictPath::with_boundary_create("system_config")?;
+    let config_dir = StrictPath::with_boundary_create("./config/system")?;
 
     // Now we have paths from different domains...
     let user_file = uploads_dir.strict_join("document.pdf")?;
@@ -66,8 +66,8 @@ Let's see the concrete dangers:
 use strict_path::StrictPath;
 
 fn security_leak_example() -> Result<(), Box<dyn std::error::Error>> {
-    let private_uploads = StrictPath::with_boundary_create("private_uploads")?;
-    let public_site = StrictPath::with_boundary_create("public_site")?;
+    let private_uploads = StrictPath::with_boundary_create("./data/private_uploads")?;
+    let public_site = StrictPath::with_boundary_create("./public/site")?;
 
     // User uploads a private document
     let tax_return = private_uploads.strict_join("tax_return_2024.pdf")?;
@@ -93,8 +93,8 @@ fn serve_to_internet(path: &StrictPath) -> std::io::Result<()> {
 use strict_path::StrictPath;
 
 fn data_corruption_example() -> Result<(), Box<dyn std::error::Error>> {
-    let user_data = StrictPath::with_boundary_create("user_data")?;
-    let system_logs = StrictPath::with_boundary_create("system_logs")?;
+    let user_data = StrictPath::with_boundary_create("./data/user_data")?;
+    let system_logs = StrictPath::with_boundary_create("./logs/system")?;
 
     let user_note = user_data.strict_join("notes.txt")?;
     let system_log = system_logs.strict_join("audit.log")?;
@@ -127,8 +127,8 @@ fn append_audit_entry(path: &StrictPath, entry: &str) -> std::io::Result<()> {
 use strict_path::StrictPath;
 
 fn authorization_bypass_example() -> Result<(), Box<dyn std::error::Error>> {
-    let admin_files = StrictPath::with_boundary_create("admin_files")?;
-    let guest_files = StrictPath::with_boundary_create("guest_files")?;
+    let admin_files = StrictPath::with_boundary_create("./data/admin_files")?;
+    let guest_files = StrictPath::with_boundary_create("./data/guest_files")?;
 
     let sensitive_config = admin_files.strict_join("secrets.toml")?;
     let public_readme = guest_files.strict_join("README.md")?;
@@ -159,9 +159,9 @@ The problem is **type erasure**. Once you create paths from different boundaries
 use strict_path::StrictPath;
 
 fn demonstrate_type_erasure() -> Result<(), Box<dyn std::error::Error>> {
-    let uploads = StrictPath::with_boundary_create("uploads")?;
-    let config = StrictPath::with_boundary_create("config")?;
-    let cache = StrictPath::with_boundary_create("cache")?;
+    let uploads = StrictPath::with_boundary_create("./uploads")?;
+    let config = StrictPath::with_boundary_create("./config")?;
+    let cache = StrictPath::with_boundary_create("./cache")?;
 
     let file1 = uploads.strict_join("a.txt")?;  // Type: StrictPath
     let file2 = config.strict_join("b.txt")?;   // Type: StrictPath
@@ -262,4 +262,4 @@ You've seen the problem: multiple boundaries create confusion and risk.
 
 Now you're ready for the solution: **markers** that make the compiler your security guard.
 
-**[Continue to Stage 3: Markers to the Rescue →](./stage3_markers.md)**
+**[Continue to Chapter 3: Markers to the Rescue →](./chapter3_markers.md)**

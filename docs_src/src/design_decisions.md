@@ -13,7 +13,8 @@ That had me realize that since LLM Agents is all that is happening nowadays, I h
 ## Security Measures Taken
 
 ### LLM-Aware Documentation
-- **Complete API summary file dedicated to an LLM** - [`LLM_API_REFERENCE.md`](https://github.com/DK26/strict-path-rs/blob/main/LLM_API_REFERENCE.md) provides usage-first guidance
+- **Complete API summary file dedicated to an LLM** - [`LLM_CONTEXT_FULL.md`](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md) provides usage-first guidance
+- **Context7-style usage guide** - [`LLM_CONTEXT.md`](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md) for lighter-weight LLM context
 - **Code comments in a style that tooling agents can reason with** - Explicit function documentation with SUMMARY/PARAMETERS/RETURNS/ERRORS/EXAMPLE sections
 
 ### API Design Philosophy
@@ -124,7 +125,7 @@ let resolved = soft_canonicalize("config/../data/file.txt")?;
 
 // strict-path: high-level security (uses soft-canonicalize internally)
 use strict_path::StrictPath;
-let safe_path = StrictPath::with_boundary("data")?
+let safe_path = StrictPath::with_boundary("./data")?
     .strict_join("../file.txt")?;  // Returns Err if outside "data"
 safe_path.read_to_string()?;       // Built-in secure I/O
 ```

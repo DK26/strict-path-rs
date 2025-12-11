@@ -43,7 +43,7 @@ struct ConfigManager {
 impl ConfigManager {
     fn new() -> Result<Self, Box<dyn std::error::Error>> {
         // Create a jail for configuration files
-        let config_dir = PathBoundary::try_new_create("app_config")?;
+        let config_dir = PathBoundary::try_new_create("./app_config")?;
         Ok(Self { config_dir })
     }
     
@@ -130,7 +130,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 1. Bounded Configuration Directory
 ```rust
-let config_dir = PathBoundary::try_new_create("app_config")?;
+let config_dir = PathBoundary::try_new_create("./app_config")?;
 ```
 All configuration operations are restricted to this directory.
 
@@ -181,7 +181,7 @@ fn deserialize_config_file<'de, D>(deserializer: D) -> Result<StrictPath<ConfigF
 where
     D: serde::Deserializer<'de>,
 {
-    let boundary = PathBoundary::<ConfigFiles>::try_new("config")?;
+    let boundary = PathBoundary::<ConfigFiles>::try_new("./config")?;
     let path_str = String::deserialize(deserializer)?;
     boundary.strict_join(&path_str).map_err(serde::de::Error::custom)
 }

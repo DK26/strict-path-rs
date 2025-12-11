@@ -1,8 +1,8 @@
-# Stage 3: Markers to the Rescue — Compile-Time Domain Separation
+# Chapter 3: Markers to the Rescue — Compile-Time Domain Separation
 
 > *"Give each boundary a name the compiler understands."*
 
-In Stage 2, you saw how multiple boundaries create confusion — all `StrictPath` values look identical to the compiler. Now you'll learn how **markers** solve this problem by encoding domain information in the type system.
+In Chapter 2, you saw how multiple boundaries create confusion — all `StrictPath` values look identical to the compiler. Now you'll learn how **markers** solve this problem by encoding domain information in the type system.
 
 ## Introducing Markers
 
@@ -29,13 +29,13 @@ struct SystemConfig;
 fn file_server_with_markers() -> Result<(), Box<dyn std::error::Error>> {
     // Now each boundary has a distinct type
     let uploads_dir: StrictPath<UserUploads> = 
-        StrictPath::with_boundary_create("user_uploads")?;
+        StrictPath::with_boundary_create("./data/user_uploads")?;
     
     let assets_dir: StrictPath<PublicAssets> = 
-        StrictPath::with_boundary_create("public_assets")?;
+        StrictPath::with_boundary_create("./public/assets")?;
     
     let config_dir: StrictPath<SystemConfig> = 
-        StrictPath::with_boundary_create("system_config")?;
+        StrictPath::with_boundary_create("./config/system")?;
 
     // Paths inherit their marker
     let user_file = uploads_dir.strict_join("document.pdf")?;  // StrictPath<UserUploads>
@@ -70,7 +70,7 @@ fn save_user_upload(path: &StrictPath<UserUploads>) -> std::io::Result<()> {
 3. **Compiler enforcement:** Can't pass the wrong marker to a function — **compile error**
 4. **Self-documenting:** Function signatures show exactly what paths they accept
 
-**The New Guarantee:** Not only is the path safe (Stage 1), but the compiler **proves it's in the correct domain** (Stage 3).
+**The New Guarantee:** Not only is the path safe (Chapter 1), but the compiler **proves it's in the correct domain** (Chapter 3).
 
 ## The Compiler as Security Guard
 
@@ -84,10 +84,10 @@ struct PublicWebsite;
 
 fn demonstrate_compiler_enforcement() -> Result<(), Box<dyn std::error::Error>> {
     let sensitive_dir: StrictPath<SensitiveData> = 
-        StrictPath::with_boundary_create("sensitive")?;
+        StrictPath::with_boundary_create("./data/sensitive")?;
     
     let public_dir: StrictPath<PublicWebsite> = 
-        StrictPath::with_boundary_create("public")?;
+        StrictPath::with_boundary_create("./public")?;
 
     let secret_file = sensitive_dir.strict_join("passwords.txt")?;
     let css_file = public_dir.strict_join("styles.css")?;
@@ -126,9 +126,9 @@ struct Music;
 
 fn organize_media() -> Result<(), Box<dyn std::error::Error>> {
     // Create distinct boundaries
-    let docs_dir: StrictPath<Documents> = StrictPath::with_boundary_create("docs")?;
-    let photos_dir: StrictPath<Photos> = StrictPath::with_boundary_create("photos")?;
-    let music_dir: StrictPath<Music> = StrictPath::with_boundary_create("music")?;
+    let docs_dir: StrictPath<Documents> = StrictPath::with_boundary_create("./media/docs")?;
+    let photos_dir: StrictPath<Photos> = StrictPath::with_boundary_create("./media/photos")?;
+    let music_dir: StrictPath<Music> = StrictPath::with_boundary_create("./media/music")?;
 
     // Create files in each domain
     let report = docs_dir.strict_join("quarterly_report.pdf")?;
@@ -211,7 +211,7 @@ struct GuestAccess;        // ❌ Describes permission, not content
 struct AuthorizedPath;     // ❌ Describes state, not resource
 ```
 
-**Why?** Markers describe **boundaries** (physical storage locations), not **permissions** (authorization levels). We'll add permissions in Stage 4.
+**Why?** Markers describe **boundaries** (physical storage locations), not **permissions** (authorization levels). We'll add permissions in Chapter 4.
 
 ## Real-World Example: Web Server
 
@@ -236,10 +236,10 @@ struct WebServer {
 impl WebServer {
     fn new() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
-            static_dir: StrictPath::with_boundary_create("public/static")?,
-            uploads_dir: StrictPath::with_boundary_create("data/uploads")?,
-            templates_dir: StrictPath::with_boundary_create("templates")?,
-            logs_dir: StrictPath::with_boundary_create("logs")?,
+            static_dir: StrictPath::with_boundary_create("./public/static")?,
+            uploads_dir: StrictPath::with_boundary_create("./data/uploads")?,
+            templates_dir: StrictPath::with_boundary_create("./templates")?,
+            logs_dir: StrictPath::with_boundary_create("./logs")?,
         })
     }
 
@@ -302,7 +302,7 @@ You can't fake a wristband, and you can't sneak into the wrong area. The type sy
 
 ## Comparison: Before and After
 
-### Before Markers (Stage 2)
+### Before Markers (Chapter 2)
 
 ```rust
 // ❌ All paths look the same
@@ -317,7 +317,7 @@ fn process(path: &StrictPath) { ... }
 process(&config_file);  // Oops, wrong file!
 ```
 
-### After Markers (Stage 3)
+### After Markers (Chapter 3)
 
 ```rust
 // ✅ Each path has its domain encoded
@@ -344,8 +344,8 @@ process_user_file(&config_file);   // ❌ Compile error!
 ## The Updated Guarantee
 
 > **If you have a `StrictPath<Marker>`, the compiler guarantees:**
-> 1. ✅ The path cannot escape its boundary (Stage 1)
-> 2. ✅ The path is in the correct domain (Stage 3)
+> 1. ✅ The path cannot escape its boundary (Chapter 1)
+> 2. ✅ The path is in the correct domain (Chapter 3)
 
 ## What's Next?
 
@@ -353,7 +353,7 @@ You now know how to prevent domain mix-ups with markers. But what about **author
 
 That's where things get really powerful...
 
-**[Continue to Stage 4: Authorization with change_marker() →](./stage4_authorization.md)**
+**[Continue to Chapter 4: Authorization with change_marker() →](./chapter4_authorization.md)**
 
 ---
 
@@ -365,7 +365,7 @@ struct MyDomain;
 
 // Create typed boundary
 let boundary: StrictPath<MyDomain> = 
-    StrictPath::with_boundary_create("path")?;
+    StrictPath::with_boundary_create("./path")?;
 
 // Paths inherit marker
 let file = boundary.strict_join("file.txt")?;  // StrictPath<MyDomain>

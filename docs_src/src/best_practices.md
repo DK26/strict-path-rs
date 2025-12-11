@@ -51,10 +51,10 @@ For detailed explanations and comprehensive examples, see these focused chapters
 
 ### Decision Matrix by Source
 
-| Source                     | Typical Input             | Default Choice            | Notes                                                 |
-| -------------------------- | ------------------------- | ------------------------- | ----------------------------------------------------- |
-| 🌐 **HTTP/Web**          | URL segments, form fields | VirtualPath or StrictPath | VirtualPath for UI display, StrictPath for system I/O |
-| ⚙️ **Config/DB**       | Paths in config/database  | StrictPath                | Storage ≠ safety; validate on use                   |
+| Source                  | Typical Input             | Default Choice            | Notes                                                 |
+| ----------------------- | ------------------------- | ------------------------- | ----------------------------------------------------- |
+| 🌐 **HTTP/Web**         | URL segments, form fields | VirtualPath or StrictPath | VirtualPath for UI display, StrictPath for system I/O |
+| ⚙️ **Config/DB**        | Paths in config/database  | StrictPath                | Storage ≠ safety; validate on use                     |
 | 📂 **CLI/External APIs** | Args, webhooks, payloads  | StrictPath                | Never trust external input                            |
 | 🤖 **LLM/AI**            | Generated paths/filenames | StrictPath                | LLM output is untrusted by default                    |
 | 📦 **Archives**          | ZIP/TAR entry names       | **StrictPath ONLY**       | Detect malicious paths, reject bad archives           |
@@ -111,7 +111,7 @@ Symlink to `/etc/passwd`:
 ```rust
 use strict_path::PathBoundary;
 
-// âŒ SLOW: 1000 canonicalizations
+// ❌ SLOW: 1000 canonicalizations
 for name in files {
     let boundary = PathBoundary::try_new(base)?;
     boundary.strict_join(name)?;
@@ -249,7 +249,7 @@ Always use **dimension-specific methods** (`strict_*` / `virtualpath_*`). Never 
 
 **Variables reflect domain, not type:**
 - ✅ Good: `config_dir`, `uploads_root`, `archive_src`, `tenant_vroot`
-- âŒ Bad: `boundary`, `jail`, `source_` prefix, `_path` suffix
+- ❌ Bad: `boundary`, `jail`, `source_` prefix, `_path` suffix
 
 **Keep names consistent** with the directory they represent.
 
@@ -342,7 +342,7 @@ println!("User: {}", vpath.virtualpath_display()); // VirtualPath only
 - Call `interop_path()` only for `AsRef<Path>` APIs
 - Name variables by domain (`uploads_root`, `config_dir`)
 
-âŒ **DON'T:**
+❌ **DON'T:**
 - Wrap secure types in `Path::new()` / `PathBuf::from()`
 - Use `std::path` methods on leaked paths
 - Use `interop_path()` for display (use `*_display()`)
@@ -353,7 +353,7 @@ println!("User: {}", vpath.virtualpath_display()); // VirtualPath only
 
 ## Anti-Patterns Reference
 
-For detailed anti-patterns and fixes, see: **[Anti-Patterns Guide →](../anti_patterns.md)**
+For detailed anti-patterns and fixes, see: **[Anti-Patterns Guide →](./anti_patterns.md)**
 
 ---
 

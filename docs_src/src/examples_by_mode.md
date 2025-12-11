@@ -159,7 +159,7 @@ let user_file = Path::new(user_input); // user_input = "../../../etc/passwd"
 std::fs::write(user_file, data)?; // System compromised!
 
 // ✅ CORRECT - Validate first with StrictPath
-let uploads = PathBoundary::try_new("uploads")?;
+let uploads = PathBoundary::try_new("./uploads")?;
 let safe_file = uploads.strict_join(user_input)?; // Attack rejected
 safe_file.write(data)?;
 ```
@@ -209,4 +209,4 @@ Is the path from external/untrusted input?
 - **[Best Practices: Full Decision Matrix](./best_practices.md#pick-the-right-type)** - 15+ scenarios with detailed guidance
 - **[Security Philosophy: Detect vs Contain](./best_practices.md#security-philosophy-detect-vs-contain)** - Deep dive into the fundamental distinction
 - **[Real-World Examples](./examples/overview.md)** - Complete, production-ready implementations
-- **[Tutorial: Stage 5 - Virtual Paths](./tutorial/stage5_virtual_paths.md)** - Understanding VirtualPath semantics
+- **[Tutorial: Chapter 5 - Virtual Paths](./tutorial/chapter5_virtual_paths.md)** - Understanding VirtualPath semantics

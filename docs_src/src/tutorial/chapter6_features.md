@@ -1,4 +1,4 @@
-# Stage 6: Ecosystem Integration
+# Chapter 6: Ecosystem Integration
 
 > *"Compose strict-path with ecosystem tools — security primitives, not wrappers."*
 
@@ -268,12 +268,12 @@ This guide covers:
 
 ## The Final Complete Guarantee
 
-> **By combining all stages, you achieve:**
-> 1. ✅ Paths cannot escape boundaries (Stage 1)
-> 2. ✅ Paths are in the correct domain (Stage 3)
-> 3. ✅ Authorization proven by compiler (Stage 4)
-> 4. ✅ Clean virtual UX for users (Stage 5)
-> 5. ✅ Ecosystem integration with safety (Stage 6)
+> **By combining all chapters, you achieve:**
+> 1. ✅ Paths cannot escape boundaries (Chapter 1)
+> 2. ✅ Paths are in the correct domain (Chapter 3)
+> 3. ✅ Authorization proven by compiler (Chapter 4)
+> 4. ✅ Clean virtual UX for users (Chapter 5)
+> 5. ✅ Ecosystem integration with safety (Chapter 6)
 >
 > **All enforced at compile time with zero runtime overhead.**
 

@@ -232,7 +232,7 @@ pub struct StrictPath<Marker> {
 }
 
 // Users just call simple methods
-let safe_dir = PathBoundary::try_new_create("safe_dir")?;
+let safe_dir = PathBoundary::try_new_create("./safe_dir")?;
 let safe_user_file = safe_dir.strict_join("user_file.txt")?; // Returns StrictPath
 
 // But the type system guarantees this path is safe to use

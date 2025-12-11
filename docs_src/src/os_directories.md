@@ -181,18 +181,18 @@ fn access_user_content() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Available Directories (via `dirs` crate)
 
-| Function | Linux | Windows | macOS |
-|----------|-------|---------|-------|
-| `config_dir()` | `~/.config` | `%APPDATA%` | `~/Library/Application Support` |
-| `data_dir()` | `~/.local/share` | `%APPDATA%` | `~/Library/Application Support` |
-| `cache_dir()` | `~/.cache` | `%LOCALAPPDATA%` | `~/Library/Caches` |
-| `config_local_dir()` | `~/.config` | `%LOCALAPPDATA%` | `~/Library/Application Support` |
-| `data_local_dir()` | `~/.local/share` | `%LOCALAPPDATA%` | `~/Library/Application Support` |
-| `download_dir()` | `~/Downloads` | `%USERPROFILE%\Downloads` | `~/Downloads` |
-| `document_dir()` | `~/Documents` | `%USERPROFILE%\Documents` | `~/Documents` |
-| `picture_dir()` | `~/Pictures` | `%USERPROFILE%\Pictures` | `~/Pictures` |
-| `video_dir()` | `~/Videos` | `%USERPROFILE%\Videos` | `~/Movies` |
-| `audio_dir()` | `~/Music` | `%USERPROFILE%\Music` | `~/Music` |
+| Function             | Linux            | Windows                   | macOS                           |
+| -------------------- | ---------------- | ------------------------- | ------------------------------- |
+| `config_dir()`       | `~/.config`      | `%APPDATA%`               | `~/Library/Application Support` |
+| `data_dir()`         | `~/.local/share` | `%APPDATA%`               | `~/Library/Application Support` |
+| `cache_dir()`        | `~/.cache`       | `%LOCALAPPDATA%`          | `~/Library/Caches`              |
+| `config_local_dir()` | `~/.config`      | `%LOCALAPPDATA%`          | `~/Library/Application Support` |
+| `data_local_dir()`   | `~/.local/share` | `%LOCALAPPDATA%`          | `~/Library/Application Support` |
+| `download_dir()`     | `~/Downloads`    | `%USERPROFILE%\Downloads` | `~/Downloads`                   |
+| `document_dir()`     | `~/Documents`    | `%USERPROFILE%\Documents` | `~/Documents`                   |
+| `picture_dir()`      | `~/Pictures`     | `%USERPROFILE%\Pictures`  | `~/Pictures`                    |
+| `video_dir()`        | `~/Videos`       | `%USERPROFILE%\Videos`    | `~/Movies`                      |
+| `audio_dir()`        | `~/Music`        | `%USERPROFILE%\Music`     | `~/Music`                       |
 
 ---
 
@@ -332,7 +332,7 @@ let file = boundary.strict_join(user_input)?;
 ## See Also
 
 - **[Ecosystem Integration Guide](./ecosystem_integration.md)** - Comprehensive integration patterns
-- **[Tutorial: Stage 6](./tutorial/stage6_features.md)** - Ecosystem integration tutorial
+- **[Tutorial: Chapter 6](./tutorial/chapter6_features.md)** - Ecosystem integration tutorial
 - **[Best Practices](./best_practices.md)** - Application architecture patterns
 
 ---

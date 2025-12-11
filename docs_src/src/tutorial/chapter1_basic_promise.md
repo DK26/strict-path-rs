@@ -1,4 +1,4 @@
-# Stage 1: The Basic Promise — Paths That Can't Escape
+# Chapter 1: The Basic Promise — Paths That Can't Escape
 
 > *"Give me one untrusted filename, and I'll show you a safe filesystem operation."*
 
@@ -26,7 +26,7 @@ use strict_path::StrictPath;
 
 fn save_user_upload(filename: &str, data: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
     // Create a boundary — the perimeter fence
-    let uploads_boundary = StrictPath::with_boundary_create("uploads")?;
+    let uploads_boundary = StrictPath::with_boundary_create("./uploads")?;
 
     // Validate the untrusted filename
     let safe_path = uploads_boundary.strict_join(filename)?;  // ✅ Attack = Error
@@ -40,7 +40,7 @@ fn save_user_upload(filename: &str, data: &[u8]) -> Result<(), Box<dyn std::erro
 
 ## What Changed?
 
-1. **`with_boundary_create("uploads")`** — Sets up a security perimeter at `./uploads/`
+1. **`with_boundary_create("./uploads")`** — Sets up a security perimeter at `./uploads/`
 2. **`strict_join(filename)`** — Validates that `filename` stays inside the boundary
    - Valid: `"report.txt"` → `./uploads/report.txt` ✅
    - Valid: `"docs/report.txt"` → `./uploads/docs/report.txt` ✅
@@ -56,7 +56,7 @@ use strict_path::StrictPath;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create the boundary
-    let data_dir = StrictPath::with_boundary_create("user_data")?;
+    let data_dir = StrictPath::with_boundary_create("./data/user_data")?;
 
     // These all work fine
     let file1 = data_dir.strict_join("notes.txt")?;
@@ -88,7 +88,7 @@ Think of a `StrictPath` like a **smart pointer with memory** of where it came fr
 use strict_path::StrictPath;
 
 fn demonstrate_boundary() -> Result<(), Box<dyn std::error::Error>> {
-    let uploads = StrictPath::with_boundary_create("uploads")?;
+    let uploads = StrictPath::with_boundary_create("./uploads")?;
     
     // Every path remembers its boundary
     let doc = uploads.strict_join("document.pdf")?;
@@ -130,7 +130,7 @@ Once you have a `StrictPath`, you can perform filesystem operations directly:
 use strict_path::StrictPath;
 
 fn file_operations() -> Result<(), Box<dyn std::error::Error>> {
-    let storage = StrictPath::with_boundary_create("storage")?;
+    let storage = StrictPath::with_boundary_create("./storage")?;
     let file = storage.strict_join("data.txt")?;
 
     // Write
@@ -170,7 +170,7 @@ You now understand the **basic promise**: paths cannot escape their boundaries.
 
 But what happens when your app grows and you need **multiple** safe directories? That's where things get confusing...
 
-**[Continue to Stage 2: The Mix-Up Problem →](./stage2_mixup_problem.md)**
+**[Continue to Chapter 2: The Mix-Up Problem →](./chapter2_mixup_problem.md)**
 
 ---
 
@@ -178,7 +178,7 @@ But what happens when your app grows and you need **multiple** safe directories?
 
 ```rust
 // Create boundary
-let boundary = StrictPath::with_boundary_create("safe_dir")?;
+let boundary = StrictPath::with_boundary_create("./safe_dir")?;
 
 // Validate untrusted input
 let safe_path = boundary.strict_join(untrusted_filename)?;

@@ -30,7 +30,7 @@ Our security is not theoretical—it's validated against actual vulnerabilities 
 
 ```rust
 // Attack attempt: ../../sensitive.doc:stream
-let boundary = PathBoundary::try_new("archive_extract")?;
+let boundary = PathBoundary::try_new("./archive_extract")?;
 match boundary.strict_join("../../sensitive.doc:stream") {
     Ok(_) => unreachable!("Never succeeds"),
     Err(e) => println!("🛡️ ADS attack blocked: {e}"),
@@ -48,7 +48,7 @@ match boundary.strict_join("../../sensitive.doc:stream") {
 
 ```rust
 // Validation and resolution happen atomically
-let boundary = PathBoundary::try_new("workspace")?;
+let boundary = PathBoundary::try_new("./workspace")?;
 let safe_path = boundary.strict_join("config.toml")?; // Resolves symlinks NOW
 safe_path.read_to_string()?; // Uses already-resolved path, no race
 ```

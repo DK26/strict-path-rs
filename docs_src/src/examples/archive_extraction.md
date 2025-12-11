@@ -405,7 +405,7 @@ Test your extraction code with a malicious archive corpus:
 ```rust
 #[test]
 fn test_archive_extraction_safety() {
-    let boundary = PathBoundary::try_new_create("test_extract").unwrap();
+    let boundary = PathBoundary::try_new_create("./test_extract").unwrap();
     
     // Should succeed
     assert!(boundary.strict_join("safe/path.txt").is_ok());

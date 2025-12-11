@@ -47,11 +47,11 @@ fn load_config(path: &StrictPath<ConfigData>) -> Result<String, std::io::Error> 
 
 fn example_type_safety() -> Result<(), Box<dyn std::error::Error>> {
     // Create context-specific boundaries
-    let assets_root: VirtualRoot<WebAssets> = VirtualRoot::try_new("public")?;
+    let assets_root: VirtualRoot<WebAssets> = VirtualRoot::try_new("./public")?;
     let user_id = "alice";
     let uploads_root: VirtualRoot<UserFiles> =
-        VirtualRoot::try_new(format!("uploads/{user_id}"))?;
-    let config_boundary: PathBoundary<ConfigData> = PathBoundary::try_new("config")?;
+        VirtualRoot::try_new(format!("./uploads/{user_id}"))?;
+    let config_boundary: PathBoundary<ConfigData> = PathBoundary::try_new("./config")?;
 
     // Create paths with proper contexts
     let css: VirtualPath<WebAssets> = assets_root.virtual_join("app.css")?;
@@ -126,8 +126,8 @@ struct WebServer {
 impl WebServer {
     fn new() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
-            assets: VirtualRoot::try_new("public")?,
-            config: PathBoundary::try_new("config")?,
+            assets: VirtualRoot::try_new("./public")?,
+            config: PathBoundary::try_new("./config")?,
         })
     }
     
@@ -232,9 +232,9 @@ fn backup_database(
 
 fn example_permissions() -> Result<(), Box<dyn std::error::Error>> {
     let docs_ro: PathBoundary<(Documents, ReadOnly)> = 
-        PathBoundary::try_new("documents")?;
+        PathBoundary::try_new("./documents")?;
     let docs_rw: PathBoundary<(Documents, ReadWrite)> = 
-        PathBoundary::try_new("documents")?;
+        PathBoundary::try_new("./documents")?;
     
     let file_ro = docs_ro.strict_join("report.txt")?;
     let file_rw = docs_rw.strict_join("report.txt")?;
@@ -281,7 +281,7 @@ fn write_file(path: &StrictPath<(UserFiles, ReadWrite)>, content: &[u8]) -> std:
 
 // Usage:
 let boundary: PathBoundary<(UserFiles, ReadOnly)> = 
-    PathBoundary::try_new("uploads")?;
+    PathBoundary::try_new("./uploads")?;
 let file_ro = boundary.strict_join("document.txt")?;
 
 // Can't write yet - read-only marker
@@ -293,7 +293,7 @@ if let Ok(file_rw) = authenticate_and_upgrade(file_ro, check_permissions()) {
 }
 ```
 
-See the [Authorization & Permissions](../authorization_security.md) chapter for more details.
+See the [Authorization & Permissions](../tutorial/chapter4_authorization.md) chapter for more details.
 
 ## Shared Logic Across Contexts
 
@@ -407,6 +407,6 @@ fn authorize<R>(
 
 ## Next Steps
 
-- See [Authorization & Permissions](../authorization_security.md) for advanced marker patterns
+- See [Authorization & Permissions](../tutorial/chapter4_authorization.md) for advanced marker patterns
 - See [Web Upload Service](./web_upload_service.md) for practical multi-context usage
-- See [Tutorial Stage 3](../tutorial/stage3_markers.md) for marker basics
+- See [Tutorial Chapter 3](../tutorial/chapter3_markers.md) for marker basics

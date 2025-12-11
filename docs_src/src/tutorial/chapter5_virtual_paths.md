@@ -1,8 +1,8 @@
-# Stage 5: Virtual Paths — Containment for Sandboxes
+# Chapter 5: Virtual Paths — Containment for Sandboxes
 
 > *"Contain escape attempts for multi-tenant isolation and security research."*
 
-In Stage 4, you learned how to encode authorization in markers. Now you'll learn how `VirtualPath` extends `StrictPath` with **virtual filesystem semantics** — designed for scenarios where path escapes are **expected but must be controlled**.
+In Chapter 4, you learned how to encode authorization in markers. Now you'll learn how `VirtualPath` extends `StrictPath` with **virtual filesystem semantics** — designed for scenarios where path escapes are **expected but must be controlled**.
 
 **Important**: VirtualPath is opt-in via the `virtual-path` feature. Use it only when you need **containment** (multi-tenant systems, malware sandboxes) rather than **detection** (archive extraction, file uploads).
 
@@ -80,7 +80,7 @@ This is the **key difference** between `VirtualPath` and `StrictPath`:
 use strict_path::StrictPath;
 
 fn strict_behavior() -> Result<(), Box<dyn std::error::Error>> {
-    let boundary = StrictPath::with_boundary_create("sandbox")?;
+    let boundary = StrictPath::with_boundary_create("./sandbox")?;
 
     // Normal path works
     let file1 = boundary.strict_join("data/file.txt")?;
@@ -103,7 +103,7 @@ fn strict_behavior() -> Result<(), Box<dyn std::error::Error>> {
 use strict_path::VirtualPath;
 
 fn virtual_behavior() -> Result<(), Box<dyn std::error::Error>> {
-    let vroot = VirtualPath::with_root("sandbox")?;
+    let vroot = VirtualPath::with_root("./sandbox")?;
 
     // Normal path works
     let file1 = vroot.virtual_join("data/file.txt")?;
@@ -195,7 +195,7 @@ Under the hood, `VirtualPath` **wraps a `StrictPath`** and adds a virtual displa
 use strict_path::VirtualPath;
 
 fn demonstrate_duality() -> Result<(), Box<dyn std::error::Error>> {
-    let vpath = VirtualPath::with_root("data")?.virtual_join("file.txt")?;
+    let vpath = VirtualPath::with_root("./data")?.virtual_join("file.txt")?;
 
     // Virtual view (user-facing)
     println!("Virtual: {}", vpath.virtualpath_display());
@@ -229,7 +229,7 @@ This is where `VirtualPath` truly shines as a **virtual filesystem**. It doesn't
 use strict_path::StrictPath;
 
 fn strict_symlink_behavior() -> Result<(), Box<dyn std::error::Error>> {
-    let boundary = StrictPath::with_boundary_create("sandbox")?;
+    let boundary = StrictPath::with_boundary_create("./sandbox")?;
 
     // If "sandbox/config_link" symlinks to "/etc/passwd":
     let symlink_path = boundary.strict_join("config_link");
@@ -251,7 +251,7 @@ fn strict_symlink_behavior() -> Result<(), Box<dyn std::error::Error>> {
 use strict_path::VirtualPath;
 
 fn virtual_symlink_behavior() -> Result<(), Box<dyn std::error::Error>> {
-    let vroot = VirtualPath::with_root("sandbox")?;
+    let vroot = VirtualPath::with_root("./sandbox")?;
 
     // If "sandbox/config_link" symlinks to "/etc/passwd":
     let symlink_path = vroot.virtual_join("config_link")?;  // No error!
@@ -450,10 +450,10 @@ The facade (virtual path) makes for better UX. The real structure (strict path) 
 ## The Complete Guarantee
 
 > **If you have a `VirtualPath<Marker>`, the compiler guarantees:**
-> 1. ✅ The path cannot escape its boundary (Stage 1)
-> 2. ✅ The path is in the correct domain (Stage 3)
-> 3. ✅ Virtual display is always rooted at `/` (Stage 5)
-> 4. ✅ System operations use the validated real path (Stage 5)
+> 1. ✅ The path cannot escape its boundary (Chapter 1)
+> 2. ✅ The path is in the correct domain (Chapter 3)
+> 3. ✅ Virtual display is always rooted at `/` (Chapter 5)
+> 4. ✅ System operations use the validated real path (Chapter 5)
 
 ## What's Next?
 
@@ -461,7 +461,7 @@ You now understand both `StrictPath` and `VirtualPath`. But how do you integrate
 
 That's where **feature-gated constructors** come in...
 
-**[Continue to Stage 6: Feature Integration →](./stage6_features.md)**
+**[Continue to Chapter 6: Feature Integration →](./chapter6_features.md)**
 
 ---
 
@@ -469,7 +469,7 @@ That's where **feature-gated constructors** come in...
 
 ```rust
 // Create virtual root
-let vroot = VirtualPath::with_root("path")?;
+let vroot = VirtualPath::with_root("./path")?;
 
 // Validate and clamp
 let vpath = vroot.virtual_join(untrusted_input)?;

@@ -426,17 +426,16 @@ fn is_immutable_asset(path: &StrictPath<WebAssets>) -> bool {
 
 ## What's Next?
 
-Now that we can serve static assets securely, let's add user authentication:
+Now that we can serve static assets securely, let's add per-user file storage:
 
-**[Chapter 3: User Authentication →](./chapter3_authentication.md)**
+**[Chapter 3: Per-User Storage →](./chapter3_user_storage.md)**
 
 In the next chapter, we'll:
-- Implement simple session-based authentication
 - Create per-user `VirtualRoot` instances
-- Use authorization markers with `change_marker()`
-- Protect routes with middleware
+- Implement isolated file storage per user
+- Use virtual paths for user-friendly display
 
 ---
 
 **Navigation:**  
-[← Chapter 1](./chapter1_setup.md) | [Tutorial Overview](./overview.md) | [Chapter 3 →](./chapter3_authentication.md)
+[← Chapter 1](./chapter1_setup.md) | [Tutorial Overview](./overview.md) | [Chapter 3 →](./chapter3_user_storage.md)

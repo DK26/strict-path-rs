@@ -38,18 +38,6 @@ Serve static files safely with `StrictPath<WebAssets>`.
 ### [Chapter 3: Per-User Storage](./chapter3_user_storage.md)
 Isolate user files with `VirtualRoot<UserUploads>`.
 
-### [Chapter 3: User Authentication](./chapter3_authentication.md)
-Add user authentication and create per-user storage isolation.
-
-**What you'll learn:**
-- Simple session-based authentication
-- Creating VirtualRoot per user
-- Authorization markers with change_marker()
-- Protecting routes with middleware
-
-### [Chapter 4: File Upload System](./chapter4_uploads.md)
-Build a secure file upload system with per-user isolation.
-
 ## Prerequisites
 
 - **Rust**: 1.71.0 or later

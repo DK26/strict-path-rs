@@ -1,8 +1,8 @@
-# Stage 4: Authorization with `change_marker()` — Compile-Time Authorization Proofs
+# Chapter 4: Authorization with `change_marker()` — Compile-Time Authorization Proofs
 
 > *"The compiler can mathematically prove that authorization happened first."*
 
-In Stage 3, you learned how markers prevent domain mix-ups. Now you'll learn how to **encode authorization** in markers using `change_marker()`, so the compiler can mathematically prove that authorization checks weren't forgotten.
+In Chapter 3, you learned how markers prevent domain mix-ups. Now you'll learn how to **encode authorization** in markers using `change_marker()`, so the compiler can mathematically prove that authorization checks weren't forgotten.
 
 ## The Authorization Problem
 
@@ -151,7 +151,7 @@ fn handle_request(token: &str, filename: &str, data: Option<&[u8]>)
 {
     // Start with read-only access (no authorization yet)
     let user_files_dir: StrictPath<(UserFiles, ReadOnly)> = 
-        StrictPath::with_boundary_create("user_files")?;
+        StrictPath::with_boundary_create("./data/user_files")?;
     
     let file_path = user_files_dir.strict_join(filename)?;
 
@@ -301,7 +301,7 @@ fn delete_project(path: &StrictPath<(ProjectFiles, CanRead, CanWrite, CanDelete)
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let projects_dir: StrictPath<ProjectFiles> = 
-        StrictPath::with_boundary_create("projects")?;
+        StrictPath::with_boundary_create("./projects")?;
     
     let project = projects_dir.strict_join("proposal.md")?;
 
@@ -463,9 +463,9 @@ impl From<std::io::Error> for ApiError {
 ## The Complete Guarantee So Far
 
 > **If a function accepts `StrictPath<(Resource, Permission)>`, the compiler mathematically proves that:**
-> 1. ✅ The path cannot escape its boundary (Stage 1)
-> 2. ✅ The path is in the correct domain (Stage 3)
-> 3. ✅ Authorization was granted for that permission level (Stage 4)
+> 1. ✅ The path cannot escape its boundary (Chapter 1)
+> 2. ✅ The path is in the correct domain (Chapter 3)
+> 3. ✅ Authorization was granted for that permission level (Chapter 4)
 
 **This is compile-time authorization.** Forget a check? Won't compile. Use the wrong permission level? Won't compile. Bypass authorization? Impossible.
 
@@ -475,7 +475,7 @@ You've mastered authorization with markers. But what about **user-facing applica
 
 That's where `VirtualPath` comes in...
 
-**[Continue to Stage 5: Virtual Paths →](./stage5_virtual_paths.md)**
+**[Continue to Chapter 5: Virtual Paths →](./chapter5_virtual_paths.md)**
 
 ---
 
