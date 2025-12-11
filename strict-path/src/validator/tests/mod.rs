@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod anchored_backslash_regression;
 #[cfg(feature = "virtual-path")]
 mod path_boundary_and_virtual_root;
 #[cfg(feature = "virtual-path")]

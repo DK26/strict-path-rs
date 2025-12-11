@@ -7,16 +7,40 @@ Operational guide for AI assistants and automation working in this repository.
 **Before making ANY suggestions or implementations:**
 
 1. **Check MCP Memory Server** - Read user preferences, frustrations, and project context stored in memory
-2. **Read `LLM_API_REFERENCE.md`** - Understand existing API design, patterns, and anti-patterns
-3. **Read relevant source files** - Study how existing features are implemented
-4. **Read issue discussion** - Understand the problem context and any prior discussions
+2. **Read relevant source files** - Study how existing features are implemented
+3. **Read issue discussion** - Understand the problem context and any prior discussions
+4. **CHECK FOR EXISTING FUNCTIONALITY** - Before implementing anything, verify it doesn't already exist in the codebase
 
 **NEVER propose designs without understanding:**
 - How the existing codebase works
 - What patterns are already established
 - What the actual requirements are
+- **What functionality already exists** - avoid redundant implementations
 
 **Failure to read documentation first wastes everyone's time and produces incorrect designs.**
+
+## CRITICAL: CHECK FOR EXISTING FUNCTIONALITY BEFORE IMPLEMENTING
+
+**When asked to implement or add functionality, you MUST:**
+
+1. **SEARCH the codebase first** - Use `grep_search` or `semantic_search` to find if the feature already exists
+2. **READ the source files** - Check module implementations and rustdoc comments for existing methods
+3. **CHECK the type definitions** - Look in relevant modules for similar implementations
+4. **VERIFY it doesn't exist** - Only after confirming absence should you propose implementation
+
+**Common mistakes that waste time:**
+- Implementing a method that already exists with a different name
+- Adding functionality that's already provided by a different API
+- Creating helpers that duplicate existing methods
+- Not checking if a feature is already implemented but just needs documentation
+
+**Before writing ANY new code, ask yourself:**
+- Does this functionality already exist somewhere?
+- Is there a similar method I should check first?
+- Have I searched the codebase for related implementations?
+- Did I check the API reference documentation?
+
+**The rule:** SEARCH FIRST, IMPLEMENT SECOND. Always.
 
 ## CRITICAL: UNDERSTAND BEFORE CHANGING
 
@@ -49,10 +73,11 @@ Operational guide for AI assistants and automation working in this repository.
 
 ## Project Overview
 
-- Purpose: Prevent directory traversal with safe path boundaries and safe symlinks.
-- Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError` (see LLM_API_REFERENCE.md).
+- Purpose: Handle paths from external or unknown sources securely, preventing directory traversal with safe path boundaries and safe symlinks.
+- Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError`.
 - Security model: "Restrict every external path." Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
-- Foundation: Built on `soft-canonicalize` for resolution; canonicalization handles Windows 8.3 short names transparently.
+- Foundation: Built on `soft-canonicalize` (with `proc-canonicalize` for Linux container realpath support); canonicalization handles Windows 8.3 short names transparently.
+- API philosophy: Minimal, restrictive, and explicit—designed to prevent human and LLM API misuse. Security is prioritized above performance.
 
 ### Which Type Should I Use?
 
@@ -137,10 +162,13 @@ let boundary = strict_path.change_marker::<NewMarker>().try_into_boundary()?;
 // (Marker is already preserved; change_marker() does nothing useful here)
 ```
 
-## Anti‑Patterns (Tell‑offs)safe path boundaries and safe symlinks.
-- Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError` (see LLM_API_REFERENCE.md).
-- Security model: “Restrict every external path.” Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
-- Foundation: Built on `soft-canonicalize` for resolution; Windows 8.3 short‑name handling is considered a security surface.
+## Anti‑Patterns (Tell‑offs)
+
+Quick reminder of core principles:
+- Purpose: Handle paths from external or unknown sources securely, preventing directory traversal with safe path boundaries and safe symlinks.
+- Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError`.
+- Security model: "Restrict every external path." Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
+- Foundation: Built on `soft-canonicalize` (with `proc-canonicalize` for Linux container realpath support); Windows 8.3 short‑name handling is considered a security surface.
 
 Do not implement leaky trait impls for secure types:
 - Forbidden: `AsRef<Path>`, `Deref<Target = Path>`, implicit `From/Into` conversions for `StrictPath`/`VirtualPath`.
@@ -165,7 +193,7 @@ Do not implement leaky trait impls for secure types:
   - Set up once: `git worktree add .docs docs` (or `git worktree add -B docs .docs origin/docs` if remote only).
   - Read/edit: `.docs/docs_src/src/*.md` files.
   - Preview: `cd .docs/docs_src && mdbook serve -o`.
-- Docs: `README.md`, `LLM_API_REFERENCE.md`.
+- Docs: `README.md`, `LLM_CONTEXT_FULL.md` (full API reference for LLMs), `LLM_CONTEXT.md` (Context7-style guide for LLMs).
 
 ## Benchmarks Structure (Workspace-Level)
 
@@ -223,7 +251,7 @@ cargo bench
 
 **Benchmark dependencies:**
 - `criterion = "0.7.0"` — professional benchmarking framework
-- `soft-canonicalize = { version = "0.4.5", features = ["anchored"] }` — baseline comparison
+- `soft-canonicalize = { version = "0.5.2", features = ["anchored"] }` — baseline comparison
 - `tempfile = "3.22"` — test fixtures
 - NO `criterion` in `strict-path/Cargo.toml` dev-dependencies (moved to benches)
 
@@ -548,7 +576,7 @@ To keep `cargo doc` green with `-D warnings`:
 - Avoid raw HTML in comments; use Markdown lists, code ticks, and fenced code blocks.
 - Validate locally after edits: `cargo doc --no-deps --document-private-items --all-features`.
 
-### LLM_API_REFERENCE.md — Purpose and Audience
+### LLM_CONTEXT_FULL.md — Purpose and Audience
 
 ## Fast local debugging (be efficient)
 
@@ -577,18 +605,18 @@ Windows‑specific notes:
 - When adapting third‑party crates that require `AsRef<Path>`, pass `.interop_path()` directly; do not wrap it in `Path::new()`.
 
 
-LLM_API_REFERENCE.md is written purely for external LLM consumption. It is usage‑first and should prioritize:
+LLM_CONTEXT_FULL.md is written purely for external LLM consumption. It is usage‑first and should prioritize:
 - Which types to use and when (`PathBoundary`, `StrictPath`, `VirtualRoot`, `VirtualPath`).
 - How to validate untrusted input via `strict_join`/`virtual_join` before any I/O.
 - Interop vs display rules (`interop_path()` vs `*_display()`), and dimension‑specific operations.
 - Feature‑gated entry points (e.g., `dirs`, `tempfile`, `app-path`) and their semantics, including environment override behavior for app‑path (env var NAME is resolved to the final root path; no subdir append when override is set).
 - Short, copy‑pasteable recipes and explicit anti‑patterns to avoid.
 
-Non‑goals for LLM_API_REFERENCE.md:
+Non‑goals for LLM_CONTEXT_FULL.md:
 - Internal design details (type‑state, `PathHistory`, platform specifics) — those live in the mdBook (`.docs/docs_src/src/internals.md`) and source docs.
 - Contributor guidance (coding standards, doc comment style, defensive programming) — keep that in AGENTS.md.
 
-Keep LLM_API_REFERENCE.md concise and stable. When APIs evolve, update it alongside public docs and demos; prefer linking to realistic `demos/` over embedding long examples that are hard to maintain.
+Keep LLM_CONTEXT_FULL.md concise and stable. When APIs evolve, update it alongside public docs and demos; prefer linking to realistic `demos/` over embedding long examples that are hard to maintain.
 
 ### Doctest setup vs. visible guidance (exception rule)
 

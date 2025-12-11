@@ -8,6 +8,24 @@ use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+/// Strip the Windows verbatim `\\?\` prefix from a path if present.
+///
+/// The `junction` crate does not handle verbatim prefix paths correctly - it creates
+/// broken junctions that return ERROR_INVALID_NAME (123) when accessed.
+/// This helper strips the prefix so junction creation works correctly.
+///
+/// See: <https://github.com/tesuji/junction/issues/30>
+#[cfg(all(windows, feature = "junctions"))]
+fn strip_verbatim_prefix(path: &Path) -> std::borrow::Cow<'_, Path> {
+    use std::borrow::Cow;
+    let s = path.as_os_str().to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        Cow::Owned(PathBuf::from(rest))
+    } else {
+        Cow::Borrowed(path)
+    }
+}
+
 /// SUMMARY:
 /// Hold a validated, system-facing filesystem path guaranteed to be within a `PathBoundary`.
 ///
@@ -167,9 +185,10 @@ impl<Marker> StrictPath<Marker> {
     ///     path.write(content.as_bytes())
     /// }
     ///
-    /// // Start with read-only access
+    /// // Start with read-only access from untrusted input
+    /// let requested_log = "logs/app.log"; // Untrusted input
     /// let read_only_path: StrictPath<(UserFiles, ReadOnly)> =
-    ///     boundary.strict_join("logs/app.log")?.change_marker();
+    ///     boundary.strict_join(requested_log)?.change_marker();
     ///
     /// // Elevate permissions after authorization
     /// let read_write_path = authorize_write_access("admin", read_only_path)
@@ -353,6 +372,17 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Return the metadata for the system path without following symlinks (like `std::fs::symlink_metadata`).
+    ///
+    /// DETAILS:
+    /// This retrieves metadata about the path entry itself. On symlinks, this reports
+    /// information about the link, not the target.
+    #[inline]
+    pub fn symlink_metadata(&self) -> std::io::Result<std::fs::Metadata> {
+        std::fs::symlink_metadata(&self.path)
+    }
+
+    /// SUMMARY:
     /// Read directory entries at this path (discovery). Re‑join names through strict/virtual APIs before I/O.
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
         std::fs::read_dir(&self.path)
@@ -395,7 +425,9 @@ impl<Marker> StrictPath<Marker> {
     /// # let boundary_dir = std::env::temp_dir().join("strict-path-create-file-example");
     /// # std::fs::create_dir_all(&boundary_dir)?;
     /// # let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
-    /// let log_path: StrictPath = boundary.strict_join("logs/app.log")?;
+    /// // Untrusted input from request/CLI/config/etc.
+    /// let requested_file = "logs/app.log";
+    /// let log_path: StrictPath = boundary.strict_join(requested_file)?;
     /// log_path.create_parent_dir_all()?;
     /// let mut file = log_path.create_file()?;
     /// file.write_all(b"session started")?;
@@ -426,7 +458,9 @@ impl<Marker> StrictPath<Marker> {
     /// # let boundary_dir = std::env::temp_dir().join("strict-path-open-file-example");
     /// # std::fs::create_dir_all(&boundary_dir)?;
     /// # let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
-    /// let transcript: StrictPath = boundary.strict_join("logs/session.log")?;
+    /// // Untrusted input from request/CLI/config/etc.
+    /// let requested_file = "logs/session.log";
+    /// let transcript: StrictPath = boundary.strict_join(requested_file)?;
     /// transcript.create_parent_dir_all()?;
     /// transcript.write("session start")?;
     /// let mut file = transcript.open_file()?;
@@ -595,8 +629,14 @@ impl<Marker> StrictPath<Marker> {
             ));
         }
 
-        // Call into the junction crate directly; do not add extra helpers.
-        junction::create(self.path(), validated_link.path())
+        // The junction crate does not handle verbatim `\\?\` prefix paths correctly.
+        // It creates broken junctions that return ERROR_INVALID_NAME (123) when accessed.
+        // Strip the prefix before passing to the junction crate.
+        // See: https://github.com/tesuji/junction/issues/30
+        let target_path = strip_verbatim_prefix(self.path());
+        let link_path = strip_verbatim_prefix(validated_link.path());
+
+        junction::create(target_path.as_ref(), link_path.as_ref())
     }
 
     /// SUMMARY:

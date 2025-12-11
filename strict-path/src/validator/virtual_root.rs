@@ -258,11 +258,13 @@ impl<Marker> VirtualRoot<Marker> {
     /// let vroot: VirtualRoot = VirtualRoot::try_new_create(td.path())?;
     ///
     /// // Absolute paths are clamped to virtual root, not system root
-    /// let path1 = vroot.virtual_join("/etc/config")?;
+    /// let user_input_abs = "/etc/config"; // Untrusted input
+    /// let path1 = vroot.virtual_join(user_input_abs)?;
     /// assert_eq!(path1.virtualpath_display().to_string(), "/etc/config");
     ///
     /// // Traversal attempts are also clamped
-    /// let path2 = vroot.virtual_join("../../../etc/passwd")?;
+    /// let attack_input = "../../../etc/passwd"; // Untrusted input
+    /// let path2 = vroot.virtual_join(attack_input)?;
     /// assert_eq!(path2.virtualpath_display().to_string(), "/etc/passwd");
     ///
     /// // Both paths are safely within the virtual root on the actual filesystem

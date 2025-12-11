@@ -195,7 +195,9 @@ impl<Marker> VirtualPath<Marker> {
     ///     }
     /// }
     ///
-    /// let guest_path: VirtualPath<GuestAccess> = guest_root.virtual_join("docs/readme.md")?;
+    /// // Untrusted input from request/CLI/config/etc.
+    /// let requested_file = "docs/readme.md";
+    /// let guest_path: VirtualPath<GuestAccess> = guest_root.virtual_join(requested_file)?;
     /// let user_path = grant_user_access("valid-token-12345", guest_path).expect("authorized");
     /// assert_eq!(user_path.virtualpath_display().to_string(), "/docs/readme.md");
     /// # std::fs::remove_dir_all(&root_dir)?;
@@ -445,6 +447,13 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub fn read(&self) -> std::io::Result<Vec<u8>> {
         self.inner.read()
+    }
+
+    /// SUMMARY:
+    /// Return metadata for the underlying system path without following symlinks.
+    #[inline]
+    pub fn symlink_metadata(&self) -> std::io::Result<std::fs::Metadata> {
+        self.inner.symlink_metadata()
     }
 
     /// SUMMARY:

@@ -223,6 +223,136 @@ fn strict_hard_link_helpers_create_links_within_boundary() {
 }
 
 #[test]
+fn strictpath_symlink_metadata_reports_link_entry() {
+    let td = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
+
+    // Prepare a target file
+    let target = boundary.strict_join("data/target.txt").unwrap();
+    target.create_parent_dir_all().unwrap();
+    target.write(b"hello").unwrap();
+
+    // Location for the link/junction
+    let link = boundary.strict_join("links/link.txt").unwrap();
+    link.create_parent_dir_all().unwrap();
+
+    match target.strict_symlink(link.interop_path()) {
+        Ok(()) => {
+            // symlink_metadata should report the link, not the target
+            let meta = link.symlink_metadata().unwrap();
+            #[cfg(unix)]
+            assert!(meta.file_type().is_symlink());
+            #[cfg(windows)]
+            assert!(meta.file_type().is_symlink());
+
+            // metadata() follows links
+            let follow = link.metadata().unwrap();
+            assert!(!follow.file_type().is_symlink());
+        }
+        Err(err) if symlink_permission_denied(&err) => {
+            // On Windows without privileges, fall back to junction when available
+            #[cfg(all(windows, feature = "junctions"))]
+            {
+                let dir_target = boundary.strict_join("data/dir").unwrap();
+                dir_target.create_dir_all().unwrap();
+                let dir_link = boundary.strict_join("links/junc").unwrap();
+                dir_link.create_parent_dir_all().unwrap();
+
+                dir_target.strict_junction(dir_link.interop_path()).unwrap();
+
+                // symlink_metadata should return metadata for the entry (the junction itself)
+                assert!(dir_link.symlink_metadata().is_ok());
+                // Following the junction to the target should succeed
+                assert!(dir_link.metadata().is_ok());
+            }
+
+            #[cfg(all(windows, not(feature = "junctions")))]
+            {
+                // Last-resort fallback in tests: create a junction via third-party crate
+                let dir_target = boundary.strict_join("data/dir").unwrap();
+                dir_target.create_dir_all().unwrap();
+                let dir_link = boundary.strict_join("links/junc").unwrap();
+                dir_link.create_parent_dir_all().unwrap();
+                junction::create(dir_target.interop_path(), dir_link.interop_path()).unwrap();
+                assert!(dir_link.symlink_metadata().is_ok());
+                assert!(dir_link.metadata().is_ok());
+            }
+            #[cfg(not(windows))]
+            {}
+        }
+        Err(err) => panic!("unexpected symlink creation error: {err:?}"),
+    }
+}
+
+#[cfg(feature = "virtual-path")]
+#[test]
+fn virtualpath_symlink_metadata_reports_link_entry() {
+    let td = tempfile::tempdir().unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new_create(td.path()).unwrap();
+
+    let target = vroot.virtual_join("data/target.txt").unwrap();
+    target.create_parent_dir_all().unwrap();
+    target.write(b"ok").unwrap();
+
+    let link = vroot.virtual_join("links/link.txt").unwrap();
+    link.create_parent_dir_all().unwrap();
+
+    match target.virtual_symlink("/links/link.txt") {
+        Ok(()) => {
+            let meta = link.symlink_metadata().unwrap();
+            #[cfg(unix)]
+            assert!(meta.file_type().is_symlink());
+            #[cfg(windows)]
+            assert!(meta.file_type().is_symlink());
+
+            let follow = link.metadata().unwrap();
+            assert!(!follow.file_type().is_symlink());
+        }
+        Err(err) if symlink_permission_denied(&err) => {
+            // Fall back to junction creation under virtual semantics (Windows + junctions feature)
+            #[cfg(all(windows, feature = "junctions"))]
+            {
+                // Build target and link via underlying PathBoundary to avoid absolute virtual path pitfalls
+                let boundary = vroot.as_unvirtual();
+                let strict_target = boundary.strict_join("data/dir").unwrap();
+                strict_target.create_dir_all().unwrap();
+                let strict_link = boundary.strict_join("links/junc").unwrap();
+                strict_link.create_parent_dir_all().unwrap();
+                // Create junction to target directory
+                strict_target
+                    .strict_junction(strict_link.interop_path())
+                    .unwrap();
+
+                // Verify via virtual view using relative path to avoid absolute anchored issues
+                let dir_link = vroot.virtual_join("links/junc").unwrap();
+                assert!(dir_link.symlink_metadata().is_ok());
+                assert!(dir_link.metadata().is_ok());
+            }
+
+            #[cfg(all(windows, not(feature = "junctions")))]
+            {
+                // Fallback using third-party junction creation on system paths derived from strict view
+                let boundary = vroot.as_unvirtual();
+                let strict_target = boundary.strict_join("data/dir").unwrap();
+                strict_target.create_dir_all().unwrap();
+                let strict_link = boundary.strict_join("links/junc").unwrap();
+                strict_link.create_parent_dir_all().unwrap();
+                junction::create(strict_target.interop_path(), strict_link.interop_path()).unwrap();
+
+                // Verify via virtual view using relative path
+                let dir_link = vroot.virtual_join("links/junc").unwrap();
+                assert!(dir_link.symlink_metadata().is_ok());
+                assert!(dir_link.metadata().is_ok());
+                return;
+            }
+            #[cfg(not(windows))]
+            {}
+        }
+        Err(err) => panic!("unexpected symlink creation error (virtual): {err:?}"),
+    }
+}
+
+#[test]
 fn strict_symlink_rejects_escape_targets() {
     let td = tempfile::tempdir().unwrap();
     let boundary: PathBoundary = PathBoundary::try_new_create(td.path()).unwrap();
