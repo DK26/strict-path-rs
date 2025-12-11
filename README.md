@@ -9,7 +9,11 @@
 
 📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)** | 🧭 **[Choosing Canonicalized vs Lexical Solution](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)**
 
-Prevent directory traversal attacks with compile-time path boundary enforcement. File paths are mathematically proven to stay within designated boundaries. Choose **StrictPath** to detect and reject escape attempts, or **VirtualPath** to contain and isolate them. Built on battle-tested canonicalization defending against 19+ real-world CVEs including symlinks, Windows 8.3 short names, and encoding tricks.
+**Handle paths from external or unknown sources securely.** strict-path uses Rust's type system to mathematically prove that paths always stay within defined boundaries—no escapes in any shape or form, symlinks included. Choose **StrictPath** (via `PathBoundary`) to detect and reject escape attempts, or **VirtualPath** (via `VirtualRoot`) to contain and clamp them within a virtual sandbox.
+
+Built on [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs) (with [`proc-canonicalize`](https://github.com/DK26/proc-canonicalize-rs) for Linux container support), defending against 19+ real-world CVEs including symlinks, Windows 8.3 short names, and encoding tricks.
+
+> **API Philosophy:** Minimal, restrictive, and explicit—designed to prevent and easily detect both human and LLM agent API misuse. Security is prioritized above performance; if your use case doesn't involve symlinks and you need to squeeze every bit of performance, a lexical-only solution may be a better fit.
 
 ---
 
@@ -62,22 +66,22 @@ fn extract_archive(
 }
 ```
 
-> 📖 **New to strict-path?** Start with the **[Tutorial: Stage 1 - The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/stage1_basic_promise.html)**
+> 📖 **New to strict-path?** Start with the **[Tutorial: Chapter 1 - The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/chapter1_basic_promise.html)**
 
-> **Note:** Our doc comments and [LLM_API_REFERENCE.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_API_REFERENCE.md) are designed for LLMs with function calling—enabling AI agents to use this crate safely and correctly for file and path operations.
+> **Note:** Our doc comments and [LLM_CONTEXT_FULL.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md) are designed for LLMs with function calling—enabling AI agents to use this crate safely and correctly for file and path operations.
 > 
 > ### 🤖 LLM agent prompt (copy/paste)
 > 
 > ``` 
 > Fetch and follow this reference (single source of truth):
-> https://github.com/DK26/strict-path-rs/blob/main/LLM_API_REFERENCE.md
+> https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md
 > ```
 >
 > #### Context7 Style
 >
 > ```
 > Fetch and follow this reference (single source of truth):
-> https://github.com/DK26/strict-path-rs/blob/main/LLM_USER.md
+> https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md
 > ```
 
 ---
@@ -118,6 +122,24 @@ fn handle_file_request(tenant_id: &str, requested_path: &str) -> std::io::Result
     user_file.read()
 }
 ```
+
+### LLM Agent Restriction
+
+```rust
+use strict_path::PathBoundary;
+
+fn execute_agent_file_operation(
+    workspace: &PathBoundary,
+    llm_generated_path: &str,  // LLM output: could be "notes.md" or "../../../etc/passwd"
+) -> std::io::Result<()> {
+    // LLM-generated paths are untrusted — validate before any I/O
+    let safe_file = workspace.strict_join(llm_generated_path)?;
+    safe_file.write(b"agent output")?;
+    Ok(())
+}
+```
+
+Contains AI agents within predefined boundaries—no accidental (or intentional) escapes to sensitive system files.
 
 ---
 
@@ -184,15 +206,18 @@ struct SystemFiles;
 
 fn process_user(f: &StrictPath<UserFiles>) -> Vec<u8> { f.read().unwrap() }
 
-let user_boundary = PathBoundary::<UserFiles>::try_new_create("user_data")?;
-let sys_boundary = PathBoundary::<SystemFiles>::try_new_create("system")?;
+let user_boundary = PathBoundary::<UserFiles>::try_new_create("./data/users")?;
+let sys_boundary = PathBoundary::<SystemFiles>::try_new_create("./system")?;
 
 let user_input = get_filename_from_request();
 let user_file = user_boundary.strict_join(user_input)?;
-// process_user(&sys_file)?; // ❌ Compile error - wrong marker type!
+process_user(&user_file); // ✅ OK - correct marker type
+
+let sys_file = sys_boundary.strict_join("config.toml")?;
+// process_user(&sys_file); // ❌ Compile error - wrong marker type!
 ```
 
-> 📖 **[Complete Marker Tutorial →](https://dk26.github.io/strict-path-rs/tutorial/stage3_markers.html)** - Authorization patterns, permission matrices, `change_marker()` usage
+> 📖 **[Complete Marker Tutorial →](https://dk26.github.io/strict-path-rs/tutorial/chapter3_markers.html)** - Authorization patterns, permission matrices, `change_marker()` usage
 
 ---
 
@@ -245,7 +270,8 @@ Compose with standard Rust crates for complete solutions:
   - [Best Practices](https://dk26.github.io/strict-path-rs/best_practices.html) - Detailed decision matrix
   - [Anti-Patterns](https://dk26.github.io/strict-path-rs/anti_patterns.html) - Common mistakes
   - [Examples](https://dk26.github.io/strict-path-rs/examples.html) - Copy-paste scenarios
-- 🔧 **[LLM_API_REFERENCE.md](LLM_API_REFERENCE.md)** - Quick reference for AI agents
+- 🔧 **[LLM_CONTEXT_FULL.md](LLM_CONTEXT_FULL.md)** - Full API reference for AI agents
+- 📝 **[LLM_CONTEXT.md](LLM_CONTEXT.md)** - Context7-style usage guide for AI agents
 - 🛠️ **[`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)** - Path resolution engine
 
 ---

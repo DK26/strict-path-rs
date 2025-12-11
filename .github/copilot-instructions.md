@@ -4,7 +4,7 @@ This repository uses `AGENTS.md` as the single source of truth for AI agents. To
 
 Read next (authoritative guidance)
 - `AGENTS.md` — operational guidance, security model, CI workflows, demos policy
-- `LLM_API_REFERENCE.md` — usage-first API cheatsheet for `PathBoundary`/`StrictPath`/`VirtualRoot`/`VirtualPath`
+- `LLM_CONTEXT_FULL.md` — usage-first API cheatsheet for `PathBoundary`/`StrictPath`/`VirtualRoot`/`VirtualPath`
 - `strict-path/src/lib.rs` docs and `strict-path/examples/` — compilable examples and doctests
 
 Quickstart (Windows PowerShell)

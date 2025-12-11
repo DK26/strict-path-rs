@@ -1,6 +1,8 @@
 //! # strict-path
 //!
-//! Strictly enforce path boundaries to prevent directory traversal attacks.
+//! **Handle paths from external or unknown sources securely.** Uses Rust's type system to
+//! mathematically prove paths stay within defined boundaries—no escapes in any shape or form,
+//! symlinks included. API is minimal, restrictive, and explicit to prevent human and LLM API misuse.
 //!
 //! This crate performs full normalization/canonicalization and boundary enforcement with:
 //! - Safe symlink/junction handling (including cycle detection)
@@ -92,11 +94,17 @@
 //!
 //! ## Security Foundation
 //!
-//! Built on [`soft-canonicalize`](https://crates.io/crates/soft-canonicalize), this crate protects against:
+//! Built on [`soft-canonicalize`](https://crates.io/crates/soft-canonicalize) (with
+//! [`proc-canonicalize`](https://crates.io/crates/proc-canonicalize) for Linux container realpath support),
+//! this crate protects against:
 //! - **CVE-2025-8088** (NTFS ADS path traversal)
 //! - **CVE-2022-21658** (TOCTOU attacks)
 //! - **CVE-2019-9855, CVE-2020-12279** (Windows 8.3 short names)
 //! - Path traversal, symlink attacks, Unicode normalization bypasses, race conditions
+//!
+//! > **Trade-off:** Security is prioritized above performance. This crate verifies paths on disk
+//! > and follows symlinks for validation. If your use case doesn't involve symlinks and you need
+//! > maximum performance, a lexical-only solution may be a better fit.
 //!
 //! **[→ Read attack surface analysis](https://dk26.github.io/strict-path-rs/security_methodology.html#attack-surface)**
 //!
@@ -156,7 +164,7 @@
 //!
 //! ## Additional Resources
 //!
-//! - **[LLM API Reference](https://github.com/DK26/strict-path-rs/blob/main/LLM_API_REFERENCE.md)** —
+//! - **[LLM Context (Full)](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md)** —
 //!   Concise, copy-pastable reference optimized for AI assistants
 //! - **[Complete Guide](https://dk26.github.io/strict-path-rs/)** — Comprehensive documentation with examples
 //! - **[API Reference](https://docs.rs/strict-path)** — Full type and method documentation

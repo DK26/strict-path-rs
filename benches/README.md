@@ -222,7 +222,7 @@ small_batch_10_files/strict_path_cached
 - **[PERFORMANCE_OVERHEAD_ANALYSIS.md](docs/PERFORMANCE_OVERHEAD_ANALYSIS.md)** — Comprehensive overhead analysis with 6 detailed tables
 - **[OVERHEAD_QUICK_REFERENCE.md](docs/OVERHEAD_QUICK_REFERENCE.md)** — Quick-reference tables for all overhead numbers
 - **[BENCHMARK_ANALYSIS.md](docs/BENCHMARK_ANALYSIS.md)** — Initial benchmark analysis (historical)
-- **[LLM_API_REFERENCE.md](../LLM_API_REFERENCE.md)** — API design decisions affecting performance
+- **[LLM_CONTEXT_FULL.md](../LLM_CONTEXT_FULL.md)** — API design decisions affecting performance
 
 ---
 

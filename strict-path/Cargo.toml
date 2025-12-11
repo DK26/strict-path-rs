@@ -5,7 +5,7 @@ edition = "2021"
 # Minimum supported Rust version (MSRV)
 rust-version = "1.71"
 authors = ["David Krasnitsky <dikaveman@gmail.com>"]
-description = "Prevent directory traversal with mathematically proven path boundaries. StrictPath detects escapes, VirtualPath contains them. Handles symlinks, 19+ CVEs, Windows 8.3 names, platform quirks."
+description = "Handle paths from external or unknown sources securely. Minimal, restrictive, explicit API. Mathematically proves paths stay within boundaries using Rust's type system. StrictPath detects escapes, VirtualPath contains them. Handles symlinks, 19+ CVEs, Windows 8.3 names, Linux containers."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/DK26/strict-path-rs"
 homepage = "https://github.com/DK26/strict-path-rs"

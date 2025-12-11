@@ -38,7 +38,7 @@ Links: [Related docs/issues]
 
 ## Feature Suggestions
 
-Before suggesting features, **have your LLM agent read our [`AGENTS.md`](./AGENTS.md) and [`LLM_API_REFERENCE.md`](./LLM_API_REFERENCE.md) files** and ask it:
+Before suggesting features, **have your LLM agent read our [`AGENTS.md`](./AGENTS.md) and [`LLM_CONTEXT_FULL.md`](./LLM_CONTEXT_FULL.md) files** and ask it:
 
 1. Does my suggested feature align with the project's design philosophy?
 2. Why might this feature not already be implemented?
@@ -46,7 +46,7 @@ Before suggesting features, **have your LLM agent read our [`AGENTS.md`](./AGENT
 
 **LLM Prompt:**
 ```
-I want to suggest a feature for strict-path crate. Please read the AGENTS.md and LLM_API_REFERENCE.md files from this repository and tell me if my feature idea aligns with the design philosophy and why it might not already be implemented.
+I want to suggest a feature for strict-path crate. Please read the AGENTS.md and LLM_CONTEXT_FULL.md files from this repository and tell me if my feature idea aligns with the design philosophy and why it might not already be implemented.
 ```
 
 **Timeline expectations:**
