@@ -84,12 +84,12 @@ Operational guide for AI assistants and automation working in this repository.
 **`Path`/`PathBuf` (std)** — When the path comes from a safe source within your control, not external input.
 
 **`StrictPath`** — When you want to restrict paths to a specific boundary and error if they escape.
-- Use for: Archive extraction, file uploads, config loading, shared system resources
+- Use for: Archive extraction, config loading, shared system resources, file uploads to shared storage (admin panels, CMS assets)
 - Behavior: Returns `Err(PathEscapesBoundary)` on escape attempts (detect attacks)
 - Coverage: 90% of use cases
 
 **`VirtualPath`** (feature `virtual-path`) — When you want to provide path freedom under isolation.
-- Use for: Multi-tenant systems, malware sandboxes, security research, per-user filesystem views
+- Use for: Multi-tenant file uploads (SaaS per-user storage), malware sandboxes, security research, per-user filesystem views
 - Behavior: Silently clamps/redirects escapes within virtual boundary (contain behavior)
 - Coverage: 10% of use cases
 
@@ -102,7 +102,7 @@ Operational guide for AI assistants and automation working in this repository.
 - Returns `Err(PathEscapesBoundary)` when escape is attempted
 - Use cases:
   - **Archive extraction** — detect malicious paths, reject compromised archives
-  - **File uploads** — reject user-provided paths with traversal attempts
+  - **File uploads to shared storage** — admin panels, CMS assets, single-tenant apps where all users share one storage area
   - **Config loading** — fail on untrusted config paths that try to escape
   - Shared system resources (logs, cache, assets)
   - Development tools, build systems, single-user applications
@@ -113,8 +113,9 @@ Operational guide for AI assistants and automation working in this repository.
 - Philosophy: "Let things try to escape, but silently contain them"
 - Silently clamps/redirects escape attempts within the virtual boundary
 - Use cases:
-  - **Malware analysis sandboxes** — observe malicious behavior while containing it
+  - **Multi-tenant file uploads** — SaaS per-user storage where each user has isolated directories
   - **Multi-tenant systems** — each user sees isolated `/` root without real paths
+  - **Malware analysis sandboxes** — observe malicious behavior while containing it
   - **Container-like plugins** — modules get their own filesystem view
   - **Security research** — simulate contained environments for testing
   - User content isolation where users shouldn't see real system paths

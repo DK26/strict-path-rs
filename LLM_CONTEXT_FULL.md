@@ -71,7 +71,7 @@ Audience and usage: This page is a minimal-context, copy/paste guide for tool-ca
 Use `PathBoundary` → `StrictPath` when path escapes indicate **malicious intent**:
 
 - **Archive extraction** — Detect malicious paths; reject compromised archives
-- **File uploads** — Reject user-provided paths with traversal attempts  
+- **File uploads to shared storage** — Admin panels, CMS assets, single-tenant apps where all users share one storage area
 - **Config loading** — Fail on untrusted config paths that try to escape
 - **Log files, cache, assets** — Shared system resources with strict boundaries
 - **Development tools** — Build systems, CLI utilities, single-user apps
@@ -87,8 +87,9 @@ Use `PathBoundary` → `StrictPath` when path escapes indicate **malicious inten
 
 Use `VirtualRoot` → `VirtualPath` when path escapes are **expected but must be controlled**:
 
-- **Malware analysis sandboxes** — Observe malicious behavior while containing it
+- **Multi-tenant file uploads** — SaaS per-user storage where each user/tenant gets isolated directories
 - **Multi-tenant systems** — Each user sees isolated `/` root without real paths
+- **Malware analysis sandboxes** — Observe malicious behavior while containing it
 - **Container-like plugins** — Modules get their own filesystem view
 - **Security research** — Simulate contained environments for testing
 - **User content isolation** — When users shouldn't see real system paths
@@ -103,14 +104,15 @@ strict-path = { version = "...", features = ["virtual-path"] }
 
 ### Decision Matrix
 
-| Scenario           | Type          | Reason                      |
-| ------------------ | ------------- | --------------------------- |
-| Archive extraction | `StrictPath`  | Detect malicious paths      |
-| File uploads       | `StrictPath`  | Reject traversal attacks    |
-| Config loading     | `StrictPath`  | Fail on escape attempts     |
-| Malware sandbox    | `VirtualPath` | Contain behavior safely     |
-| Multi-tenant SaaS  | `VirtualPath` | Per-user isolation          |
-| Single-user app    | `StrictPath`  | Simple boundary enforcement |
+| Scenario                      | Type          | Reason                                           |
+| ----------------------------- | ------------- | ------------------------------------------------ |
+| Archive extraction            | `StrictPath`  | Detect malicious paths                           |
+| File uploads (shared storage) | `StrictPath`  | Admin panels, CMS — all users share one boundary |
+| File uploads (multi-tenant)   | `VirtualPath` | SaaS per-user — each user/tenant isolated        |
+| Config loading                | `StrictPath`  | Fail on escape attempts                          |
+| Malware sandbox               | `VirtualPath` | Contain behavior safely                          |
+| Multi-tenant SaaS             | `VirtualPath` | Per-user isolation                               |
+| Single-user app               | `StrictPath`  | Simple boundary enforcement                      |
 
 ### VirtualRoot Quick Checklist (LLMs should follow)
 - Construct per-user/tenant roots using an identifier segment: `let vroot = VirtualRoot::try_new_create(format!("users/{user_id}"))?;`.

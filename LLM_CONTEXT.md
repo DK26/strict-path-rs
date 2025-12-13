@@ -27,8 +27,8 @@ strict-path = "*"
 
 ## Choose your mode
 
-- StrictPath (default, 90% cases): Detects escape attempts. Best for archive extraction, file uploads, config loading, shared system areas.
-- VirtualPath (opt‑in): Clamps escape attempts within a virtual root. Best for per‑user sandboxes, multi‑tenant UX, malware analysis.
+- StrictPath (default, 90% cases): Detects escape attempts. Best for archive extraction, config loading, shared system areas, file uploads to shared storage (admin panels, CMS assets).
+- VirtualPath (opt‑in): Clamps escape attempts within a virtual root. Best for multi‑tenant file uploads (SaaS per‑user storage), per‑user sandboxes, malware analysis.
 
 ## Quickstart
 
@@ -78,7 +78,7 @@ println!("user sees: {}", doc.virtualpath_display());
 
 ## Quick recipes
 
-- File uploads (Strict):
+- File uploads to shared storage (Strict) — admin panels, CMS, single-tenant:
 ```rust
 let uploads = PathBoundary::try_new_create("./uploads")?;
 let file = uploads.strict_join(filename)?; // traversal ⇒ error
@@ -86,7 +86,7 @@ file.create_parent_dir_all()?;
 file.write(bytes)?;
 ```
 
-- Per‑user storage (Virtual):
+- Multi-tenant file uploads (Virtual) — SaaS per-user storage:
 ```rust
 let vroot = strict_path::VirtualPath::with_root_create(format!("users/{id}"))?;
 let vfile = vroot.virtual_join(user_path)?; // traversal ⇒ clamped
@@ -134,9 +134,11 @@ Use ecosystem crates directly with `PathBoundary` for maximum flexibility:
 
 | Scenario                                 | Use           | Why                                                                 |
 | ---------------------------------------- | ------------- | ------------------------------------------------------------------- |
-| Archive extraction, file uploads         | `StrictPath`  | Detect malicious names; fail fast on escape (`PathEscapesBoundary`) |
+| Archive extraction                       | `StrictPath`  | Detect malicious names; fail fast on escape (`PathEscapesBoundary`) |
+| File uploads to shared storage           | `StrictPath`  | Admin panels, CMS assets — all users share one boundary             |
 | Config loading, system assets/logs/cache | `StrictPath`  | System‑facing, explicit boundaries                                  |
 | LLM/CLI/HTTP inputs for system I/O       | `StrictPath`  | Turn arbitrary segments into validated paths before I/O             |
+| Multi‑tenant file uploads                | `VirtualPath` | SaaS per‑user storage — each user/tenant isolated                   |
 | Multi‑tenant per‑user files              | `VirtualPath` | Rooted “/” UX, clamped containment                                  |
 | Malware/sandbox analysis                 | `VirtualPath` | Observe escapes safely (clamped)                                    |
 | UI display only                          | `VirtualPath` | User‑friendly rooted strings (`/a/b.txt`)                           |

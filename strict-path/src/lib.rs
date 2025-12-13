@@ -50,12 +50,12 @@
 //! **`Path`/`PathBuf` (std)** — When the path comes from a safe source within your control, not external input.
 //!
 //! **`StrictPath`** — When you want to restrict paths to a specific boundary and error if they escape.
-//! - **Use for:** Archive extraction, file uploads, config loading, shared system resources
+//! - **Use for:** Archive extraction, config loading, shared system resources, file uploads to shared storage (admin panels, CMS)
 //! - **Behavior:** Returns `Err(PathEscapesBoundary)` on escape attempts (detect attacks)
 //! - **Coverage:** 90% of use cases
 //!
 //! **`VirtualPath`** (feature `virtual-path`) — When you want to provide path freedom under isolation.
-//! - **Use for:** Multi-tenant systems, malware sandboxes, security research, per-user filesystem views
+//! - **Use for:** Multi-tenant file uploads (SaaS per-user storage), malware sandboxes, security research, per-user filesystem views
 //! - **Behavior:** Silently clamps/redirects escapes within virtual boundary (contain behavior)
 //! - **Coverage:** 10% of use cases
 //!
