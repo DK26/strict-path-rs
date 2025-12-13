@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-fcfdc226.js";
+            window.path_to_searchindex_js = "searchindex-2449cbce.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-21247364.js"></script>
@@ -7226,14 +7226,14 @@ let boundary = PathBoundary::try_new_create(config_base.join("myapp"))?;
 <ul>
 <li><strong>Philosophy</strong>: “If it tries to escape, I want to know”</li>
 <li><strong>Returns:</strong> <code>Err(PathEscapesBoundary)</code> on escape attempts</li>
-<li><strong>Use for:</strong> Archives, file uploads, config loading, security boundaries</li>
+<li><strong>Use for:</strong> Archives, config loading, security boundaries, file uploads to shared storage (admin panels, CMS assets)</li>
 <li><strong>Always available</strong> (no feature flag)</li>
 </ul>
 <h4 id="virtualpath--contain--redirect-opt-in-10"><a class="header" href="#virtualpath--contain--redirect-opt-in-10">VirtualPath — Contain &amp; Redirect (Opt-in, 10%)</a></h4>
 <ul>
 <li><strong>Philosophy</strong>: “Let it try to escape, but silently contain it”</li>
 <li><strong>Behavior:</strong> Silently clamps escapes within boundary</li>
-<li><strong>Use for:</strong> Multi-tenant systems, malware sandboxes, security research, user isolation</li>
+<li><strong>Use for:</strong> Multi-tenant file uploads (SaaS per-user storage), malware sandboxes, security research, user isolation</li>
 <li><strong>Requires:</strong> <code>virtual-path</code> feature in <code>Cargo.toml</code></li>
 </ul>
 <h4 id="how-they-differ"><a class="header" href="#how-they-differ">How They Differ</a></h4>
@@ -7341,11 +7341,12 @@ for name in files {
 // let vroot = VirtualPath::with_root(format!("./cloud/user_{user_id}"))?;
 // let vpath = vroot.virtual_join(filename)?; // same guarantees; keep VirtualRoot for reuse
 <span class="boring">}</span></code></pre>
-<p><strong>When to use each for archives</strong>:</p>
+<p><strong>When to use each</strong>:</p>
 <ul>
 <li><strong>StrictPath for production archive extraction</strong> — detect malicious paths, reject compromised archives, alert users</li>
 <li><strong>VirtualPath for sandbox/research</strong> — safely analyze suspicious archives by containing escapes while observing behavior</li>
-<li><strong>StrictPath for file uploads to shared storage</strong> — reject attacks at the security boundary</li>
+<li><strong>StrictPath for file uploads to shared storage</strong> — admin panels, CMS assets, single-tenant apps where all users share one boundary</li>
+<li><strong>VirtualPath for multi-tenant file uploads</strong> — SaaS per-user storage where each user/tenant gets isolated directories</li>
 <li><strong>StrictPath for config loading</strong> — fail explicitly on untrusted paths that try to escape</li>
 </ul>
 <p>The key: use <strong>StrictPath to detect attacks</strong> in production; use <strong>VirtualPath to contain behavior</strong> in research/analysis scenarios.</p>
