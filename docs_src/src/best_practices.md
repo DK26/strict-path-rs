@@ -68,14 +68,14 @@ For detailed explanations and comprehensive examples, see these focused chapters
 
 - **Philosophy**: "If it tries to escape, I want to know"
 - **Returns:** `Err(PathEscapesBoundary)` on escape attempts
-- **Use for:** Archives, file uploads, config loading, security boundaries
+- **Use for:** Archives, config loading, security boundaries, file uploads to shared storage (admin panels, CMS assets)
 - **Always available** (no feature flag)
 
 #### VirtualPath — Contain & Redirect (Opt-in, 10%)
 
 - **Philosophy**: "Let it try to escape, but silently contain it"
 - **Behavior:** Silently clamps escapes within boundary
-- **Use for:** Multi-tenant systems, malware sandboxes, security research, user isolation
+- **Use for:** Multi-tenant file uploads (SaaS per-user storage), malware sandboxes, security research, user isolation
 - **Requires:** `virtual-path` feature in `Cargo.toml`
 
 #### How They Differ
@@ -207,10 +207,11 @@ fn upload(user_root: &VirtualRoot, filename: &str, bytes: &[u8]) -> std::io::Res
 // let vpath = vroot.virtual_join(filename)?; // same guarantees; keep VirtualRoot for reuse
 ```
 
-**When to use each for archives**:
+**When to use each**:
 - **StrictPath for production archive extraction** — detect malicious paths, reject compromised archives, alert users
 - **VirtualPath for sandbox/research** — safely analyze suspicious archives by containing escapes while observing behavior
-- **StrictPath for file uploads to shared storage** — reject attacks at the security boundary
+- **StrictPath for file uploads to shared storage** — admin panels, CMS assets, single-tenant apps where all users share one boundary
+- **VirtualPath for multi-tenant file uploads** — SaaS per-user storage where each user/tenant gets isolated directories
 - **StrictPath for config loading** — fail explicitly on untrusted paths that try to escape
 
 The key: use **StrictPath to detect attacks** in production; use **VirtualPath to contain behavior** in research/analysis scenarios.
