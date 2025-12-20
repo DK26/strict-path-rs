@@ -181,11 +181,22 @@ pub use error::StrictPathError;
 pub use path::strict_path::StrictPath;
 pub use validator::path_boundary::PathBoundary;
 
+// Iterator exports
+pub use path::strict_path::StrictOpenOptions;
+pub use path::strict_path::StrictReadDir;
+pub use validator::path_boundary::BoundaryReadDir;
+
 #[cfg(feature = "virtual-path")]
 pub use path::virtual_path::VirtualPath;
 
 #[cfg(feature = "virtual-path")]
+pub use path::virtual_path::VirtualReadDir;
+
+#[cfg(feature = "virtual-path")]
 pub use validator::virtual_root::VirtualRoot;
+
+#[cfg(feature = "virtual-path")]
+pub use validator::virtual_root::VirtualRootReadDir;
 
 /// Result type alias for this crate's operations.
 pub type Result<T> = std::result::Result<T, StrictPathError>;

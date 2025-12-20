@@ -197,6 +197,41 @@ impl<Marker> VirtualRoot<Marker> {
     }
 
     /// SUMMARY:
+    /// Iterate directory entries at the virtual root, yielding validated `VirtualPath` values.
+    ///
+    /// DETAILS:
+    /// Unlike `read_dir()` which returns raw `std::fs::DirEntry` values requiring manual
+    /// re-validation, this method yields `VirtualPath` entries directly. Each entry is
+    /// automatically validated through `virtual_join()` so you can use it immediately
+    /// for I/O operations without additional validation.
+    ///
+    /// RETURNS:
+    /// - `io::Result<VirtualRootReadDir<Marker>>`: Iterator over validated `VirtualPath` entries.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::VirtualRoot;
+    ///
+    /// # let temp = tempfile::tempdir()?;
+    /// let vroot: VirtualRoot = VirtualRoot::try_new(temp.path())?;
+    /// # vroot.virtual_join("file.txt")?.write("test")?;
+    ///
+    /// // Auto-validated iteration - no manual re-join needed!
+    /// for entry in vroot.virtual_read_dir()? {
+    ///     let child = entry?;
+    ///     println!("Virtual: {}", child.virtualpath_display());
+    /// }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn virtual_read_dir(&self) -> std::io::Result<VirtualRootReadDir<'_, Marker>> {
+        Ok(VirtualRootReadDir {
+            inner: self.root.read_dir()?,
+            vroot: self,
+        })
+    }
+
+    /// SUMMARY:
     /// Remove the underlying root directory (non‑recursive); fails if not empty.
     #[inline]
     pub fn remove_dir(&self) -> std::io::Result<()> {
@@ -481,5 +516,61 @@ impl<Marker: Default> std::str::FromStr for VirtualRoot<Marker> {
     #[inline]
     fn from_str(path: &str) -> std::result::Result<Self, Self::Err> {
         Self::try_new_create(path)
+    }
+}
+
+// ============================================================
+// VirtualRootReadDir — Iterator for validated virtual directory entries
+// ============================================================
+
+/// SUMMARY:
+/// Iterator over directory entries that yields validated `VirtualPath` values.
+///
+/// DETAILS:
+/// Created by `VirtualRoot::virtual_read_dir()`. Each iteration automatically validates
+/// the directory entry through `virtual_join()`, so you get `VirtualPath` values directly
+/// instead of raw `std::fs::DirEntry` that would require manual re-validation.
+///
+/// EXAMPLE:
+/// ```rust
+/// # use strict_path::VirtualRoot;
+/// # let temp = tempfile::tempdir()?;
+/// let vroot: VirtualRoot = VirtualRoot::try_new(temp.path())?;
+/// # vroot.virtual_join("readme.md")?.write("# Docs")?;
+/// for entry in vroot.virtual_read_dir()? {
+///     let child = entry?;
+///     if child.is_file() {
+///         println!("Virtual: {}", child.virtualpath_display());
+///     }
+/// }
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+pub struct VirtualRootReadDir<'a, Marker> {
+    inner: std::fs::ReadDir,
+    vroot: &'a VirtualRoot<Marker>,
+}
+
+impl<Marker> std::fmt::Debug for VirtualRootReadDir<'_, Marker> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VirtualRootReadDir")
+            .field("vroot", &"/")
+            .finish_non_exhaustive()
+    }
+}
+
+impl<Marker: Clone> Iterator for VirtualRootReadDir<'_, Marker> {
+    type Item = std::io::Result<crate::path::virtual_path::VirtualPath<Marker>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.inner.next()? {
+            Ok(entry) => {
+                let file_name = entry.file_name();
+                match self.vroot.virtual_join(&file_name) {
+                    Ok(virtual_path) => Some(Ok(virtual_path)),
+                    Err(e) => Some(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))),
+                }
+            }
+            Err(e) => Some(Err(e)),
+        }
     }
 }

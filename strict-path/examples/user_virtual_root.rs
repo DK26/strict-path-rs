@@ -34,19 +34,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let display = doc.virtualpath_display();
     println!("user_id={user_id}, path={}, bytes={} ", display, body.len());
 
-    // List files under a virtual directory
+    // List files under a virtual directory using virtual_read_dir for auto-validated iteration
     let docs = vroot.virtual_join("docs")?;
     if docs.exists() && docs.is_dir() {
         let mut names = Vec::new();
-        if let Ok(entries) = docs.read_dir() {
-            for entry in entries.flatten() {
-                if let Some(name) = entry.file_name().to_str() {
-                    // Re-join to keep guarantees
-                    if let Ok(child) = docs.virtual_join(name) {
-                        names.push(child.virtualpath_display().to_string());
-                    }
-                }
-            }
+        // virtual_read_dir returns already-validated VirtualPath entries!
+        for entry in docs.virtual_read_dir()? {
+            let child = entry?;
+            // Each child is a VirtualPath - no manual re-join needed
+            names.push(child.virtualpath_display().to_string());
         }
         names.sort();
         println!("docs: {}", names.join(", "));
