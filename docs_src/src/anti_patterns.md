@@ -82,6 +82,8 @@ if safe_path.exists() {
 }
 ```
 
+> **✅ Exception:** Passing `interop_path()` to strict-path's own methods like `strict_copy()`, `strict_rename()`, or `strict_symlink()` is correct—they **re-validate** the destination path against the boundary before performing the operation. This is intentional API design, not a security hole.
+
 ## Using std Path Operations on Leaked Values
 
 **❌ What not to do:**

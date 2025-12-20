@@ -2,6 +2,12 @@
 
 This section shows practical, real-world scenarios where strict-path helps secure your applications. Each example includes complete, runnable code that you can adapt to your own projects.
 
+> **📖 How to Read Examples**
+>
+> In examples, string literals passed to `strict_join()` or `virtual_join()` represent **external input** that would come from HTTP requests, CLI arguments, configuration files, or archive entries in production. The validation pattern is identical whether the input is a literal or a variable — strict-path validates the path regardless of source.
+>
+> When adapting examples to your code, replace these literals with your actual untrusted input sources.
+
 ## 📚 Example Categories
 
 ### Web Applications

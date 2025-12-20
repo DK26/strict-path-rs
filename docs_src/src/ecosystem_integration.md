@@ -14,6 +14,7 @@
 - [Portable Application Paths (app-path)](#portable-application-paths-app-path)
 - [OS Standard Directories (dirs)](#os-standard-directories-dirs)
 - [Serialization & Deserialization (serde)](#serialization--deserialization-serde)
+- [Third-Party Crate Integration Patterns](#third-party-crate-integration-patterns)
 
 ---
 
@@ -549,6 +550,158 @@ fn serialize_paths() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+---
+
+## Third-Party Crate Integration Patterns
+
+When integrating with crates like `tar`, `zip`, `walkdir`, or other filesystem libraries, follow these patterns to maintain security.
+
+### Archive Crates (tar, zip)
+
+Archive crates often expect file handles or byte slices. Use strict-path's built-in I/O to read content, then pass bytes to the archive crate.
+
+**Pattern: Read with strict-path, write with archive crate**
+
+```rust
+use strict_path::PathBoundary;
+use tar::Builder;
+
+fn create_archive(
+    source_dir: &PathBoundary,
+    files: &[&str],  // Untrusted file list from user/config
+) -> std::io::Result<Vec<u8>> {
+    let mut archive = Builder::new(Vec::new());
+
+    for requested_file in files {
+        // Validate each path through strict-path
+        let safe_path = source_dir.strict_join(requested_file)?;
+
+        // Read content using strict-path's I/O
+        let content = safe_path.read()?;
+
+        // Pass bytes to archive crate (no path escapes possible)
+        let mut header = tar::Header::new_gnu();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+
+        archive.append_data(&mut header, requested_file, content.as_slice())?;
+    }
+
+    archive.into_inner()
+}
+```
+
+**Anti-pattern to avoid:**
+```rust
+// ❌ WRONG: Passing interop_path() to archive crate for reading
+let file = std::fs::File::open(path.interop_path())?;
+archive.append_file(path_str, &mut file)?;
+
+// ✅ CORRECT: Read with strict-path, pass bytes
+let content = path.read()?;
+archive.append_data(&mut header, path_str, content.as_slice())?;
+```
+
+### When `interop_path()` Is Acceptable
+
+Use `interop_path()` when:
+1. **The crate only needs to read from a validated path** and you've already validated it
+2. **The crate provides no way to accept bytes** (rare, but some do)
+3. **You're passing to strict-path's own methods** like `strict_copy()` or `strict_rename()` which re-validate
+
+```rust
+// ✅ OK: WalkDir only reads, doesn't write or follow user input
+use walkdir::WalkDir;
+let boundary = PathBoundary::try_new("./data")?;
+for entry in WalkDir::new(boundary.interop_path()) {
+    let entry = entry?;
+    // Re-validate each discovered path before operations
+    if let Ok(relative) = entry.path().strip_prefix(boundary.interop_path()) {
+        let safe_path = boundary.strict_join(relative)?;
+        // Now safe to use
+    }
+}
+
+// ✅ OK: strict_copy re-validates the destination
+let src = boundary.strict_join("file.txt")?;
+src.strict_copy("backup/file.txt")?;  // Destination is re-validated internally
+```
+
+**When NOT to use `interop_path()`:**
+- For any write operation to untrusted paths
+- When the third-party crate would follow symlinks you haven't validated
+- When you could use strict-path's built-in I/O instead
+
+### Directory Traversal Crates (walkdir, globwalk)
+
+When using directory traversal crates, re-validate discovered paths:
+
+```rust
+use strict_path::PathBoundary;
+use walkdir::WalkDir;
+
+fn process_all_files(
+    boundary: &PathBoundary,
+) -> std::io::Result<Vec<String>> {
+    let mut results = Vec::new();
+
+    for entry in WalkDir::new(boundary.interop_path()) {
+        let entry = entry?;
+
+        // Skip directories, only process files
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        // Re-validate through strict-path before any I/O
+        let relative = entry.path()
+            .strip_prefix(boundary.interop_path())
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+        let safe_path = boundary.strict_join(relative)?;
+
+        // Now safe to read/process
+        let content = safe_path.read_to_string()?;
+        results.push(content);
+    }
+
+    Ok(results)
+}
+```
+
+**Or use the built-in `strict_read_dir()` for simpler cases:**
+
+```rust
+use strict_path::PathBoundary;
+
+fn list_files(boundary: &PathBoundary) -> std::io::Result<Vec<String>> {
+    let mut results = Vec::new();
+
+    for entry in boundary.into_strictpath()?.strict_read_dir()? {
+        let path = entry?;
+        if path.is_file() {
+            results.push(path.read_to_string()?);
+        }
+    }
+
+    Ok(results)
+}
+```
+
+### Summary: The "Read Content, Pass Bytes" Pattern
+
+For maximum security with third-party crates:
+
+1. **Validate the path** with `strict_join()` or `virtual_join()`
+2. **Read content** using strict-path's built-in I/O (`read()`, `read_to_string()`, `open_file()`)
+3. **Pass bytes/handles** to the third-party crate
+
+This ensures:
+- Path validation happens through strict-path
+- No symlink-following surprises from third-party crates
+- Clear separation between validation and I/O
 
 ---
 
