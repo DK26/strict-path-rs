@@ -23,7 +23,7 @@ Built on [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs) (wi
 
 ```toml
 [dependencies]
-strict-path = "0.1.0-rc.2"
+strict-path = "0.1.0"
 ```
 
 ```rust

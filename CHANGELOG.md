@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2025-12-20
+
+### Added
+- **New I/O methods** for `StrictPath` and `VirtualPath`:
+  - `open_with()` - Advanced file opening with custom `OpenOptions`
+  - `append()` - Append data to files
+  - `read_dir()` / `strict_read_dir()` / `virtual_read_dir()` - Safe directory iteration
+  - `read_link()` / `strict_read_link()` / `virtual_read_link()` - Symlink target validation
+  - `set_permissions()` - Modify file permissions
+  - `try_exists()` - Check file existence without requiring it to exist
+  - `touch()` - Create empty file or update timestamp
+- **Formal verification**: Added Kani proof harness for mathematical verification of virtualization clamping logic
+- **Security testing**: Comprehensive fuzz tests for security invariants (1000+ iterations)
+- **CI workflows**: Kani verification and semver compatibility checks
+
+### Documentation
+- **README badges**: Added Kani Verified and Protected CVEs badges
+- **Security guidance**: Enhanced documentation on `interop_path()` risks in user-facing contexts
+- **Use case clarification**: Better guidance on StrictPath vs VirtualPath for file upload scenarios
+
+### Fixed
+- **MSRV compatibility**: Fixed filesystem tests for Rust 1.71.0 and Linux CI environments
+- **Windows junction tests**: Enhanced junction handling and comprehensive test coverage
+
 ## [0.1.0-rc.2] - 2025-12-11
 
 ### Fixed
