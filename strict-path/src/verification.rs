@@ -1,6 +1,6 @@
 #[cfg(kani)]
 mod verification {
-    #[derive(Copy, Clone, kani::Arbitrary)]
+    #[derive(Copy, Clone, Debug, kani::Arbitrary)]
     enum MockComponent {
         Normal,
         CurDir,
@@ -29,10 +29,10 @@ mod verification {
     }
 
     #[kani::proof]
+    #[kani::unwind(10)]
     fn verify_virtualize_clamping() {
-        let components: Vec<MockComponent> = kani::any();
-        // Limit length to avoid state explosion
-        kani::assume(components.len() <= 8);
+        // Use a fixed-size array instead of Vec to work with Kani's Arbitrary trait
+        let components: [MockComponent; 8] = kani::any();
 
         let result = virtualize(&components);
 
