@@ -4,6 +4,10 @@
 //! applications. Shows how executable-relative paths enable USB drive deployment,
 //! network share usage, and non-installation scenarios.
 //!
+//! **External Input Pattern**: In production, file names passed to `strict_join()`
+//! would come from external sources (user input, config files, CLI args). Here we
+//! use constants for demonstration, but the validation pattern is identical.
+//!
 //! Key app-path API:
 //! - `AppPath::new()` → Returns executable directory
 //! - `AppPath::with("subdir")` → Returns executable_dir/subdir

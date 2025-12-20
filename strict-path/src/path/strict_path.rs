@@ -383,9 +383,151 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Set permissions on the file or directory at this path.
+    ///
+    /// PARAMETERS:
+    /// - `perm` (`std::fs::Permissions`): The permissions to set.
+    ///
+    /// RETURNS:
+    /// - `io::Result<()>`: Success or I/O error.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::PathBoundary;
+    ///
+    /// let temp = tempfile::tempdir()?;
+    /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+    /// let file = boundary.strict_join("script.sh")?;
+    /// file.write("#!/bin/bash\necho hello")?;
+    ///
+    /// // Make executable (Unix) or read-only (cross-platform)
+    /// let mut perms = file.metadata()?.permissions();
+    /// perms.set_readonly(true);
+    /// file.set_permissions(perms)?;
+    ///
+    /// assert!(file.metadata()?.permissions().readonly());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn set_permissions(&self, perm: std::fs::Permissions) -> std::io::Result<()> {
+        std::fs::set_permissions(&self.path, perm)
+    }
+
+    /// SUMMARY:
+    /// Check if the path exists, returning an error on permission issues.
+    ///
+    /// DETAILS:
+    /// Unlike `exists()` which returns `false` on permission errors, this method
+    /// distinguishes between "path does not exist" (`Ok(false)`) and "cannot check
+    /// due to permission error" (`Err(...)`).
+    ///
+    /// RETURNS:
+    /// - `Ok(true)`: Path exists
+    /// - `Ok(false)`: Path does not exist
+    /// - `Err(...)`: Permission or other I/O error prevented the check
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::PathBoundary;
+    ///
+    /// let temp = tempfile::tempdir()?;
+    /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+    ///
+    /// let existing = boundary.strict_join("exists.txt")?;
+    /// existing.write("content")?;
+    /// assert_eq!(existing.try_exists()?, true);
+    ///
+    /// let missing = boundary.strict_join("missing.txt")?;
+    /// assert_eq!(missing.try_exists()?, false);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn try_exists(&self) -> std::io::Result<bool> {
+        self.path.try_exists()
+    }
+
+    /// SUMMARY:
+    /// Create an empty file if it doesn't exist, or update the modification time if it does.
+    ///
+    /// DETAILS:
+    /// This is a convenience method combining file creation and mtime update.
+    /// Uses `OpenOptions` with `create(true).write(true)` which creates the file
+    /// if missing or opens it for writing if it exists, updating mtime on close.
+    ///
+    /// RETURNS:
+    /// - `io::Result<()>`: Success or I/O error.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::PathBoundary;
+    ///
+    /// let temp = tempfile::tempdir()?;
+    /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+    ///
+    /// let file = boundary.strict_join("marker.txt")?;
+    /// assert!(!file.exists());
+    ///
+    /// file.touch()?;
+    /// assert!(file.exists());
+    /// assert_eq!(file.read_to_string()?, "");  // Empty file
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn touch(&self) -> std::io::Result<()> {
+        // Using truncate(false) to preserve existing content - touch only updates mtime
+        std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(&self.path)?;
+        Ok(())
+    }
+
+    /// SUMMARY:
     /// Read directory entries at this path (discovery). Re‑join names through strict/virtual APIs before I/O.
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
         std::fs::read_dir(&self.path)
+    }
+
+    /// SUMMARY:
+    /// Read directory entries as validated `StrictPath` values (auto re-joins each entry).
+    ///
+    /// DETAILS:
+    /// Unlike `read_dir()` which returns raw `std::fs::DirEntry`, this method automatically
+    /// validates each directory entry through `strict_join()`, returning an iterator of
+    /// `Result<StrictPath<Marker>>`. This eliminates the need for manual re-validation loops.
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `io::Result<StrictReadDir<Marker>>`: Iterator yielding validated `StrictPath` entries.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: If the directory cannot be read.
+    /// - Each yielded item may also be `Err` if validation fails for that entry.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{PathBoundary, StrictPath};
+    /// # let temp = tempfile::tempdir()?;
+    /// # let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+    /// # let dir = boundary.strict_join("data")?;
+    /// # dir.create_dir_all()?;
+    /// # boundary.strict_join("data/file1.txt")?.write("a")?;
+    /// # boundary.strict_join("data/file2.txt")?.write("b")?;
+    /// // Iterate with automatic validation
+    /// for entry in dir.strict_read_dir()? {
+    ///     let child: StrictPath = entry?;
+    ///     println!("{}", child.strictpath_display());
+    /// }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn strict_read_dir(&self) -> std::io::Result<StrictReadDir<'_, Marker>> {
+        let inner = std::fs::read_dir(&self.path)?;
+        Ok(StrictReadDir {
+            inner,
+            parent: self,
+        })
     }
 
     /// Reads the file contents as `String`.
@@ -404,6 +546,46 @@ impl<Marker> StrictPath<Marker> {
     #[inline]
     pub fn write<C: AsRef<[u8]>>(&self, contents: C) -> std::io::Result<()> {
         std::fs::write(&self.path, contents)
+    }
+
+    /// SUMMARY:
+    /// Append bytes to the file (create if missing). Accepts any `AsRef<[u8]>` (e.g., `&str`, `&[u8]`).
+    ///
+    /// PARAMETERS:
+    /// - `data` (`AsRef<[u8]>`): Bytes to append to the file.
+    ///
+    /// RETURNS:
+    /// - `()`: Returns nothing on success.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: Propagates OS errors when the file cannot be opened or written.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{PathBoundary, StrictPath};
+    /// # let boundary_dir = std::env::temp_dir().join("strict-path-append-example");
+    /// # std::fs::create_dir_all(&boundary_dir)?;
+    /// # let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
+    /// // Untrusted input from request/CLI/config/etc.
+    /// let log_file = "logs/audit.log";
+    /// let log_path: StrictPath = boundary.strict_join(log_file)?;
+    /// log_path.create_parent_dir_all()?;
+    /// log_path.append("[2025-01-01] Session started\n")?;
+    /// log_path.append("[2025-01-01] User logged in\n")?;
+    /// let contents = log_path.read_to_string()?;
+    /// assert!(contents.contains("Session started"));
+    /// assert!(contents.contains("User logged in"));
+    /// # std::fs::remove_dir_all(&boundary_dir)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn append<C: AsRef<[u8]>>(&self, data: C) -> std::io::Result<()> {
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
+        file.write_all(data.as_ref())
     }
 
     /// SUMMARY:
@@ -473,6 +655,46 @@ impl<Marker> StrictPath<Marker> {
     #[inline]
     pub fn open_file(&self) -> std::io::Result<std::fs::File> {
         std::fs::File::open(&self.path)
+    }
+
+    /// SUMMARY:
+    /// Return an options builder for advanced file opening (read+write, append, exclusive create, etc.).
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `StrictOpenOptions<Marker>`: Builder to configure file opening options.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{PathBoundary, StrictPath};
+    /// # use std::io::{Read, Write, Seek, SeekFrom};
+    /// # let boundary_dir = std::env::temp_dir().join("strict-path-open-with-example");
+    /// # std::fs::create_dir_all(&boundary_dir)?;
+    /// # let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
+    /// // Untrusted input from request/CLI/config/etc.
+    /// let data_file = "data/records.bin";
+    /// let file_path: StrictPath = boundary.strict_join(data_file)?;
+    /// file_path.create_parent_dir_all()?;
+    ///
+    /// // Open with read+write access, create if missing
+    /// let mut file = file_path.open_with()
+    ///     .read(true)
+    ///     .write(true)
+    ///     .create(true)
+    ///     .open()?;
+    /// file.write_all(b"header")?;
+    /// file.seek(SeekFrom::Start(0))?;
+    /// let mut buf = [0u8; 6];
+    /// file.read_exact(&mut buf)?;
+    /// assert_eq!(&buf, b"header");
+    /// # std::fs::remove_dir_all(&boundary_dir)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn open_with(&self) -> StrictOpenOptions<'_, Marker> {
+        StrictOpenOptions::new(self)
     }
 
     /// Creates all directories in the system path if missing (like `std::fs::create_dir_all`).
@@ -549,6 +771,62 @@ impl<Marker> StrictPath<Marker> {
         }
 
         Ok(())
+    }
+
+    /// SUMMARY:
+    /// Read the target of a symbolic link and validate it is within the boundary.
+    ///
+    /// DESIGN NOTE:
+    /// This method has limited practical use because `strict_join` resolves symlinks
+    /// during canonicalization. A `StrictPath` obtained via `strict_join("link")` already
+    /// points to the symlink's target, not the symlink itself.
+    ///
+    /// To read a symlink target before validation, use `std::fs::read_link` on the raw
+    /// path, then validate the target with `strict_join`:
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::PathBoundary;
+    ///
+    /// let temp = tempfile::tempdir()?;
+    /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+    ///
+    /// // Create a target file
+    /// let target = boundary.strict_join("target.txt")?;
+    /// target.write("secret")?;
+    ///
+    /// // Create symlink (may fail on Windows without Developer Mode)
+    /// if target.strict_symlink("link.txt").is_ok() {
+    ///     // WRONG: strict_join("link.txt") resolves to target.txt
+    ///     let resolved = boundary.strict_join("link.txt")?;
+    ///     assert_eq!(resolved.strictpath_file_name(), Some("target.txt".as_ref()));
+    ///
+    ///     // RIGHT: read symlink target from raw path, then validate
+    ///     let link_raw_path = temp.path().join("link.txt");
+    ///     let symlink_target = std::fs::read_link(&link_raw_path)?;
+    ///     let validated = boundary.strict_join(&symlink_target)?;
+    ///     assert_eq!(validated.strictpath_file_name(), Some("target.txt".as_ref()));
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn strict_read_link(&self) -> std::io::Result<Self> {
+        // Read the raw symlink target
+        let raw_target = std::fs::read_link(&self.path)?;
+
+        // If the target is relative, resolve it relative to the symlink's parent
+        let resolved_target = if raw_target.is_relative() {
+            match self.path.parent() {
+                Some(parent) => parent.join(&raw_target),
+                None => raw_target,
+            }
+        } else {
+            raw_target
+        };
+
+        // Validate the resolved target against the boundary
+        self.boundary
+            .strict_join(resolved_target)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
     /// SUMMARY:
@@ -807,5 +1085,176 @@ impl<Marker> PartialEq<crate::path::virtual_path::VirtualPath<Marker>> for Stric
     #[inline]
     fn eq(&self, other: &crate::path::virtual_path::VirtualPath<Marker>) -> bool {
         self.path.as_ref() == other.interop_path()
+    }
+}
+
+// ============================================================
+// StrictOpenOptions — Builder for advanced file opening
+// ============================================================
+
+/// SUMMARY:
+/// Builder for opening files with custom options (read, write, append, create, truncate, create_new).
+///
+/// DETAILS:
+/// Use `StrictPath::open_with()` to get an instance. Chain builder methods to configure
+/// options, then call `.open()` to obtain the file handle. This mirrors `std::fs::OpenOptions`
+/// but operates on a validated `StrictPath`, so the path is guaranteed to be within its boundary.
+///
+/// EXAMPLE:
+/// ```rust
+/// # use strict_path::{PathBoundary, StrictPath};
+/// # use std::io::Write;
+/// # let temp = tempfile::tempdir()?;
+/// # let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+/// let log_path: StrictPath = boundary.strict_join("app.log")?;
+/// let mut file = log_path.open_with()
+///     .create(true)
+///     .append(true)
+///     .open()?;
+/// file.write_all(b"log entry\n")?;
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+pub struct StrictOpenOptions<'a, Marker> {
+    path: &'a StrictPath<Marker>,
+    options: std::fs::OpenOptions,
+}
+
+impl<'a, Marker> StrictOpenOptions<'a, Marker> {
+    /// Create a new builder with default options (all flags false).
+    #[inline]
+    fn new(path: &'a StrictPath<Marker>) -> Self {
+        Self {
+            path,
+            options: std::fs::OpenOptions::new(),
+        }
+    }
+
+    /// Sets the option for read access.
+    ///
+    /// When `true`, the file will be readable after opening.
+    #[inline]
+    pub fn read(mut self, read: bool) -> Self {
+        self.options.read(read);
+        self
+    }
+
+    /// Sets the option for write access.
+    ///
+    /// When `true`, the file will be writable after opening.
+    /// If the file exists, writes will overwrite existing content starting at the beginning
+    /// unless `.append(true)` is also set.
+    #[inline]
+    pub fn write(mut self, write: bool) -> Self {
+        self.options.write(write);
+        self
+    }
+
+    /// Sets the option for append mode.
+    ///
+    /// When `true`, all writes will append to the end of the file instead of overwriting.
+    /// Implies `.write(true)`.
+    #[inline]
+    pub fn append(mut self, append: bool) -> Self {
+        self.options.append(append);
+        self
+    }
+
+    /// Sets the option for truncating the file.
+    ///
+    /// When `true`, the file will be truncated to zero length upon opening.
+    /// Requires `.write(true)`.
+    #[inline]
+    pub fn truncate(mut self, truncate: bool) -> Self {
+        self.options.truncate(truncate);
+        self
+    }
+
+    /// Sets the option to create the file if it doesn't exist.
+    ///
+    /// When `true`, the file will be created if missing. Requires `.write(true)` or `.append(true)`.
+    #[inline]
+    pub fn create(mut self, create: bool) -> Self {
+        self.options.create(create);
+        self
+    }
+
+    /// Sets the option for exclusive creation (fail if file exists).
+    ///
+    /// When `true`, the file must not exist; opening will fail with `AlreadyExists` if it does.
+    /// Requires `.write(true)` and implies `.create(true)`.
+    #[inline]
+    pub fn create_new(mut self, create_new: bool) -> Self {
+        self.options.create_new(create_new);
+        self
+    }
+
+    /// Open the file with the configured options.
+    ///
+    /// RETURNS:
+    /// - `std::io::Result<std::fs::File>`: The opened file handle.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: Propagates OS errors (file not found, permission denied, already exists, etc.).
+    #[inline]
+    pub fn open(self) -> std::io::Result<std::fs::File> {
+        self.options.open(&self.path.path)
+    }
+}
+
+// ============================================================
+// StrictReadDir — Iterator for validated directory entries
+// ============================================================
+
+/// SUMMARY:
+/// Iterator over directory entries that yields validated `StrictPath` values.
+///
+/// DETAILS:
+/// Created by `StrictPath::strict_read_dir()`. Each iteration automatically validates
+/// the directory entry through `strict_join()`, so you get `StrictPath` values directly
+/// instead of raw `std::fs::DirEntry` that would require manual re-validation.
+///
+/// EXAMPLE:
+/// ```rust
+/// # use strict_path::{PathBoundary, StrictPath};
+/// # let temp = tempfile::tempdir()?;
+/// # let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+/// # let dir = boundary.strict_join("docs")?;
+/// # dir.create_dir_all()?;
+/// # boundary.strict_join("docs/readme.md")?.write("# Docs")?;
+/// for entry in dir.strict_read_dir()? {
+///     let child: StrictPath = entry?;
+///     if child.is_file() {
+///         println!("File: {}", child.strictpath_display());
+///     }
+/// }
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+pub struct StrictReadDir<'a, Marker> {
+    inner: std::fs::ReadDir,
+    parent: &'a StrictPath<Marker>,
+}
+
+impl<Marker> std::fmt::Debug for StrictReadDir<'_, Marker> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StrictReadDir")
+            .field("parent", &self.parent.strictpath_display())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<Marker: Clone> Iterator for StrictReadDir<'_, Marker> {
+    type Item = std::io::Result<StrictPath<Marker>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.inner.next()? {
+            Ok(entry) => {
+                let file_name = entry.file_name();
+                match self.parent.strict_join(file_name) {
+                    Ok(strict_path) => Some(Ok(strict_path)),
+                    Err(e) => Some(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))),
+                }
+            }
+            Err(e) => Some(Err(e)),
+        }
     }
 }

@@ -457,9 +457,96 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Set permissions on the file or directory at this path.
+    ///
+    /// PARAMETERS:
+    /// - `perm` (`std::fs::Permissions`): The permissions to set.
+    ///
+    /// RETURNS:
+    /// - `io::Result<()>`: Success or I/O error.
+    #[inline]
+    pub fn set_permissions(&self, perm: std::fs::Permissions) -> std::io::Result<()> {
+        self.inner.set_permissions(perm)
+    }
+
+    /// SUMMARY:
+    /// Check if the path exists, returning an error on permission issues.
+    ///
+    /// DETAILS:
+    /// Unlike `exists()` which returns `false` on permission errors, this method
+    /// distinguishes between "path does not exist" (`Ok(false)`) and "cannot check
+    /// due to permission error" (`Err(...)`).
+    ///
+    /// RETURNS:
+    /// - `Ok(true)`: Path exists
+    /// - `Ok(false)`: Path does not exist
+    /// - `Err(...)`: Permission or other I/O error prevented the check
+    #[inline]
+    pub fn try_exists(&self) -> std::io::Result<bool> {
+        self.inner.try_exists()
+    }
+
+    /// SUMMARY:
+    /// Create an empty file if it doesn't exist, or update the modification time if it does.
+    ///
+    /// DETAILS:
+    /// This is a convenience method combining file creation and mtime update.
+    /// Uses `OpenOptions` with `create(true).write(true)` which creates the file
+    /// if missing or opens it for writing if it exists, updating mtime on close.
+    ///
+    /// RETURNS:
+    /// - `io::Result<()>`: Success or I/O error.
+    pub fn touch(&self) -> std::io::Result<()> {
+        self.inner.touch()
+    }
+
+    /// SUMMARY:
     /// Read directory entries (discovery). Re‑join names with `virtual_join(...)` to preserve clamping.
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
         self.inner.read_dir()
+    }
+
+    /// SUMMARY:
+    /// Read directory entries as validated `VirtualPath` values (auto re-joins each entry).
+    ///
+    /// DETAILS:
+    /// Unlike `read_dir()` which returns raw `std::fs::DirEntry`, this method automatically
+    /// validates each directory entry through `virtual_join()`, returning an iterator of
+    /// `Result<VirtualPath<Marker>>`. This eliminates the need for manual re-validation loops
+    /// while preserving the virtual path semantics.
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `io::Result<VirtualReadDir<Marker>>`: Iterator yielding validated `VirtualPath` entries.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: If the directory cannot be read.
+    /// - Each yielded item may also be `Err` if validation fails for that entry.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{VirtualRoot, VirtualPath};
+    /// # let temp = tempfile::tempdir()?;
+    /// # let vroot: VirtualRoot = VirtualRoot::try_new(temp.path())?;
+    /// # let dir = vroot.virtual_join("uploads")?;
+    /// # dir.create_dir_all()?;
+    /// # vroot.virtual_join("uploads/file1.txt")?.write("a")?;
+    /// # vroot.virtual_join("uploads/file2.txt")?.write("b")?;
+    /// // Iterate with automatic validation
+    /// for entry in dir.virtual_read_dir()? {
+    ///     let child: VirtualPath = entry?;
+    ///     println!("{}", child.virtualpath_display());
+    /// }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn virtual_read_dir(&self) -> std::io::Result<VirtualReadDir<'_, Marker>> {
+        let inner = std::fs::read_dir(self.inner.path())?;
+        Ok(VirtualReadDir {
+            inner,
+            parent: self,
+        })
     }
 
     /// SUMMARY:
@@ -467,6 +554,41 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub fn write<C: AsRef<[u8]>>(&self, contents: C) -> std::io::Result<()> {
         self.inner.write(contents)
+    }
+
+    /// SUMMARY:
+    /// Append bytes to the underlying system path (create if missing). Accepts `&str`, `&[u8]`, etc.
+    ///
+    /// PARAMETERS:
+    /// - `data` (`AsRef<[u8]>`): Bytes to append to the file.
+    ///
+    /// RETURNS:
+    /// - `()`: Returns nothing on success.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: Propagates OS errors when the file cannot be opened or written.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # let root = std::env::temp_dir().join("strict-path-vpath-append");
+    /// # std::fs::create_dir_all(&root)?;
+    /// # let vroot: VirtualRoot = VirtualRoot::try_new(&root)?;
+    /// // Untrusted input from request/CLI/config/etc.
+    /// let log_file = "logs/activity.log";
+    /// let vpath = vroot.virtual_join(log_file)?;
+    /// vpath.create_parent_dir_all()?;
+    /// vpath.append("[2025-01-01] Operation A\n")?;
+    /// vpath.append("[2025-01-01] Operation B\n")?;
+    /// let contents = vpath.read_to_string()?;
+    /// assert!(contents.contains("Operation A"));
+    /// assert!(contents.contains("Operation B"));
+    /// # std::fs::remove_dir_all(&root)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn append<C: AsRef<[u8]>>(&self, data: C) -> std::io::Result<()> {
+        self.inner.append(data)
     }
 
     /// SUMMARY:
@@ -532,6 +654,46 @@ impl<Marker> VirtualPath<Marker> {
     #[inline]
     pub fn open_file(&self) -> std::io::Result<std::fs::File> {
         self.inner.open_file()
+    }
+
+    /// SUMMARY:
+    /// Return an options builder for advanced file opening (read+write, append, exclusive create, etc.).
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `StrictOpenOptions<Marker>`: Builder to configure file opening options.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # use std::io::{Read, Write, Seek, SeekFrom};
+    /// # let root = std::env::temp_dir().join("vpath-open-with-example");
+    /// # std::fs::create_dir_all(&root)?;
+    /// # let vroot: VirtualRoot = VirtualRoot::try_new(&root)?;
+    /// // Untrusted input from request/CLI/config/etc.
+    /// let data_file = "cache/state.bin";
+    /// let cache_path = vroot.virtual_join(data_file)?;
+    /// cache_path.create_parent_dir_all()?;
+    ///
+    /// // Open with read+write access, create if missing
+    /// let mut file = cache_path.open_with()
+    ///     .read(true)
+    ///     .write(true)
+    ///     .create(true)
+    ///     .open()?;
+    /// file.write_all(b"state")?;
+    /// file.seek(SeekFrom::Start(0))?;
+    /// let mut buf = [0u8; 5];
+    /// file.read_exact(&mut buf)?;
+    /// assert_eq!(&buf, b"state");
+    /// # std::fs::remove_dir_all(&root)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn open_with(&self) -> crate::path::strict_path::StrictOpenOptions<'_, Marker> {
+        self.inner.open_with()
     }
 
     /// SUMMARY:
@@ -658,6 +820,61 @@ impl<Marker> VirtualPath<Marker> {
         };
 
         self.inner.strict_symlink(validated_link.inner.path())
+    }
+
+    /// SUMMARY:
+    /// Read the target of a symbolic link and return it as a validated `VirtualPath`.
+    ///
+    /// DESIGN NOTE:
+    /// This method has limited practical use because `virtual_join` resolves symlinks
+    /// during canonicalization. A `VirtualPath` obtained via `virtual_join("/link")` already
+    /// points to the symlink's target, not the symlink itself.
+    ///
+    /// To read a symlink target before validation, use `std::fs::read_link` on the raw
+    /// path, then validate the target with `virtual_join`:
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::VirtualRoot;
+    ///
+    /// let temp = tempfile::tempdir()?;
+    /// let vroot: VirtualRoot = VirtualRoot::try_new(temp.path())?;
+    ///
+    /// // Create a target file
+    /// let target = vroot.virtual_join("/data/target.txt")?;
+    /// target.create_parent_dir_all()?;
+    /// target.write("secret")?;
+    ///
+    /// // Create symlink (may fail on Windows without Developer Mode)
+    /// if target.virtual_symlink("/data/link.txt").is_ok() {
+    ///     // virtual_join resolves symlinks: link.txt -> target.txt
+    ///     let resolved = vroot.virtual_join("/data/link.txt")?;
+    ///     assert_eq!(resolved.virtualpath_display().to_string(), "/data/target.txt");
+    ///     // The resolved path reads the target file's content
+    ///     assert_eq!(resolved.read_to_string()?, "secret");
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn virtual_read_link(&self) -> std::io::Result<Self> {
+        // Read the raw symlink target
+        let raw_target = std::fs::read_link(self.inner.path())?;
+
+        // If the target is relative, resolve it relative to the symlink's parent
+        let resolved_target = if raw_target.is_relative() {
+            match self.inner.path().parent() {
+                Some(parent) => parent.join(&raw_target),
+                None => raw_target,
+            }
+        } else {
+            raw_target
+        };
+
+        // Validate through virtual_join which clamps escapes
+        // We need to compute the relative path from the virtual root
+        let vroot = self.inner.boundary().clone().virtualize();
+        vroot
+            .virtual_join(resolved_target)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
     /// SUMMARY:
@@ -1021,5 +1238,63 @@ impl<Marker> Ord for VirtualPath<Marker> {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.inner.path().cmp(other.inner.path())
+    }
+}
+
+// ============================================================
+// VirtualReadDir — Iterator for validated virtual directory entries
+// ============================================================
+
+/// SUMMARY:
+/// Iterator over directory entries that yields validated `VirtualPath` values.
+///
+/// DETAILS:
+/// Created by `VirtualPath::virtual_read_dir()`. Each iteration automatically validates
+/// the directory entry through `virtual_join()`, so you get `VirtualPath` values directly
+/// instead of raw `std::fs::DirEntry` that would require manual re-validation.
+///
+/// EXAMPLE:
+/// ```rust
+/// # use strict_path::{VirtualRoot, VirtualPath};
+/// # let temp = tempfile::tempdir()?;
+/// # let vroot: VirtualRoot = VirtualRoot::try_new(temp.path())?;
+/// # let dir = vroot.virtual_join("assets")?;
+/// # dir.create_dir_all()?;
+/// # vroot.virtual_join("assets/logo.png")?.write(b"PNG")?;
+/// for entry in dir.virtual_read_dir()? {
+///     let child: VirtualPath = entry?;
+///     if child.is_file() {
+///         println!("File: {}", child.virtualpath_display());
+///     }
+/// }
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+pub struct VirtualReadDir<'a, Marker> {
+    inner: std::fs::ReadDir,
+    parent: &'a VirtualPath<Marker>,
+}
+
+impl<Marker> std::fmt::Debug for VirtualReadDir<'_, Marker> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VirtualReadDir")
+            .field("parent", &self.parent.virtualpath_display().to_string())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<Marker: Clone> Iterator for VirtualReadDir<'_, Marker> {
+    type Item = std::io::Result<VirtualPath<Marker>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.inner.next()? {
+            Ok(entry) => {
+                let file_name = entry.file_name();
+                match self.parent.virtual_join(file_name) {
+                    Ok(virtual_path) => Some(Ok(virtual_path)),
+                    Err(e) => Some(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))),
+                }
+            }
+            Err(e) => Some(Err(e)),
+        }
     }
 }

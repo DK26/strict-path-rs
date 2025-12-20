@@ -418,6 +418,41 @@ impl<Marker> PathBoundary<Marker> {
     }
 
     /// SUMMARY:
+    /// Iterate directory entries under the boundary, yielding validated `StrictPath` values.
+    ///
+    /// DETAILS:
+    /// Unlike `read_dir()` which returns raw `std::fs::DirEntry` values requiring manual
+    /// re-validation, this method yields `StrictPath` entries directly. Each entry is
+    /// automatically validated through `strict_join()` so you can use it immediately
+    /// for I/O operations without additional validation.
+    ///
+    /// RETURNS:
+    /// - `io::Result<BoundaryReadDir<Marker>>`: Iterator over validated `StrictPath` entries.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::PathBoundary;
+    ///
+    /// # let temp = tempfile::tempdir()?;
+    /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+    /// # boundary.strict_join("file.txt")?.write("test")?;
+    ///
+    /// // Auto-validated iteration - no manual re-join needed!
+    /// for entry in boundary.strict_read_dir()? {
+    ///     let child = entry?;
+    ///     println!("Found: {}", child.strictpath_display());
+    /// }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn strict_read_dir(&self) -> std::io::Result<BoundaryReadDir<'_, Marker>> {
+        Ok(BoundaryReadDir {
+            inner: std::fs::read_dir(self.path())?,
+            boundary: self,
+        })
+    }
+
+    /// SUMMARY:
     /// Remove the boundary directory (non-recursive); fails if not empty.
     #[inline]
     pub fn remove_dir(&self) -> std::io::Result<()> {
@@ -480,6 +515,62 @@ impl<Marker: Default> std::str::FromStr for PathBoundary<Marker> {
     #[inline]
     fn from_str(path: &str) -> std::result::Result<Self, Self::Err> {
         Self::try_new_create(path)
+    }
+}
+
+// ============================================================
+// BoundaryReadDir — Iterator for validated directory entries
+// ============================================================
+
+/// SUMMARY:
+/// Iterator over directory entries that yields validated `StrictPath` values.
+///
+/// DETAILS:
+/// Created by `PathBoundary::strict_read_dir()`. Each iteration automatically validates
+/// the directory entry through `strict_join()`, so you get `StrictPath` values directly
+/// instead of raw `std::fs::DirEntry` that would require manual re-validation.
+///
+/// EXAMPLE:
+/// ```rust
+/// # use strict_path::PathBoundary;
+/// # let temp = tempfile::tempdir()?;
+/// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+/// # boundary.strict_join("readme.md")?.write("# Docs")?;
+/// for entry in boundary.strict_read_dir()? {
+///     let child = entry?;
+///     if child.is_file() {
+///         println!("File: {}", child.strictpath_display());
+///     }
+/// }
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+pub struct BoundaryReadDir<'a, Marker> {
+    inner: std::fs::ReadDir,
+    boundary: &'a PathBoundary<Marker>,
+}
+
+impl<Marker> std::fmt::Debug for BoundaryReadDir<'_, Marker> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BoundaryReadDir")
+            .field("boundary", &self.boundary.strictpath_display())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<Marker: Clone> Iterator for BoundaryReadDir<'_, Marker> {
+    type Item = std::io::Result<crate::StrictPath<Marker>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.inner.next()? {
+            Ok(entry) => {
+                let file_name = entry.file_name();
+                match self.boundary.strict_join(file_name) {
+                    Ok(strict_path) => Some(Ok(strict_path)),
+                    Err(e) => Some(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))),
+                }
+            }
+            Err(e) => Some(Err(e)),
+        }
     }
 }
 //

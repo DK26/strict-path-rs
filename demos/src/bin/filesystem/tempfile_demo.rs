@@ -11,13 +11,14 @@
 compile_error!("Enable with --features with-tempfile to run this example");
 
 use anyhow::Result;
-use std::fs;
-use std::io::Write;
 use strict_path::{PathBoundary, StrictPath};
 
 /// Marker types for different temporary file purposes
+#[derive(Clone)]
 struct TempWork;
+#[derive(Clone)]
 struct TempLogs;
+#[derive(Clone)]
 struct TempUploads;
 
 /// Demonstrates basic tempfile integration
@@ -81,29 +82,21 @@ impl TempFileProcessor {
     fn log_operation(&self, message: &str) -> Result<()> {
         let log_file = self.logs_dir.strict_join("operations.log")?;
 
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_file.interop_path())?;
-
-        writeln!(
-            file,
-            "[{}] {}",
-            chrono::Utc::now().format("%H:%M:%S"),
-            message
-        )?;
+        // Append log entry using built-in I/O helper
+        let log_entry = format!("[{}] {}\n", chrono::Utc::now().format("%H:%M:%S"), message);
+        log_file.append(log_entry)?;
         Ok(())
     }
 
-    /// Show all processed files
+    /// Show all processed files using strict_read_dir for auto-validated iteration
     fn list_processed_files(&self) -> Result<Vec<String>> {
         let mut files = Vec::new();
 
-        if let Ok(entries) = self.work_dir.read_dir() {
-            for entry in entries.flatten() {
-                if let Some(name) = entry.file_name().to_str() {
-                    files.push(name.to_string());
-                }
+        // Use strict_read_dir() directly on PathBoundary - no conversion needed!
+        for entry in self.work_dir.strict_read_dir()? {
+            let child = entry?;
+            if let Some(name) = child.strictpath_file_name().and_then(|n| n.to_str()) {
+                files.push(name.to_string());
             }
         }
 
@@ -173,15 +166,14 @@ fn demonstrate_compression_workflow() -> Result<()> {
     let mut archive_content = String::new();
     archive_content.push_str("# Simulated Archive Contents\n");
 
-    // List all files that would be archived
+    // List all files that would be archived using strict_read_dir directly on PathBoundary
     let mut file_count = 0;
-    if let Ok(entries) = temp_work.read_dir() {
-        for entry in entries.flatten() {
-            if entry.path().is_file() {
-                if let Some(name) = entry.file_name().to_str() {
-                    archive_content.push_str(&format!("- {name}\n"));
-                    file_count += 1;
-                }
+    for entry in temp_work.strict_read_dir()? {
+        let child = entry?;
+        if child.is_file() {
+            if let Some(name) = child.strictpath_file_name().and_then(|n| n.to_str()) {
+                archive_content.push_str(&format!("- {name}\n"));
+                file_count += 1;
             }
         }
     }
@@ -223,12 +215,108 @@ fn main() -> Result<()> {
     // Demonstrate compression workflow
     demonstrate_compression_workflow()?;
 
+    // Demonstrate new I/O APIs (touch, set_permissions, try_exists, open_with)
+    demonstrate_new_io_apis()?;
+
     // Demonstrate additional tempfile workflow patterns
     demonstrate_temp_workflow_patterns()?;
 
     println!("\n🧹 Cleanup: Temp directories are automatically removed when TempDir instances are dropped!");
     println!("This demonstrates the power of RAII cleanup with tempfile integration.");
 
+    Ok(())
+}
+
+/// Demonstrates new I/O APIs: touch, set_permissions, try_exists, open_with
+fn demonstrate_new_io_apis() -> Result<()> {
+    println!("\n🆕 New I/O API demonstrations:");
+
+    let temp = tempfile::tempdir()?;
+    let boundary = PathBoundary::<()>::try_new(temp.path())?;
+
+    // --- touch(): Create empty file or update mtime ---
+    println!("\n  📌 touch() - Create marker files:");
+    let marker_file = boundary.strict_join("build.complete")?;
+    marker_file.touch()?; // Creates empty file
+    println!("    Created marker: {}", marker_file.strictpath_display());
+
+    // touch() on existing file updates mtime (preserves content)
+    let existing = boundary.strict_join("existing.txt")?;
+    existing.write("original content")?;
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    existing.touch()?; // Updates mtime, keeps content
+    let content = existing.read_to_string()?;
+    assert_eq!(content, "original content");
+    println!("    Touched existing file (content preserved)");
+
+    // --- try_exists(): Fallible existence check ---
+    println!("\n  🔍 try_exists() - Fallible existence check:");
+    match marker_file.try_exists() {
+        Ok(true) => println!("    marker_file: exists"),
+        Ok(false) => println!("    marker_file: not found"),
+        Err(e) => println!("    marker_file: permission error - {e}"),
+    }
+
+    let nonexistent = boundary.strict_join("does_not_exist.txt")?;
+    match nonexistent.try_exists() {
+        Ok(false) => println!("    nonexistent: correctly reports not found"),
+        other => println!("    nonexistent: unexpected result - {other:?}"),
+    }
+
+    // --- set_permissions(): Modify file permissions ---
+    println!("\n  🔒 set_permissions() - File permission management:");
+    let config_file = boundary.strict_join("config.toml")?;
+    config_file.write("[app]\nkey = \"secret\"")?;
+
+    let mut perms = config_file.metadata()?.permissions();
+    perms.set_readonly(true);
+    config_file.set_permissions(perms)?;
+    println!("    Set {} to read-only", config_file.strictpath_display());
+
+    // Verify it's read-only
+    let perms = config_file.metadata()?.permissions();
+    println!("    Read-only: {}", perms.readonly());
+
+    // --- open_with(): Advanced file opening ---
+    println!("\n  🔧 open_with() - Advanced file open options:");
+    let log_file = boundary.strict_join("app.log")?;
+
+    // Create with read+write access
+    {
+        let mut file = log_file
+            .open_with()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open()?;
+        use std::io::Write;
+        file.write_all(b"[INFO] Application started\n")?;
+    }
+    println!("    Created log with read+write mode");
+
+    // Append to existing file
+    {
+        let mut file = log_file.open_with().append(true).open()?;
+        use std::io::Write;
+        file.write_all(b"[INFO] Another log entry\n")?;
+    }
+    let log_content = log_file.read_to_string()?;
+    println!("    Appended entry (total {} bytes)", log_content.len());
+
+    // create_new: fails if file exists (for exclusive access)
+    let lock_file = boundary.strict_join("app.lock")?;
+    match lock_file.open_with().create_new(true).write(true).open() {
+        Ok(_) => println!("    Lock file created (exclusive)"),
+        Err(e) => println!("    Lock file error: {e}"),
+    }
+
+    // Trying again should fail
+    match lock_file.open_with().create_new(true).write(true).open() {
+        Ok(_) => println!("    Unexpected: lock file created again"),
+        Err(_) => println!("    Lock file correctly rejected (already exists)"),
+    }
+
+    println!("  ✅ All new I/O APIs demonstrated successfully");
     Ok(())
 }
 

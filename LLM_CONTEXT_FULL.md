@@ -71,7 +71,7 @@ Audience and usage: This page is a minimal-context, copy/paste guide for tool-ca
 Use `PathBoundary` → `StrictPath` when path escapes indicate **malicious intent**:
 
 - **Archive extraction** — Detect malicious paths; reject compromised archives
-- **File uploads** — Reject user-provided paths with traversal attempts  
+- **File uploads to shared storage** — Admin panels, CMS assets, single-tenant apps where all users share one storage area
 - **Config loading** — Fail on untrusted config paths that try to escape
 - **Log files, cache, assets** — Shared system resources with strict boundaries
 - **Development tools** — Build systems, CLI utilities, single-user apps
@@ -87,8 +87,9 @@ Use `PathBoundary` → `StrictPath` when path escapes indicate **malicious inten
 
 Use `VirtualRoot` → `VirtualPath` when path escapes are **expected but must be controlled**:
 
-- **Malware analysis sandboxes** — Observe malicious behavior while containing it
+- **Multi-tenant file uploads** — SaaS per-user storage where each user/tenant gets isolated directories
 - **Multi-tenant systems** — Each user sees isolated `/` root without real paths
+- **Malware analysis sandboxes** — Observe malicious behavior while containing it
 - **Container-like plugins** — Modules get their own filesystem view
 - **Security research** — Simulate contained environments for testing
 - **User content isolation** — When users shouldn't see real system paths
@@ -103,14 +104,15 @@ strict-path = { version = "...", features = ["virtual-path"] }
 
 ### Decision Matrix
 
-| Scenario           | Type          | Reason                      |
-| ------------------ | ------------- | --------------------------- |
-| Archive extraction | `StrictPath`  | Detect malicious paths      |
-| File uploads       | `StrictPath`  | Reject traversal attacks    |
-| Config loading     | `StrictPath`  | Fail on escape attempts     |
-| Malware sandbox    | `VirtualPath` | Contain behavior safely     |
-| Multi-tenant SaaS  | `VirtualPath` | Per-user isolation          |
-| Single-user app    | `StrictPath`  | Simple boundary enforcement |
+| Scenario                      | Type          | Reason                                           |
+| ----------------------------- | ------------- | ------------------------------------------------ |
+| Archive extraction            | `StrictPath`  | Detect malicious paths                           |
+| File uploads (shared storage) | `StrictPath`  | Admin panels, CMS — all users share one boundary |
+| File uploads (multi-tenant)   | `VirtualPath` | SaaS per-user — each user/tenant isolated        |
+| Config loading                | `StrictPath`  | Fail on escape attempts                          |
+| Malware sandbox               | `VirtualPath` | Contain behavior safely                          |
+| Multi-tenant SaaS             | `VirtualPath` | Per-user isolation                               |
+| Single-user app               | `StrictPath`  | Simple boundary enforcement                      |
 
 ### VirtualRoot Quick Checklist (LLMs should follow)
 - Construct per-user/tenant roots using an identifier segment: `let vroot = VirtualRoot::try_new_create(format!("users/{user_id}"))?;`.
@@ -194,23 +196,32 @@ Uses canonicalization + boundary checks to prevent directory traversal attacks.
 Use when: validating untrusted segments into a system-facing path within a known root (policy).
 - `::try_new_create(path)` → Create boundary (mkdir if needed)  
 - `.strict_join(input)` → Validate untrusted input → `StrictPath<T>`
+- `.strict_read_dir()` → Iterator yielding validated `StrictPath` entries directly (no `into_strictpath()` needed)
+- `.read_dir()` → Raw `std::fs::ReadDir` for discovery (re-join via `strict_join` before I/O)
 
 **StrictPath<T>**: Proven-safe system paths
 Use when: passing proven-safe paths to I/O and helpers; no extra validation inside the function.
 - `.strict_join(path)` → Chain additional safe joins
 - `.interop_path()` → `&OsStr` for third-party `AsRef<Path>` APIs you cannot adapt
-- `.exists()` → Check if path exists (built-in, no need to use `Path::new().exists()`)
-- `.read()/.write(data)` → I/O operations
+- `.exists()` / `.try_exists()` → Check if path exists (fallible variant distinguishes permission errors)
+- `.read()/.write(data)/.append(data)` → I/O operations
+- `.touch()` → Create empty file or update mtime (preserves content)
 - `.create_file()` → Writable handle (pass to tar builders, etc.)
 - `.open_file()` → Read-only handle when you only need to stream bytes out
+- `.open_with()` → Builder: `.read(true).write(true).create(true).open()` for advanced modes
+- `.strict_read_dir()` → Iterator yielding validated `StrictPath` entries (no manual re-join needed)
+- `.strict_read_link()` → Read symlink target as validated `StrictPath` (errors if escapes boundary)
+- `.set_permissions(perm)` → Set file/directory permissions
 - `.strictpath_display()` → Display for logging
 
 **VirtualRoot<T>**: User-friendly sandbox policy root
 Use when: creating a per-user sandbox root that produces `VirtualPath` with rooted "/" UX.
 - `VirtualRoot::try_new_create(dir)` → Create user sandbox root
 - `.virtual_join(input)` → Validate/clamp user input → `VirtualPath<T>`
+- `.virtual_read_dir()` → Iterator yielding validated `VirtualPath` entries directly (no `into_virtualpath()` needed)
 - `.interop_path()` → `&OsStr` for third-party `AsRef<Path>` APIs at the root
-- `.read_dir()` / `.remove_dir()` / `.remove_dir_all()` → Root-level discovery and cleanup
+- `.read_dir()` → Raw `std::fs::ReadDir` for discovery (re-join via `virtual_join` before I/O)
+- `.remove_dir()` / `.remove_dir_all()` → Root-level cleanup
 
 **VirtualPath<T>**: User-facing clamped path
 Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict view with `.as_unvirtual()` for shared helpers.
@@ -219,8 +230,11 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.as_unvirtual()` → Borrow underlying `StrictPath<T>` for shared helpers
 - `.interop_path()` → Pass into third-party APIs expecting `AsRef<Path>`
 - `.exists()` → Check if path exists (built-in)
-- I/O helpers available: `.read()`, `.write(..)`, `.create_file()`, `.open_file()`, `.create_parent_dir_all()`
- - `.symlink_metadata()` → Get metadata without following symlinks
+- I/O helpers available: `.read()`, `.write(..)`, `.append(..)`, `.create_file()`, `.open_file()`, `.open_with()`, `.touch()`, `.create_parent_dir_all()`
+- `.virtual_read_dir()` → Iterator yielding validated `VirtualPath` entries (no manual re-join needed)
+- `.virtual_read_link()` → Read symlink target as validated `VirtualPath` (clamps escapes)
+- `.symlink_metadata()` → Get metadata without following symlinks
+- `.set_permissions(perm)` / `.try_exists()` → Permission and fallible existence helpers
 
 ## Built-in I/O Methods (Always Use These!)
 
@@ -228,18 +242,24 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 
 **File Operations**:
 - `.exists()` → Check if path exists (bool)
+- `.try_exists()` → Fallible existence check (distinguishes "not found" from permission errors)
 - `.read()` → Read file to Vec<u8>
 - `.read_to_string()` → Read file to String
 - `.write(contents)` → Write to file (creates or truncates)
+- `.append(data)` → Append to file (creates if missing)
+- `.touch()` → Create empty file or update modification time (preserves content)
 - `.create_file()` → Get writable File handle
 - `.open_file()` → Get read-only File handle
+- `.open_with()` → Builder for advanced file opening (read+write, append, exclusive create, truncate)
+- `.set_permissions(perm)` → Set file permissions
 - `.remove_file()` → Delete file
 
 **Directory Operations**:
 - `.create_dir()` → Create directory (must not exist)
 - `.create_dir_all()` → Create directory and all parents
 - `.create_parent_dir_all()` → Create all parent directories for a file path
-- `.read_dir()` → Iterate directory entries
+- `.read_dir()` → Iterate directory entries (returns raw `DirEntry`)
+- `.strict_read_dir()` / `.virtual_read_dir()` → Iterate with auto-validated `StrictPath`/`VirtualPath` entries
 - `.remove_dir()` → Delete empty directory
 - `.remove_dir_all()` → Delete directory and all contents
  - `.symlink_metadata()` → Get metadata without following symlinks
@@ -256,6 +276,8 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.strict_symlink(link_path)` → Create symbolic link (accepts `AsRef<Path>`)
 - `.strict_hard_link(link_path)` → Create hard link (accepts `AsRef<Path>`)
 - `.strict_junction(link_path)` → Create NTFS directory junction (Windows, feature = "junctions", accepts `AsRef<Path>`)
+- `.strict_read_link()` → Read symlink target as validated `StrictPath` (errors if escapes boundary)
+- `.virtual_read_link()` → Read symlink target as validated `VirtualPath` (clamps escapes)
 
 **Why This Matters:**
 ```rust
@@ -275,6 +297,11 @@ if safe_path.exists() {  // ✅ Use the built-in method
 - ❌ **Never**: `std::path::Path::join(user_input)` - vulnerable to traversal  
 - ✅ **Always**: `boundary.strict_join(user_input)` or `vroot.virtual_join(user_input)`
 - ✅ **Only for third-party `AsRef<Path>` APIs**: use `.interop_path()` (never `.unstrict()`)
+- **⚠️ SECURITY CRITICAL: `interop_path()` Information Leakage**:
+  - `interop_path()` returns the **real host filesystem path** — use ONLY for passing to OS/library calls that need the real path to function.
+  - **NEVER** expose `interop_path()` to end-users: API responses, error messages, user-visible logs, serialized data sent to clients.
+  - In multi-tenant/cloud scenarios, exposing real paths leaks: internal directory structure, tenant IDs, usernames, infrastructure details (mount points, container paths).
+  - For user-facing output, use `virtualpath_display()` which shows the clean virtual view (e.g., `/docs/report.pdf`) instead of the real host path (e.g., `/var/app/cloud-storage/tenant-42/docs/report.pdf`).
 - Do not bypass: never call std fs ops on raw `Path`/`PathBuf` built from untrusted input.
 - Marker types prevent mixing distinct restrictions at compile time: use when you have multiple storage areas.
 - We do not implement `AsRef<Path>` on secure path values (`StrictPath`/`VirtualPath`). When an unavoidable third-party API expects `AsRef<Path>`, pass `.interop_path()`.
@@ -361,7 +388,7 @@ If you're only validating constants or immediately converting back to unsafe pat
 4. **Use the right method for the job**:
    - Display to users → `strictpath_display()` / `virtualpath_display()`
    - Pass to third-party APIs → `interop_path()` (already `AsRef<Path>`)
-   - I/O operations → Use built-in helpers (`.read()`, `.write()`, `.create_file()`, etc.)
+   - I/O operations → Use built-in helpers (`.read()`, `.write()`, `.append()`, `.create_file()`, etc.)
 5. **Let callers control security policy** - accept `&PathBoundary<_>` parameter, don't create inside helpers
 6. **Actually validate untrusted input** - don't just validate constants (security theater!)
 

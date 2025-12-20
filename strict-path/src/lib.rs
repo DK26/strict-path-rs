@@ -50,12 +50,12 @@
 //! **`Path`/`PathBuf` (std)** — When the path comes from a safe source within your control, not external input.
 //!
 //! **`StrictPath`** — When you want to restrict paths to a specific boundary and error if they escape.
-//! - **Use for:** Archive extraction, file uploads, config loading, shared system resources
+//! - **Use for:** Archive extraction, config loading, shared system resources, file uploads to shared storage (admin panels, CMS)
 //! - **Behavior:** Returns `Err(PathEscapesBoundary)` on escape attempts (detect attacks)
 //! - **Coverage:** 90% of use cases
 //!
 //! **`VirtualPath`** (feature `virtual-path`) — When you want to provide path freedom under isolation.
-//! - **Use for:** Multi-tenant systems, malware sandboxes, security research, per-user filesystem views
+//! - **Use for:** Multi-tenant file uploads (SaaS per-user storage), malware sandboxes, security research, per-user filesystem views
 //! - **Behavior:** Silently clamps/redirects escapes within virtual boundary (contain behavior)
 //! - **Coverage:** 10% of use cases
 //!
@@ -181,14 +181,28 @@ pub use error::StrictPathError;
 pub use path::strict_path::StrictPath;
 pub use validator::path_boundary::PathBoundary;
 
+// Iterator exports
+pub use path::strict_path::StrictOpenOptions;
+pub use path::strict_path::StrictReadDir;
+pub use validator::path_boundary::BoundaryReadDir;
+
 #[cfg(feature = "virtual-path")]
 pub use path::virtual_path::VirtualPath;
 
 #[cfg(feature = "virtual-path")]
+pub use path::virtual_path::VirtualReadDir;
+
+#[cfg(feature = "virtual-path")]
 pub use validator::virtual_root::VirtualRoot;
+
+#[cfg(feature = "virtual-path")]
+pub use validator::virtual_root::VirtualRootReadDir;
 
 /// Result type alias for this crate's operations.
 pub type Result<T> = std::result::Result<T, StrictPathError>;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(kani)]
+mod verification;

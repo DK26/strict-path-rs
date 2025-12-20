@@ -70,7 +70,7 @@ fn main() -> Result<()> {
 
     let body = note.read_to_string().context("read note")?;
     println!(
-        "tenant={tenant}, user={user}, vpath={}, bytes={}",
+        "tenant={tenant}, user={user}, vpath={vpath}, bytes={bytes}",
         tenant = cli.tenant,
         user = cli.user,
         vpath = note.virtualpath_display(),
@@ -81,12 +81,10 @@ fn main() -> Result<()> {
     let docs = user_vroot.virtual_join("docs").context("join docs")?;
     if docs.exists() {
         let mut entries = Vec::new();
-        for entry in docs.read_dir().context("read_dir docs")? {
-            if let Ok(dirent) = entry {
-                if let Some(name) = dirent.file_name().to_str() {
-                    if let Ok(child) = docs.virtual_join(name) {
-                        entries.push(child);
-                    }
+        for dirent in docs.read_dir().context("read_dir docs")?.flatten() {
+            if let Some(name) = dirent.file_name().to_str() {
+                if let Ok(child) = docs.virtual_join(name) {
+                    entries.push(child);
                 }
             }
         }

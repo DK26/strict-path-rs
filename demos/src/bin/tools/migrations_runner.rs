@@ -18,7 +18,9 @@ struct MigrationsDir;
 struct BackupDir;
 
 fn main() -> Result<()> {
-    // Setup example structure
+    // Setup example structure using std::fs for demo fixtures only.
+    // In production, this directory structure would already exist.
+    // The important part: all subsequent operations use PathBoundary/StrictPath.
     fs::create_dir_all("example_db/migrations")?;
     fs::create_dir_all("example_db/backups")?;
     fs::write(

@@ -1,0 +1,21 @@
+name: Kani Verification
+
+on:
+    push:
+        branches: [main, dev]
+    pull_request:
+        branches: [main]
+    workflow_dispatch:
+
+jobs:
+    kani:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Verify with Kani
+              uses: model-checking/kani-github-action@v1
+              with:
+                  args: --tests --harness verify_virtualize_clamping
+                  working-directory: strict-path

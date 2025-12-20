@@ -27,8 +27,8 @@ strict-path = "*"
 
 ## Choose your mode
 
-- StrictPath (default, 90% cases): Detects escape attempts. Best for archive extraction, file uploads, config loading, shared system areas.
-- VirtualPath (opt‑in): Clamps escape attempts within a virtual root. Best for per‑user sandboxes, multi‑tenant UX, malware analysis.
+- StrictPath (default, 90% cases): Detects escape attempts. Best for archive extraction, config loading, shared system areas, file uploads to shared storage (admin panels, CMS assets).
+- VirtualPath (opt‑in): Clamps escape attempts within a virtual root. Best for multi‑tenant file uploads (SaaS per‑user storage), per‑user sandboxes, malware analysis.
 
 ## Quickstart
 
@@ -78,7 +78,7 @@ println!("user sees: {}", doc.virtualpath_display());
 
 ## Quick recipes
 
-- File uploads (Strict):
+- File uploads to shared storage (Strict) — admin panels, CMS, single-tenant:
 ```rust
 let uploads = PathBoundary::try_new_create("./uploads")?;
 let file = uploads.strict_join(filename)?; // traversal ⇒ error
@@ -86,7 +86,7 @@ file.create_parent_dir_all()?;
 file.write(bytes)?;
 ```
 
-- Per‑user storage (Virtual):
+- Multi-tenant file uploads (Virtual) — SaaS per-user storage:
 ```rust
 let vroot = strict_path::VirtualPath::with_root_create(format!("users/{id}"))?;
 let vfile = vroot.virtual_join(user_path)?; // traversal ⇒ clamped
@@ -134,9 +134,11 @@ Use ecosystem crates directly with `PathBoundary` for maximum flexibility:
 
 | Scenario                                 | Use           | Why                                                                 |
 | ---------------------------------------- | ------------- | ------------------------------------------------------------------- |
-| Archive extraction, file uploads         | `StrictPath`  | Detect malicious names; fail fast on escape (`PathEscapesBoundary`) |
+| Archive extraction                       | `StrictPath`  | Detect malicious names; fail fast on escape (`PathEscapesBoundary`) |
+| File uploads to shared storage           | `StrictPath`  | Admin panels, CMS assets — all users share one boundary             |
 | Config loading, system assets/logs/cache | `StrictPath`  | System‑facing, explicit boundaries                                  |
 | LLM/CLI/HTTP inputs for system I/O       | `StrictPath`  | Turn arbitrary segments into validated paths before I/O             |
+| Multi‑tenant file uploads                | `VirtualPath` | SaaS per‑user storage — each user/tenant isolated                   |
 | Multi‑tenant per‑user files              | `VirtualPath` | Rooted “/” UX, clamped containment                                  |
 | Malware/sandbox analysis                 | `VirtualPath` | Observe escapes safely (clamped)                                    |
 | UI display only                          | `VirtualPath` | User‑friendly rooted strings (`/a/b.txt`)                           |
@@ -154,7 +156,7 @@ Use these when writing or generating code. Names make the dimension explicit.
   - Validation: `strict_join(input) -> Result<StrictPath<T>>`
   - Conversions: `into_strictpath()` (dir must exist)
   - Display & interop: `strictpath_display()`, `interop_path()`
-  - I/O at root: `read_dir()`, `remove_dir()`, `remove_dir_all()`, `metadata()`
+  - I/O at root: `strict_read_dir()`, `read_dir()`, `remove_dir()`, `remove_dir_all()`, `metadata()`
   - Links: `strict_symlink<P: AsRef<Path>>(link_path)`, `strict_hard_link<P: AsRef<Path>>(link_path)`
 
 - StrictPath<T> (validated system path)
@@ -162,20 +164,22 @@ Use these when writing or generating code. Names make the dimension explicit.
   - Join/mutate: `strict_join(..)`, `strictpath_parent()`, `strictpath_with_file_name(..)`, `strictpath_with_extension(..)`
   - Display & interop: `strictpath_display()`, `interop_path()`
   - Conversions: `try_into_boundary(_create)`, `virtualize()` [feature: virtual-path], `unstrict()` (escape hatch)
-- I/O: `exists()`, `is_file()`, `is_dir()`, `metadata()`, `read_dir()`
-    - File ops: `read()`, `read_to_string()`, `write(..)`, `create_file()`, `open_file()`
+- I/O: `exists()`, `try_exists()`, `is_file()`, `is_dir()`, `metadata()`, `read_dir()`, `strict_read_dir()`
+    - File ops: `read()`, `read_to_string()`, `write(..)`, `append(..)`, `create_file()`, `open_file()`, `open_with()`, `touch()`
     - Dir ops: `create_dir()`, `create_dir_all()`, `create_parent_dir()`, `create_parent_dir_all()`, `remove_file()`, `remove_dir()`, `remove_dir_all()`
-    - Symlink-safe metadata: `symlink_metadata()` (does not follow symlinks)
+    - Permissions: `set_permissions(perm)`
+    - Symlink-safe: `symlink_metadata()`, `strict_read_link()`
   - Copy/move/links: `strict_copy(..)`, `strict_rename(..)`, `strict_symlink<P: AsRef<Path>>(link_path)`, `strict_hard_link<P: AsRef<Path>>(link_path)`
 
 - VirtualRoot<T> (policy root; virtual dimension) [feature: virtual-path]
   - Constructors: `try_new(path)`, `try_new_create(path)`
   - Validation: `virtual_join(input) -> Result<VirtualPath<T>>`
   - Conversions: `into_virtualpath()` (dir must exist), `as_unvirtual() -> &PathBoundary<T>`, `unvirtual() -> PathBoundary<T>`
-  - Display & interop: `interop_path()`, root I/O: `read_dir()`, `remove_dir()`, `remove_dir_all()`, `metadata()`
+  - Display & interop: `interop_path()`, root I/O: `virtual_read_dir()`, `read_dir()`, `remove_dir()`, `remove_dir_all()`, `metadata()`
   - Links: `virtual_symlink<P: AsRef<Path>>(link_path)`, `virtual_hard_link<P: AsRef<Path>>(link_path)`
 
 - VirtualPath<T> (clamped virtual path; user-facing) [feature: virtual-path]
+  - I/O includes: `read_dir()`, `virtual_read_dir()` (auto-validated iterator), `virtual_read_link()`
   - Sugar roots: `with_root(path)`, `with_root_create(path)`
   - Join/mutate: `virtual_join(..)`, `virtualpath_parent()`, `virtualpath_with_file_name(..)`, `virtualpath_with_extension(..)`
   - Display & interop: `virtualpath_display()`, `interop_path()`, `as_unvirtual() -> &StrictPath<T>`

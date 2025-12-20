@@ -54,9 +54,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Compute virtual (relative) name for the archive entry
         let archive_entry_vpath: VirtualPath<Source> =
             archive_src_vroot.virtual_join(&relative_str)?;
-        let mut file_handle = fs::File::open(archive_src_path.interop_path())?;
+        // Read file content using built-in helper
+        let file_content = archive_src_path.read()?;
         let entry_name = archive_entry_vpath.virtualpath_display().to_string();
-        builder.append_file(entry_name, &mut file_handle)?;
+        // Use append_data with a header since tar::Builder::append_file requires fs::File
+        let mut header = tar::Header::new_gnu();
+        header.set_size(file_content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append_data(&mut header, entry_name, file_content.as_slice())?;
         let entry_display = archive_entry_vpath.virtualpath_display();
         println!("Added: {entry_display}");
     }

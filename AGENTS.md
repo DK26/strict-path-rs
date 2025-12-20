@@ -2,6 +2,24 @@
 
 Operational guide for AI assistants and automation working in this repository.
 
+## ⛔ STOP: MANDATORY DESIGN KNOWLEDGE (Read Before ANY Code Changes)
+
+**You MUST understand these constraints before writing ANY code in this repository:**
+
+1. **Canonicalization ALWAYS resolves symlinks** → You can NEVER get a `StrictPath`/`VirtualPath` pointing to a symlink itself. The path ALWAYS points to the resolved target. This is non-negotiable.
+
+2. **`strict_join()`/`virtual_join()` is where validation happens** → By the time you have a `StrictPath`, all symlinks are resolved, all `..` components are gone, and the path is proven to be within the boundary.
+
+3. **Any API that assumes "the path might be a symlink" is broken** → Because it won't be. Ever.
+
+**Before proposing ANY new filesystem API, you MUST be able to answer YES to:**
+- "Does this API work correctly when given a path that is NEVER a symlink?"
+- "Does this API work correctly when given a path with NO relative components?"
+
+**If you cannot answer YES, the API is incompatible with this crate's design. Do not implement it.**
+
+---
+
 ## CRITICAL: Read Project Documentation FIRST
 
 **Before making ANY suggestions or implementations:**
@@ -77,6 +95,7 @@ Operational guide for AI assistants and automation working in this repository.
 - Core APIs: `PathBoundary<Marker>`, `StrictPath<Marker>`, `VirtualRoot<Marker>`, `VirtualPath<Marker>`, `StrictPathError`.
 - Security model: "Restrict every external path." Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
 - Foundation: Built on `soft-canonicalize` (with `proc-canonicalize` for Linux container realpath support); canonicalization handles Windows 8.3 short names transparently.
+- **CRITICAL DESIGN PRINCIPLE**: Canonicalization **always resolves symlinks** to their targets. You can NEVER get a `StrictPath` or `VirtualPath` that points to a symlink itself — only to the resolved target. This is by design: it's what proves the path is truly within the boundary. See "Critical Design Implication: StrictPath/VirtualPath Are Always Resolved" section for details.
 - API philosophy: Minimal, restrictive, and explicit—designed to prevent human and LLM API misuse. Security is prioritized above performance.
 
 ### Which Type Should I Use?
@@ -84,12 +103,12 @@ Operational guide for AI assistants and automation working in this repository.
 **`Path`/`PathBuf` (std)** — When the path comes from a safe source within your control, not external input.
 
 **`StrictPath`** — When you want to restrict paths to a specific boundary and error if they escape.
-- Use for: Archive extraction, file uploads, config loading, shared system resources
+- Use for: Archive extraction, config loading, shared system resources, file uploads to shared storage (admin panels, CMS assets)
 - Behavior: Returns `Err(PathEscapesBoundary)` on escape attempts (detect attacks)
 - Coverage: 90% of use cases
 
 **`VirtualPath`** (feature `virtual-path`) — When you want to provide path freedom under isolation.
-- Use for: Multi-tenant systems, malware sandboxes, security research, per-user filesystem views
+- Use for: Multi-tenant file uploads (SaaS per-user storage), malware sandboxes, security research, per-user filesystem views
 - Behavior: Silently clamps/redirects escapes within virtual boundary (contain behavior)
 - Coverage: 10% of use cases
 
@@ -102,7 +121,7 @@ Operational guide for AI assistants and automation working in this repository.
 - Returns `Err(PathEscapesBoundary)` when escape is attempted
 - Use cases:
   - **Archive extraction** — detect malicious paths, reject compromised archives
-  - **File uploads** — reject user-provided paths with traversal attempts
+  - **File uploads to shared storage** — admin panels, CMS assets, single-tenant apps where all users share one storage area
   - **Config loading** — fail on untrusted config paths that try to escape
   - Shared system resources (logs, cache, assets)
   - Development tools, build systems, single-user applications
@@ -113,8 +132,9 @@ Operational guide for AI assistants and automation working in this repository.
 - Philosophy: "Let things try to escape, but silently contain them"
 - Silently clamps/redirects escape attempts within the virtual boundary
 - Use cases:
-  - **Malware analysis sandboxes** — observe malicious behavior while containing it
+  - **Multi-tenant file uploads** — SaaS per-user storage where each user has isolated directories
   - **Multi-tenant systems** — each user sees isolated `/` root without real paths
+  - **Malware analysis sandboxes** — observe malicious behavior while containing it
   - **Container-like plugins** — modules get their own filesystem view
   - **Security research** — simulate contained environments for testing
   - User content isolation where users shouldn't see real system paths
@@ -178,6 +198,63 @@ Do not implement leaky trait impls for secure types:
 
 - Never introduce new `pub` helper functions or constructors. Public API additions must come from explicit maintainer direction, not autonomous agent judgment.
 - Before adding *any* new helper that is `fn`, `pub(crate) fn`, or otherwise widening internal surface area, pause and request maintainer approval. Document the need in the PR description rather than committing speculative helpers.
+
+### Critical Design Implication: StrictPath/VirtualPath Are Always Resolved
+
+**This is the most important design principle to understand before adding ANY new API.**
+
+`strict_join()` and `virtual_join()` perform full canonicalization, which **always resolves symlinks and junctions to their targets**. This means:
+
+1. **You can NEVER obtain a `StrictPath` or `VirtualPath` that points to a symlink itself** — the path always points to the resolved target.
+2. **Any API that assumes it can operate "on the symlink" is fundamentally broken** — by the time you have a `StrictPath`, the symlink has already been resolved.
+3. **This is by design** — canonicalization is what provides the security guarantee that the path is truly within the boundary.
+
+**Example of a broken API design:**
+```rust
+// ❌ BROKEN: This API cannot work as designed
+fn strict_read_link(&self) -> io::Result<PathBuf>
+// Why broken: `self` already points to the target, not the symlink.
+// `std::fs::read_link(target)` returns EINVAL because target isn't a symlink.
+```
+
+**Example of correct design:**
+```rust
+// ✅ CORRECT: Test if symlink target escapes during strict_join
+let result = boundary.strict_join("symlink_name");
+// If the symlink's target escapes, strict_join returns PathEscapesBoundary.
+// If it succeeds, you get a StrictPath to the resolved target (within boundary).
+```
+
+**Before proposing ANY filesystem API, ask:**
+1. Does this API need to operate on a symlink itself (not its target)? → **Cannot be implemented with StrictPath/VirtualPath**
+2. Does this API assume the path might be a symlink? → **It won't be — canonicalization already resolved it**
+3. Does this API wrap a `std::fs` function that behaves differently on symlinks vs regular files? → **Verify behavior with resolved paths only**
+
+### Mandatory API Addition Checklist
+
+Before adding ANY new public or internal API, you MUST complete this checklist:
+
+**1. Design Compatibility Check:**
+- [ ] Have I read and understood the PathHistory type-state flow? (Raw → Canonicalized → BoundaryChecked)
+- [ ] Does my API work correctly given that symlinks are ALWAYS resolved?
+- [ ] Does my API work correctly given that the path is ALWAYS canonicalized (no `.`, `..`, or relative components)?
+- [ ] Have I verified the API makes sense for BOTH `StrictPath` and `VirtualPath`?
+
+**2. Semantic Verification:**
+- [ ] Have I tested the underlying `std::fs` function with resolved paths (not symlinks)?
+- [ ] Have I tested on BOTH Windows and Linux (or documented platform-specific behavior)?
+- [ ] Does the API preserve the security guarantee that paths cannot escape the boundary?
+
+**3. Existing Functionality Check:**
+- [ ] Have I searched the codebase to verify this functionality doesn't already exist?
+- [ ] Have I checked if a similar API exists with a different name?
+- [ ] Is there a design reason this API was NOT already implemented?
+
+**4. Approval Gate:**
+- [ ] Have I requested explicit maintainer approval before implementing?
+- [ ] Have I documented why this API is needed and how it fits the design?
+
+**If ANY checkbox cannot be checked, STOP and discuss with the maintainer.**
 
 ## Repository Layout
 
@@ -368,7 +445,8 @@ Per-user VirtualRoot construction (web/multi-tenant best practice):
     - Use policy types whenever passing “the root” across module boundaries, or when serde/OS-dirs/temp RAII are involved.
 - Interop vs display:
   - Interop (`AsRef<Path>`): Call `.interop_path()` on `StrictPath`/`VirtualPath`/`PathBoundary`/`VirtualRoot` **only** when a third-party crate (including stdlib adapters that you cannot wrap) insists on an `AsRef<Path>` argument. If you reach for `.interop_path()` in any other context, pause and re-evaluate—the crate almost certainly already exposes a strict helper for that operation.
-  - Display: `strictpath_display()` (system) / `virtualpath_display()` (virtual).
+  - **SECURITY CRITICAL**: `interop_path()` returns the **real host filesystem path**. NEVER expose it to end-users (API responses, error messages, user-visible logs). In multi-tenant or cloud scenarios, this leaks internal server structure, tenant IDs, and infrastructure details. Use `virtualpath_display()` for user-facing output.
+  - Display: `strictpath_display()` (system/admin) / `virtualpath_display()` (user-facing, hides real paths).
   - Windows junctions (feature = `junctions`): Prefer built-in helpers (`StrictPath::strict_junction`, `VirtualPath::virtual_junction`, and root/boundary wrappers) instead of direct calls to junction crates in application code. Tests may still call third-party crates when simulating environment-specific behavior.
 
 #### Test design principles: symlinks vs junctions on Windows
@@ -402,9 +480,11 @@ Per-user VirtualRoot construction (web/multi-tenant best practice):
 
 PathHistory is the internal engine that performs normalization, canonicalization, clamping and boundary checks in a single, auditable pipeline. It is deliberately not exposed in public APIs, but agents need to understand it to reason about behavior and place fixes in the right layer.
 
+**⚠️ CRITICAL: Canonicalization resolves symlinks. See "Critical Design Implication: StrictPath/VirtualPath Are Always Resolved" section above.**
+
 - States (type‑state markers):
   - `Raw`: Constructed from any input (`AsRef<Path>`).
-  - `Canonicalized`: After full canonicalization (resolves `.`/`..`, symlinks/junctions, prefixes).
+  - `Canonicalized`: After full canonicalization (resolves `.`/`..`, symlinks/junctions, prefixes). **This means symlinks are ALWAYS resolved to their targets.**
   - `AnchoredCanonicalized`: Canonicalized relative to a specific jail/root (virtual anchoring).
   - `Exists`: Canonicalized path verified to exist (used for PathBoundary boundary directories).
   - `BoundaryChecked`: Canonicalized path proven to be within the PathBoundary.

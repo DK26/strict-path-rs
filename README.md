@@ -5,6 +5,8 @@
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/DK26/strict-path-rs#license)
 [![CI](https://github.com/DK26/strict-path-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DK26/strict-path-rs/actions/workflows/ci.yml)
 [![Security Audit](https://github.com/DK26/strict-path-rs/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/DK26/strict-path-rs/actions/workflows/audit.yml)
+[![Kani Verified](https://github.com/DK26/strict-path-rs/actions/workflows/kani.yml/badge.svg?branch=main)](https://github.com/DK26/strict-path-rs/actions/workflows/kani.yml)
+[![Protected CVEs](https://img.shields.io/badge/protected%20CVEs-19%2B-brightgreen.svg)](https://github.com/DK26/strict-path-rs/blob/main/strict-path/src/path/tests/cve_2025_11001.rs)
 [![Type-State Police](https://img.shields.io/badge/protected%20by-Type--State%20Police-blue.svg)](https://github.com/DK26/strict-path-rs)
 
 📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)** | 🧭 **[Choosing Canonicalized vs Lexical Solution](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)**
@@ -21,7 +23,7 @@ Built on [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs) (wi
 
 ```toml
 [dependencies]
-strict-path = "0.1.0-rc.2"
+strict-path = "0.1.0"
 ```
 
 ```rust
@@ -175,18 +177,20 @@ Contains AI agents within predefined boundaries—no accidental (or intentional)
 
 **The Core Question**: Are path escapes attacks or expected behavior?
 
-| Mode            | Philosophy                        | Returns on Escape           | Use When                             |
-| --------------- | --------------------------------- | --------------------------- | ------------------------------------ |
-| **StrictPath**  | "Detect & reject escape attempts" | `Err(PathEscapesBoundary)`  | Archive extraction, file uploads     |
-| **VirtualPath** | "Contain & clamp escape attempts" | Clamped within virtual root | Multi-tenant apps, malware sandboxes |
+| Mode            | Philosophy                        | Returns on Escape           | Use When                                   |
+| --------------- | --------------------------------- | --------------------------- | ------------------------------------------ |
+| **StrictPath**  | "Detect & reject escape attempts" | `Err(PathEscapesBoundary)`  | Archive extraction, shared storage uploads |
+| **VirtualPath** | "Contain & clamp escape attempts" | Clamped within virtual root | Multi-tenant uploads, per-user isolation   |
 
 **Choose StrictPath (90% of cases):**
-- Archive extraction, file uploads, config loading
+- Archive extraction, config loading
+- File uploads to shared storage (admin panels, CMS assets, single-tenant apps)
 - LLM/AI agent file operations
 - Shared system resources (logs, cache, assets)
 - **Any case where escapes = attacks**
 
 **Choose VirtualPath (10% of cases):**
+- Multi-tenant file uploads (SaaS per-user storage, isolated user directories)
 - Multi-tenant isolation (per-user filesystem views)
 - Malware analysis sandboxes
 - Container-like plugins
