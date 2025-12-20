@@ -49,6 +49,9 @@ virtual-path = []
 # Windows-only: enable built-in junction creation helpers using the `junction` crate
 junctions = ["dep:junction"]
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+
 [package.metadata.docs.rs]
 all-features = true
 

@@ -203,3 +203,6 @@ pub type Result<T> = std::result::Result<T, StrictPathError>;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(kani)]
+mod verification;
