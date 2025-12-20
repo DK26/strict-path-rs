@@ -283,6 +283,11 @@ if safe_path.exists() {  // ✅ Use the built-in method
 - ❌ **Never**: `std::path::Path::join(user_input)` - vulnerable to traversal  
 - ✅ **Always**: `boundary.strict_join(user_input)` or `vroot.virtual_join(user_input)`
 - ✅ **Only for third-party `AsRef<Path>` APIs**: use `.interop_path()` (never `.unstrict()`)
+- **⚠️ SECURITY CRITICAL: `interop_path()` Information Leakage**:
+  - `interop_path()` returns the **real host filesystem path** — use ONLY for passing to OS/library calls that need the real path to function.
+  - **NEVER** expose `interop_path()` to end-users: API responses, error messages, user-visible logs, serialized data sent to clients.
+  - In multi-tenant/cloud scenarios, exposing real paths leaks: internal directory structure, tenant IDs, usernames, infrastructure details (mount points, container paths).
+  - For user-facing output, use `virtualpath_display()` which shows the clean virtual view (e.g., `/docs/report.pdf`) instead of the real host path (e.g., `/var/app/cloud-storage/tenant-42/docs/report.pdf`).
 - Do not bypass: never call std fs ops on raw `Path`/`PathBuf` built from untrusted input.
 - Marker types prevent mixing distinct restrictions at compile time: use when you have multiple storage areas.
 - We do not implement `AsRef<Path>` on secure path values (`StrictPath`/`VirtualPath`). When an unavoidable third-party API expects `AsRef<Path>`, pass `.interop_path()`.

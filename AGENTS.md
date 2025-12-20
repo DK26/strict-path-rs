@@ -369,7 +369,8 @@ Per-user VirtualRoot construction (web/multi-tenant best practice):
     - Use policy types whenever passing “the root” across module boundaries, or when serde/OS-dirs/temp RAII are involved.
 - Interop vs display:
   - Interop (`AsRef<Path>`): Call `.interop_path()` on `StrictPath`/`VirtualPath`/`PathBoundary`/`VirtualRoot` **only** when a third-party crate (including stdlib adapters that you cannot wrap) insists on an `AsRef<Path>` argument. If you reach for `.interop_path()` in any other context, pause and re-evaluate—the crate almost certainly already exposes a strict helper for that operation.
-  - Display: `strictpath_display()` (system) / `virtualpath_display()` (virtual).
+  - **SECURITY CRITICAL**: `interop_path()` returns the **real host filesystem path**. NEVER expose it to end-users (API responses, error messages, user-visible logs). In multi-tenant or cloud scenarios, this leaks internal server structure, tenant IDs, and infrastructure details. Use `virtualpath_display()` for user-facing output.
+  - Display: `strictpath_display()` (system/admin) / `virtualpath_display()` (user-facing, hides real paths).
   - Windows junctions (feature = `junctions`): Prefer built-in helpers (`StrictPath::strict_junction`, `VirtualPath::virtual_junction`, and root/boundary wrappers) instead of direct calls to junction crates in application code. Tests may still call third-party crates when simulating environment-specific behavior.
 
 #### Test design principles: symlinks vs junctions on Windows
