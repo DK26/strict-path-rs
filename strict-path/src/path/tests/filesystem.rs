@@ -812,7 +812,16 @@ fn test_strict_join_catches_escaping_symlinks() {
 
 #[test]
 #[cfg(all(unix, feature = "virtual-path"))]
-fn test_virtual_join_catches_escaping_symlinks() {
+fn test_virtual_join_clamps_escaping_symlink_target() {
+    // NOTE: VirtualPath CLAMPS escaping symlink targets, it does NOT error.
+    // This is the key difference from StrictPath:
+    // - StrictPath: symlink pointing outside -> PathEscapesBoundary error
+    // - VirtualPath: symlink pointing outside -> target is clamped into vroot
+    //
+    // When a symlink at vroot/escape_link points to /outside/external.txt,
+    // VirtualPath clamps the resolved target to vroot/outside/external.txt
+    // (which likely doesn't exist, but that's the clamping behavior).
+
     let temp = tempfile::tempdir().unwrap();
     let vroot_dir = temp.path().join("vroot");
     let outside_dir = temp.path().join("outside");
@@ -825,16 +834,29 @@ fn test_virtual_join_catches_escaping_symlinks() {
     let outside_file = outside_dir.join("external.txt");
     std::fs::write(&outside_file, "external").unwrap();
 
-    // Create a malicious symlink inside pointing outside
+    // Create a symlink inside vroot pointing to the outside file
     let link_path = vroot_dir.join("escape_link");
     std::os::unix::fs::symlink(&outside_file, &link_path).unwrap();
 
-    // virtual_join on an escaping symlink should fail
-    // because canonicalization detects the escape attempt
+    // VirtualPath clamps the escaping symlink target into the vroot
+    // This succeeds (unlike StrictPath which would error)
     let result = vroot.virtual_join("escape_link");
+    assert!(
+        result.is_ok(),
+        "VirtualPath should clamp escaping symlinks, not error: {:?}",
+        result
+    );
 
-    // VirtualPath/VirtualRoot catches the escape at join time
-    assert!(result.is_err());
+    // The resulting path should be inside the vroot (clamped)
+    let vpath = result.unwrap();
+    let canonical_vroot = std::fs::canonicalize(&vroot_dir).unwrap();
+    let system_path = vpath.interop_path();
+    assert!(
+        AsRef::<std::path::Path>::as_ref(system_path).starts_with(&canonical_vroot),
+        "Clamped path must be within vroot. Got: {:?}, VRoot: {:?}",
+        system_path,
+        canonical_vroot
+    );
 }
 
 // ==================== set_permissions / try_exists / touch tests ====================
