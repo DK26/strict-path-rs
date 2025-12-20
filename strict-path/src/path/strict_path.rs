@@ -515,6 +515,46 @@ impl<Marker> StrictPath<Marker> {
         std::fs::File::open(&self.path)
     }
 
+    /// SUMMARY:
+    /// Return an options builder for advanced file opening (read+write, append, exclusive create, etc.).
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `StrictOpenOptions<Marker>`: Builder to configure file opening options.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{PathBoundary, StrictPath};
+    /// # use std::io::{Read, Write, Seek, SeekFrom};
+    /// # let boundary_dir = std::env::temp_dir().join("strict-path-open-with-example");
+    /// # std::fs::create_dir_all(&boundary_dir)?;
+    /// # let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
+    /// // Untrusted input from request/CLI/config/etc.
+    /// let data_file = "data/records.bin";
+    /// let file_path: StrictPath = boundary.strict_join(data_file)?;
+    /// file_path.create_parent_dir_all()?;
+    ///
+    /// // Open with read+write access, create if missing
+    /// let mut file = file_path.open_with()
+    ///     .read(true)
+    ///     .write(true)
+    ///     .create(true)
+    ///     .open()?;
+    /// file.write_all(b"header")?;
+    /// file.seek(SeekFrom::Start(0))?;
+    /// let mut buf = [0u8; 6];
+    /// file.read_exact(&mut buf)?;
+    /// assert_eq!(&buf, b"header");
+    /// # std::fs::remove_dir_all(&boundary_dir)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn open_with(&self) -> StrictOpenOptions<'_, Marker> {
+        StrictOpenOptions::new(self)
+    }
+
     /// Creates all directories in the system path if missing (like `std::fs::create_dir_all`).
     pub fn create_dir_all(&self) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.path)
@@ -847,5 +887,118 @@ impl<Marker> PartialEq<crate::path::virtual_path::VirtualPath<Marker>> for Stric
     #[inline]
     fn eq(&self, other: &crate::path::virtual_path::VirtualPath<Marker>) -> bool {
         self.path.as_ref() == other.interop_path()
+    }
+}
+
+// ============================================================
+// StrictOpenOptions — Builder for advanced file opening
+// ============================================================
+
+/// SUMMARY:
+/// Builder for opening files with custom options (read, write, append, create, truncate, create_new).
+///
+/// DETAILS:
+/// Use `StrictPath::open_with()` to get an instance. Chain builder methods to configure
+/// options, then call `.open()` to obtain the file handle. This mirrors `std::fs::OpenOptions`
+/// but operates on a validated `StrictPath`, so the path is guaranteed to be within its boundary.
+///
+/// EXAMPLE:
+/// ```rust
+/// # use strict_path::{PathBoundary, StrictPath};
+/// # use std::io::Write;
+/// # let temp = tempfile::tempdir()?;
+/// # let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+/// let log_path: StrictPath = boundary.strict_join("app.log")?;
+/// let mut file = log_path.open_with()
+///     .create(true)
+///     .append(true)
+///     .open()?;
+/// file.write_all(b"log entry\n")?;
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+pub struct StrictOpenOptions<'a, Marker> {
+    path: &'a StrictPath<Marker>,
+    options: std::fs::OpenOptions,
+}
+
+impl<'a, Marker> StrictOpenOptions<'a, Marker> {
+    /// Create a new builder with default options (all flags false).
+    #[inline]
+    fn new(path: &'a StrictPath<Marker>) -> Self {
+        Self {
+            path,
+            options: std::fs::OpenOptions::new(),
+        }
+    }
+
+    /// Sets the option for read access.
+    ///
+    /// When `true`, the file will be readable after opening.
+    #[inline]
+    pub fn read(mut self, read: bool) -> Self {
+        self.options.read(read);
+        self
+    }
+
+    /// Sets the option for write access.
+    ///
+    /// When `true`, the file will be writable after opening.
+    /// If the file exists, writes will overwrite existing content starting at the beginning
+    /// unless `.append(true)` is also set.
+    #[inline]
+    pub fn write(mut self, write: bool) -> Self {
+        self.options.write(write);
+        self
+    }
+
+    /// Sets the option for append mode.
+    ///
+    /// When `true`, all writes will append to the end of the file instead of overwriting.
+    /// Implies `.write(true)`.
+    #[inline]
+    pub fn append(mut self, append: bool) -> Self {
+        self.options.append(append);
+        self
+    }
+
+    /// Sets the option for truncating the file.
+    ///
+    /// When `true`, the file will be truncated to zero length upon opening.
+    /// Requires `.write(true)`.
+    #[inline]
+    pub fn truncate(mut self, truncate: bool) -> Self {
+        self.options.truncate(truncate);
+        self
+    }
+
+    /// Sets the option to create the file if it doesn't exist.
+    ///
+    /// When `true`, the file will be created if missing. Requires `.write(true)` or `.append(true)`.
+    #[inline]
+    pub fn create(mut self, create: bool) -> Self {
+        self.options.create(create);
+        self
+    }
+
+    /// Sets the option for exclusive creation (fail if file exists).
+    ///
+    /// When `true`, the file must not exist; opening will fail with `AlreadyExists` if it does.
+    /// Requires `.write(true)` and implies `.create(true)`.
+    #[inline]
+    pub fn create_new(mut self, create_new: bool) -> Self {
+        self.options.create_new(create_new);
+        self
+    }
+
+    /// Open the file with the configured options.
+    ///
+    /// RETURNS:
+    /// - `std::io::Result<std::fs::File>`: The opened file handle.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: Propagates OS errors (file not found, permission denied, already exists, etc.).
+    #[inline]
+    pub fn open(self) -> std::io::Result<std::fs::File> {
+        self.options.open(&self.path.path)
     }
 }

@@ -202,9 +202,10 @@ Use when: passing proven-safe paths to I/O and helpers; no extra validation insi
 - `.strict_join(path)` → Chain additional safe joins
 - `.interop_path()` → `&OsStr` for third-party `AsRef<Path>` APIs you cannot adapt
 - `.exists()` → Check if path exists (built-in, no need to use `Path::new().exists()`)
-- `.read()/.write(data)` → I/O operations
+- `.read()/.write(data)/.append(data)` → I/O operations
 - `.create_file()` → Writable handle (pass to tar builders, etc.)
 - `.open_file()` → Read-only handle when you only need to stream bytes out
+- `.open_with()` → Builder: `.read(true).write(true).create(true).open()` for advanced modes
 - `.strictpath_display()` → Display for logging
 
 **VirtualRoot<T>**: User-friendly sandbox policy root
@@ -221,7 +222,7 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.as_unvirtual()` → Borrow underlying `StrictPath<T>` for shared helpers
 - `.interop_path()` → Pass into third-party APIs expecting `AsRef<Path>`
 - `.exists()` → Check if path exists (built-in)
-- I/O helpers available: `.read()`, `.write(..)`, `.create_file()`, `.open_file()`, `.create_parent_dir_all()`
+- I/O helpers available: `.read()`, `.write(..)`, `.append(..)`, `.create_file()`, `.open_file()`, `.open_with()`, `.create_parent_dir_all()`
  - `.symlink_metadata()` → Get metadata without following symlinks
 
 ## Built-in I/O Methods (Always Use These!)
@@ -233,8 +234,10 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.read()` → Read file to Vec<u8>
 - `.read_to_string()` → Read file to String
 - `.write(contents)` → Write to file (creates or truncates)
+- `.append(data)` → Append to file (creates if missing)
 - `.create_file()` → Get writable File handle
 - `.open_file()` → Get read-only File handle
+- `.open_with()` → Builder for advanced file opening (read+write, append, exclusive create, truncate)
 - `.remove_file()` → Delete file
 
 **Directory Operations**:
@@ -363,7 +366,7 @@ If you're only validating constants or immediately converting back to unsafe pat
 4. **Use the right method for the job**:
    - Display to users → `strictpath_display()` / `virtualpath_display()`
    - Pass to third-party APIs → `interop_path()` (already `AsRef<Path>`)
-   - I/O operations → Use built-in helpers (`.read()`, `.write()`, `.create_file()`, etc.)
+   - I/O operations → Use built-in helpers (`.read()`, `.write()`, `.append()`, `.create_file()`, etc.)
 5. **Let callers control security policy** - accept `&PathBoundary<_>` parameter, don't create inside helpers
 6. **Actually validate untrusted input** - don't just validate constants (security theater!)
 

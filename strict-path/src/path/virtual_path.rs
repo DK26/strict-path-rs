@@ -570,6 +570,46 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Return an options builder for advanced file opening (read+write, append, exclusive create, etc.).
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `StrictOpenOptions<Marker>`: Builder to configure file opening options.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # use std::io::{Read, Write, Seek, SeekFrom};
+    /// # let root = std::env::temp_dir().join("vpath-open-with-example");
+    /// # std::fs::create_dir_all(&root)?;
+    /// # let vroot: VirtualRoot = VirtualRoot::try_new(&root)?;
+    /// // Untrusted input from request/CLI/config/etc.
+    /// let data_file = "cache/state.bin";
+    /// let cache_path = vroot.virtual_join(data_file)?;
+    /// cache_path.create_parent_dir_all()?;
+    ///
+    /// // Open with read+write access, create if missing
+    /// let mut file = cache_path.open_with()
+    ///     .read(true)
+    ///     .write(true)
+    ///     .create(true)
+    ///     .open()?;
+    /// file.write_all(b"state")?;
+    /// file.seek(SeekFrom::Start(0))?;
+    /// let mut buf = [0u8; 5];
+    /// file.read_exact(&mut buf)?;
+    /// assert_eq!(&buf, b"state");
+    /// # std::fs::remove_dir_all(&root)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn open_with(&self) -> crate::path::strict_path::StrictOpenOptions<'_, Marker> {
+        self.inner.open_with()
+    }
+
+    /// SUMMARY:
     /// Create all directories in the underlying system path if missing.
     #[inline]
     pub fn create_dir_all(&self) -> std::io::Result<()> {
