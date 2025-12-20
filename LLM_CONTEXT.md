@@ -156,7 +156,7 @@ Use these when writing or generating code. Names make the dimension explicit.
   - Validation: `strict_join(input) -> Result<StrictPath<T>>`
   - Conversions: `into_strictpath()` (dir must exist)
   - Display & interop: `strictpath_display()`, `interop_path()`
-  - I/O at root: `read_dir()`, `remove_dir()`, `remove_dir_all()`, `metadata()`
+  - I/O at root: `strict_read_dir()`, `read_dir()`, `remove_dir()`, `remove_dir_all()`, `metadata()`
   - Links: `strict_symlink<P: AsRef<Path>>(link_path)`, `strict_hard_link<P: AsRef<Path>>(link_path)`
 
 - StrictPath<T> (validated system path)
@@ -175,7 +175,7 @@ Use these when writing or generating code. Names make the dimension explicit.
   - Constructors: `try_new(path)`, `try_new_create(path)`
   - Validation: `virtual_join(input) -> Result<VirtualPath<T>>`
   - Conversions: `into_virtualpath()` (dir must exist), `as_unvirtual() -> &PathBoundary<T>`, `unvirtual() -> PathBoundary<T>`
-  - Display & interop: `interop_path()`, root I/O: `read_dir()`, `remove_dir()`, `remove_dir_all()`, `metadata()`
+  - Display & interop: `interop_path()`, root I/O: `virtual_read_dir()`, `read_dir()`, `remove_dir()`, `remove_dir_all()`, `metadata()`
   - Links: `virtual_symlink<P: AsRef<Path>>(link_path)`, `virtual_hard_link<P: AsRef<Path>>(link_path)`
 
 - VirtualPath<T> (clamped virtual path; user-facing) [feature: virtual-path]

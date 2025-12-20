@@ -196,6 +196,8 @@ Uses canonicalization + boundary checks to prevent directory traversal attacks.
 Use when: validating untrusted segments into a system-facing path within a known root (policy).
 - `::try_new_create(path)` → Create boundary (mkdir if needed)  
 - `.strict_join(input)` → Validate untrusted input → `StrictPath<T>`
+- `.strict_read_dir()` → Iterator yielding validated `StrictPath` entries directly (no `into_strictpath()` needed)
+- `.read_dir()` → Raw `std::fs::ReadDir` for discovery (re-join via `strict_join` before I/O)
 
 **StrictPath<T>**: Proven-safe system paths
 Use when: passing proven-safe paths to I/O and helpers; no extra validation inside the function.
@@ -216,8 +218,10 @@ Use when: passing proven-safe paths to I/O and helpers; no extra validation insi
 Use when: creating a per-user sandbox root that produces `VirtualPath` with rooted "/" UX.
 - `VirtualRoot::try_new_create(dir)` → Create user sandbox root
 - `.virtual_join(input)` → Validate/clamp user input → `VirtualPath<T>`
+- `.virtual_read_dir()` → Iterator yielding validated `VirtualPath` entries directly (no `into_virtualpath()` needed)
 - `.interop_path()` → `&OsStr` for third-party `AsRef<Path>` APIs at the root
-- `.read_dir()` / `.remove_dir()` / `.remove_dir_all()` → Root-level discovery and cleanup
+- `.read_dir()` → Raw `std::fs::ReadDir` for discovery (re-join via `virtual_join` before I/O)
+- `.remove_dir()` / `.remove_dir_all()` → Root-level cleanup
 
 **VirtualPath<T>**: User-facing clamped path
 Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict view with `.as_unvirtual()` for shared helpers.
