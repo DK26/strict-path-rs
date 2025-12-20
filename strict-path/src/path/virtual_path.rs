@@ -841,6 +841,7 @@ impl<Marker> VirtualPath<Marker> {
     /// EXAMPLE:
     /// ```rust
     /// use strict_path::VirtualRoot;
+    /// use std::path::Path;
     ///
     /// let temp = tempfile::tempdir()?;
     /// let vroot: VirtualRoot = VirtualRoot::try_new(temp.path())?;
@@ -852,9 +853,14 @@ impl<Marker> VirtualPath<Marker> {
     ///
     /// // Try to create symlink (may fail on Windows without Developer Mode)
     /// if target.virtual_symlink("/docs/link.txt").is_ok() {
-    ///     let link = vroot.virtual_join("/docs/link.txt")?;
-    ///     let resolved = link.virtual_read_link()?;
-    ///     assert_eq!(resolved.virtualpath_display().to_string(), "/docs/target.txt");
+    ///     // NOTE: virtual_join resolves symlinks during canonicalization,
+    ///     // so vroot.virtual_join("/docs/link.txt") returns a VirtualPath to target.txt.
+    ///     // To read the raw symlink target, use std::fs::read_link on the link path:
+    ///     let link_system_path = temp.path().join("docs").join("link.txt");
+    ///     let raw_target = std::fs::read_link(&link_system_path)?;
+    ///     // Validate the raw target is within the virtual root
+    ///     let validated = vroot.virtual_join(&raw_target)?;
+    ///     assert_eq!(validated.virtualpath_display().to_string(), "/docs/target.txt");
     /// }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```

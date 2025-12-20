@@ -792,6 +792,7 @@ impl<Marker> StrictPath<Marker> {
     /// EXAMPLE:
     /// ```rust
     /// use strict_path::PathBoundary;
+    /// use std::path::Path;
     ///
     /// let temp = tempfile::tempdir()?;
     /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
@@ -802,10 +803,15 @@ impl<Marker> StrictPath<Marker> {
     ///
     /// // Try to create symlink (may fail on Windows without Developer Mode)
     /// if target.strict_symlink("link.txt").is_ok() {
-    ///     let link = boundary.strict_join("link.txt")?;
-    ///     let resolved = link.strict_read_link()?;
+    ///     // NOTE: strict_join resolves symlinks during canonicalization,
+    ///     // so boundary.strict_join("link.txt") returns a StrictPath to target.txt.
+    ///     // To read the raw symlink target, use std::fs::read_link on the link path:
+    ///     let link_system_path = temp.path().join("link.txt");
+    ///     let raw_target = std::fs::read_link(&link_system_path)?;
+    ///     // Validate the raw target is within the boundary
+    ///     let validated = boundary.strict_join(&raw_target)?;
     ///     assert_eq!(
-    ///         resolved.strictpath_display().to_string(),
+    ///         validated.strictpath_display().to_string(),
     ///         target.strictpath_display().to_string()
     ///     );
     /// }
