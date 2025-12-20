@@ -606,10 +606,13 @@ archive.append_data(&mut header, path_str, content.as_slice())?;
 
 ### When `interop_path()` Is Acceptable
 
+> ⚠️ **Security Warning**: `interop_path()` returns the **real host filesystem path**. Never expose it to end-users (API responses, error messages, logs visible to clients). In multi-tenant or cloud scenarios, this leaks internal server structure. Use `virtualpath_display()` for user-facing output.
+
 Use `interop_path()` when:
 1. **The crate only needs to read from a validated path** and you've already validated it
 2. **The crate provides no way to accept bytes** (rare, but some do)
 3. **You're passing to strict-path's own methods** like `strict_copy()` or `strict_rename()` which re-validate
+4. **The path will ONLY be used for internal I/O operations** — never returned to end-users
 
 ```rust
 // ✅ OK: WalkDir only reads, doesn't write or follow user input

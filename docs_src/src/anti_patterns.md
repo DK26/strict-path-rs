@@ -70,6 +70,52 @@ if Path::new(safe_path.interop_path()).exists() {
 }
 ```
 
+## Leaking Real Paths to End-Users (Security Critical)
+
+**❌ What not to do:**
+```rust
+// Cloud storage API - user requests file info
+fn get_file_info(user_root: &VirtualRoot, filename: &str) -> FileInfo {
+    let vpath = user_root.virtual_join(filename)?;
+    FileInfo {
+        name: filename.to_string(),
+        // ❌ SECURITY HOLE: Exposes real host path to cloud client!
+        path: vpath.interop_path().to_string_lossy().to_string(),
+        size: vpath.metadata()?.len(),
+    }
+}
+// User sees: "path": "/var/app/cloud-storage/tenant-42/docs/report.pdf"
+// They now know your server structure!
+```
+
+**Why it's dangerous:** `interop_path()` returns the **real filesystem path on your host**. In multi-tenant systems, cloud services, or any scenario where users shouldn't know the actual server structure, exposing this path is an **information leakage vulnerability**:
+
+- Reveals internal directory structure to attackers
+- Exposes tenant IDs, usernames, or internal identifiers in paths
+- Breaks the isolation abstraction that VirtualPath provides
+- May expose sensitive infrastructure details (mount points, container paths, etc.)
+
+**✅ Do this instead:**
+```rust
+fn get_file_info(user_root: &VirtualRoot, filename: &str) -> FileInfo {
+    let vpath = user_root.virtual_join(filename)?;
+    FileInfo {
+        name: filename.to_string(),
+        // ✅ CORRECT: Show virtual path, hide real host structure
+        path: vpath.virtualpath_display().to_string(),
+        size: vpath.metadata()?.len(),
+    }
+}
+// User sees: "path": "/docs/report.pdf"
+// Clean virtual view - no host structure exposed!
+```
+
+**The rule:** `interop_path()` is **only** for passing to OS/library calls that need the real path to function. It should **never** appear in:
+- API responses to clients
+- User-facing error messages
+- Logs that users can access
+- Any data serialized and sent to end-users
+
 **Why it's wrong:** `StrictPath` already has `.exists()`, `.read()`, `.write()`, and other methods. You're defeating the entire point by converting back to `Path`, which ignores all security restrictions.
 
 **✅ Do this instead:**

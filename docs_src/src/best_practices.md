@@ -162,11 +162,17 @@ Helpers that touch the filesystem must encode safety in their signatures:
 
 **Interop** (pass to `AsRef<Path>` APIs): `path.interop_path()` — no allocations
 
-**Display:**
-- System paths: `strictpath_display()` on `PathBoundary`/`StrictPath`
-- User-facing: `virtualpath_display()` on `VirtualPath`
+⚠️ **SECURITY WARNING**: `interop_path()` returns the **real host filesystem path**. Use it **only** for:
+- Passing to third-party crates that require `AsRef<Path>` for I/O operations
+- Internal system operations where the real path is needed
 
-**Never**: `interop_path().to_string_lossy()` for display
+**NEVER** expose `interop_path()` to end-users (API responses, error messages, logs). In multi-tenant or cloud scenarios, this leaks your server's internal structure.
+
+**Display:**
+- System paths (internal/admin): `strictpath_display()` on `PathBoundary`/`StrictPath`
+- User-facing (clients/tenants): `virtualpath_display()` on `VirtualPath` — hides real host paths
+
+**Never**: `interop_path().to_string_lossy()` for any user-visible output
 
 ---
 
