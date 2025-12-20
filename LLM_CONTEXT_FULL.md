@@ -201,12 +201,15 @@ Use when: validating untrusted segments into a system-facing path within a known
 Use when: passing proven-safe paths to I/O and helpers; no extra validation inside the function.
 - `.strict_join(path)` → Chain additional safe joins
 - `.interop_path()` → `&OsStr` for third-party `AsRef<Path>` APIs you cannot adapt
-- `.exists()` → Check if path exists (built-in, no need to use `Path::new().exists()`)
+- `.exists()` / `.try_exists()` → Check if path exists (fallible variant distinguishes permission errors)
 - `.read()/.write(data)/.append(data)` → I/O operations
+- `.touch()` → Create empty file or update mtime (preserves content)
 - `.create_file()` → Writable handle (pass to tar builders, etc.)
 - `.open_file()` → Read-only handle when you only need to stream bytes out
 - `.open_with()` → Builder: `.read(true).write(true).create(true).open()` for advanced modes
 - `.strict_read_dir()` → Iterator yielding validated `StrictPath` entries (no manual re-join needed)
+- `.strict_read_link()` → Read symlink target as validated `StrictPath` (errors if escapes boundary)
+- `.set_permissions(perm)` → Set file/directory permissions
 - `.strictpath_display()` → Display for logging
 
 **VirtualRoot<T>**: User-friendly sandbox policy root
@@ -223,9 +226,11 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.as_unvirtual()` → Borrow underlying `StrictPath<T>` for shared helpers
 - `.interop_path()` → Pass into third-party APIs expecting `AsRef<Path>`
 - `.exists()` → Check if path exists (built-in)
-- I/O helpers available: `.read()`, `.write(..)`, `.append(..)`, `.create_file()`, `.open_file()`, `.open_with()`, `.create_parent_dir_all()`
+- I/O helpers available: `.read()`, `.write(..)`, `.append(..)`, `.create_file()`, `.open_file()`, `.open_with()`, `.touch()`, `.create_parent_dir_all()`
 - `.virtual_read_dir()` → Iterator yielding validated `VirtualPath` entries (no manual re-join needed)
- - `.symlink_metadata()` → Get metadata without following symlinks
+- `.virtual_read_link()` → Read symlink target as validated `VirtualPath` (clamps escapes)
+- `.symlink_metadata()` → Get metadata without following symlinks
+- `.set_permissions(perm)` / `.try_exists()` → Permission and fallible existence helpers
 
 ## Built-in I/O Methods (Always Use These!)
 
@@ -233,13 +238,16 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 
 **File Operations**:
 - `.exists()` → Check if path exists (bool)
+- `.try_exists()` → Fallible existence check (distinguishes "not found" from permission errors)
 - `.read()` → Read file to Vec<u8>
 - `.read_to_string()` → Read file to String
 - `.write(contents)` → Write to file (creates or truncates)
 - `.append(data)` → Append to file (creates if missing)
+- `.touch()` → Create empty file or update modification time (preserves content)
 - `.create_file()` → Get writable File handle
 - `.open_file()` → Get read-only File handle
 - `.open_with()` → Builder for advanced file opening (read+write, append, exclusive create, truncate)
+- `.set_permissions(perm)` → Set file permissions
 - `.remove_file()` → Delete file
 
 **Directory Operations**:
@@ -264,6 +272,8 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.strict_symlink(link_path)` → Create symbolic link (accepts `AsRef<Path>`)
 - `.strict_hard_link(link_path)` → Create hard link (accepts `AsRef<Path>`)
 - `.strict_junction(link_path)` → Create NTFS directory junction (Windows, feature = "junctions", accepts `AsRef<Path>`)
+- `.strict_read_link()` → Read symlink target as validated `StrictPath` (errors if escapes boundary)
+- `.virtual_read_link()` → Read symlink target as validated `VirtualPath` (clamps escapes)
 
 **Why This Matters:**
 ```rust

@@ -164,10 +164,11 @@ Use these when writing or generating code. Names make the dimension explicit.
   - Join/mutate: `strict_join(..)`, `strictpath_parent()`, `strictpath_with_file_name(..)`, `strictpath_with_extension(..)`
   - Display & interop: `strictpath_display()`, `interop_path()`
   - Conversions: `try_into_boundary(_create)`, `virtualize()` [feature: virtual-path], `unstrict()` (escape hatch)
-- I/O: `exists()`, `is_file()`, `is_dir()`, `metadata()`, `read_dir()`, `strict_read_dir()`
-    - File ops: `read()`, `read_to_string()`, `write(..)`, `append(..)`, `create_file()`, `open_file()`, `open_with()`
+- I/O: `exists()`, `try_exists()`, `is_file()`, `is_dir()`, `metadata()`, `read_dir()`, `strict_read_dir()`
+    - File ops: `read()`, `read_to_string()`, `write(..)`, `append(..)`, `create_file()`, `open_file()`, `open_with()`, `touch()`
     - Dir ops: `create_dir()`, `create_dir_all()`, `create_parent_dir()`, `create_parent_dir_all()`, `remove_file()`, `remove_dir()`, `remove_dir_all()`
-    - Symlink-safe metadata: `symlink_metadata()` (does not follow symlinks)
+    - Permissions: `set_permissions(perm)`
+    - Symlink-safe: `symlink_metadata()`, `strict_read_link()`
   - Copy/move/links: `strict_copy(..)`, `strict_rename(..)`, `strict_symlink<P: AsRef<Path>>(link_path)`, `strict_hard_link<P: AsRef<Path>>(link_path)`
 
 - VirtualRoot<T> (policy root; virtual dimension) [feature: virtual-path]
@@ -178,7 +179,7 @@ Use these when writing or generating code. Names make the dimension explicit.
   - Links: `virtual_symlink<P: AsRef<Path>>(link_path)`, `virtual_hard_link<P: AsRef<Path>>(link_path)`
 
 - VirtualPath<T> (clamped virtual path; user-facing) [feature: virtual-path]
-  - I/O includes: `read_dir()`, `virtual_read_dir()` (auto-validated iterator)
+  - I/O includes: `read_dir()`, `virtual_read_dir()` (auto-validated iterator), `virtual_read_link()`
   - Sugar roots: `with_root(path)`, `with_root_create(path)`
   - Join/mutate: `virtual_join(..)`, `virtualpath_parent()`, `virtualpath_with_file_name(..)`, `virtualpath_with_extension(..)`
   - Display & interop: `virtualpath_display()`, `interop_path()`, `as_unvirtual() -> &StrictPath<T>`
