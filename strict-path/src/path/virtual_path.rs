@@ -876,7 +876,7 @@ impl<Marker> VirtualPath<Marker> {
         // We need to compute the relative path from the virtual root
         let vroot = self.inner.boundary().clone().virtualize();
         vroot
-            .virtual_join(&resolved_target)
+            .virtual_join(resolved_target)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
@@ -1292,7 +1292,7 @@ impl<Marker: Clone> Iterator for VirtualReadDir<'_, Marker> {
         match self.inner.next()? {
             Ok(entry) => {
                 let file_name = entry.file_name();
-                match self.parent.virtual_join(&file_name) {
+                match self.parent.virtual_join(file_name) {
                     Ok(virtual_path) => Some(Ok(virtual_path)),
                     Err(e) => Some(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))),
                 }

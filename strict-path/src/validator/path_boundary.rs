@@ -564,7 +564,7 @@ impl<Marker: Clone> Iterator for BoundaryReadDir<'_, Marker> {
         match self.inner.next()? {
             Ok(entry) => {
                 let file_name = entry.file_name();
-                match self.boundary.strict_join(&file_name) {
+                match self.boundary.strict_join(file_name) {
                     Ok(strict_path) => Some(Ok(strict_path)),
                     Err(e) => Some(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))),
                 }

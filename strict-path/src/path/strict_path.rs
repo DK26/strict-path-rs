@@ -827,7 +827,7 @@ impl<Marker> StrictPath<Marker> {
 
         // Validate the resolved target against the boundary
         self.boundary
-            .strict_join(&resolved_target)
+            .strict_join(resolved_target)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
@@ -1251,7 +1251,7 @@ impl<Marker: Clone> Iterator for StrictReadDir<'_, Marker> {
         match self.inner.next()? {
             Ok(entry) => {
                 let file_name = entry.file_name();
-                match self.parent.strict_join(&file_name) {
+                match self.parent.strict_join(file_name) {
                     Ok(strict_path) => Some(Ok(strict_path)),
                     Err(e) => Some(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))),
                 }

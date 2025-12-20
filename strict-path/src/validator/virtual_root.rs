@@ -565,7 +565,7 @@ impl<Marker: Clone> Iterator for VirtualRootReadDir<'_, Marker> {
         match self.inner.next()? {
             Ok(entry) => {
                 let file_name = entry.file_name();
-                match self.vroot.virtual_join(&file_name) {
+                match self.vroot.virtual_join(file_name) {
                     Ok(virtual_path) => Some(Ok(virtual_path)),
                     Err(e) => Some(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))),
                 }
