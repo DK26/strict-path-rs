@@ -776,44 +776,36 @@ impl<Marker> StrictPath<Marker> {
     /// SUMMARY:
     /// Read the target of a symbolic link and validate it is within the boundary.
     ///
-    /// DETAILS:
-    /// - Reads the symlink target using `std::fs::read_link()`.
-    /// - If the target is relative, it is resolved relative to the symlink's parent directory.
-    /// - The resolved target is validated against the boundary.
-    /// - Returns `Err` if the symlink target escapes the boundary (security-sensitive).
+    /// DESIGN NOTE:
+    /// This method has limited practical use because `strict_join` resolves symlinks
+    /// during canonicalization. A `StrictPath` obtained via `strict_join("link")` already
+    /// points to the symlink's target, not the symlink itself.
     ///
-    /// RETURNS:
-    /// - `io::Result<StrictPath<Marker>>`: The validated target path within the boundary.
-    ///
-    /// ERRORS:
-    /// - `io::ErrorKind::Other` with `PathEscapesBoundary` if the target escapes the boundary.
-    /// - Standard I/O errors if the path is not a symlink or cannot be read.
+    /// To read a symlink target before validation, use `std::fs::read_link` on the raw
+    /// path, then validate the target with `strict_join`:
     ///
     /// EXAMPLE:
     /// ```rust
     /// use strict_path::PathBoundary;
-    /// use std::path::Path;
     ///
     /// let temp = tempfile::tempdir()?;
     /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
     ///
-    /// // Create target file
+    /// // Create a target file
     /// let target = boundary.strict_join("target.txt")?;
-    /// target.write("content")?;
+    /// target.write("secret")?;
     ///
-    /// // Try to create symlink (may fail on Windows without Developer Mode)
+    /// // Create symlink (may fail on Windows without Developer Mode)
     /// if target.strict_symlink("link.txt").is_ok() {
-    ///     // NOTE: strict_join resolves symlinks during canonicalization,
-    ///     // so boundary.strict_join("link.txt") returns a StrictPath to target.txt.
-    ///     // To read the raw symlink target, use std::fs::read_link on the link path:
-    ///     let link_system_path = temp.path().join("link.txt");
-    ///     let raw_target = std::fs::read_link(&link_system_path)?;
-    ///     // Validate the raw target is within the boundary
-    ///     let validated = boundary.strict_join(&raw_target)?;
-    ///     assert_eq!(
-    ///         validated.strictpath_display().to_string(),
-    ///         target.strictpath_display().to_string()
-    ///     );
+    ///     // WRONG: strict_join("link.txt") resolves to target.txt
+    ///     let resolved = boundary.strict_join("link.txt")?;
+    ///     assert_eq!(resolved.strictpath_file_name(), Some("target.txt".as_ref()));
+    ///
+    ///     // RIGHT: read symlink target from raw path, then validate
+    ///     let link_raw_path = temp.path().join("link.txt");
+    ///     let symlink_target = std::fs::read_link(&link_raw_path)?;
+    ///     let validated = boundary.strict_join(&symlink_target)?;
+    ///     assert_eq!(validated.strictpath_file_name(), Some("target.txt".as_ref()));
     /// }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```

@@ -825,42 +825,33 @@ impl<Marker> VirtualPath<Marker> {
     /// SUMMARY:
     /// Read the target of a symbolic link and return it as a validated `VirtualPath`.
     ///
-    /// DETAILS:
-    /// - Reads the symlink target using `std::fs::read_link()`.
-    /// - If the target is relative, it is resolved relative to the symlink's parent directory.
-    /// - The resolved target is validated against the virtual root.
-    /// - Escape attempts are clamped to the virtual root (VirtualPath containment semantics).
-    /// - The returned `VirtualPath` has a virtual view computed from the root.
+    /// DESIGN NOTE:
+    /// This method has limited practical use because `virtual_join` resolves symlinks
+    /// during canonicalization. A `VirtualPath` obtained via `virtual_join("/link")` already
+    /// points to the symlink's target, not the symlink itself.
     ///
-    /// RETURNS:
-    /// - `io::Result<VirtualPath<Marker>>`: The validated target as a virtual path.
-    ///
-    /// ERRORS:
-    /// - Standard I/O errors if the path is not a symlink or cannot be read.
+    /// To read a symlink target before validation, use `std::fs::read_link` on the raw
+    /// path, then validate the target with `virtual_join`:
     ///
     /// EXAMPLE:
     /// ```rust
     /// use strict_path::VirtualRoot;
-    /// use std::path::Path;
     ///
     /// let temp = tempfile::tempdir()?;
     /// let vroot: VirtualRoot = VirtualRoot::try_new(temp.path())?;
     ///
-    /// // Create target file
-    /// let target = vroot.virtual_join("/docs/target.txt")?;
+    /// // Create a target file
+    /// let target = vroot.virtual_join("/data/target.txt")?;
     /// target.create_parent_dir_all()?;
-    /// target.write("content")?;
+    /// target.write("secret")?;
     ///
-    /// // Try to create symlink (may fail on Windows without Developer Mode)
-    /// if target.virtual_symlink("/docs/link.txt").is_ok() {
-    ///     // NOTE: virtual_join resolves symlinks during canonicalization,
-    ///     // so vroot.virtual_join("/docs/link.txt") returns a VirtualPath to target.txt.
-    ///     // To read the raw symlink target, use std::fs::read_link on the link path:
-    ///     let link_system_path = temp.path().join("docs").join("link.txt");
-    ///     let raw_target = std::fs::read_link(&link_system_path)?;
-    ///     // Validate the raw target is within the virtual root
-    ///     let validated = vroot.virtual_join(&raw_target)?;
-    ///     assert_eq!(validated.virtualpath_display().to_string(), "/docs/target.txt");
+    /// // Create symlink (may fail on Windows without Developer Mode)
+    /// if target.virtual_symlink("/data/link.txt").is_ok() {
+    ///     // virtual_join resolves symlinks: link.txt -> target.txt
+    ///     let resolved = vroot.virtual_join("/data/link.txt")?;
+    ///     assert_eq!(resolved.virtualpath_display().to_string(), "/data/target.txt");
+    ///     // The resolved path reads the target file's content
+    ///     assert_eq!(resolved.read_to_string()?, "secret");
     /// }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
