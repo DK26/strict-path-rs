@@ -593,3 +593,181 @@ fn test_virtual_path_open_with_append_mode() {
 
     assert_eq!(log_file.read_to_string().unwrap(), "event1\nevent2\n");
 }
+
+// ============================================================
+// strict_read_dir() / virtual_read_dir() tests
+// ============================================================
+
+#[test]
+fn test_strict_read_dir_iterates_files() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    let dir = boundary.strict_join("docs").unwrap();
+    dir.create_dir_all().unwrap();
+
+    // Create some files
+    boundary
+        .strict_join("docs/readme.md")
+        .unwrap()
+        .write("# Readme")
+        .unwrap();
+    boundary
+        .strict_join("docs/guide.md")
+        .unwrap()
+        .write("# Guide")
+        .unwrap();
+    boundary
+        .strict_join("docs/api.md")
+        .unwrap()
+        .write("# API")
+        .unwrap();
+
+    // Iterate and collect
+    let entries: Vec<_> = dir
+        .strict_read_dir()
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert_eq!(entries.len(), 3);
+    // All entries should be files
+    for entry in &entries {
+        assert!(entry.is_file());
+    }
+}
+
+#[test]
+fn test_strict_read_dir_mixed_files_and_dirs() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    let root = boundary.strict_join("project").unwrap();
+    root.create_dir_all().unwrap();
+
+    // Create files
+    boundary
+        .strict_join("project/file.txt")
+        .unwrap()
+        .write("content")
+        .unwrap();
+    // Create subdirectory
+    boundary
+        .strict_join("project/subdir")
+        .unwrap()
+        .create_dir_all()
+        .unwrap();
+
+    let entries: Vec<_> = root
+        .strict_read_dir()
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert_eq!(entries.len(), 2);
+
+    let files: Vec<_> = entries.iter().filter(|e| e.is_file()).collect();
+    let dirs: Vec<_> = entries.iter().filter(|e| e.is_dir()).collect();
+
+    assert_eq!(files.len(), 1);
+    assert_eq!(dirs.len(), 1);
+}
+
+#[test]
+fn test_strict_read_dir_empty_directory() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    let empty = boundary.strict_join("empty").unwrap();
+    empty.create_dir_all().unwrap();
+
+    let entries: Vec<_> = empty
+        .strict_read_dir()
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert!(entries.is_empty());
+}
+
+#[test]
+fn test_strict_read_dir_on_file_errors() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    let file = boundary.strict_join("not_a_dir.txt").unwrap();
+    file.write("content").unwrap();
+
+    // strict_read_dir on a file should error
+    let err = file.strict_read_dir().unwrap_err();
+    // The exact error varies by platform, but it should fail
+    assert!(
+        err.kind() == std::io::ErrorKind::NotADirectory || err.kind() == std::io::ErrorKind::Other
+    );
+}
+
+#[test]
+#[cfg(feature = "virtual-path")]
+fn test_virtual_read_dir_iterates_files() {
+    let temp = tempfile::tempdir().unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
+
+    let dir = vroot.virtual_join("uploads").unwrap();
+    dir.create_dir_all().unwrap();
+
+    // Create some files
+    vroot
+        .virtual_join("uploads/photo.jpg")
+        .unwrap()
+        .write(b"JPG")
+        .unwrap();
+    vroot
+        .virtual_join("uploads/doc.pdf")
+        .unwrap()
+        .write(b"PDF")
+        .unwrap();
+
+    let entries: Vec<_> = dir
+        .virtual_read_dir()
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert_eq!(entries.len(), 2);
+    for entry in &entries {
+        assert!(entry.is_file());
+        // Verify virtual display format
+        let display = entry.virtualpath_display().to_string();
+        assert!(display.starts_with("/uploads/"));
+    }
+}
+
+#[test]
+#[cfg(feature = "virtual-path")]
+fn test_virtual_read_dir_preserves_virtual_paths() {
+    let temp = tempfile::tempdir().unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
+
+    let dir = vroot.virtual_join("nested/deep").unwrap();
+    dir.create_dir_all().unwrap();
+    vroot
+        .virtual_join("nested/deep/file.txt")
+        .unwrap()
+        .write("test")
+        .unwrap();
+
+    let entries: Vec<_> = dir
+        .virtual_read_dir()
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+
+    // Virtual display should show the full virtual path
+    assert_eq!(
+        entry.virtualpath_display().to_string(),
+        "/nested/deep/file.txt"
+    );
+}

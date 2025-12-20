@@ -463,6 +463,49 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Read directory entries as validated `VirtualPath` values (auto re-joins each entry).
+    ///
+    /// DETAILS:
+    /// Unlike `read_dir()` which returns raw `std::fs::DirEntry`, this method automatically
+    /// validates each directory entry through `virtual_join()`, returning an iterator of
+    /// `Result<VirtualPath<Marker>>`. This eliminates the need for manual re-validation loops
+    /// while preserving the virtual path semantics.
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `io::Result<VirtualReadDir<Marker>>`: Iterator yielding validated `VirtualPath` entries.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: If the directory cannot be read.
+    /// - Each yielded item may also be `Err` if validation fails for that entry.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{VirtualRoot, VirtualPath};
+    /// # let temp = tempfile::tempdir()?;
+    /// # let vroot: VirtualRoot = VirtualRoot::try_new(temp.path())?;
+    /// # let dir = vroot.virtual_join("uploads")?;
+    /// # dir.create_dir_all()?;
+    /// # vroot.virtual_join("uploads/file1.txt")?.write("a")?;
+    /// # vroot.virtual_join("uploads/file2.txt")?.write("b")?;
+    /// // Iterate with automatic validation
+    /// for entry in dir.virtual_read_dir()? {
+    ///     let child: VirtualPath = entry?;
+    ///     println!("{}", child.virtualpath_display());
+    /// }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn virtual_read_dir(&self) -> std::io::Result<VirtualReadDir<'_, Marker>> {
+        let inner = std::fs::read_dir(self.inner.path())?;
+        Ok(VirtualReadDir {
+            inner,
+            parent: self,
+        })
+    }
+
+    /// SUMMARY:
     /// Write bytes to the underlying system path. Accepts `&str`, `String`, `&[u8]`, `Vec<u8]`, etc.
     #[inline]
     pub fn write<C: AsRef<[u8]>>(&self, contents: C) -> std::io::Result<()> {
@@ -1096,5 +1139,63 @@ impl<Marker> Ord for VirtualPath<Marker> {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.inner.path().cmp(other.inner.path())
+    }
+}
+
+// ============================================================
+// VirtualReadDir — Iterator for validated virtual directory entries
+// ============================================================
+
+/// SUMMARY:
+/// Iterator over directory entries that yields validated `VirtualPath` values.
+///
+/// DETAILS:
+/// Created by `VirtualPath::virtual_read_dir()`. Each iteration automatically validates
+/// the directory entry through `virtual_join()`, so you get `VirtualPath` values directly
+/// instead of raw `std::fs::DirEntry` that would require manual re-validation.
+///
+/// EXAMPLE:
+/// ```rust
+/// # use strict_path::{VirtualRoot, VirtualPath};
+/// # let temp = tempfile::tempdir()?;
+/// # let vroot: VirtualRoot = VirtualRoot::try_new(temp.path())?;
+/// # let dir = vroot.virtual_join("assets")?;
+/// # dir.create_dir_all()?;
+/// # vroot.virtual_join("assets/logo.png")?.write(b"PNG")?;
+/// for entry in dir.virtual_read_dir()? {
+///     let child: VirtualPath = entry?;
+///     if child.is_file() {
+///         println!("File: {}", child.virtualpath_display());
+///     }
+/// }
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+pub struct VirtualReadDir<'a, Marker> {
+    inner: std::fs::ReadDir,
+    parent: &'a VirtualPath<Marker>,
+}
+
+impl<Marker> std::fmt::Debug for VirtualReadDir<'_, Marker> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VirtualReadDir")
+            .field("parent", &self.parent.virtualpath_display().to_string())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<Marker: Clone> Iterator for VirtualReadDir<'_, Marker> {
+    type Item = std::io::Result<VirtualPath<Marker>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.inner.next()? {
+            Ok(entry) => {
+                let file_name = entry.file_name();
+                match self.parent.virtual_join(&file_name) {
+                    Ok(virtual_path) => Some(Ok(virtual_path)),
+                    Err(e) => Some(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))),
+                }
+            }
+            Err(e) => Some(Err(e)),
+        }
     }
 }

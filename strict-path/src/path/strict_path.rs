@@ -388,6 +388,48 @@ impl<Marker> StrictPath<Marker> {
         std::fs::read_dir(&self.path)
     }
 
+    /// SUMMARY:
+    /// Read directory entries as validated `StrictPath` values (auto re-joins each entry).
+    ///
+    /// DETAILS:
+    /// Unlike `read_dir()` which returns raw `std::fs::DirEntry`, this method automatically
+    /// validates each directory entry through `strict_join()`, returning an iterator of
+    /// `Result<StrictPath<Marker>>`. This eliminates the need for manual re-validation loops.
+    ///
+    /// PARAMETERS:
+    /// - _none_
+    ///
+    /// RETURNS:
+    /// - `io::Result<StrictReadDir<Marker>>`: Iterator yielding validated `StrictPath` entries.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: If the directory cannot be read.
+    /// - Each yielded item may also be `Err` if validation fails for that entry.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{PathBoundary, StrictPath};
+    /// # let temp = tempfile::tempdir()?;
+    /// # let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+    /// # let dir = boundary.strict_join("data")?;
+    /// # dir.create_dir_all()?;
+    /// # boundary.strict_join("data/file1.txt")?.write("a")?;
+    /// # boundary.strict_join("data/file2.txt")?.write("b")?;
+    /// // Iterate with automatic validation
+    /// for entry in dir.strict_read_dir()? {
+    ///     let child: StrictPath = entry?;
+    ///     println!("{}", child.strictpath_display());
+    /// }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn strict_read_dir(&self) -> std::io::Result<StrictReadDir<'_, Marker>> {
+        let inner = std::fs::read_dir(&self.path)?;
+        Ok(StrictReadDir {
+            inner,
+            parent: self,
+        })
+    }
+
     /// Reads the file contents as `String`.
     pub fn read_to_string(&self) -> std::io::Result<String> {
         std::fs::read_to_string(&self.path)
@@ -1000,5 +1042,63 @@ impl<'a, Marker> StrictOpenOptions<'a, Marker> {
     #[inline]
     pub fn open(self) -> std::io::Result<std::fs::File> {
         self.options.open(&self.path.path)
+    }
+}
+
+// ============================================================
+// StrictReadDir — Iterator for validated directory entries
+// ============================================================
+
+/// SUMMARY:
+/// Iterator over directory entries that yields validated `StrictPath` values.
+///
+/// DETAILS:
+/// Created by `StrictPath::strict_read_dir()`. Each iteration automatically validates
+/// the directory entry through `strict_join()`, so you get `StrictPath` values directly
+/// instead of raw `std::fs::DirEntry` that would require manual re-validation.
+///
+/// EXAMPLE:
+/// ```rust
+/// # use strict_path::{PathBoundary, StrictPath};
+/// # let temp = tempfile::tempdir()?;
+/// # let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+/// # let dir = boundary.strict_join("docs")?;
+/// # dir.create_dir_all()?;
+/// # boundary.strict_join("docs/readme.md")?.write("# Docs")?;
+/// for entry in dir.strict_read_dir()? {
+///     let child: StrictPath = entry?;
+///     if child.is_file() {
+///         println!("File: {}", child.strictpath_display());
+///     }
+/// }
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+pub struct StrictReadDir<'a, Marker> {
+    inner: std::fs::ReadDir,
+    parent: &'a StrictPath<Marker>,
+}
+
+impl<Marker> std::fmt::Debug for StrictReadDir<'_, Marker> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StrictReadDir")
+            .field("parent", &self.parent.strictpath_display())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<Marker: Clone> Iterator for StrictReadDir<'_, Marker> {
+    type Item = std::io::Result<StrictPath<Marker>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.inner.next()? {
+            Ok(entry) => {
+                let file_name = entry.file_name();
+                match self.parent.strict_join(&file_name) {
+                    Ok(strict_path) => Some(Ok(strict_path)),
+                    Err(e) => Some(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))),
+                }
+            }
+            Err(e) => Some(Err(e)),
+        }
     }
 }

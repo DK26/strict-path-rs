@@ -206,6 +206,7 @@ Use when: passing proven-safe paths to I/O and helpers; no extra validation insi
 - `.create_file()` → Writable handle (pass to tar builders, etc.)
 - `.open_file()` → Read-only handle when you only need to stream bytes out
 - `.open_with()` → Builder: `.read(true).write(true).create(true).open()` for advanced modes
+- `.strict_read_dir()` → Iterator yielding validated `StrictPath` entries (no manual re-join needed)
 - `.strictpath_display()` → Display for logging
 
 **VirtualRoot<T>**: User-friendly sandbox policy root
@@ -223,6 +224,7 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.interop_path()` → Pass into third-party APIs expecting `AsRef<Path>`
 - `.exists()` → Check if path exists (built-in)
 - I/O helpers available: `.read()`, `.write(..)`, `.append(..)`, `.create_file()`, `.open_file()`, `.open_with()`, `.create_parent_dir_all()`
+- `.virtual_read_dir()` → Iterator yielding validated `VirtualPath` entries (no manual re-join needed)
  - `.symlink_metadata()` → Get metadata without following symlinks
 
 ## Built-in I/O Methods (Always Use These!)
@@ -244,7 +246,8 @@ Use when: handling user-facing paths; clamp via `.virtual_join()`; borrow strict
 - `.create_dir()` → Create directory (must not exist)
 - `.create_dir_all()` → Create directory and all parents
 - `.create_parent_dir_all()` → Create all parent directories for a file path
-- `.read_dir()` → Iterate directory entries
+- `.read_dir()` → Iterate directory entries (returns raw `DirEntry`)
+- `.strict_read_dir()` / `.virtual_read_dir()` → Iterate with auto-validated `StrictPath`/`VirtualPath` entries
 - `.remove_dir()` → Delete empty directory
 - `.remove_dir_all()` → Delete directory and all contents
  - `.symlink_metadata()` → Get metadata without following symlinks
