@@ -246,9 +246,12 @@ Always use **dimension-specific methods** (`strict_*` / `virtualpath_*`). Never 
 - **Filenames**: `strictpath_with_file_name(..)` / `strictpath_with_extension(..)` — modify names/extensions
 - **Rename**: `strict_rename(..)` / `virtual_rename(..)` — move/rename within boundary
 - **Deletion**: `.remove_file()`, `.remove_dir()`, `.remove_dir_all()` — safe deletion
-- **Metadata**: `.metadata()`, `.exists()`, `.is_file()`, `.is_dir()` — inspect properties
+- **Metadata**: `.metadata()`, `.exists()`, `.try_exists()`, `.is_file()`, `.is_dir()` — inspect properties
 - **Copy**: `.copy(&dest)` — duplicate files
-- **I/O**: `.read()`, `.read_to_string()`, `.write()`, `.create_file()` — file operations
+- **I/O**: `.read()`, `.read_to_string()`, `.write()`, `.append()`, `.create_file()`, `.touch()`, `.open_with()` — file operations
+- **Links**: `.strict_symlink()`, `.strict_read_link()` / `.virtual_symlink()`, `.virtual_read_link()` — symbolic links
+- **Permissions**: `.set_permissions()` — modify file permissions
+- **Directories**: `.create_dir()`, `.create_dir_all()`, `.strict_read_dir()` / `.virtual_read_dir()` — directory operations
 
 → **[Complete operations guide with examples →](./best_practices/common_operations.md)**
 
