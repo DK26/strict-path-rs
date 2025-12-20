@@ -779,6 +779,64 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Read the target of a symbolic link and return it as a validated `VirtualPath`.
+    ///
+    /// DETAILS:
+    /// - Reads the symlink target using `std::fs::read_link()`.
+    /// - If the target is relative, it is resolved relative to the symlink's parent directory.
+    /// - The resolved target is validated against the virtual root.
+    /// - Escape attempts are clamped to the virtual root (VirtualPath containment semantics).
+    /// - The returned `VirtualPath` has a virtual view computed from the root.
+    ///
+    /// RETURNS:
+    /// - `io::Result<VirtualPath<Marker>>`: The validated target as a virtual path.
+    ///
+    /// ERRORS:
+    /// - Standard I/O errors if the path is not a symlink or cannot be read.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::VirtualRoot;
+    ///
+    /// let temp = tempfile::tempdir()?;
+    /// let vroot: VirtualRoot = VirtualRoot::try_new(temp.path())?;
+    ///
+    /// // Create target file
+    /// let target = vroot.virtual_join("/docs/target.txt")?;
+    /// target.create_parent_dir_all()?;
+    /// target.write("content")?;
+    ///
+    /// // Try to create symlink (may fail on Windows without Developer Mode)
+    /// if target.virtual_symlink("/docs/link.txt").is_ok() {
+    ///     let link = vroot.virtual_join("/docs/link.txt")?;
+    ///     let resolved = link.virtual_read_link()?;
+    ///     assert_eq!(resolved.virtualpath_display().to_string(), "/docs/target.txt");
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn virtual_read_link(&self) -> std::io::Result<Self> {
+        // Read the raw symlink target
+        let raw_target = std::fs::read_link(self.inner.path())?;
+
+        // If the target is relative, resolve it relative to the symlink's parent
+        let resolved_target = if raw_target.is_relative() {
+            match self.inner.path().parent() {
+                Some(parent) => parent.join(&raw_target),
+                None => raw_target,
+            }
+        } else {
+            raw_target
+        };
+
+        // Validate through virtual_join which clamps escapes
+        // We need to compute the relative path from the virtual root
+        let vroot = self.inner.boundary().clone().virtualize();
+        vroot
+            .virtual_join(&resolved_target)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    }
+
+    /// SUMMARY:
     /// Create a hard link at `link_path` pointing to this virtual path (same virtual root required).
     ///
     /// DETAILS:

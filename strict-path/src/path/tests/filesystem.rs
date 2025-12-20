@@ -771,3 +771,140 @@ fn test_virtual_read_dir_preserves_virtual_paths() {
         "/nested/deep/file.txt"
     );
 }
+
+// ==================== strict_read_link / virtual_read_link tests ====================
+
+#[test]
+#[cfg(unix)]
+fn test_strict_read_link_within_boundary() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    // Create target file
+    let target = boundary.strict_join("target.txt").unwrap();
+    target.write("target content").unwrap();
+
+    // Create symlink to target
+    target.strict_symlink("link.txt").unwrap();
+    let link = boundary.strict_join("link.txt").unwrap();
+
+    // Read the symlink target
+    let read_target = link.strict_read_link().unwrap();
+
+    // The resolved target should match the original target
+    assert_eq!(
+        read_target.strictpath_display().to_string(),
+        target.strictpath_display().to_string()
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_strict_read_link_escaping_boundary_errors() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary_dir = temp.path().join("boundary");
+    let outside_dir = temp.path().join("outside");
+    std::fs::create_dir_all(&boundary_dir).unwrap();
+    std::fs::create_dir_all(&outside_dir).unwrap();
+
+    let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir).unwrap();
+
+    // Create a file outside the boundary
+    let outside_file = outside_dir.join("secret.txt");
+    std::fs::write(&outside_file, "secret data").unwrap();
+
+    // Create a malicious symlink inside the boundary pointing outside
+    let link_path = boundary_dir.join("escape_link");
+    std::os::unix::fs::symlink(&outside_file, &link_path).unwrap();
+
+    // Try to read the symlink - should error because target escapes boundary
+    let link = boundary.strict_join("escape_link").unwrap();
+    let result = link.strict_read_link();
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::Other);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_strict_read_link_relative_target() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    // Create subdirectory structure
+    let subdir = boundary.strict_join("subdir").unwrap();
+    subdir.create_dir_all().unwrap();
+
+    let target = boundary.strict_join("subdir/actual.txt").unwrap();
+    target.write("data").unwrap();
+
+    // Create symlink with relative path
+    let link_path = temp.path().join("subdir/relative_link");
+    std::os::unix::fs::symlink("actual.txt", &link_path).unwrap();
+
+    let link = boundary.strict_join("subdir/relative_link").unwrap();
+    let read_target = link.strict_read_link().unwrap();
+
+    assert_eq!(
+        read_target.strictpath_display().to_string(),
+        target.strictpath_display().to_string()
+    );
+}
+
+#[test]
+#[cfg(all(unix, feature = "virtual-path"))]
+fn test_virtual_read_link_within_root() {
+    let temp = tempfile::tempdir().unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
+
+    // Create target file
+    let target = vroot.virtual_join("/docs/target.txt").unwrap();
+    target.create_parent_dir_all().unwrap();
+    target.write("content").unwrap();
+
+    // Create symlink
+    target.virtual_symlink("/docs/link.txt").unwrap();
+    let link = vroot.virtual_join("/docs/link.txt").unwrap();
+
+    // Read symlink target
+    let read_target = link.virtual_read_link().unwrap();
+
+    // Should return a VirtualPath with correct virtual display
+    assert_eq!(
+        read_target.virtualpath_display().to_string(),
+        "/docs/target.txt"
+    );
+}
+
+#[test]
+#[cfg(all(unix, feature = "virtual-path"))]
+fn test_virtual_read_link_escaping_is_clamped() {
+    let temp = tempfile::tempdir().unwrap();
+    let vroot_dir = temp.path().join("vroot");
+    let outside_dir = temp.path().join("outside");
+    std::fs::create_dir_all(&vroot_dir).unwrap();
+    std::fs::create_dir_all(&outside_dir).unwrap();
+
+    let vroot: VirtualRoot = VirtualRoot::try_new(&vroot_dir).unwrap();
+
+    // Create a file outside the virtual root
+    let outside_file = outside_dir.join("external.txt");
+    std::fs::write(&outside_file, "external").unwrap();
+
+    // Create a malicious symlink inside pointing outside
+    let link_path = vroot_dir.join("escape_link");
+    std::os::unix::fs::symlink(&outside_file, &link_path).unwrap();
+
+    // virtual_read_link should clamp the escape (VirtualPath containment semantics)
+    let link = vroot.virtual_join("escape_link").unwrap();
+    let result = link.virtual_read_link();
+
+    // VirtualPath clamps escapes rather than erroring
+    // The result should be clamped to the virtual root
+    assert!(result.is_ok());
+    let clamped = result.unwrap();
+    // The clamped path should be within the virtual root
+    let display = clamped.virtualpath_display().to_string();
+    assert!(display.starts_with("/"));
+}

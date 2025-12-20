@@ -674,6 +674,64 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Read the target of a symbolic link and validate it is within the boundary.
+    ///
+    /// DETAILS:
+    /// - Reads the symlink target using `std::fs::read_link()`.
+    /// - If the target is relative, it is resolved relative to the symlink's parent directory.
+    /// - The resolved target is validated against the boundary.
+    /// - Returns `Err` if the symlink target escapes the boundary (security-sensitive).
+    ///
+    /// RETURNS:
+    /// - `io::Result<StrictPath<Marker>>`: The validated target path within the boundary.
+    ///
+    /// ERRORS:
+    /// - `io::ErrorKind::Other` with `PathEscapesBoundary` if the target escapes the boundary.
+    /// - Standard I/O errors if the path is not a symlink or cannot be read.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::PathBoundary;
+    ///
+    /// let temp = tempfile::tempdir()?;
+    /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+    ///
+    /// // Create target file
+    /// let target = boundary.strict_join("target.txt")?;
+    /// target.write("content")?;
+    ///
+    /// // Try to create symlink (may fail on Windows without Developer Mode)
+    /// if target.strict_symlink("link.txt").is_ok() {
+    ///     let link = boundary.strict_join("link.txt")?;
+    ///     let resolved = link.strict_read_link()?;
+    ///     assert_eq!(
+    ///         resolved.strictpath_display().to_string(),
+    ///         target.strictpath_display().to_string()
+    ///     );
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn strict_read_link(&self) -> std::io::Result<Self> {
+        // Read the raw symlink target
+        let raw_target = std::fs::read_link(&self.path)?;
+
+        // If the target is relative, resolve it relative to the symlink's parent
+        let resolved_target = if raw_target.is_relative() {
+            match self.path.parent() {
+                Some(parent) => parent.join(&raw_target),
+                None => raw_target,
+            }
+        } else {
+            raw_target
+        };
+
+        // Validate the resolved target against the boundary
+        self.boundary
+            .strict_join(&resolved_target)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    }
+
+    /// SUMMARY:
     /// Create a hard link at `link_path` pointing to this path (same boundary; caller creates parents).
     /// Relative paths are resolved as siblings; absolute paths are validated against the boundary.
     pub fn strict_hard_link<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
