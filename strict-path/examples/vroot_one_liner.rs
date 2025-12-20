@@ -1,6 +1,10 @@
 // One-liner VirtualPath demo
 //
 // Create a virtual root and immediately operate on a user-facing path.
+//
+// **External Input Pattern**: In production, the path passed to `virtual_join()`
+// would come from an external source (user input, form data, API request). Here
+// we use a constant for brevity, but the validation pattern is identical.
 
 #![cfg(feature = "virtual-path")]
 

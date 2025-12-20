@@ -10,7 +10,6 @@
 compile_error!("Enable with --features with-app-path to run this example");
 
 use app_path::app_path;
-use std::fs;
 use std::io::{self, Write};
 use strict_path::{PathBoundary, StrictPath, VirtualPath, VirtualRoot};
 
@@ -125,7 +124,7 @@ impl QuickNotes {
             return Ok(());
         }
 
-        print!("Enter note content (end with empty line):\n");
+        println!("Enter note content (end with empty line):");
         let mut content = String::new();
         loop {
             let mut line = String::new();
@@ -305,7 +304,7 @@ impl QuickNotes {
         recent.retain(|f| f != filename);
         recent.insert(0, filename.to_string());
         recent.truncate(self.config.max_recent);
-        recent_path.write(&recent.join("\n"))?;
+        recent_path.write(recent.join("\n"))?;
         Ok(())
     }
 

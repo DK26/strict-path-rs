@@ -139,7 +139,7 @@ fn main() -> std::io::Result<()> {
         }
         fs::remove_dir_all(PUBLIC_DIR).ok();
 
-        Ok(())
+        return Ok(());
     }
 
     // 3. Start the TCP listener.

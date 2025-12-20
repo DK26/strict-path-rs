@@ -65,20 +65,12 @@ futures = "0.3"
 hmac = { version = "0.12", optional = true }
 sha2 = { version = "0.10", optional = true }
 base64 = { version = "0.22.1", optional = true }
-# Database dependencies for database integration demo
-sqlx = { version = "0.8", optional = true, features = [
-    "runtime-tokio-rustls",
-    "sqlite",
-    "chrono",
-    "uuid",
-] }
 
 [dev-dependencies]
 
 [features]
 # Make heavy archive-related dependencies optional so the demos crate
 # builds quickly by default when those features are not needed.
-# Consumers (or local devs) can enable these features to build specific demos.
 default = []
 with-zip = ["dep:zip", "dep:flate2"]
 with-aws = ["dep:aws-config", "dep:aws-sdk-s3"]
@@ -87,7 +79,6 @@ with-dirs = ["dep:dirs"]
 with-tempfile = ["dep:tempfile"]
 with-rmcp = ["dep:rmcp"]
 with-jwt = ["dep:hmac", "dep:sha2", "dep:base64"]
-with-database = ["dep:sqlx"]
 virtual-path = ["strict-path/virtual-path"]
 
 [[bin]]
@@ -99,16 +90,14 @@ name = "secure_file_copy_cli"
 path = "src/bin/cli/secure_file_copy_cli.rs"
 
 [[bin]]
-name = "config_loader"
-path = "src/bin/config/config_loader.rs"
-
-[[bin]]
-name = "config_manager"
-path = "src/bin/config/config_manager.rs"
+name = "tenant_user_virtual_root"
+path = "src/bin/cli/tenant_user_virtual_root.rs"
+required-features = ["virtual-path"]
 
 [[bin]]
 name = "config_includes"
 path = "src/bin/config/config_includes.rs"
+required-features = ["virtual-path"]
 
 [[bin]]
 name = "config_management_example"
@@ -116,41 +105,37 @@ path = "src/bin/config/config_management_example.rs"
 required-features = ["virtual-path"]
 
 [[bin]]
-name = "user_data_manager"
-path = "src/bin/data/user_data_manager.rs"
-
+name = "portable_app_demo"
+path = "src/bin/config/portable_app_demo.rs"
+required-features = ["with-app-path", "virtual-path"]
 
 [[bin]]
-name = "temp_file_manager"
-path = "src/bin/io/temp_file_manager.rs"
+name = "user_data_manager"
+path = "src/bin/data/user_data_manager.rs"
 
 [[bin]]
 name = "archive_extractor"
 path = "src/bin/security/archive_extractor.rs"
-required-features = ["with-zip"]
+required-features = ["with-zip", "virtual-path"]
 
 [[bin]]
 name = "error_handling"
 path = "src/bin/security/error_handling.rs"
 
-
 [[bin]]
-name = "archive_extractor_with_config"
-path = "src/bin/security/archive_extractor_with_config.rs"
-required-features = ["with-zip"]
-
-# temporarily disabled: example prints types that don't implement Display
-# [[bin]]
-# name = "basic_file_server"
-# path = "src/bin/server/basic_file_server.rs"
-
-[[bin]]
-name = "multi_jail_server"
-path = "src/bin/server/multi_jail_server.rs"
+name = "static_file_server"
+path = "src/bin/server/static_file_server.rs"
+required-features = ["virtual-path"]
 
 [[bin]]
 name = "virtualpath_only_server"
 path = "src/bin/server/virtualpath_only_server.rs"
+required-features = ["virtual-path"]
+
+[[bin]]
+name = "multi_jail_server"
+path = "src/bin/server/multi_jail_server.rs"
+required-features = ["virtual-path"]
 
 [[bin]]
 name = "docker_volume_manager"
@@ -159,31 +144,26 @@ path = "src/bin/tools/docker_volume_manager.rs"
 [[bin]]
 name = "archive_builder"
 path = "src/bin/tools/archive_builder.rs"
+required-features = ["virtual-path"]
 
 [[bin]]
 name = "migrations_runner"
 path = "src/bin/tools/migrations_runner.rs"
 
 [[bin]]
-name = "file_upload_api"
-path = "src/bin/web/file_upload_api.rs"
-
-[[bin]]
-name = "file_upload_service"
-path = "src/bin/web/file_upload_service.rs"
-
-[[bin]]
 name = "llm_workspace"
 path = "src/bin/llm/llm_workspace.rs"
+required-features = ["virtual-path"]
 
 [[bin]]
 name = "mcp_file_service"
 path = "src/bin/llm/mcp_file_service.rs"
+required-features = ["virtual-path"]
 
 [[bin]]
 name = "mcp_file_service_rmcp"
 path = "src/bin/llm/mcp_file_service_rmcp.rs"
-required-features = ["with-rmcp"]
+required-features = ["with-rmcp", "virtual-path"]
 
 [[bin]]
 name = "axum_static_server"
@@ -191,71 +171,45 @@ path = "src/bin/web/axum_static_server.rs"
 required-features = ["virtual-path"]
 
 [[bin]]
-name = "s3_mirror"
-path = "src/bin/cloud/s3_mirror.rs"
-
-[[bin]]
-name = "app_path_config"
-path = "src/bin/config/app_path_config.rs"
-
-# New feature demonstration binaries
-# Feature demonstration binaries - now using ecosystem crates directly
-[[bin]]
-name = "tempfile_demo"
-path = "src/bin/filesystem/tempfile_demo.rs"
-required-features = ["with-tempfile"]
-
-[[bin]]
-name = "dirs_demo"
-path = "src/bin/filesystem/dirs_demo.rs"
-required-features = ["with-dirs"]
-
-[[bin]]
-name = "app_path_demo"
-path = "src/bin/config/app_path_demo.rs"
-required-features = ["with-app-path", "virtual-path"]
-
-[[bin]]
-name = "os_directories_demo"
-path = "src/bin/config/os_directories_demo.rs"
-required-features = ["with-dirs", "virtual-path"]
-
-
-[[bin]]
 name = "tenant_workspace_service"
 path = "src/bin/web/tenant_workspace_service.rs"
+required-features = ["virtual-path"]
 
 [[bin]]
 name = "static_site_generator"
 path = "src/bin/web/static_site_generator.rs"
 
 [[bin]]
-name = "user_home_backup_service"
-path = "src/bin/web/user_home_backup_service.rs"
-
-[[bin]]
-name = "document_vault_service"
-path = "src/bin/web/document_vault_service.rs"
-
-[[bin]]
-name = "capability_asset_service"
-path = "src/bin/web/capability_asset_service.rs"
-
-[[bin]]
 name = "rbac_portal_service"
 path = "src/bin/web/rbac_portal_service.rs"
+required-features = ["virtual-path"]
 
-# Advanced authorization demos
 [[bin]]
 name = "jwt_token_auth_service"
 path = "src/bin/web/jwt_token_auth_service.rs"
 required-features = ["with-jwt"]
 
 [[bin]]
-name = "database_auth_service"
-path = "src/bin/web/database_auth_service.rs"
-required-features = ["with-database"]
+name = "s3_mirror"
+path = "src/bin/cloud/s3_mirror.rs"
+
+# Ecosystem integration demos
+[[bin]]
+name = "dirs_demo"
+path = "src/bin/filesystem/dirs_demo.rs"
+required-features = ["with-dirs"]
 
 [[bin]]
-name = "advanced_capability_service"
-path = "src/bin/web/advanced_capability_service.rs"
+name = "tempfile_demo"
+path = "src/bin/filesystem/tempfile_demo.rs"
+required-features = ["with-tempfile"]
+
+[[bin]]
+name = "temp_file_manager"
+path = "src/bin/io/temp_file_manager.rs"
+
+# Authorization pattern demos
+[[bin]]
+name = "document_vault_service"
+path = "src/bin/web/document_vault_service.rs"
+required-features = ["virtual-path"]

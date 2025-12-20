@@ -11,8 +11,6 @@
 compile_error!("Enable with --features with-tempfile to run this example");
 
 use anyhow::Result;
-use std::fs;
-use std::io::Write;
 use strict_path::{PathBoundary, StrictPath};
 
 /// Marker types for different temporary file purposes
@@ -81,17 +79,9 @@ impl TempFileProcessor {
     fn log_operation(&self, message: &str) -> Result<()> {
         let log_file = self.logs_dir.strict_join("operations.log")?;
 
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_file.interop_path())?;
-
-        writeln!(
-            file,
-            "[{}] {}",
-            chrono::Utc::now().format("%H:%M:%S"),
-            message
-        )?;
+        // Append log entry using built-in I/O helper
+        let log_entry = format!("[{}] {}\n", chrono::Utc::now().format("%H:%M:%S"), message);
+        log_file.append(log_entry)?;
         Ok(())
     }
 

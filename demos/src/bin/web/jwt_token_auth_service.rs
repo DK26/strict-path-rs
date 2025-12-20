@@ -12,20 +12,15 @@ use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::{delete, get, post, put},
+    routing::{get, post},
     Json, Router,
 };
 use chrono::{Duration, Utc};
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
-use strict_path::{PathBoundary, StrictPath};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use strict_path::PathBoundary;
 use tokio::{net::TcpListener, signal, sync::RwLock};
 
 const SERVICE_ROOT: &str = "demo_data/jwt_token_service";
@@ -112,52 +107,52 @@ async fn login(
 async fn read_personal_file(
     State(state): State<SharedState>,
     headers: HeaderMap,
-    Path(filename): Path<String>,
+    Path(requested_file): Path<String>, // Untrusted: from HTTP request path
 ) -> ApiResult<Json<FileResponse>> {
     let session = state.authorize(&headers).await?;
     let personal_access = session.personal_files_access()?;
-    let file_path = personal_access.strict_join(&filename)?;
+    let file_path = personal_access.strict_join(&requested_file)?;
 
     let content = file_path
         .read_to_string()
         .map_err(|e| ApiError::internal(anyhow!("Failed to read file: {e}")))?;
 
     Ok(Json(FileResponse {
-        filename: filename.clone(),
+        filename: requested_file.clone(),
         content,
-        message: format!("Read personal file: {filename}"),
+        message: format!("Read personal file: {requested_file}"),
     }))
 }
 
 async fn write_personal_file(
     State(state): State<SharedState>,
     headers: HeaderMap,
-    Path(filename): Path<String>,
+    Path(requested_file): Path<String>, // Untrusted: from HTTP request path
     Json(request): Json<WriteFileRequest>,
 ) -> ApiResult<Json<FileResponse>> {
     let session = state.authorize(&headers).await?;
     let personal_access = session.personal_files_access_with_write()?;
-    let file_path = personal_access.strict_join(&filename)?;
+    let file_path = personal_access.strict_join(&requested_file)?;
 
     file_path
         .write(&request.content)
         .map_err(|e| ApiError::internal(anyhow!("Failed to write file: {e}")))?;
 
     Ok(Json(FileResponse {
-        filename: filename.clone(),
+        filename: requested_file.clone(),
         content: request.content,
-        message: format!("Wrote personal file: {filename}"),
+        message: format!("Wrote personal file: {requested_file}"),
     }))
 }
 
 async fn delete_personal_file(
     State(state): State<SharedState>,
     headers: HeaderMap,
-    Path(filename): Path<String>,
+    Path(requested_file): Path<String>, // Untrusted: from HTTP request path
 ) -> ApiResult<Json<FileResponse>> {
     let session = state.authorize(&headers).await?;
     let personal_access = session.personal_files_access_with_delete()?;
-    let file_path = personal_access.strict_join(&filename)?;
+    let file_path = personal_access.strict_join(&requested_file)?;
 
     let content = file_path.read_to_string().unwrap_or_default();
     file_path
@@ -165,9 +160,9 @@ async fn delete_personal_file(
         .map_err(|e| ApiError::internal(anyhow!("Failed to delete file: {e}")))?;
 
     Ok(Json(FileResponse {
-        filename: filename.clone(),
+        filename: requested_file.clone(),
         content,
-        message: format!("Deleted personal file: {filename}"),
+        message: format!("Deleted personal file: {requested_file}"),
     }))
 }
 
@@ -175,41 +170,41 @@ async fn delete_personal_file(
 async fn read_shared_file(
     State(state): State<SharedState>,
     headers: HeaderMap,
-    Path(filename): Path<String>,
+    Path(requested_file): Path<String>, // Untrusted: from HTTP request path
 ) -> ApiResult<Json<FileResponse>> {
     let session = state.authorize(&headers).await?;
     let shared_access = session.shared_files_access()?;
-    let file_path = shared_access.strict_join(&filename)?;
+    let file_path = shared_access.strict_join(&requested_file)?;
 
     let content = file_path
         .read_to_string()
         .map_err(|e| ApiError::internal(anyhow!("Failed to read shared file: {e}")))?;
 
     Ok(Json(FileResponse {
-        filename: filename.clone(),
+        filename: requested_file.clone(),
         content,
-        message: format!("Read shared file: {filename}"),
+        message: format!("Read shared file: {requested_file}"),
     }))
 }
 
 async fn write_shared_file(
     State(state): State<SharedState>,
     headers: HeaderMap,
-    Path(filename): Path<String>,
+    Path(requested_file): Path<String>, // Untrusted: from HTTP request path
     Json(request): Json<WriteFileRequest>,
 ) -> ApiResult<Json<FileResponse>> {
     let session = state.authorize(&headers).await?;
     let shared_access = session.shared_files_access_with_write()?;
-    let file_path = shared_access.strict_join(&filename)?;
+    let file_path = shared_access.strict_join(&requested_file)?;
 
     file_path
         .write(&request.content)
         .map_err(|e| ApiError::internal(anyhow!("Failed to write shared file: {e}")))?;
 
     Ok(Json(FileResponse {
-        filename: filename.clone(),
+        filename: requested_file.clone(),
         content: request.content,
-        message: format!("Wrote shared file: {filename}"),
+        message: format!("Wrote shared file: {requested_file}"),
     }))
 }
 
@@ -217,20 +212,20 @@ async fn write_shared_file(
 async fn read_admin_logs(
     State(state): State<SharedState>,
     headers: HeaderMap,
-    Path(logfile): Path<String>,
+    Path(requested_log): Path<String>, // Untrusted: from HTTP request path
 ) -> ApiResult<Json<FileResponse>> {
     let session = state.authorize(&headers).await?;
     let admin_access = session.admin_logs_access()?;
-    let file_path = admin_access.strict_join(&logfile)?;
+    let file_path = admin_access.strict_join(&requested_log)?;
 
     let content = file_path
         .read_to_string()
         .map_err(|e| ApiError::internal(anyhow!("Failed to read log file: {e}")))?;
 
     Ok(Json(FileResponse {
-        filename: logfile.clone(),
+        filename: requested_log.clone(),
         content,
-        message: format!("Read admin log: {logfile}"),
+        message: format!("Read admin log: {requested_log}"),
     }))
 }
 
@@ -249,7 +244,7 @@ impl AppState {
         let claims = self.auth_service.validate_token(&token).await?;
         let workspace_access = self.workspace.create_session(&claims)?;
         Ok(AuthenticatedSession {
-            claims,
+            _claims: claims,
             workspace_access,
         })
     }
@@ -549,7 +544,7 @@ impl FileWorkspace {
             .try_into_boundary()?;
 
         Ok(WorkspaceAccess {
-            claims: claims.clone(),
+            _claims: claims.clone(),
             personal_files_readonly,
             personal_files_readwrite,
             personal_files_full,
@@ -562,7 +557,7 @@ impl FileWorkspace {
 
 #[derive(Clone)]
 struct WorkspaceAccess {
-    claims: TokenClaims,
+    _claims: TokenClaims, // Stored for auditing; not used in this demo
     // Personal files directory with different capability levels
     personal_files_readonly: PathBoundary<(PersonalFiles, CanRead)>,
     personal_files_readwrite: Option<PathBoundary<(PersonalFiles, CanRead, CanWrite)>>,
@@ -575,7 +570,7 @@ struct WorkspaceAccess {
 }
 
 struct AuthenticatedSession {
-    claims: TokenClaims,
+    _claims: TokenClaims, // Stored for auditing; not used in this demo
     workspace_access: WorkspaceAccess,
 }
 
@@ -680,6 +675,24 @@ impl IntoResponse for ApiError {
             "error": self.message
         }));
         (self.status, body).into_response()
+    }
+}
+
+impl From<strict_path::StrictPathError> for ApiError {
+    fn from(e: strict_path::StrictPathError) -> Self {
+        Self {
+            status: StatusCode::BAD_REQUEST,
+            message: format!("Path validation failed: {e}"),
+        }
+    }
+}
+
+impl From<anyhow::Error> for ApiError {
+    fn from(e: anyhow::Error) -> Self {
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e.to_string(),
+        }
     }
 }
 

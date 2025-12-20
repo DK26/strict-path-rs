@@ -1,91 +1,172 @@
 # strict-path demos
 
-This crate hosts real-world demo binaries that show how to apply strict-path in situations where paths come from untrusted or external sources. Demos are not API unit tests — they model end-to-end flows, default to offline behavior, and keep heavy dependencies feature-gated.
+Real-world demo binaries showing strict-path in production scenarios. Demos model end-to-end flows, default to offline behavior, and keep heavy dependencies feature-gated.
 
-## When To Use strict-path (in demos)
+## Quick Start
 
-Use strict-path only when the path string did not originate from you and may have been influenced by a third party or a different trust domain:
+```bash
+cd demos
 
-- HTTP/web inputs: route params, form fields, JSON bodies
-- Archive metadata: ZIP/TAR entry names (zip-slip/tar-slip)
-- Database records: stored paths that could have been modified externally
-- Manifest/config files: lists of paths provided by external systems
-- LLM/automation output: generated file names/paths
-- Inter-service messages: queue/event payloads that contain paths
+# Basic demos (no features needed)
+cargo run --bin error_handling
+cargo run --bin virtualpath_only_server
+cargo run --bin config_includes
+cargo run --bin multi_jail_server
 
-Use std `Path`/`PathBuf` for trusted, local-only sources:
+# Ecosystem integration
+cargo run --bin dirs_demo --features with-dirs
+cargo run --bin tempfile_demo --features with-tempfile
+cargo run --bin portable_app_demo --features "with-app-path,virtual-path"
 
-- CLI arguments for the top-level source/destination directories
-- Environment variables for base locations
-- Hard-coded constants you control
+# Feature-gated demos
+cargo run --bin archive_extractor --features with-zip -- --archive test.zip --output ./out
+cargo run --bin mcp_file_service_rmcp --features with-rmcp -- --mode virtual --root ./project
+```
 
-Rule of thumb: validate the untrusted part right at the boundary, then pass `&StrictPath<_>` / `&VirtualPath<_>` in function signatures to encode guarantees.
+## Demo Categories
 
-## What Each Demo Demonstrates
+### CLI Tools (`cli/`)
+| Demo                       | Features       | Description                                      |
+| -------------------------- | -------------- | ------------------------------------------------ |
+| `cli_backup_tool`          | —              | Backup utility with validated source/destination |
+| `secure_file_copy_cli`     | —              | Manifest-based file copy with traversal blocking |
+| `tenant_user_virtual_root` | `virtual-path` | Per-user VirtualRoot isolation pattern           |
 
-- security/archive_extractor, …_mixed, …_with_config (feature `with-zip`)
-  - Validates untrusted archive entry names via `VirtualPath::virtual_join` (with a root from `VirtualPath::with_root(..)`) or `PathBoundary::strict_join` before extraction.
-- web/file_upload_api, web/file_upload_service
-  - Validates HTTP path inputs and encodes guarantees in handler signatures.
-- cli/secure_file_copy_cli
-  - Ingests an untrusted manifest of relative paths; validates to jails (staging → workspace) and blocks traversal attempts.
-- data/user_data_manager
-  - Discovers files from an ingest area (external source) and stores processed outputs safely in a separate jail.
-- tools/docker_volume_manager
-  - Walks real volume directories, reads metadata, backs up/restores data with validated subpaths.
-- cloud/s3_mirror (feature `with-aws`)
-  - Demonstrates mapping validated local paths to object keys derived from a VirtualRoot.
-- web/static_site_generator
-  - Shows a site build pipeline using strict-path joins and built-in I/O. If all inputs are local and trusted, strict-path isn’t required for safety, but the demo keeps the API usage consistent for boundary-aware I/O.
-- llm/mcp_file_service_rmcp (MCP stdio server)
-  - Realistic MCP server using the official runtime. Registers tools `file.read`, `file.write`, `file.list`. All received paths are validated via `VirtualRoot::virtual_join(..)` (isolated projects) or `PathBoundary::strict_join(..)` (system). Shows the correct discovery vs. validation pattern for directory listings.
-- web/user_home_backup_service
-  - Axum API that authenticates per-user access tokens, validates user input into `StrictPath<UserHome>` paths, and issues typed backup capabilities. Demonstrates the `UserHome` authorization marker pattern together with backup-scoped permissions.
-- web/document_vault_service
-  - Tuple markers encode `StrictPath<(Resource, Permission)>` for confidential docs vs. public reports. Shows how read vs. write vs. audit scopes stay isolated by marker type, and audit logging is enforced via a dedicated `(AuditTrail, WriteOnly)` capability.
-- web/capability_asset_service
-  - Capability-trait demo for a brand asset workflow. Tokens map to units like agency reviewers (read-only), brand editors (read/write), and brand directors (full control). Compile-time traits such as `HasCapability<CanWrite>` gate editing and deletion.
-- web/rbac_portal_service
-  - Role hierarchy demo that models guest/user/moderator/admin personas. Trait-based RBAC ensures only moderators can flag content and only admins can publish notices while everyone can view public announcements.
-- config/*, filesystem/*
-  - Examples of using OS directories and app-relative locations; focus on correct boundary setup and display/interop practices.
+### Configuration (`config/`)
+| Demo                        | Features                        | Description                                                     |
+| --------------------------- | ------------------------------- | --------------------------------------------------------------- |
+| `config_includes`           | —                               | Safe include directive resolution with VirtualPath              |
+| `config_management_example` | `virtual-path`                  | Full config loading: hierarchy, raw→validated, multiple formats |
+| `portable_app_demo`         | `with-app-path`, `virtual-path` | Interactive QuickNotes app with portable storage                |
 
-## Anti‑Pattern Checklist (what we avoid)
+### Ecosystem Integration (`filesystem/`, `io/`)
+| Demo                | Features        | Description                                                         |
+| ------------------- | --------------- | ------------------------------------------------------------------- |
+| `dirs_demo`         | `with-dirs`     | **OS standard directories** - config, data, cache with PathBoundary |
+| `tempfile_demo`     | `with-tempfile` | **Temporary files with RAII** - upload staging, build pipelines     |
+| `temp_file_manager` | —               | Temp file processing with secure boundaries                         |
 
-- No `strict_join(".")` — validating constants adds no value.
-- No `Path::new(...)`/`PathBuf::from(...)` around secure types.
-- No `as_unvirtual().interop_path()` when `interop_path()` exists directly.
-- No `interop_path().as_ref()` — `interop_path()` already implements `AsRef<Path>`.
-- No `.interop_path()` unless you are adapting an unavoidable third-party `AsRef<Path>` API.
-- No `*_to_string_lossy()` for display of secure types — use `strictpath_display()` / `virtualpath_display()`.
-- Prefer `impl AsRef<Path>` in helper signatures; accept `&StrictPath/_` or `&VirtualPath/_` where safety must be encoded.
+### Security (`security/`)
+| Demo                | Features   | Description                                       |
+| ------------------- | ---------- | ------------------------------------------------- |
+| `archive_extractor` | `with-zip` | CLI tool with progress bar, zip-slip prevention   |
+| `error_handling`    | —          | Error chain patterns and StrictPathError handling |
 
-## Running Demos
+### Servers (`server/`)
+| Demo                      | Features | Description                                                   |
+| ------------------------- | -------- | ------------------------------------------------------------- |
+| `static_file_server`      | —        | Raw TCP server with VirtualRoot validation                    |
+| `virtualpath_only_server` | —        | Minimal VirtualPath-only I/O pattern                          |
+| `multi_jail_server`       | —        | **Multiple security contexts** - public assets + user uploads |
 
-- Many demos run fully offline by default; some require features:
-  - `with-zip`: archive extractors
-  - `with-aws`: S3 mirror (mock unless `EXAMPLES_S3_RUN=1`)
-  - `with-app-path`, `with-dirs`, `with-tempfile`: integration features
+### Web Services (`web/`)
+| Demo                       | Features       | Description                                                          |
+| -------------------------- | -------------- | -------------------------------------------------------------------- |
+| `axum_static_server`       | `virtual-path` | Axum static file serving with VirtualRoot                            |
+| `tenant_workspace_service` | —              | Multi-tenant with tuple markers for resource+permission              |
+| `document_vault_service`   | —              | **Tuple marker authorization** - confidential docs vs public reports |
+| `static_site_generator`    | —              | Complete build tool with StrictPath boundaries                       |
+| `rbac_portal_service`      | —              | Role hierarchy (guest/user/moderator/admin)                          |
+| `jwt_token_auth_service`   | `with-jwt`     | Real JWT validation with typed capabilities                          |
 
-Example:
+### LLM/MCP Integration (`llm/`)
+| Demo                    | Features    | Description                                                       |
+| ----------------------- | ----------- | ----------------------------------------------------------------- |
+| `llm_workspace`         | —           | LLM file workspace simulation                                     |
+| `mcp_file_service`      | —           | MCP file service (manual protocol)                                |
+| `mcp_file_service_rmcp` | `with-rmcp` | Official MCP runtime with tools: file.read, file.write, file.list |
 
-- `cd demos && cargo run --bin archive_extractor --features with-zip -- --archive ./test.zip --output ./out`
-- `cd demos && cargo run --bin secure_file_copy_cli` (runs offline demo)
-- `cd demos && cargo run --bin mcp_file_service_rmcp -- --mode virtual --root ./mcp_project`
-- `cd demos && cargo run --bin mcp_file_service_rmcp -- --mode strict --root ./data`
+### Tools (`tools/`)
+| Demo                    | Description                                    |
+| ----------------------- | ---------------------------------------------- |
+| `docker_volume_manager` | Volume backup/restore with validated paths     |
+| `archive_builder`       | Archive creation with safe path assembly       |
+| `migrations_runner`     | Database migration runner with path validation |
 
-The MCP server communicates over stdio using JSON‑RPC 2.0 + Content‑Length framing. Use an MCP client/inspector to invoke tools; each tool handler validates the provided `path` string into a strict‑path type before any I/O.
+### Cloud (`cloud/`)
+| Demo        | Features   | Description                                        |
+| ----------- | ---------- | -------------------------------------------------- |
+| `s3_mirror` | `with-aws` | S3 sync with local VirtualRoot paths → object keys |
 
-## Example & Test Principles (applied by all demos)
+### Data (`data/`)
+| Demo                | Description                                            |
+| ------------------- | ------------------------------------------------------ |
+| `user_data_manager` | Ingest→process→store pipeline with separate boundaries |
 
-- Examples are realistic and production‑authentic: use official protocol/runtime crates; avoid ad‑hoc mocks. 
-- No `#[allow(..)]` in demo code; pass clippy with `-D warnings`.
-- Encode guarantees in signatures (accept policy types or validated `StrictPath`/`VirtualPath`).
-- Use domain names for variables (e.g., `user_project_root`, `system_root`, `entry_path`); never one‑letter path vars.
-- Show discovery vs. validation: enumerate with `root.read_dir()`, then strict/virtual join names for safe display/I/O.
-- Keep demo “tests” to lightweight smoke checks only when needed; full coverage lives in the library test suite.
+---
+
+## Extension Ideas
+
+These patterns are documented in mdBook but not implemented as standalone demos. Use them as starting points for your own implementations:
+
+### File Upload Patterns
+- **Multi-tenant file upload API** — Per-tenant VirtualRoot with `tenant_id` isolation, simulating HTTP file upload endpoints with path validation
+- **File upload service** — Axum/Actix handlers accepting multipart uploads, staging to temp, validating filenames, moving to permanent storage
+
+### Authorization & Capabilities
+- **Capability-based asset service** — Traits like `HasCapability<CanWrite>` gate operations at compile-time; agency reviewers (read-only), brand editors (read/write), brand directors (full control)
+- **Database-backed auth service** — SQLite/Postgres user store, token validation, mapping DB users to marker-based permissions
+- **Advanced capability patterns** — Hierarchical capabilities, capability delegation, time-limited access tokens
+
+### Backup & Sync
+- **User home backup service** — Axum API authenticating per-user tokens, issuing typed backup capabilities with `StrictPath<UserHome>` boundaries
+- **Incremental sync** — Track file changes, validate new paths, sync only modified files
+
+### Configuration Loaders
+- **Simple config loader** — Basic `PathBoundary` for config directory, load single config file
+- **Secure config with markers** — `StrictPath<AppConfig>` vs `StrictPath<UserConfig>` separation
+- **OS directories config** — Combine `dirs` crate with PathBoundary for platform-appropriate config locations
+
+### Archive Variants
+- **Archive with config validation** — Load extraction config from JSON/TOML, validate base_dir paths before extraction
+- **Safe archive extractor** — Simpler version of archive_extractor for embedding in libraries
+
+---
+
+## When To Use strict-path
+
+**Use strict-path for untrusted paths from:**
+- HTTP inputs: route params, form fields, JSON bodies
+- Archive metadata: ZIP/TAR entry names (zip-slip)
+- Database records: stored paths that could be modified
+- Config files: paths from external systems
+- LLM output: generated file names/paths
+
+**Use std Path/PathBuf for trusted sources:**
+- CLI args for base directories
+- Environment variables
+- Hard-coded constants
+
+## Features
+
+```toml
+with-zip        # Archive demos (zip, flate2)
+with-aws        # S3 integration (aws-config, aws-sdk-s3)
+with-app-path   # Portable app demos (app-path)
+with-dirs       # OS standard directories (dirs)
+with-tempfile   # Temporary file handling (tempfile)
+with-rmcp       # MCP server runtime (rmcp)
+with-jwt        # JWT auth demos (hmac, sha2, base64)
+virtual-path    # VirtualRoot/VirtualPath support
+```
+
+## Key Patterns to Learn
+
+| Pattern                    | Best Demo                  | What You'll Learn                              |
+| -------------------------- | -------------------------- | ---------------------------------------------- |
+| **Zip-slip prevention**    | `archive_extractor`        | Validate archive entry names before extraction |
+| **Multi-tenant isolation** | `tenant_workspace_service` | Per-user VirtualRoot, tuple markers            |
+| **Tuple marker auth**      | `document_vault_service`   | `StrictPath<(Resource, Permission)>` patterns  |
+| **OS directories**         | `dirs_demo`                | Platform-appropriate config/data/cache         |
+| **Tempfile RAII**          | `tempfile_demo`            | Automatic cleanup, upload staging              |
+| **Multiple boundaries**    | `multi_jail_server`        | Separate contexts for different trust levels   |
+| **MCP/LLM sandboxing**     | `mcp_file_service_rmcp`    | Validate LLM-generated paths                   |
+| **RBAC roles**             | `rbac_portal_service`      | Guest/user/moderator/admin hierarchy           |
+| **Portable apps**          | `portable_app_demo`        | Executable-relative paths with app-path        |
 
 ## Notes
 
-- Demos are intentionally not part of the main workspace to avoid MSRV lock coupling.
-- Demos prefer real flows and external inputs over contrived examples. If a demo doesn’t involve an external/untrusted path anywhere in the flow, we avoid using strict-path unnecessarily.
+- Demos are **not part of the main workspace** to avoid MSRV lock coupling
+- All demos pass clippy with `-D warnings` (no `#[allow(..)]`)
+- See mdBook documentation (`.docs/`) for comprehensive tutorials
+- Demos prefer real flows with actual external dependencies over mocks

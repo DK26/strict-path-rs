@@ -407,6 +407,46 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Append bytes to the file (create if missing). Accepts any `AsRef<[u8]>` (e.g., `&str`, `&[u8]`).
+    ///
+    /// PARAMETERS:
+    /// - `data` (`AsRef<[u8]>`): Bytes to append to the file.
+    ///
+    /// RETURNS:
+    /// - `()`: Returns nothing on success.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: Propagates OS errors when the file cannot be opened or written.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::{PathBoundary, StrictPath};
+    /// # let boundary_dir = std::env::temp_dir().join("strict-path-append-example");
+    /// # std::fs::create_dir_all(&boundary_dir)?;
+    /// # let boundary: PathBoundary = PathBoundary::try_new(&boundary_dir)?;
+    /// // Untrusted input from request/CLI/config/etc.
+    /// let log_file = "logs/audit.log";
+    /// let log_path: StrictPath = boundary.strict_join(log_file)?;
+    /// log_path.create_parent_dir_all()?;
+    /// log_path.append("[2025-01-01] Session started\n")?;
+    /// log_path.append("[2025-01-01] User logged in\n")?;
+    /// let contents = log_path.read_to_string()?;
+    /// assert!(contents.contains("Session started"));
+    /// assert!(contents.contains("User logged in"));
+    /// # std::fs::remove_dir_all(&boundary_dir)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn append<C: AsRef<[u8]>>(&self, data: C) -> std::io::Result<()> {
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
+        file.write_all(data.as_ref())
+    }
+
+    /// SUMMARY:
     /// Create or truncate the file at this strict path and return a writable handle.
     ///
     /// PARAMETERS:

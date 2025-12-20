@@ -1,6 +1,10 @@
 // One-liner PathBoundary demo
 //
 // Create a PathBoundary and operate on a path in a single chained expression.
+//
+// **External Input Pattern**: In production, the file name passed to `strict_join()`
+// would come from an external source (CLI args, HTTP request, config file). Here
+// we use a constant for brevity, but the validation pattern is identical.
 
 use strict_path::PathBoundary;
 

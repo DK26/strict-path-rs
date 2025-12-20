@@ -318,3 +318,94 @@ fn test_virtual_path_remove_dir_variants() {
     dir_root.remove_dir_all().unwrap();
     assert!(!dir_root.exists());
 }
+
+// ============================================================
+// append() tests
+// ============================================================
+
+#[test]
+fn test_strict_path_append_creates_file_if_missing() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    let log_file = boundary.strict_join("new.log").unwrap();
+    assert!(!log_file.exists());
+
+    log_file.append("first line\n").unwrap();
+    assert!(log_file.exists());
+    assert_eq!(log_file.read_to_string().unwrap(), "first line\n");
+}
+
+#[test]
+fn test_strict_path_append_appends_to_existing() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    let log_file = boundary.strict_join("existing.log").unwrap();
+    log_file.write("line 1\n").unwrap();
+
+    log_file.append("line 2\n").unwrap();
+    log_file.append("line 3\n").unwrap();
+
+    let contents = log_file.read_to_string().unwrap();
+    assert_eq!(contents, "line 1\nline 2\nline 3\n");
+}
+
+#[test]
+fn test_strict_path_append_bytes() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    let bin_file = boundary.strict_join("data.bin").unwrap();
+    bin_file.append([0x01, 0x02]).unwrap();
+    bin_file.append([0x03, 0x04]).unwrap();
+
+    assert_eq!(bin_file.read().unwrap(), vec![0x01, 0x02, 0x03, 0x04]);
+}
+
+#[test]
+fn test_strict_path_append_on_directory_errors() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    let dir = boundary.strict_join("mydir").unwrap();
+    dir.create_dir_all().unwrap();
+
+    let err = dir.append("data").unwrap_err();
+    // Attempting to append to a directory should fail (platform-dependent error)
+    assert!(
+        err.kind() == std::io::ErrorKind::PermissionDenied
+            || err.kind() == std::io::ErrorKind::Other
+            || err.kind() == std::io::ErrorKind::IsADirectory
+    );
+}
+
+#[test]
+#[cfg(feature = "virtual-path")]
+fn test_virtual_path_append_creates_file_if_missing() {
+    let temp = tempfile::tempdir().unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
+
+    let log_file = vroot.virtual_join("logs/audit.log").unwrap();
+    log_file.create_parent_dir_all().unwrap();
+    assert!(!log_file.exists());
+
+    log_file.append("event 1\n").unwrap();
+    assert!(log_file.exists());
+    assert_eq!(log_file.read_to_string().unwrap(), "event 1\n");
+}
+
+#[test]
+#[cfg(feature = "virtual-path")]
+fn test_virtual_path_append_appends_to_existing() {
+    let temp = tempfile::tempdir().unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
+
+    let log_file = vroot.virtual_join("data.log").unwrap();
+    log_file.write("a\n").unwrap();
+
+    log_file.append("b\n").unwrap();
+    log_file.append("c\n").unwrap();
+
+    assert_eq!(log_file.read_to_string().unwrap(), "a\nb\nc\n");
+}

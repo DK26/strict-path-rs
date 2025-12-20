@@ -7,6 +7,10 @@
 //! Each example follows cross-platform conventions (XDG on Linux, Known Folder API
 //! on Windows, Apple Standard Directories on macOS) and enforces path boundaries.
 //!
+//! **External Input Pattern**: In production, the file names passed to `strict_join()`
+//! would come from external sources (user input, config files, CLI args, HTTP requests).
+//! Here we use constants for demonstration, but the validation pattern is identical.
+//!
 //! Integration with the `dirs` crate v6.0.0: https://crates.io/crates/dirs
 //!
 //! Run with: cargo run --example dirs_integration

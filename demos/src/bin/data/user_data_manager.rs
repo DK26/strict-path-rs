@@ -100,7 +100,8 @@ fn archive_ingested_file(path_to_archive: &StrictPath<Ingest>) -> Result<()> {
 
     let arch_disp = archive_name.strictpath_display();
     println!("  -> Archiving ingest file to: {arch_disp}");
-    // Use StrictPath API to perform the rename safely within the boundary
+    // strict_rename validates the destination path stays within boundary.
+    // We pass interop_path() because strict_rename expects AsRef<Path>.
     path_to_archive.strict_rename(archive_name.interop_path())?;
     Ok(())
 }

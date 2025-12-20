@@ -470,6 +470,41 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Append bytes to the underlying system path (create if missing). Accepts `&str`, `&[u8]`, etc.
+    ///
+    /// PARAMETERS:
+    /// - `data` (`AsRef<[u8]>`): Bytes to append to the file.
+    ///
+    /// RETURNS:
+    /// - `()`: Returns nothing on success.
+    ///
+    /// ERRORS:
+    /// - `std::io::Error`: Propagates OS errors when the file cannot be opened or written.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// # use strict_path::VirtualRoot;
+    /// # let root = std::env::temp_dir().join("strict-path-vpath-append");
+    /// # std::fs::create_dir_all(&root)?;
+    /// # let vroot: VirtualRoot = VirtualRoot::try_new(&root)?;
+    /// // Untrusted input from request/CLI/config/etc.
+    /// let log_file = "logs/activity.log";
+    /// let vpath = vroot.virtual_join(log_file)?;
+    /// vpath.create_parent_dir_all()?;
+    /// vpath.append("[2025-01-01] Operation A\n")?;
+    /// vpath.append("[2025-01-01] Operation B\n")?;
+    /// let contents = vpath.read_to_string()?;
+    /// assert!(contents.contains("Operation A"));
+    /// assert!(contents.contains("Operation B"));
+    /// # std::fs::remove_dir_all(&root)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn append<C: AsRef<[u8]>>(&self, data: C) -> std::io::Result<()> {
+        self.inner.append(data)
+    }
+
+    /// SUMMARY:
     /// Create or truncate the file at this virtual path and return a writable handle.
     ///
     /// PARAMETERS:

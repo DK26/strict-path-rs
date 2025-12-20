@@ -54,9 +54,10 @@ async fn root() -> impl IntoResponse {
 
 async fn serve(
     State(vroot): State<VirtualRoot<Assets>>,
-    Path(path): Path<String>,
+    Path(requested_path): Path<String>, // Untrusted: from HTTP request path
 ) -> impl IntoResponse {
-    match vroot.virtual_join(&path) {
+    // Validate untrusted path through VirtualRoot before any I/O
+    match vroot.virtual_join(&requested_path) {
         Ok(vp) => match serve_vp(&vp) {
             Ok(body) => (StatusCode::OK, body),
             Err(_) => (StatusCode::NOT_FOUND, String::from("Not found")),
@@ -84,9 +85,10 @@ struct PathInfo {
 
 async fn serve_json(
     State(vroot): State<VirtualRoot<Assets>>,
-    Path(path): Path<String>,
+    Path(requested_path): Path<String>, // Untrusted: from HTTP request path
 ) -> impl IntoResponse {
-    match vroot.virtual_join(&path) {
+    // Validate untrusted path through VirtualRoot before any I/O
+    match vroot.virtual_join(&requested_path) {
         Ok(vp) => {
             let info = PathInfo {
                 path: vp.virtualpath_display().to_string(),
