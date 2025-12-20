@@ -7,11 +7,8 @@ publish = false
 [dependencies]
 strict-path = { path = "../strict-path", features = ["virtual-path"] }
 # Using DK26 fork dev branch for benchmarks consistency with strict-path
-# TODO: Switch back to upstream `soft-canonicalize = "0.5.3"` after changes are released
-soft-canonicalize = { git = "https://github.com/DK26/soft-canonicalize-rs", branch = "dev", features = [
-    "anchored",
-] }
-criterion = "0.7.0"
+soft-canonicalize = { version = "0.5.3", features = ["anchored"] }
+criterion = "0.8.1"
 tempfile = "3.22"
 
 [[bench]]

@@ -18,11 +18,7 @@ categories = ["filesystem", "development-tools", "web-programming::http-server"]
 exclude = ["../demos/**"]
 
 [dependencies]
-# Using DK26 fork dev branch which contains junction prefix mismatch workaround
-# TODO: Switch back to upstream `soft-canonicalize = "0.5.3"` after changes are released
-soft-canonicalize = { git = "https://github.com/DK26/soft-canonicalize-rs", branch = "dev", features = [
-    "anchored",
-] }
+soft-canonicalize = { version = "0.5.3", features = ["anchored"] }
 
 [dev-dependencies]
 tempfile = "3.22"
