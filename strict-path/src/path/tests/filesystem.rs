@@ -771,37 +771,15 @@ fn test_virtual_read_dir_preserves_virtual_paths() {
 }
 
 // ==================== strict_read_link / virtual_read_link tests ====================
+// NOTE: strict_join and virtual_join resolve symlinks during canonicalization,
+// so the resulting StrictPath/VirtualPath always points to the resolved target.
+// This means strict_read_link/virtual_read_link are only useful in very specific
+// scenarios where you already have a StrictPath to a symlink (which is rare).
+// The main security tests for symlink handling are in symlink_methods.rs.
 
 #[test]
 #[cfg(unix)]
-fn test_strict_read_link_within_boundary() {
-    let temp = tempfile::tempdir().unwrap();
-    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
-
-    // Create target file
-    let target = boundary.strict_join("target.txt").unwrap();
-    target.write("target content").unwrap();
-
-    // Create symlink using std::os::unix::fs::symlink directly for test setup
-    // (Using absolute path so the link resolves correctly)
-    let link_path = temp.path().join("link.txt");
-    std::os::unix::fs::symlink(target.interop_path(), &link_path).unwrap();
-
-    let link = boundary.strict_join("link.txt").unwrap();
-
-    // Read the symlink target
-    let read_target = link.strict_read_link().unwrap();
-
-    // The resolved target should match the original target
-    assert_eq!(
-        read_target.strictpath_display().to_string(),
-        target.strictpath_display().to_string()
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_strict_read_link_escaping_boundary_errors() {
+fn test_strict_join_catches_escaping_symlinks() {
     let temp = tempfile::tempdir().unwrap();
     let boundary_dir = temp.path().join("boundary");
     let outside_dir = temp.path().join("outside");
@@ -818,7 +796,7 @@ fn test_strict_read_link_escaping_boundary_errors() {
     let link_path = boundary_dir.join("escape_link");
     std::os::unix::fs::symlink(&outside_file, &link_path).unwrap();
 
-    // strict_join already catches escaping symlinks during canonicalization
+    // strict_join catches escaping symlinks during canonicalization
     // This is the correct security behavior - we can't even get a StrictPath
     // to a symlink that points outside the boundary
     let result = boundary.strict_join("escape_link");
@@ -833,62 +811,8 @@ fn test_strict_read_link_escaping_boundary_errors() {
 }
 
 #[test]
-#[cfg(unix)]
-fn test_strict_read_link_relative_target() {
-    let temp = tempfile::tempdir().unwrap();
-    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
-
-    // Create subdirectory structure
-    let subdir = boundary.strict_join("subdir").unwrap();
-    subdir.create_dir_all().unwrap();
-
-    let target = boundary.strict_join("subdir/actual.txt").unwrap();
-    target.write("data").unwrap();
-
-    // Create symlink with absolute path to the target
-    // (relative symlinks would return the relative path, not the resolved target)
-    let link_path = temp.path().join("subdir/relative_link");
-    std::os::unix::fs::symlink(target.interop_path(), &link_path).unwrap();
-
-    let link = boundary.strict_join("subdir/relative_link").unwrap();
-    let read_target = link.strict_read_link().unwrap();
-
-    assert_eq!(
-        read_target.strictpath_display().to_string(),
-        target.strictpath_display().to_string()
-    );
-}
-
-#[test]
 #[cfg(all(unix, feature = "virtual-path"))]
-fn test_virtual_read_link_within_root() {
-    let temp = tempfile::tempdir().unwrap();
-    let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
-
-    // Create target file
-    let target = vroot.virtual_join("/docs/target.txt").unwrap();
-    target.create_parent_dir_all().unwrap();
-    target.write("content").unwrap();
-
-    // Create symlink using std::os::unix::fs::symlink directly
-    let link_path = temp.path().join("docs/link.txt");
-    std::os::unix::fs::symlink(target.as_unvirtual().interop_path(), &link_path).unwrap();
-
-    let link = vroot.virtual_join("/docs/link.txt").unwrap();
-
-    // Read symlink target
-    let read_target = link.virtual_read_link().unwrap();
-
-    // Should return a VirtualPath with correct virtual display
-    assert_eq!(
-        read_target.virtualpath_display().to_string(),
-        "/docs/target.txt"
-    );
-}
-
-#[test]
-#[cfg(all(unix, feature = "virtual-path"))]
-fn test_virtual_read_link_escaping_is_clamped() {
+fn test_virtual_join_catches_escaping_symlinks() {
     let temp = tempfile::tempdir().unwrap();
     let vroot_dir = temp.path().join("vroot");
     let outside_dir = temp.path().join("outside");
@@ -905,15 +829,12 @@ fn test_virtual_read_link_escaping_is_clamped() {
     let link_path = vroot_dir.join("escape_link");
     std::os::unix::fs::symlink(&outside_file, &link_path).unwrap();
 
-    // virtual_read_link on an escaping symlink should error (not clamp)
-    // because the underlying strict_read_link rejects escape attempts
-    let link = vroot.virtual_join("escape_link").unwrap();
-    let result = link.virtual_read_link();
+    // virtual_join on an escaping symlink should fail
+    // because canonicalization detects the escape attempt
+    let result = vroot.virtual_join("escape_link");
 
-    // The escape is rejected, not clamped
+    // VirtualPath/VirtualRoot catches the escape at join time
     assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert_eq!(err.kind(), std::io::ErrorKind::Other);
 }
 
 // ==================== set_permissions / try_exists / touch tests ====================
