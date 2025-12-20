@@ -908,3 +908,124 @@ fn test_virtual_read_link_escaping_is_clamped() {
     let display = clamped.virtualpath_display().to_string();
     assert!(display.starts_with("/"));
 }
+
+// ==================== set_permissions / try_exists / touch tests ====================
+
+#[test]
+fn test_strict_path_set_permissions() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    let file = boundary.strict_join("test.txt").unwrap();
+    file.write("content").unwrap();
+
+    // Get current permissions and make read-only
+    let mut perms = file.metadata().unwrap().permissions();
+    perms.set_readonly(true);
+    file.set_permissions(perms).unwrap();
+
+    // Verify permissions changed
+    assert!(file.metadata().unwrap().permissions().readonly());
+
+    // Cleanup: temp directory will be removed anyway, no need to restore
+}
+
+#[test]
+fn test_strict_path_try_exists() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    // Existing file
+    let existing = boundary.strict_join("exists.txt").unwrap();
+    existing.write("content").unwrap();
+    assert!(existing.try_exists().unwrap());
+
+    // Non-existing file
+    let missing = boundary.strict_join("missing.txt").unwrap();
+    assert!(!missing.try_exists().unwrap());
+
+    // Existing directory
+    let dir = boundary.strict_join("subdir").unwrap();
+    dir.create_dir_all().unwrap();
+    assert!(dir.try_exists().unwrap());
+}
+
+#[test]
+fn test_strict_path_touch_creates_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    let file = boundary.strict_join("new_file.txt").unwrap();
+    assert!(!file.exists());
+
+    file.touch().unwrap();
+
+    assert!(file.exists());
+    assert!(file.is_file());
+    assert_eq!(file.read_to_string().unwrap(), "");
+}
+
+#[test]
+fn test_strict_path_touch_updates_existing() {
+    let temp = tempfile::tempdir().unwrap();
+    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+
+    let file = boundary.strict_join("existing.txt").unwrap();
+    file.write("original content").unwrap();
+
+    // Small delay then touch to update mtime
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    file.touch().unwrap();
+
+    // Content should be preserved (touch doesn't truncate)
+    assert_eq!(file.read_to_string().unwrap(), "original content")
+}
+
+#[test]
+#[cfg(feature = "virtual-path")]
+fn test_virtual_path_set_permissions() {
+    let temp = tempfile::tempdir().unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
+
+    let file = vroot.virtual_join("/test.txt").unwrap();
+    file.write("content").unwrap();
+
+    // Get current permissions and make read-only
+    let mut perms = file.metadata().unwrap().permissions();
+    perms.set_readonly(true);
+    file.set_permissions(perms).unwrap();
+
+    // Verify permissions changed
+    assert!(file.metadata().unwrap().permissions().readonly());
+
+    // Cleanup: temp directory will be removed anyway, no need to restore
+}
+
+#[test]
+#[cfg(feature = "virtual-path")]
+fn test_virtual_path_try_exists() {
+    let temp = tempfile::tempdir().unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
+
+    let existing = vroot.virtual_join("/exists.txt").unwrap();
+    existing.write("content").unwrap();
+    assert!(existing.try_exists().unwrap());
+
+    let missing = vroot.virtual_join("/missing.txt").unwrap();
+    assert!(!missing.try_exists().unwrap());
+}
+
+#[test]
+#[cfg(feature = "virtual-path")]
+fn test_virtual_path_touch() {
+    let temp = tempfile::tempdir().unwrap();
+    let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
+
+    let file = vroot.virtual_join("/touched.txt").unwrap();
+    assert!(!file.exists());
+
+    file.touch().unwrap();
+
+    assert!(file.exists());
+    assert_eq!(file.read_to_string().unwrap(), "");
+}

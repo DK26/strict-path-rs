@@ -383,6 +383,106 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Set permissions on the file or directory at this path.
+    ///
+    /// PARAMETERS:
+    /// - `perm` (`std::fs::Permissions`): The permissions to set.
+    ///
+    /// RETURNS:
+    /// - `io::Result<()>`: Success or I/O error.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::PathBoundary;
+    ///
+    /// let temp = tempfile::tempdir()?;
+    /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+    /// let file = boundary.strict_join("script.sh")?;
+    /// file.write("#!/bin/bash\necho hello")?;
+    ///
+    /// // Make executable (Unix) or read-only (cross-platform)
+    /// let mut perms = file.metadata()?.permissions();
+    /// perms.set_readonly(true);
+    /// file.set_permissions(perms)?;
+    ///
+    /// assert!(file.metadata()?.permissions().readonly());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn set_permissions(&self, perm: std::fs::Permissions) -> std::io::Result<()> {
+        std::fs::set_permissions(&self.path, perm)
+    }
+
+    /// SUMMARY:
+    /// Check if the path exists, returning an error on permission issues.
+    ///
+    /// DETAILS:
+    /// Unlike `exists()` which returns `false` on permission errors, this method
+    /// distinguishes between "path does not exist" (`Ok(false)`) and "cannot check
+    /// due to permission error" (`Err(...)`).
+    ///
+    /// RETURNS:
+    /// - `Ok(true)`: Path exists
+    /// - `Ok(false)`: Path does not exist
+    /// - `Err(...)`: Permission or other I/O error prevented the check
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::PathBoundary;
+    ///
+    /// let temp = tempfile::tempdir()?;
+    /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+    ///
+    /// let existing = boundary.strict_join("exists.txt")?;
+    /// existing.write("content")?;
+    /// assert_eq!(existing.try_exists()?, true);
+    ///
+    /// let missing = boundary.strict_join("missing.txt")?;
+    /// assert_eq!(missing.try_exists()?, false);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[inline]
+    pub fn try_exists(&self) -> std::io::Result<bool> {
+        self.path.try_exists()
+    }
+
+    /// SUMMARY:
+    /// Create an empty file if it doesn't exist, or update the modification time if it does.
+    ///
+    /// DETAILS:
+    /// This is a convenience method combining file creation and mtime update.
+    /// Uses `OpenOptions` with `create(true).write(true)` which creates the file
+    /// if missing or opens it for writing if it exists, updating mtime on close.
+    ///
+    /// RETURNS:
+    /// - `io::Result<()>`: Success or I/O error.
+    ///
+    /// EXAMPLE:
+    /// ```rust
+    /// use strict_path::PathBoundary;
+    ///
+    /// let temp = tempfile::tempdir()?;
+    /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
+    ///
+    /// let file = boundary.strict_join("marker.txt")?;
+    /// assert!(!file.exists());
+    ///
+    /// file.touch()?;
+    /// assert!(file.exists());
+    /// assert_eq!(file.read_to_string()?, "");  // Empty file
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn touch(&self) -> std::io::Result<()> {
+        // Using truncate(false) to preserve existing content - touch only updates mtime
+        std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(&self.path)?;
+        Ok(())
+    }
+
+    /// SUMMARY:
     /// Read directory entries at this path (discovery). Re‑join names through strict/virtual APIs before I/O.
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
         std::fs::read_dir(&self.path)

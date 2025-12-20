@@ -457,6 +457,50 @@ impl<Marker> VirtualPath<Marker> {
     }
 
     /// SUMMARY:
+    /// Set permissions on the file or directory at this path.
+    ///
+    /// PARAMETERS:
+    /// - `perm` (`std::fs::Permissions`): The permissions to set.
+    ///
+    /// RETURNS:
+    /// - `io::Result<()>`: Success or I/O error.
+    #[inline]
+    pub fn set_permissions(&self, perm: std::fs::Permissions) -> std::io::Result<()> {
+        self.inner.set_permissions(perm)
+    }
+
+    /// SUMMARY:
+    /// Check if the path exists, returning an error on permission issues.
+    ///
+    /// DETAILS:
+    /// Unlike `exists()` which returns `false` on permission errors, this method
+    /// distinguishes between "path does not exist" (`Ok(false)`) and "cannot check
+    /// due to permission error" (`Err(...)`).
+    ///
+    /// RETURNS:
+    /// - `Ok(true)`: Path exists
+    /// - `Ok(false)`: Path does not exist
+    /// - `Err(...)`: Permission or other I/O error prevented the check
+    #[inline]
+    pub fn try_exists(&self) -> std::io::Result<bool> {
+        self.inner.try_exists()
+    }
+
+    /// SUMMARY:
+    /// Create an empty file if it doesn't exist, or update the modification time if it does.
+    ///
+    /// DETAILS:
+    /// This is a convenience method combining file creation and mtime update.
+    /// Uses `OpenOptions` with `create(true).write(true)` which creates the file
+    /// if missing or opens it for writing if it exists, updating mtime on close.
+    ///
+    /// RETURNS:
+    /// - `io::Result<()>`: Success or I/O error.
+    pub fn touch(&self) -> std::io::Result<()> {
+        self.inner.touch()
+    }
+
+    /// SUMMARY:
     /// Read directory entries (discovery). Re‑join names with `virtual_join(...)` to preserve clamping.
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
         self.inner.read_dir()
