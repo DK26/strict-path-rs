@@ -1412,7 +1412,7 @@ fn test_append_through_junction_escape_is_blocked() {
 
     // Create junction inside boundary pointing to outside directory
     let junction_inside = restriction_dir.join("escape");
-    junction::create(&outside_dir, &junction_inside).expect("junction creation");
+    junction_verbatim::create(&outside_dir, &junction_inside).expect("junction creation");
 
     let boundary: PathBoundary = PathBoundary::try_new(&restriction_dir).unwrap();
 

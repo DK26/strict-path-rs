@@ -1,8 +1,8 @@
 //! Tests for Windows junction prefix mismatch handling
 //!
 //! This module tests junction handling with the updated dependencies:
-//! - DK26/junction fork: fixes tesuji/junction#30 (verbatim prefix handling)
-//! - DK26/soft-canonicalize dev branch: component-aware prefix comparison
+//! - junction-verbatim: DK26 fork published to crates.io, fixes tesuji/junction#30 (verbatim prefix handling)
+//! - soft-canonicalize 0.5.3: component-aware prefix comparison
 //!
 //! Issue background:
 //! 1. Junction crate bug: Passing verbatim paths (`\\?\C:\...`) to `junction::create()`
@@ -146,7 +146,7 @@ fn test_junction_creation_with_verbatim_target() {
     // Create junction using canonicalized (verbatim) target
     // This would FAIL with junction 1.3, but should WORK with DK26 fork
     let junction_path = td.path().join("test_junction");
-    if let Err(e) = junction::create(&canonical_target, &junction_path) {
+    if let Err(e) = junction_verbatim::create(&canonical_target, &junction_path) {
         panic!("Junction creation with verbatim target failed (DK26 fork should fix this): {e:?}");
     }
 
@@ -185,7 +185,8 @@ fn test_soft_canonicalize_handles_junction_prefix_mismatch() {
     std::fs::create_dir_all(anchor.join("real_data")).unwrap();
 
     // Create junction (junction targets are stored as non-verbatim internally by Windows)
-    if let Err(e) = junction::create(anchor.join("real_data"), anchor.join("link_to_data")) {
+    if let Err(e) = junction_verbatim::create(anchor.join("real_data"), anchor.join("link_to_data"))
+    {
         eprintln!("Skipping test: failed to create junction: {e:?}");
         return;
     }

@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security testing**: Comprehensive fuzz tests for security invariants (1000+ iterations)
 - **CI workflows**: Kani verification and semver compatibility checks
 
+### Changed
+- **Windows junction dependency**: Switched from `junction` to the `junction-verbatim` git fork crate
+  - `junction-verbatim` is a fork published to crates.io, for use until PR tesuji/junction#31 is merged and published. 
+  - Fixes tesuji/junction#30 (verbatim prefix handling bug)
+  - Enables crates.io publishing (git deps not allowed on registry)
+
 ### Documentation
 - **README badges**: Added Kani Verified and Protected CVEs badges
 - **Security guidance**: Enhanced documentation on `interop_path()` risks in user-facing contexts
