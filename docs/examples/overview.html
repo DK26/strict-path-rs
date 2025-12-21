@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2449cbce.js";
+            window.path_to_searchindex_js = "../searchindex-c65ad018.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-21247364.js"></script>
@@ -182,6 +182,11 @@
                     <main>
                         <h1 id="real-world-examples"><a class="header" href="#real-world-examples">Real-World Examples</a></h1>
 <p>This section shows practical, real-world scenarios where strict-path helps secure your applications. Each example includes complete, runnable code that you can adapt to your own projects.</p>
+<blockquote>
+<p><strong>📖 How to Read Examples</strong></p>
+<p>In examples, string literals passed to <code>strict_join()</code> or <code>virtual_join()</code> represent <strong>external input</strong> that would come from HTTP requests, CLI arguments, configuration files, or archive entries in production. The validation pattern is identical whether the input is a literal or a variable — strict-path validates the path regardless of source.</p>
+<p>When adapting examples to your code, replace these literals with your actual untrusted input sources.</p>
+</blockquote>
 <h2 id="-example-categories"><a class="header" href="#-example-categories">📚 Example Categories</a></h2>
 <h3 id="web-applications"><a class="header" href="#web-applications">Web Applications</a></h3>
 <ul>

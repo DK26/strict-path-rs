@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2449cbce.js";
+            window.path_to_searchindex_js = "searchindex-c65ad018.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-21247364.js"></script>
@@ -193,6 +193,7 @@
 <li><a href="#portable-application-paths-app-path">Portable Application Paths (app-path)</a></li>
 <li><a href="#os-standard-directories-dirs">OS Standard Directories (dirs)</a></li>
 <li><a href="#serialization--deserialization-serde">Serialization &amp; Deserialization (serde)</a></li>
+<li><a href="#third-party-crate-integration-patterns">Third-Party Crate Integration Patterns</a></li>
 </ul>
 <hr>
 <h2 id="temporary-directories-tempfile"><a class="header" href="#temporary-directories-tempfile">Temporary Directories (tempfile)</a></h2>
@@ -700,6 +701,154 @@ fn serialize_paths() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     Ok(())
 }
 <span class="boring">}</span></code></pre>
+<hr>
+<h2 id="third-party-crate-integration-patterns"><a class="header" href="#third-party-crate-integration-patterns">Third-Party Crate Integration Patterns</a></h2>
+<p>When integrating with crates like <code>tar</code>, <code>zip</code>, <code>walkdir</code>, or other filesystem libraries, follow these patterns to maintain security.</p>
+<h3 id="archive-crates-tar-zip"><a class="header" href="#archive-crates-tar-zip">Archive Crates (tar, zip)</a></h3>
+<p>Archive crates often expect file handles or byte slices. Use strict-path’s built-in I/O to read content, then pass bytes to the archive crate.</p>
+<p><strong>Pattern: Read with strict-path, write with archive crate</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use tar::Builder;
+
+fn create_archive(
+    source_dir: &amp;PathBoundary,
+    files: &amp;[&amp;str],  // Untrusted file list from user/config
+) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    let mut archive = Builder::new(Vec::new());
+
+    for requested_file in files {
+        // Validate each path through strict-path
+        let safe_path = source_dir.strict_join(requested_file)?;
+
+        // Read content using strict-path's I/O
+        let content = safe_path.read()?;
+
+        // Pass bytes to archive crate (no path escapes possible)
+        let mut header = tar::Header::new_gnu();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+
+        archive.append_data(&amp;mut header, requested_file, content.as_slice())?;
+    }
+
+    archive.into_inner()
+}
+<span class="boring">}</span></code></pre>
+<p><strong>Anti-pattern to avoid:</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ❌ WRONG: Passing interop_path() to archive crate for reading
+let file = std::fs::File::open(path.interop_path())?;
+archive.append_file(path_str, &amp;mut file)?;
+
+// ✅ CORRECT: Read with strict-path, pass bytes
+let content = path.read()?;
+archive.append_data(&amp;mut header, path_str, content.as_slice())?;
+<span class="boring">}</span></code></pre>
+<h3 id="when-interop_path-is-acceptable"><a class="header" href="#when-interop_path-is-acceptable">When <code>interop_path()</code> Is Acceptable</a></h3>
+<blockquote>
+<p>⚠️ <strong>Security Warning</strong>: <code>interop_path()</code> returns the <strong>real host filesystem path</strong>. Never expose it to end-users (API responses, error messages, logs visible to clients). In multi-tenant or cloud scenarios, this leaks internal server structure. Use <code>virtualpath_display()</code> for user-facing output.</p>
+</blockquote>
+<p>Use <code>interop_path()</code> when:</p>
+<ol>
+<li><strong>The crate only needs to read from a validated path</strong> and you’ve already validated it</li>
+<li><strong>The crate provides no way to accept bytes</strong> (rare, but some do)</li>
+<li><strong>You’re passing to strict-path’s own methods</strong> like <code>strict_copy()</code> or <code>strict_rename()</code> which re-validate</li>
+<li><strong>The path will ONLY be used for internal I/O operations</strong> — never returned to end-users</li>
+</ol>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ OK: WalkDir only reads, doesn't write or follow user input
+use walkdir::WalkDir;
+let boundary = PathBoundary::try_new("./data")?;
+for entry in WalkDir::new(boundary.interop_path()) {
+    let entry = entry?;
+    // Re-validate each discovered path before operations
+    if let Ok(relative) = entry.path().strip_prefix(boundary.interop_path()) {
+        let safe_path = boundary.strict_join(relative)?;
+        // Now safe to use
+    }
+}
+
+// ✅ OK: strict_copy re-validates the destination
+let src = boundary.strict_join("file.txt")?;
+src.strict_copy("backup/file.txt")?;  // Destination is re-validated internally
+<span class="boring">}</span></code></pre>
+<p><strong>When NOT to use <code>interop_path()</code>:</strong></p>
+<ul>
+<li>For any write operation to untrusted paths</li>
+<li>When the third-party crate would follow symlinks you haven’t validated</li>
+<li>When you could use strict-path’s built-in I/O instead</li>
+</ul>
+<h3 id="directory-traversal-crates-walkdir-globwalk"><a class="header" href="#directory-traversal-crates-walkdir-globwalk">Directory Traversal Crates (walkdir, globwalk)</a></h3>
+<p>When using directory traversal crates, re-validate discovered paths:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use walkdir::WalkDir;
+
+fn process_all_files(
+    boundary: &amp;PathBoundary,
+) -&gt; std::io::Result&lt;Vec&lt;String&gt;&gt; {
+    let mut results = Vec::new();
+
+    for entry in WalkDir::new(boundary.interop_path()) {
+        let entry = entry?;
+
+        // Skip directories, only process files
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        // Re-validate through strict-path before any I/O
+        let relative = entry.path()
+            .strip_prefix(boundary.interop_path())
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+        let safe_path = boundary.strict_join(relative)?;
+
+        // Now safe to read/process
+        let content = safe_path.read_to_string()?;
+        results.push(content);
+    }
+
+    Ok(results)
+}
+<span class="boring">}</span></code></pre>
+<p><strong>Or use the built-in <code>strict_read_dir()</code> for simpler cases:</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn list_files(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;Vec&lt;String&gt;&gt; {
+    let mut results = Vec::new();
+
+    for entry in boundary.into_strictpath()?.strict_read_dir()? {
+        let path = entry?;
+        if path.is_file() {
+            results.push(path.read_to_string()?);
+        }
+    }
+
+    Ok(results)
+}
+<span class="boring">}</span></code></pre>
+<h3 id="summary-the-read-content-pass-bytes-pattern"><a class="header" href="#summary-the-read-content-pass-bytes-pattern">Summary: The “Read Content, Pass Bytes” Pattern</a></h3>
+<p>For maximum security with third-party crates:</p>
+<ol>
+<li><strong>Validate the path</strong> with <code>strict_join()</code> or <code>virtual_join()</code></li>
+<li><strong>Read content</strong> using strict-path’s built-in I/O (<code>read()</code>, <code>read_to_string()</code>, <code>open_file()</code>)</li>
+<li><strong>Pass bytes/handles</strong> to the third-party crate</li>
+</ol>
+<p>This ensures:</p>
+<ul>
+<li>Path validation happens through strict-path</li>
+<li>No symlink-following surprises from third-party crates</li>
+<li>Clear separation between validation and I/O</li>
+</ul>
 <hr>
 <h2 id="why-no-feature-flags"><a class="header" href="#why-no-feature-flags">Why No Feature Flags?</a></h2>
 <p><strong>Philosophy</strong>: <code>strict-path</code> provides security primitives. You compose them with ecosystem tools.</p>

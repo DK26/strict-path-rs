@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2449cbce.js";
+            window.path_to_searchindex_js = "searchindex-c65ad018.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-21247364.js"></script>
@@ -241,6 +241,52 @@ if Path::new(safe_path.interop_path()).exists() {
     )?;
 }
 <span class="boring">}</span></code></pre>
+<h2 id="leaking-real-paths-to-end-users-security-critical"><a class="header" href="#leaking-real-paths-to-end-users-security-critical">Leaking Real Paths to End-Users (Security Critical)</a></h2>
+<p><strong>❌ What not to do:</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Cloud storage API - user requests file info
+fn get_file_info(user_root: &amp;VirtualRoot, filename: &amp;str) -&gt; FileInfo {
+    let vpath = user_root.virtual_join(filename)?;
+    FileInfo {
+        name: filename.to_string(),
+        // ❌ SECURITY HOLE: Exposes real host path to cloud client!
+        path: vpath.interop_path().to_string_lossy().to_string(),
+        size: vpath.metadata()?.len(),
+    }
+}
+// User sees: "path": "/var/app/cloud-storage/tenant-42/docs/report.pdf"
+// They now know your server structure!
+<span class="boring">}</span></code></pre>
+<p><strong>Why it’s dangerous:</strong> <code>interop_path()</code> returns the <strong>real filesystem path on your host</strong>. In multi-tenant systems, cloud services, or any scenario where users shouldn’t know the actual server structure, exposing this path is an <strong>information leakage vulnerability</strong>:</p>
+<ul>
+<li>Reveals internal directory structure to attackers</li>
+<li>Exposes tenant IDs, usernames, or internal identifiers in paths</li>
+<li>Breaks the isolation abstraction that VirtualPath provides</li>
+<li>May expose sensitive infrastructure details (mount points, container paths, etc.)</li>
+</ul>
+<p><strong>✅ Do this instead:</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn get_file_info(user_root: &amp;VirtualRoot, filename: &amp;str) -&gt; FileInfo {
+    let vpath = user_root.virtual_join(filename)?;
+    FileInfo {
+        name: filename.to_string(),
+        // ✅ CORRECT: Show virtual path, hide real host structure
+        path: vpath.virtualpath_display().to_string(),
+        size: vpath.metadata()?.len(),
+    }
+}
+// User sees: "path": "/docs/report.pdf"
+// Clean virtual view - no host structure exposed!
+<span class="boring">}</span></code></pre>
+<p><strong>The rule:</strong> <code>interop_path()</code> is <strong>only</strong> for passing to OS/library calls that need the real path to function. It should <strong>never</strong> appear in:</p>
+<ul>
+<li>API responses to clients</li>
+<li>User-facing error messages</li>
+<li>Logs that users can access</li>
+<li>Any data serialized and sent to end-users</li>
+</ul>
 <p><strong>Why it’s wrong:</strong> <code>StrictPath</code> already has <code>.exists()</code>, <code>.read()</code>, <code>.write()</code>, and other methods. You’re defeating the entire point by converting back to <code>Path</code>, which ignores all security restrictions.</p>
 <p><strong>✅ Do this instead:</strong></p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -252,6 +298,9 @@ if safe_path.exists() {
     safe_path.strict_copy(backup_path.interop_path())?;
 }
 <span class="boring">}</span></code></pre>
+<blockquote>
+<p><strong>✅ Exception:</strong> Passing <code>interop_path()</code> to strict-path’s own methods like <code>strict_copy()</code>, <code>strict_rename()</code>, or <code>strict_symlink()</code> is correct—they <strong>re-validate</strong> the destination path against the boundary before performing the operation. This is intentional API design, not a security hole.</p>
+</blockquote>
 <h2 id="using-std-path-operations-on-leaked-values"><a class="header" href="#using-std-path-operations-on-leaked-values">Using std Path Operations on Leaked Values</a></h2>
 <p><strong>❌ What not to do:</strong></p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]

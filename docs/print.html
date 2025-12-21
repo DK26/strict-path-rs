@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2449cbce.js";
+            window.path_to_searchindex_js = "searchindex-c65ad018.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-21247364.js"></script>
@@ -3284,6 +3284,11 @@ safe_file.write(data)?;
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="real-world-examples"><a class="header" href="#real-world-examples">Real-World Examples</a></h1>
 <p>This section shows practical, real-world scenarios where strict-path helps secure your applications. Each example includes complete, runnable code that you can adapt to your own projects.</p>
+<blockquote>
+<p><strong>📖 How to Read Examples</strong></p>
+<p>In examples, string literals passed to <code>strict_join()</code> or <code>virtual_join()</code> represent <strong>external input</strong> that would come from HTTP requests, CLI arguments, configuration files, or archive entries in production. The validation pattern is identical whether the input is a literal or a variable — strict-path validates the path regardless of source.</p>
+<p>When adapting examples to your code, replace these literals with your actual untrusted input sources.</p>
+</blockquote>
 <h2 id="-example-categories"><a class="header" href="#-example-categories">📚 Example Categories</a></h2>
 <h3 id="web-applications"><a class="header" href="#web-applications">Web Applications</a></h3>
 <ul>
@@ -6266,6 +6271,7 @@ curl http://localhost:3000/users/user_001/files
 <li><a href="#portable-application-paths-app-path">Portable Application Paths (app-path)</a></li>
 <li><a href="#os-standard-directories-dirs">OS Standard Directories (dirs)</a></li>
 <li><a href="#serialization--deserialization-serde">Serialization &amp; Deserialization (serde)</a></li>
+<li><a href="#third-party-crate-integration-patterns">Third-Party Crate Integration Patterns</a></li>
 </ul>
 <hr>
 <h2 id="temporary-directories-tempfile-1"><a class="header" href="#temporary-directories-tempfile-1">Temporary Directories (tempfile)</a></h2>
@@ -6773,6 +6779,154 @@ fn serialize_paths() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     Ok(())
 }
 <span class="boring">}</span></code></pre>
+<hr>
+<h2 id="third-party-crate-integration-patterns"><a class="header" href="#third-party-crate-integration-patterns">Third-Party Crate Integration Patterns</a></h2>
+<p>When integrating with crates like <code>tar</code>, <code>zip</code>, <code>walkdir</code>, or other filesystem libraries, follow these patterns to maintain security.</p>
+<h3 id="archive-crates-tar-zip"><a class="header" href="#archive-crates-tar-zip">Archive Crates (tar, zip)</a></h3>
+<p>Archive crates often expect file handles or byte slices. Use strict-path’s built-in I/O to read content, then pass bytes to the archive crate.</p>
+<p><strong>Pattern: Read with strict-path, write with archive crate</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use tar::Builder;
+
+fn create_archive(
+    source_dir: &amp;PathBoundary,
+    files: &amp;[&amp;str],  // Untrusted file list from user/config
+) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    let mut archive = Builder::new(Vec::new());
+
+    for requested_file in files {
+        // Validate each path through strict-path
+        let safe_path = source_dir.strict_join(requested_file)?;
+
+        // Read content using strict-path's I/O
+        let content = safe_path.read()?;
+
+        // Pass bytes to archive crate (no path escapes possible)
+        let mut header = tar::Header::new_gnu();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+
+        archive.append_data(&amp;mut header, requested_file, content.as_slice())?;
+    }
+
+    archive.into_inner()
+}
+<span class="boring">}</span></code></pre>
+<p><strong>Anti-pattern to avoid:</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ❌ WRONG: Passing interop_path() to archive crate for reading
+let file = std::fs::File::open(path.interop_path())?;
+archive.append_file(path_str, &amp;mut file)?;
+
+// ✅ CORRECT: Read with strict-path, pass bytes
+let content = path.read()?;
+archive.append_data(&amp;mut header, path_str, content.as_slice())?;
+<span class="boring">}</span></code></pre>
+<h3 id="when-interop_path-is-acceptable"><a class="header" href="#when-interop_path-is-acceptable">When <code>interop_path()</code> Is Acceptable</a></h3>
+<blockquote>
+<p>⚠️ <strong>Security Warning</strong>: <code>interop_path()</code> returns the <strong>real host filesystem path</strong>. Never expose it to end-users (API responses, error messages, logs visible to clients). In multi-tenant or cloud scenarios, this leaks internal server structure. Use <code>virtualpath_display()</code> for user-facing output.</p>
+</blockquote>
+<p>Use <code>interop_path()</code> when:</p>
+<ol>
+<li><strong>The crate only needs to read from a validated path</strong> and you’ve already validated it</li>
+<li><strong>The crate provides no way to accept bytes</strong> (rare, but some do)</li>
+<li><strong>You’re passing to strict-path’s own methods</strong> like <code>strict_copy()</code> or <code>strict_rename()</code> which re-validate</li>
+<li><strong>The path will ONLY be used for internal I/O operations</strong> — never returned to end-users</li>
+</ol>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ OK: WalkDir only reads, doesn't write or follow user input
+use walkdir::WalkDir;
+let boundary = PathBoundary::try_new("./data")?;
+for entry in WalkDir::new(boundary.interop_path()) {
+    let entry = entry?;
+    // Re-validate each discovered path before operations
+    if let Ok(relative) = entry.path().strip_prefix(boundary.interop_path()) {
+        let safe_path = boundary.strict_join(relative)?;
+        // Now safe to use
+    }
+}
+
+// ✅ OK: strict_copy re-validates the destination
+let src = boundary.strict_join("file.txt")?;
+src.strict_copy("backup/file.txt")?;  // Destination is re-validated internally
+<span class="boring">}</span></code></pre>
+<p><strong>When NOT to use <code>interop_path()</code>:</strong></p>
+<ul>
+<li>For any write operation to untrusted paths</li>
+<li>When the third-party crate would follow symlinks you haven’t validated</li>
+<li>When you could use strict-path’s built-in I/O instead</li>
+</ul>
+<h3 id="directory-traversal-crates-walkdir-globwalk"><a class="header" href="#directory-traversal-crates-walkdir-globwalk">Directory Traversal Crates (walkdir, globwalk)</a></h3>
+<p>When using directory traversal crates, re-validate discovered paths:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+use walkdir::WalkDir;
+
+fn process_all_files(
+    boundary: &amp;PathBoundary,
+) -&gt; std::io::Result&lt;Vec&lt;String&gt;&gt; {
+    let mut results = Vec::new();
+
+    for entry in WalkDir::new(boundary.interop_path()) {
+        let entry = entry?;
+
+        // Skip directories, only process files
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        // Re-validate through strict-path before any I/O
+        let relative = entry.path()
+            .strip_prefix(boundary.interop_path())
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+        let safe_path = boundary.strict_join(relative)?;
+
+        // Now safe to read/process
+        let content = safe_path.read_to_string()?;
+        results.push(content);
+    }
+
+    Ok(results)
+}
+<span class="boring">}</span></code></pre>
+<p><strong>Or use the built-in <code>strict_read_dir()</code> for simpler cases:</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use strict_path::PathBoundary;
+
+fn list_files(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;Vec&lt;String&gt;&gt; {
+    let mut results = Vec::new();
+
+    for entry in boundary.into_strictpath()?.strict_read_dir()? {
+        let path = entry?;
+        if path.is_file() {
+            results.push(path.read_to_string()?);
+        }
+    }
+
+    Ok(results)
+}
+<span class="boring">}</span></code></pre>
+<h3 id="summary-the-read-content-pass-bytes-pattern"><a class="header" href="#summary-the-read-content-pass-bytes-pattern">Summary: The “Read Content, Pass Bytes” Pattern</a></h3>
+<p>For maximum security with third-party crates:</p>
+<ol>
+<li><strong>Validate the path</strong> with <code>strict_join()</code> or <code>virtual_join()</code></li>
+<li><strong>Read content</strong> using strict-path’s built-in I/O (<code>read()</code>, <code>read_to_string()</code>, <code>open_file()</code>)</li>
+<li><strong>Pass bytes/handles</strong> to the third-party crate</li>
+</ol>
+<p>This ensures:</p>
+<ul>
+<li>Path validation happens through strict-path</li>
+<li>No symlink-following surprises from third-party crates</li>
+<li>Clear separation between validation and I/O</li>
+</ul>
 <hr>
 <h2 id="why-no-feature-flags-1"><a class="header" href="#why-no-feature-flags-1">Why No Feature Flags?</a></h2>
 <p><strong>Philosophy</strong>: <code>strict-path</code> provides security primitives. You compose them with ecosystem tools.</p>
@@ -7303,12 +7457,18 @@ for name in files {
 <hr>
 <h2 id="interop--display"><a class="header" href="#interop--display">Interop &amp; Display</a></h2>
 <p><strong>Interop</strong> (pass to <code>AsRef&lt;Path&gt;</code> APIs): <code>path.interop_path()</code> — no allocations</p>
+<p>⚠️ <strong>SECURITY WARNING</strong>: <code>interop_path()</code> returns the <strong>real host filesystem path</strong>. Use it <strong>only</strong> for:</p>
+<ul>
+<li>Passing to third-party crates that require <code>AsRef&lt;Path&gt;</code> for I/O operations</li>
+<li>Internal system operations where the real path is needed</li>
+</ul>
+<p><strong>NEVER</strong> expose <code>interop_path()</code> to end-users (API responses, error messages, logs). In multi-tenant or cloud scenarios, this leaks your server’s internal structure.</p>
 <p><strong>Display:</strong></p>
 <ul>
-<li>System paths: <code>strictpath_display()</code> on <code>PathBoundary</code>/<code>StrictPath</code></li>
-<li>User-facing: <code>virtualpath_display()</code> on <code>VirtualPath</code></li>
+<li>System paths (internal/admin): <code>strictpath_display()</code> on <code>PathBoundary</code>/<code>StrictPath</code></li>
+<li>User-facing (clients/tenants): <code>virtualpath_display()</code> on <code>VirtualPath</code> — hides real host paths</li>
 </ul>
-<p><strong>Never</strong>: <code>interop_path().to_string_lossy()</code> for display</p>
+<p><strong>Never</strong>: <code>interop_path().to_string_lossy()</code> for any user-visible output</p>
 <hr>
 <h2 id="directory-discovery-vs-validation"><a class="header" href="#directory-discovery-vs-validation">Directory Discovery vs Validation</a></h2>
 <p><strong>Discovery</strong> (walking): Use <code>.read_dir()</code>, collect names via <code>entry.file_name()</code></p>
@@ -7376,9 +7536,12 @@ for name in files {
 <li><strong>Filenames</strong>: <code>strictpath_with_file_name(..)</code> / <code>strictpath_with_extension(..)</code> — modify names/extensions</li>
 <li><strong>Rename</strong>: <code>strict_rename(..)</code> / <code>virtual_rename(..)</code> — move/rename within boundary</li>
 <li><strong>Deletion</strong>: <code>.remove_file()</code>, <code>.remove_dir()</code>, <code>.remove_dir_all()</code> — safe deletion</li>
-<li><strong>Metadata</strong>: <code>.metadata()</code>, <code>.exists()</code>, <code>.is_file()</code>, <code>.is_dir()</code> — inspect properties</li>
+<li><strong>Metadata</strong>: <code>.metadata()</code>, <code>.exists()</code>, <code>.try_exists()</code>, <code>.is_file()</code>, <code>.is_dir()</code> — inspect properties</li>
 <li><strong>Copy</strong>: <code>.copy(&amp;dest)</code> — duplicate files</li>
-<li><strong>I/O</strong>: <code>.read()</code>, <code>.read_to_string()</code>, <code>.write()</code>, <code>.create_file()</code> — file operations</li>
+<li><strong>I/O</strong>: <code>.read()</code>, <code>.read_to_string()</code>, <code>.write()</code>, <code>.append()</code>, <code>.create_file()</code>, <code>.touch()</code>, <code>.open_with()</code> — file operations</li>
+<li><strong>Links</strong>: <code>.strict_symlink()</code>, <code>.strict_read_link()</code> / <code>.virtual_symlink()</code>, <code>.virtual_read_link()</code> — symbolic links</li>
+<li><strong>Permissions</strong>: <code>.set_permissions()</code> — modify file permissions</li>
+<li><strong>Directories</strong>: <code>.create_dir()</code>, <code>.create_dir_all()</code>, <code>.strict_read_dir()</code> / <code>.virtual_read_dir()</code> — directory operations</li>
 </ul>
 <p>→ <strong><a href="#common-operations-guide">Complete operations guide with examples →</a></strong></p>
 <h2 id="naming-conventions"><a class="header" href="#naming-conventions">Naming Conventions</a></h2>
@@ -9564,6 +9727,52 @@ if Path::new(safe_path.interop_path()).exists() {
     )?;
 }
 <span class="boring">}</span></code></pre>
+<h2 id="leaking-real-paths-to-end-users-security-critical"><a class="header" href="#leaking-real-paths-to-end-users-security-critical">Leaking Real Paths to End-Users (Security Critical)</a></h2>
+<p><strong>❌ What not to do:</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Cloud storage API - user requests file info
+fn get_file_info(user_root: &amp;VirtualRoot, filename: &amp;str) -&gt; FileInfo {
+    let vpath = user_root.virtual_join(filename)?;
+    FileInfo {
+        name: filename.to_string(),
+        // ❌ SECURITY HOLE: Exposes real host path to cloud client!
+        path: vpath.interop_path().to_string_lossy().to_string(),
+        size: vpath.metadata()?.len(),
+    }
+}
+// User sees: "path": "/var/app/cloud-storage/tenant-42/docs/report.pdf"
+// They now know your server structure!
+<span class="boring">}</span></code></pre>
+<p><strong>Why it’s dangerous:</strong> <code>interop_path()</code> returns the <strong>real filesystem path on your host</strong>. In multi-tenant systems, cloud services, or any scenario where users shouldn’t know the actual server structure, exposing this path is an <strong>information leakage vulnerability</strong>:</p>
+<ul>
+<li>Reveals internal directory structure to attackers</li>
+<li>Exposes tenant IDs, usernames, or internal identifiers in paths</li>
+<li>Breaks the isolation abstraction that VirtualPath provides</li>
+<li>May expose sensitive infrastructure details (mount points, container paths, etc.)</li>
+</ul>
+<p><strong>✅ Do this instead:</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn get_file_info(user_root: &amp;VirtualRoot, filename: &amp;str) -&gt; FileInfo {
+    let vpath = user_root.virtual_join(filename)?;
+    FileInfo {
+        name: filename.to_string(),
+        // ✅ CORRECT: Show virtual path, hide real host structure
+        path: vpath.virtualpath_display().to_string(),
+        size: vpath.metadata()?.len(),
+    }
+}
+// User sees: "path": "/docs/report.pdf"
+// Clean virtual view - no host structure exposed!
+<span class="boring">}</span></code></pre>
+<p><strong>The rule:</strong> <code>interop_path()</code> is <strong>only</strong> for passing to OS/library calls that need the real path to function. It should <strong>never</strong> appear in:</p>
+<ul>
+<li>API responses to clients</li>
+<li>User-facing error messages</li>
+<li>Logs that users can access</li>
+<li>Any data serialized and sent to end-users</li>
+</ul>
 <p><strong>Why it’s wrong:</strong> <code>StrictPath</code> already has <code>.exists()</code>, <code>.read()</code>, <code>.write()</code>, and other methods. You’re defeating the entire point by converting back to <code>Path</code>, which ignores all security restrictions.</p>
 <p><strong>✅ Do this instead:</strong></p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -9575,6 +9784,9 @@ if safe_path.exists() {
     safe_path.strict_copy(backup_path.interop_path())?;
 }
 <span class="boring">}</span></code></pre>
+<blockquote>
+<p><strong>✅ Exception:</strong> Passing <code>interop_path()</code> to strict-path’s own methods like <code>strict_copy()</code>, <code>strict_rename()</code>, or <code>strict_symlink()</code> is correct—they <strong>re-validate</strong> the destination path against the boundary before performing the operation. This is intentional API design, not a security hole.</p>
+</blockquote>
 <h2 id="using-std-path-operations-on-leaked-values"><a class="header" href="#using-std-path-operations-on-leaked-values">Using std Path Operations on Leaked Values</a></h2>
 <p><strong>❌ What not to do:</strong></p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -10805,6 +11017,42 @@ match file.read_to_string() {
 <li>Avoid: <code>boundary</code>, <code>jail</code>, <code>source_</code> prefixes, or one-letter variables.</li>
 <li>Keep names consistent with the directory they represent and convey intent in code review.</li>
 </ul>
+<hr>
+<h2 id="quick-reference-table"><a class="header" href="#quick-reference-table">Quick Reference Table</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Context</th><th>✅ Good Names</th><th>❌ Avoid</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Untrusted input</strong></td><td><code>requested_file</code>, <code>user_input</code>, <code>uploaded_data</code>, <code>attack_input</code></td><td><code>filename</code>, <code>path</code>, <code>name</code>, <code>file</code></td></tr>
+<tr><td><strong>Boundaries</strong></td><td><code>uploads_root</code>, <code>config_dir</code>, <code>archive_src</code>, <code>static_assets</code></td><td><code>boundary</code>, <code>jail</code>, <code>root</code>, <code>b</code></td></tr>
+<tr><td><strong>Virtual roots</strong></td><td><code>user_vroot</code>, <code>tenant_sandbox</code>, <code>project_root</code></td><td><code>vroot</code>, <code>vr</code>, <code>sandbox</code></td></tr>
+<tr><td><strong>Markers</strong></td><td><code>UserUploads</code>, <code>MediaLibrary</code>, <code>BrandAssets</code></td><td><code>UserUploadsMarker</code>, <code>Root</code>, <code>Type</code></td></tr>
+<tr><td><strong>Paths</strong></td><td><code>avatar_file</code>, <code>config_path</code>, <code>entry_path</code></td><td><code>p</code>, <code>f</code>, <code>temp</code>, <code>x</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="why-this-matters-1"><a class="header" href="#why-this-matters-1">Why This Matters</a></h3>
+<p>Variable names are documentation. When reviewing security-critical code, names should immediately communicate:</p>
+<ol>
+<li><strong>What is being validated</strong> — <code>requested_file</code> screams “this came from outside”</li>
+<li><strong>What boundary protects it</strong> — <code>uploads_root</code> explains the restriction</li>
+<li><strong>What marker type encodes</strong> — <code>UserUploads</code> tells you what’s stored</li>
+</ol>
+<p><strong>Anti-pattern example:</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ❌ What is `filename`? Where did it come from? Is it safe?
+let path = boundary.strict_join(filename)?;
+<span class="boring">}</span></code></pre>
+<p><strong>Improved:</strong></p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// ✅ Obvious: user-provided input being validated against upload boundary
+let avatar_path = user_uploads_root.strict_join(requested_avatar_filename)?;
+<span class="boring">}</span></code></pre>
+<hr>
 <h3 id="marker-types"><a class="header" href="#marker-types">Marker Types</a></h3>
 <ul>
 <li>Name markers after the storage domain (<code>struct PublicAssets;</code>, <code>struct BrandEditorWorkspace;</code>). Reviewers should understand the filesystem contents from the type alone.</li>

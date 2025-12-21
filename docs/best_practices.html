@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2449cbce.js";
+            window.path_to_searchindex_js = "searchindex-c65ad018.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-21247364.js"></script>
@@ -321,12 +321,18 @@ for name in files {
 <hr>
 <h2 id="interop--display"><a class="header" href="#interop--display">Interop &amp; Display</a></h2>
 <p><strong>Interop</strong> (pass to <code>AsRef&lt;Path&gt;</code> APIs): <code>path.interop_path()</code> — no allocations</p>
+<p>⚠️ <strong>SECURITY WARNING</strong>: <code>interop_path()</code> returns the <strong>real host filesystem path</strong>. Use it <strong>only</strong> for:</p>
+<ul>
+<li>Passing to third-party crates that require <code>AsRef&lt;Path&gt;</code> for I/O operations</li>
+<li>Internal system operations where the real path is needed</li>
+</ul>
+<p><strong>NEVER</strong> expose <code>interop_path()</code> to end-users (API responses, error messages, logs). In multi-tenant or cloud scenarios, this leaks your server’s internal structure.</p>
 <p><strong>Display:</strong></p>
 <ul>
-<li>System paths: <code>strictpath_display()</code> on <code>PathBoundary</code>/<code>StrictPath</code></li>
-<li>User-facing: <code>virtualpath_display()</code> on <code>VirtualPath</code></li>
+<li>System paths (internal/admin): <code>strictpath_display()</code> on <code>PathBoundary</code>/<code>StrictPath</code></li>
+<li>User-facing (clients/tenants): <code>virtualpath_display()</code> on <code>VirtualPath</code> — hides real host paths</li>
 </ul>
-<p><strong>Never</strong>: <code>interop_path().to_string_lossy()</code> for display</p>
+<p><strong>Never</strong>: <code>interop_path().to_string_lossy()</code> for any user-visible output</p>
 <hr>
 <h2 id="directory-discovery-vs-validation"><a class="header" href="#directory-discovery-vs-validation">Directory Discovery vs Validation</a></h2>
 <p><strong>Discovery</strong> (walking): Use <code>.read_dir()</code>, collect names via <code>entry.file_name()</code></p>
@@ -394,9 +400,12 @@ for name in files {
 <li><strong>Filenames</strong>: <code>strictpath_with_file_name(..)</code> / <code>strictpath_with_extension(..)</code> — modify names/extensions</li>
 <li><strong>Rename</strong>: <code>strict_rename(..)</code> / <code>virtual_rename(..)</code> — move/rename within boundary</li>
 <li><strong>Deletion</strong>: <code>.remove_file()</code>, <code>.remove_dir()</code>, <code>.remove_dir_all()</code> — safe deletion</li>
-<li><strong>Metadata</strong>: <code>.metadata()</code>, <code>.exists()</code>, <code>.is_file()</code>, <code>.is_dir()</code> — inspect properties</li>
+<li><strong>Metadata</strong>: <code>.metadata()</code>, <code>.exists()</code>, <code>.try_exists()</code>, <code>.is_file()</code>, <code>.is_dir()</code> — inspect properties</li>
 <li><strong>Copy</strong>: <code>.copy(&amp;dest)</code> — duplicate files</li>
-<li><strong>I/O</strong>: <code>.read()</code>, <code>.read_to_string()</code>, <code>.write()</code>, <code>.create_file()</code> — file operations</li>
+<li><strong>I/O</strong>: <code>.read()</code>, <code>.read_to_string()</code>, <code>.write()</code>, <code>.append()</code>, <code>.create_file()</code>, <code>.touch()</code>, <code>.open_with()</code> — file operations</li>
+<li><strong>Links</strong>: <code>.strict_symlink()</code>, <code>.strict_read_link()</code> / <code>.virtual_symlink()</code>, <code>.virtual_read_link()</code> — symbolic links</li>
+<li><strong>Permissions</strong>: <code>.set_permissions()</code> — modify file permissions</li>
+<li><strong>Directories</strong>: <code>.create_dir()</code>, <code>.create_dir_all()</code>, <code>.strict_read_dir()</code> / <code>.virtual_read_dir()</code> — directory operations</li>
 </ul>
 <p>→ <strong><a href="./best_practices/common_operations.html">Complete operations guide with examples →</a></strong></p>
 <h2 id="naming-conventions"><a class="header" href="#naming-conventions">Naming Conventions</a></h2>
