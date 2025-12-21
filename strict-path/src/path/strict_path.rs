@@ -914,7 +914,7 @@ impl<Marker> StrictPath<Marker> {
         let target_path = strip_verbatim_prefix(self.path());
         let link_path = strip_verbatim_prefix(validated_link.path());
 
-        junction::create(target_path.as_ref(), link_path.as_ref())
+        junction_verbatim::create(target_path.as_ref(), link_path.as_ref())
     }
 
     /// SUMMARY:
