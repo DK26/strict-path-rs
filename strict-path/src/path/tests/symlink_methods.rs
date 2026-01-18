@@ -273,8 +273,7 @@ fn strictpath_symlink_metadata_reports_link_entry() {
                 dir_target.create_dir_all().unwrap();
                 let dir_link = boundary.strict_join("links/junc").unwrap();
                 dir_link.create_parent_dir_all().unwrap();
-                junction_verbatim::create(dir_target.interop_path(), dir_link.interop_path())
-                    .unwrap();
+                junction::create(dir_target.interop_path(), dir_link.interop_path()).unwrap();
                 assert!(dir_link.symlink_metadata().is_ok());
                 assert!(dir_link.metadata().is_ok());
             }
@@ -338,8 +337,7 @@ fn virtualpath_symlink_metadata_reports_link_entry() {
                 strict_target.create_dir_all().unwrap();
                 let strict_link = boundary.strict_join("links/junc").unwrap();
                 strict_link.create_parent_dir_all().unwrap();
-                junction_verbatim::create(strict_target.interop_path(), strict_link.interop_path())
-                    .unwrap();
+                junction::create(strict_target.interop_path(), strict_link.interop_path()).unwrap();
 
                 // Verify via virtual view using relative path
                 let dir_link = vroot.virtual_join("links/junc").unwrap();
