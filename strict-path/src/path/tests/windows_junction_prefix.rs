@@ -146,7 +146,7 @@ fn test_junction_creation_with_verbatim_target() {
     // Create junction using canonicalized (verbatim) target
     // This would FAIL with junction 1.3, but should WORK with DK26 fork
     let junction_path = td.path().join("test_junction");
-    if let Err(e) = junction_verbatim::create(&canonical_target, &junction_path) {
+    if let Err(e) = junction::create(&canonical_target, &junction_path) {
         panic!("Junction creation with verbatim target failed (DK26 fork should fix this): {e:?}");
     }
 
@@ -185,8 +185,7 @@ fn test_soft_canonicalize_handles_junction_prefix_mismatch() {
     std::fs::create_dir_all(anchor.join("real_data")).unwrap();
 
     // Create junction (junction targets are stored as non-verbatim internally by Windows)
-    if let Err(e) = junction_verbatim::create(anchor.join("real_data"), anchor.join("link_to_data"))
-    {
+    if let Err(e) = junction::create(anchor.join("real_data"), anchor.join("link_to_data")) {
         eprintln!("Skipping test: failed to create junction: {e:?}");
         return;
     }

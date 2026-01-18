@@ -31,6 +31,7 @@
 //!     .strict_join(&untrusted_user_input)?; // Validates untrusted input - attack blocked!
 //!
 //! let contents = file.read()?; // Built-in safe I/O
+//! # let _ = &contents; // send_response(contents);
 //! # Ok(()) }
 //! ```
 //!
@@ -99,8 +100,8 @@
 //! this crate protects against:
 //! - **CVE-2025-8088** (NTFS ADS path traversal)
 //! - **CVE-2022-21658** (TOCTOU attacks)
-//! - **CVE-2019-9855, CVE-2020-12279** (Windows 8.3 short names)
-//! - Path traversal, symlink attacks, Unicode normalization bypasses, race conditions
+//! - **CVE-2019-9855, CVE-2020-12279, CVE-2017-17793** (Windows 8.3 short names)
+//! - Path traversal, symlink attacks, Unicode normalization bypasses, null byte injection, race conditions
 //!
 //! > **Trade-off:** Security is prioritized above performance. This crate verifies paths on disk
 //! > and follows symlinks for validation. If your use case doesn't involve symlinks and you need
@@ -166,6 +167,8 @@
 //!
 //! - **[LLM Context (Full)](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md)** —
 //!   Concise, copy-pastable reference optimized for AI assistants
+//! - **[LLM Context (Context7)](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md)** —
+//!   Context7-style usage guide for AI agents
 //! - **[Complete Guide](https://dk26.github.io/strict-path-rs/)** — Comprehensive documentation with examples
 //! - **[API Reference](https://docs.rs/strict-path)** — Full type and method documentation
 //! - **[Repository](https://github.com/DK26/strict-path-rs)** — Source code and issue tracker
