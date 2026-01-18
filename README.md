@@ -9,21 +9,15 @@
 [![Protected CVEs](https://img.shields.io/badge/protected%20CVEs-19%2B-brightgreen.svg)](https://github.com/DK26/strict-path-rs/blob/main/strict-path/src/path/tests/cve_2025_11001.rs)
 [![Type-State Police](https://img.shields.io/badge/protected%20by-Type--State%20Police-blue.svg)](https://github.com/DK26/strict-path-rs)
 
-📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)** | 🧭 **[Choosing Canonicalized vs Lexical Solution](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)**
+**Handle paths from external or unknown sources securely.** `strict-path` defends against 19+ real-world CVEs including symlinks, Windows 8.3 short names, and encoding tricks and exploits.
 
-**Handle paths from external or unknown sources securely.** strict-path uses Rust's type system to mathematically prove that paths always stay within defined boundaries—no escapes in any shape or form, symlinks included. Choose **StrictPath** (via `PathBoundary`) to detect and reject escape attempts, or **VirtualPath** (via `VirtualRoot`) to contain and clamp them within a virtual sandbox.
-
-Built on [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs) (with [`proc-canonicalize`](https://github.com/DK26/proc-canonicalize-rs) for Linux container support), defending against 19+ real-world CVEs including symlinks, Windows 8.3 short names, and encoding tricks.
-
-> **API Philosophy:** Minimal, restrictive, and explicit—designed to prevent and easily detect both human and LLM agent API misuse. Security is prioritized above performance; if your use case doesn't involve symlinks and you need to squeeze every bit of performance, a lexical-only solution may be a better fit.
-
----
+> **Analogy:** `strict-path` is to paths what prepared statements are to SQL.
 
 ## ⚡ **Get Secure in 30 Seconds**
 
 ```toml
 [dependencies]
-strict-path = "0.1.0"
+strict-path = "0.1"
 ```
 
 ```rust
@@ -35,40 +29,9 @@ let untrusted_user_input = request.query_param("file").to_string(); // Untrusted
 let file = StrictPath::with_boundary("/var/app/downloads")?
     .strict_join(&untrusted_user_input)?; // Validates untrusted input - attack blocked!
 
-let contents = file.read()?; // Safe built-in I/O sugar operation
+let contents = file.read()?; // Safe built-in I/O
+send_response(contents);
 ```
-
-**That's it.** Simple, safe, and path traversal attacks are blocked automatically.
-
-> **Analogy:** `StrictPath` is to paths what prepared statements are to SQL. The boundary is your prepared statement (the policy). The untrusted segment is the parameter (validated safely). Injection attempts become inert.
-
-### Which type should I use?
-
-- **Path/PathBuf** (std): When the path comes from a safe source within your control, not external input.
-- **StrictPath**: When you want to restrict paths to a specific boundary and error if they escape.
-- **VirtualPath**: When you want to provide path freedom under isolation.
-
-See the detailed decision matrix below: **StrictPath vs VirtualPath: When to Use What**.
-
-**For reusable boundaries** (e.g., passing to functions):
-
-```rust
-use strict_path::PathBoundary;
-
-fn extract_archive(
-    extraction_dir: PathBoundary,
-    entries: Vec<(String, Vec<u8>)>) -> std::io::Result<()> {
-    
-    for (entry_name, data) in entries {
-        let safe_file = extraction_dir.strict_join(&entry_name)?;
-        safe_file.create_parent_dir_all()?;
-        safe_file.write(&data)?;
-    }
-    Ok(())
-}
-```
-
-> 📖 **New to strict-path?** Start with the **[Tutorial: Chapter 1 - The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/chapter1_basic_promise.html)**
 
 > **Note:** Our doc comments and [LLM_CONTEXT_FULL.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md) are designed for LLMs with function calling—enabling AI agents to use this crate safely and correctly for file and path operations.
 > 
@@ -86,15 +49,84 @@ fn extract_archive(
 > https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md
 > ```
 
+> 📖 **New to strict-path?** Start with the **[Tutorial: Chapter 1 - The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/chapter1_basic_promise.html)**
+
+
+## 🛡️ **Complete Path Security**
+
+**strict-path handles edge cases you'd never think to check:**
+
+1. **🔧 [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs) foundation**: Battle-tested against 19+ real-world path CVE scenarios
+2. **🔗 Full canonicalization**: Resolves symlinks, junctions, `.`/`..` components, handles race conditions
+3. **🚫 Advanced attacks**: Catches Windows 8.3 short names (`PROGRA~1`), UNC paths, NTFS ADS, encoding tricks
+4. **📐 Compile-time proof**: Rust's type system enforces path boundaries
+5. **👁️ Explicit operations**: Method names like `strict_join()` make security visible in code review
+6. **🛡️ Built-in I/O**: Complete filesystem API
+7. **🤖 LLM-aware**: Built for untrusted AI-generated code and modern threat models
+8. **⚡ Dual modes**: **PathBoundary** (detection & rejection) or **VirtualRoot** (clamping & containing)
+
+**Real attacks we handle automatically:**
+- Path traversal (`../../../etc/passwd`)
+- Symlink/junction escapes
+- Windows 8.3 short names (`PROGRA~1` → `Program Files`)
+- NTFS Alternate Data Streams (`file.txt:hidden:$DATA`)
+- Unicode normalization bypasses (`..∕..∕etc∕passwd`)
+- Null byte injection (`file.txt\x00.pdf`)
+- Mixed separators (`../\../etc/passwd`)
+- UNC path tricks (`\\?\C:\..\..\etc\passwd`)
+- Archive attacks (Zip slip - CVE-2018-1000178)
+- Race conditions (TOCTOU - CVE-2022-21658)
+
+**Recently Addressed CVEs:**
+- **CVE-2025-8088** (WinRAR): NTFS Alternate Data Stream traversal
+- **CVE-2022-21658**: Race condition protection (TOCTOU)
+- **CVE-2019-9855, CVE-2020-12279, CVE-2017-17793**: Windows 8.3 short names
+
+**What This Is NOT:**
+- ❌ **Not just string checking** (handles symlinks, Windows quirks)
+- ❌ **Not a kernel based sandbox** (path-level security only)
+
+> 📖 **[Read our complete security methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 📚 **[Built-in I/O Methods →](https://dk26.github.io/strict-path-rs/best_practices.html#builtin-io-operations)**
+
+## 🎯 **StrictPath vs VirtualPath: When to Use What**
+
+### Which type should I use?
+
+- **Path/PathBuf** (std): When the path comes from a safe source within your control, not external input.
+- **StrictPath**: When you want to restrict paths to a specific boundary and error if they escape.
+- **VirtualPath**: When you want to provide path freedom under isolation.
+
+**Choose StrictPath (90% of cases):**
+- Archive extraction, config loading
+- File uploads to shared storage (admin panels, CMS assets, single-tenant apps)
+- LLM/AI agent file operations
+- Shared system resources (logs, cache, assets)
+- **Any case where escaping a path boundary, is considered malicious**
+
+**Choose VirtualPath (10% of cases):**
+- Multi-tenant file uploads (SaaS per-user storage, isolated user directories)
+- Multi-tenant isolation (per-user filesystem views)
+- Malware analysis sandboxes
+- Container-like plugins
+- **Any case where you would like to allow freedom of operations under complete isolation**
+
+> 📖 **[Complete Decision Matrix →](https://dk26.github.io/strict-path-rs/best_practices.html)** | 📚 **[More Examples →](https://dk26.github.io/strict-path-rs/examples.html)**
+
+
+> **API Philosophy:** Minimal, restrictive, and explicit—designed to prevent and easily detect both human and LLM agent API misuse. Security is prioritized above performance; if your use case doesn't involve symlinks and you need to squeeze every bit of performance, a lexical-only solution may be a better fit. `strict-path` accesses the disk to validate and secure paths, by resolving all its components. This predicts correctly where a path would end-up leading to on a disk filesystem by simulating disk access. This method ignores anything a hacker could put as input path string, since we validate only against where the file being accessed from or written to, would end up being.
+
 ---
 
 ## 🚀 **More Real-World Examples**
 
 ### Archive Extraction (Zip Slip Prevention)
 
+`PathBoundary` is a special type that represents a boundary for paths. It is optional, and could be used to express parts in our code where we expect a path to represent a boundary path:
+
 ```rust
 use strict_path::PathBoundary;
 
+// Prevents CVE-2018-1000178 (Zip Slip) automatically (https://snyk.io/research/zip-slip-vulnerability)
 fn extract_archive(
     extraction_dir: PathBoundary,
     archive_entries: impl IntoIterator<Item=(String, Vec<u8>)>) -> std::io::Result<()> {
@@ -109,13 +141,16 @@ fn extract_archive(
 }
 ```
 
-Prevents [CVE-2018-1000178 (Zip Slip)](https://snyk.io/research/zip-slip-vulnerability) automatically.
+> The equivalent `PathBoundary` for `VirtualPath` type is the `VirtualRoot` type.
+
 
 ### Multi-Tenant Isolation
 
 ```rust
 use strict_path::VirtualRoot;
 
+// No path-traversal or symlinks, could escape a tenant. 
+// Everything is clamped to the virtual root, including symlink resolutions.
 fn handle_file_request(tenant_id: &str, requested_path: &str) -> std::io::Result<Vec<u8>> {
     let tenant_root = VirtualRoot::try_new_create(format!("./tenants/{tenant_id}"))?;
     
@@ -125,80 +160,8 @@ fn handle_file_request(tenant_id: &str, requested_path: &str) -> std::io::Result
 }
 ```
 
-### LLM Agent Restriction
-
-```rust
-use strict_path::PathBoundary;
-
-fn execute_agent_file_operation(
-    workspace: &PathBoundary,
-    llm_generated_path: &str,  // LLM output: could be "notes.md" or "../../../etc/passwd"
-) -> std::io::Result<()> {
-    // LLM-generated paths are untrusted — validate before any I/O
-    let safe_file = workspace.strict_join(llm_generated_path)?;
-    safe_file.write(b"agent output")?;
-    Ok(())
-}
-```
-
-Contains AI agents within predefined boundaries—no accidental (or intentional) escapes to sensitive system files.
-
 ---
 
-## 🛡️ **Complete Security Solution**
-
-**strict-path handles edge cases you'd never think to check:**
-
-1. **🔧 [`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs) foundation**: Battle-tested against 19+ real-world path CVEs
-2. **🔗 Full canonicalization**: Resolves symlinks, junctions, `.`/`..` components, handles race conditions
-3. **🚫 Advanced attacks**: Catches Windows 8.3 short names (`PROGRA~1`), UNC paths, NTFS ADS, encoding tricks
-4. **📐 Compile-time proof**: Rust's type system enforces path boundaries
-5. **👁️ Explicit operations**: Method names like `strict_join()` make security visible in code review
-6. **🛡️ Built-in I/O**: Complete filesystem API without needing `.interop_path()`
-7. **🤖 LLM-aware**: Built for untrusted AI-generated paths and modern threat models
-8. **⚡ Dual modes**: **Strict** (detect & reject) or **Virtual** (clamp & contain)
-
-**Real attacks we handle automatically:**
-- Windows 8.3 short names (`PROGRA~1` → `Program Files`)
-- NTFS Alternate Data Streams (`file.txt:hidden:$DATA`)
-- Unicode normalization bypasses (`..∕..∕etc∕passwd`)
-- Symlink time-bombs (TOCTOU race conditions)
-- Mixed separators (`../\../etc/passwd`)
-- UNC path tricks (`\\?\C:\..\..\etc\passwd`)
-
-**Recently Addressed CVEs:**
-- **CVE-2025-8088** (WinRAR): NTFS Alternate Data Stream traversal
-- **CVE-2022-21658**: Race condition protection (TOCTOU)
-- **CVE-2019-9855, CVE-2020-12279, CVE-2017-17793**: Windows 8.3 short names
-
-> 📖 **[Read our complete security methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 📚 **[Built-in I/O Methods →](https://dk26.github.io/strict-path-rs/best_practices.html#builtin-io-operations)**
-
-## 🎯 **StrictPath vs VirtualPath: When to Use What**
-
-**The Core Question**: Are path escapes attacks or expected behavior?
-
-| Mode            | Philosophy                        | Returns on Escape           | Use When                                   |
-| --------------- | --------------------------------- | --------------------------- | ------------------------------------------ |
-| **StrictPath**  | "Detect & reject escape attempts" | `Err(PathEscapesBoundary)`  | Archive extraction, shared storage uploads |
-| **VirtualPath** | "Contain & clamp escape attempts" | Clamped within virtual root | Multi-tenant uploads, per-user isolation   |
-
-**Choose StrictPath (90% of cases):**
-- Archive extraction, config loading
-- File uploads to shared storage (admin panels, CMS assets, single-tenant apps)
-- LLM/AI agent file operations
-- Shared system resources (logs, cache, assets)
-- **Any case where escapes = attacks**
-
-**Choose VirtualPath (10% of cases):**
-- Multi-tenant file uploads (SaaS per-user storage, isolated user directories)
-- Multi-tenant isolation (per-user filesystem views)
-- Malware analysis sandboxes
-- Container-like plugins
-- **Any case where escapes = expected but must be controlled**
-
-> 📖 **[Complete Decision Matrix →](https://dk26.github.io/strict-path-rs/best_practices.html)** | 📚 **[More Examples →](https://dk26.github.io/strict-path-rs/examples.html)**
-
----
 
 ## 🧠 **Compile-Time Safety with Markers**
 
@@ -225,26 +188,11 @@ let sys_file = sys_boundary.strict_join("config.toml")?;
 
 ---
 
-## ⚠️ **Security Coverage**
+### vs `soft-canonicalize`
 
-**Protects Against (99% of attacks):**
-- Path traversal (`../../../etc/passwd`)
-- Symlink/junction escapes
-- Archive attacks (Zip slip - CVE-2018-1000178)
-- Encoding tricks (Unicode, null bytes)
-- Windows attacks (8.3 names, UNC, NTFS ADS)
-- Race conditions (TOCTOU - CVE-2022-21658)
-
-**What This Is / Is NOT:**
-- ✅ **Follows filesystem links** and resolves paths properly
-- ✅ **Works with your permissions** (doesn't replace them)
-- ❌ **Not just string checking** (handles symlinks, Windows quirks)
-- ❌ **Not an OS-level sandbox** (path-level security)
-- ❌ **Not a replacement for proper auth** (validates paths, not users)
-
-**vs. soft-canonicalize:**
+**Compared with manual soft-canonicalize path validations:**
 - `soft-canonicalize` = low-level path resolution engine (returns `PathBuf`)
-- `strict-path` = high-level security API (returns `StrictPath<Marker>` with compile-time guarantees)
+- `strict-path` = high-level security API (returns `StrictPath<Marker>` with compile-time guarantees: fit for LLM era)
 
 > 📖 **[Security Methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 📚 **[Anti-Patterns Guide →](https://dk26.github.io/strict-path-rs/anti_patterns.html)**
 
@@ -277,6 +225,8 @@ Compose with standard Rust crates for complete solutions:
 - 🔧 **[LLM_CONTEXT_FULL.md](LLM_CONTEXT_FULL.md)** - Full API reference for AI agents
 - 📝 **[LLM_CONTEXT.md](LLM_CONTEXT.md)** - Context7-style usage guide for AI agents
 - 🛠️ **[`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)** - Path resolution engine
+
+📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)** | 🧭 **[Choosing Canonicalized vs Lexical Solution](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)**
 
 ---
 
