@@ -49,6 +49,7 @@ let file = StrictPath::with_boundary("/var/app/downloads")?
     .strict_join(&untrusted_user_input)?; // Validates untrusted input - attack blocked!
 
 let contents = file.read()?; // Built-in safe I/O
+send_response(contents);
 ```
 
 **That's it.** Simple, safe, and path traversal attacks are blocked automatically.
