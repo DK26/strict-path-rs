@@ -142,3 +142,31 @@ fn readme_typical_workflow_virtual_links_example() -> Result<(), Box<dyn std::er
 
     Ok(())
 }
+
+#[test]
+fn readme_interop_path_example() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::StrictPath;
+
+    let temp_dir = tempfile::tempdir()?.keep();
+
+    let user_input = "report.txt"; // Simulates untrusted input from HTTP request
+    let validated_file: crate::StrictPath =
+        StrictPath::with_boundary_create(temp_dir.join("data"))?.strict_join(user_input)?;
+
+    // Write via built-in I/O (no interop needed)
+    validated_file.write(b"report contents")?;
+
+    // .interop_path() returns &OsStr, which implements AsRef<Path>
+    let interop = validated_file.interop_path();
+    assert!(std::path::Path::new(interop).exists());
+
+    // Built-in I/O stays within safety boundary
+    let contents = validated_file.read_to_string()?;
+    assert_eq!(contents, "report contents");
+
+    // Display helpers for logging (never expose interop_path to end users)
+    let display = validated_file.strictpath_display().to_string();
+    assert!(display.contains("report.txt"));
+
+    Ok(())
+}
