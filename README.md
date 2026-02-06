@@ -113,7 +113,7 @@ third_party::process(file.interop_path()); // &OsStr — implements AsRef<Path>
 - Container-like plugins
 - **Any case where you would like to allow freedom of operations under complete isolation**
 
-> 📖 **[Complete Decision Matrix →](https://dk26.github.io/strict-path-rs/best_practices.html)** | 📚 **[More Examples →](https://dk26.github.io/strict-path-rs/examples.html)**
+> 📖 **[Complete Decision Matrix →](https://dk26.github.io/strict-path-rs/best_practices.html)** | 📚 **[More Examples →](https://dk26.github.io/strict-path-rs/examples/overview.html)**
 
 ---
 
@@ -253,7 +253,7 @@ Compose with standard Rust crates for complete solutions:
 - 📚 **[User Guide](https://dk26.github.io/strict-path-rs/)** - Tutorials and patterns
   - [Best Practices](https://dk26.github.io/strict-path-rs/best_practices.html) - Detailed decision matrix
   - [Anti-Patterns](https://dk26.github.io/strict-path-rs/anti_patterns.html) - Common mistakes
-  - [Examples](https://dk26.github.io/strict-path-rs/examples.html) - Copy-paste scenarios
+  - [Examples](https://dk26.github.io/strict-path-rs/examples/overview.html) - Copy-paste scenarios
 - 🔧 **[LLM_CONTEXT_FULL.md](LLM_CONTEXT_FULL.md)** - Full API reference for AI agents
 - 📝 **[LLM_CONTEXT.md](LLM_CONTEXT.md)** - Context7-style usage guide for AI agents
 - 🛠️ **[`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)** - Path resolution engine
