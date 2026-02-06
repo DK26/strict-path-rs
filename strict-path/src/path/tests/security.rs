@@ -956,6 +956,89 @@ fn test_windows_nt_prefix_variants_clamped() {
     }
 }
 
+// Black-box: Unicode SEPARATOR lookalikes (fraction slash, fullwidth solidus, etc.) must
+// not be interpreted as path separators for traversal. Verifies the README claim
+// "Unicode normalization bypasses (..∕..∕etc∕passwd)".
+#[cfg(feature = "virtual-path")]
+#[test]
+fn test_unicode_separator_lookalikes_do_not_traverse() {
+    let td = tempfile::tempdir().unwrap();
+    let restriction_dir = td.path().join("j");
+    std::fs::create_dir_all(&restriction_dir).unwrap();
+    let restriction: PathBoundary = PathBoundary::try_new(&restriction_dir).unwrap();
+    let vroot: VirtualRoot<()> = VirtualRoot::try_new(&restriction_dir).unwrap();
+
+    // U+2215 DIVISION SLASH ∕
+    // U+2044 FRACTION SLASH ⁄
+    // U+FF0F FULLWIDTH SOLIDUS ／
+    // U+29F8 BIG SOLIDUS ⧸
+    // These look like `/` but must NOT be treated as separators for traversal.
+    let separator_lookalike_attacks: &[(&str, &str)] = &[
+        (
+            "..\u{2215}..\u{2215}etc\u{2215}passwd",
+            "DIVISION SLASH U+2215",
+        ),
+        (
+            "..\u{2044}..\u{2044}etc\u{2044}passwd",
+            "FRACTION SLASH U+2044",
+        ),
+        (
+            "..\u{FF0F}..\u{FF0F}etc\u{FF0F}passwd",
+            "FULLWIDTH SOLIDUS U+FF0F",
+        ),
+        (
+            "..\u{29F8}..\u{29F8}etc\u{29F8}passwd",
+            "BIG SOLIDUS U+29F8",
+        ),
+        // Mixed: real `..` with Unicode separators
+        (
+            "..\u{2215}etc/passwd",
+            "mixed DIVISION SLASH and real slash",
+        ),
+    ];
+
+    for (attack_input, description) in separator_lookalike_attacks {
+        // StrictPath: must either contain within boundary or reject cleanly
+        match restriction.strict_join(attack_input) {
+            Ok(validated_path) => {
+                assert!(
+                    validated_path.strictpath_starts_with(restriction.interop_path()),
+                    "Unicode separator attack '{description}' escaped boundary: {validated_path:?}"
+                );
+                // The path should treat Unicode separators as literal filename characters
+                // (not as directory separators), so no traversal occurs.
+            }
+            Err(StrictPathError::PathEscapesBoundary { .. })
+            | Err(StrictPathError::PathResolutionError { .. }) => {
+                // Clean rejection is also acceptable
+            }
+            Err(other) => panic!("Unexpected error for '{description}': {other:?}"),
+        }
+
+        // VirtualPath: must clamp within boundary
+        match vroot.virtual_join(attack_input) {
+            Ok(virtual_path) => {
+                assert!(
+                    virtual_path
+                        .as_unvirtual()
+                        .strictpath_starts_with(vroot.interop_path()),
+                    "Virtual join for '{description}' escaped boundary"
+                );
+                let display = virtual_path.virtualpath_display().to_string();
+                assert!(
+                    display.starts_with('/'),
+                    "Virtual display must be rooted for '{description}': {display}"
+                );
+            }
+            Err(StrictPathError::PathEscapesBoundary { .. })
+            | Err(StrictPathError::PathResolutionError { .. }) => {
+                // Clean rejection also acceptable
+            }
+            Err(other) => panic!("Unexpected virtual error for '{description}': {other:?}"),
+        }
+    }
+}
+
 // Black-box: Unicode dot lookalikes should not be treated as traversal; ensure clamping.
 #[cfg(feature = "virtual-path")]
 #[test]
@@ -1491,5 +1574,131 @@ fn test_read_through_symlink_escape_is_blocked() {
             }
         }
         Err(other) => panic!("Unexpected error: {other:?}"),
+    }
+}
+
+// ============================================================
+// Circular/Recursive Symlink Tests
+// ============================================================
+
+/// Security test: circular symlinks (a → b → a) must produce a clean error,
+/// not hang, crash, or cause stack overflow during canonicalization.
+#[cfg(feature = "virtual-path")]
+#[test]
+#[cfg(unix)]
+fn test_circular_symlink_produces_clean_error() {
+    use std::os::unix::fs as unixfs;
+
+    let td = tempfile::tempdir().unwrap();
+    let restriction_dir = td.path().join("boundary");
+    std::fs::create_dir_all(&restriction_dir).unwrap();
+
+    // Create circular symlinks: link_a → link_b, link_b → link_a
+    let link_a = restriction_dir.join("link_a");
+    let link_b = restriction_dir.join("link_b");
+    unixfs::symlink(&link_b, &link_a).unwrap();
+    unixfs::symlink(&link_a, &link_b).unwrap();
+
+    let restriction: PathBoundary = PathBoundary::try_new(&restriction_dir).unwrap();
+    let vroot: VirtualRoot<()> = VirtualRoot::try_new(&restriction_dir).unwrap();
+
+    // StrictPath must produce a clean error (PathResolutionError or PathEscapesBoundary)
+    match restriction.strict_join("link_a") {
+        Err(StrictPathError::PathResolutionError { .. })
+        | Err(StrictPathError::PathEscapesBoundary { .. }) => {
+            // Expected: circular symlink detected and rejected cleanly
+        }
+        Ok(_) => panic!("Circular symlink must not succeed silently"),
+        Err(other) => panic!("Unexpected error for circular symlink: {other:?}"),
+    }
+
+    // VirtualPath must also handle gracefully
+    match vroot.virtual_join("link_a") {
+        Err(StrictPathError::PathResolutionError { .. })
+        | Err(StrictPathError::PathEscapesBoundary { .. }) => {
+            // Expected: circular symlink detected and rejected cleanly
+        }
+        Ok(_) => panic!("Virtual join on circular symlink must not succeed silently"),
+        Err(other) => panic!("Unexpected virtual error for circular symlink: {other:?}"),
+    }
+}
+
+/// Security test: self-referencing symlink (a → a) must produce a clean error.
+#[cfg(feature = "virtual-path")]
+#[test]
+#[cfg(unix)]
+fn test_self_referencing_symlink_produces_clean_error() {
+    use std::os::unix::fs as unixfs;
+
+    let td = tempfile::tempdir().unwrap();
+    let restriction_dir = td.path().join("boundary");
+    std::fs::create_dir_all(&restriction_dir).unwrap();
+
+    // Create self-referencing symlink: loop → loop
+    let self_link = restriction_dir.join("loop");
+    unixfs::symlink(&self_link, &self_link).unwrap();
+
+    let restriction: PathBoundary = PathBoundary::try_new(&restriction_dir).unwrap();
+
+    match restriction.strict_join("loop") {
+        Err(StrictPathError::PathResolutionError { .. })
+        | Err(StrictPathError::PathEscapesBoundary { .. }) => {
+            // Expected: self-referencing symlink rejected cleanly
+        }
+        Ok(_) => panic!("Self-referencing symlink must not succeed silently"),
+        Err(other) => panic!("Unexpected error for self-link: {other:?}"),
+    }
+}
+
+/// Security test (Windows): circular junctions must produce a clean error.
+#[cfg(feature = "virtual-path")]
+#[cfg(feature = "junctions")]
+#[test]
+#[cfg(windows)]
+fn test_circular_junction_produces_clean_error() {
+    let td = tempfile::tempdir().unwrap();
+    let restriction_dir = td.path().join("boundary");
+    std::fs::create_dir_all(&restriction_dir).unwrap();
+
+    // Create two directories and then create junctions that point to each other
+    let dir_a = restriction_dir.join("dir_a");
+    let dir_b = restriction_dir.join("dir_b");
+
+    // First create dir_b as real dir, then dir_a as junction to dir_b
+    std::fs::create_dir_all(&dir_b).unwrap();
+    match junction::create(&dir_b, &dir_a) {
+        Ok(_) => {
+            // Now replace dir_b with junction to dir_a (removing real dir_b first)
+            std::fs::remove_dir_all(&dir_b).ok();
+            match junction::create(&dir_a, &dir_b) {
+                Ok(_) => {
+                    // Both junctions created; test traversal through them
+                    let restriction: PathBoundary =
+                        PathBoundary::try_new(&restriction_dir).unwrap();
+
+                    match restriction.strict_join("dir_a/subfile.txt") {
+                        Err(StrictPathError::PathResolutionError { .. })
+                        | Err(StrictPathError::PathEscapesBoundary { .. }) => {
+                            // Expected: circular junction produces clean error
+                        }
+                        Ok(_) => {
+                            // May succeed if OS resolves junctions without looping;
+                            // the key guarantee is no hang/crash
+                        }
+                        Err(other) => {
+                            panic!("Unexpected error for circular junction: {other:?}")
+                        }
+                    }
+                }
+                Err(junction_err) => {
+                    eprintln!("Note: Could not create second circular junction: {junction_err}; skipping test");
+                }
+            }
+        }
+        Err(junction_err) => {
+            eprintln!(
+                "Note: Could not create first circular junction: {junction_err}; skipping test"
+            );
+        }
     }
 }
