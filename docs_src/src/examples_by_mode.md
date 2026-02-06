@@ -206,7 +206,7 @@ Is the path from external/untrusted input?
 
 ## 📚 Learn More
 
-- **[Best Practices: Full Decision Matrix](./best_practices.md#pick-the-right-type)** - 15+ scenarios with detailed guidance
+- **[Best Practices: Full Decision Matrix](./best_practices.md#pick-the-right-type-quick-reference)** - 15+ scenarios with detailed guidance
 - **[Security Philosophy: Detect vs Contain](./best_practices.md#security-philosophy-detect-vs-contain)** - Deep dive into the fundamental distinction
 - **[Real-World Examples](./examples/overview.md)** - Complete, production-ready implementations
 - **[Tutorial: Chapter 5 - Virtual Paths](./tutorial/chapter5_virtual_paths.md)** - Understanding VirtualPath semantics
