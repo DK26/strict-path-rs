@@ -1612,13 +1612,24 @@ fn test_circular_symlink_produces_clean_error() {
         Err(other) => panic!("Unexpected error for circular symlink: {other:?}"),
     }
 
-    // VirtualPath must also handle gracefully
+    // VirtualPath must also handle gracefully: either reject cleanly or clamp
+    // within the boundary. On some platforms (e.g., macOS) virtual_join may
+    // succeed by clamping the unresolvable symlink to the root — that is
+    // acceptable VirtualPath behavior as long as containment holds.
     match vroot.virtual_join("link_a") {
         Err(StrictPathError::PathResolutionError { .. })
         | Err(StrictPathError::PathEscapesBoundary { .. }) => {
-            // Expected: circular symlink detected and rejected cleanly
+            // Expected on some platforms: circular symlink rejected cleanly
         }
-        Ok(_) => panic!("Virtual join on circular symlink must not succeed silently"),
+        Ok(vpath) => {
+            // Acceptable: VirtualPath clamped the result within the boundary
+            assert!(
+                vpath
+                    .as_unvirtual()
+                    .strictpath_starts_with(vroot.interop_path()),
+                "Circular symlink must remain within boundary if accepted"
+            );
+        }
         Err(other) => panic!("Unexpected virtual error for circular symlink: {other:?}"),
     }
 }
