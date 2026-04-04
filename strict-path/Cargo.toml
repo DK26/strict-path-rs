@@ -21,7 +21,7 @@ exclude = ["../demos/**"]
 soft-canonicalize = { version = "0.5.5", features = ["anchored"] }
 
 [dev-dependencies]
-tempfile = "3.22"
+tempfile = "3.27.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "6.0.0"
@@ -29,11 +29,11 @@ app-path = "1.1.2"
 
 # Windows test helper: junctions for symlink tests when admin privileges unavailable
 [target.'cfg(windows)'.dev-dependencies]
-junction = "1.4.1"
+junction = "1.4.2"
 
 # Optional Windows junction support for the library API
 [target.'cfg(windows)'.dependencies]
-junction = { version = "1.4.1", optional = true }
+junction = { version = "1.4.2", optional = true }
 
 [features]
 # Opt-in virtual filesystem support (VirtualRoot, VirtualPath)
