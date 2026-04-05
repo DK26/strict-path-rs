@@ -129,6 +129,7 @@ strict-path = { version = "...", features = ["virtual-path"] }
 - **Permission tuples (convention)**: Combine resource + capability in a tuple marker with a FLAT tuple: `StrictPath<(SystemFiles, ReadOnly)>` and for multiple caps `StrictPath<(SystemFiles, ReadOnly, WriteOnly)>`. Avoid nesting tuples like `(SystemFiles, (ReadOnly, WriteOnly))` — keep it flat and always put the resource first.
 - **Naming rule (must follow)**: Use domain nouns that describe what lives under the boundary (`struct PublicAssets;`, `struct BrandEditorWorkspace;`). The marker must always communicate the filesystem contents protected by that restriction—any label that points at people, roles, or other metadata instead of the stored files is incorrect. Avoid meaningless suffixes like `Marker`, `Type`, or `Root`. Markers should never use human-centric labels unless the directory literally stores those artifacts; authorization state belongs in the capability witness. When combining with capabilities, keep the first tuple element as the storage domain and the remaining elements as capability proofs: `StrictPath<(BrandDirectorArchive, ReadOnly, WriteOnly)>`.
 - **Function signatures**: Accept either the validated path (`&StrictPath<Marker>`) or accept the policy root plus raw segment (`&PathBoundary<Marker>`, `&VirtualRoot<Marker>`). Never take raw `Path`/`String` parameters for untrusted input.
+- **Library public APIs**: All signature guidance above applies to **applications** and **library internals**. If you are writing a library, be mindful about exposing `strict-path` types in your public surface — by default, accept standard types (`&str`, `&Path`, `PathBuf`) in your public API and validate internally, so your users are not forced to depend on `strict-path`. Exception: when the library's purpose explicitly benefits from users working with these types (e.g., a security framework).
 - **Naming rule**: Use domain-based names (`public_assets_dir`, `user_uploads_dir`, `system_logs_dir`) for `PathBoundary`/`VirtualRoot` variables so the intent survives into code review.
 
 Marker transformation guidance
@@ -383,7 +384,7 @@ If you're only validating constants or immediately converting back to unsafe pat
 1. **`.interop_path()` returns `&OsStr` (already `AsRef<Path>`)** — pass directly to external APIs, never wrap in `Path::new()`
 2. **Never wrap `.interop_path()` to use std path operations** — that defeats all security; use `strict_join`, `virtualpath_parent`, etc.
 3. **`.unstrict()` is the escape hatch** — after calling it, you own a `PathBuf` and leave the safety guarantees
-4. **Make functions accept safe types** - `&StrictPath<_>` in signatures, not `&str` with validation inside
+4. **Make functions accept safe types** - `&StrictPath<_>` in signatures, not `&str` with validation inside (applies to apps and library internals; library public APIs may accept standard types and validate internally)
 3. **Name variables by purpose, not type** - `uploads_dir`, `config_dir`, not `boundary`, `jail`
 4. **Use the right method for the job**:
    - Display to users → `strictpath_display()` / `virtualpath_display()`

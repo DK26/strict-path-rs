@@ -2,6 +2,23 @@
 
 Operational guide for AI assistants and automation working in this repository.
 
+## Maintaining This File
+
+AGENTS.md is read by stateless agents with no memory of prior sessions.
+Every rule must stand on its own without session context.
+
+- **General, not reactive.** Do not add rules to address a single past
+  mistake.  Only codify patterns that could recur across sessions.
+- **Context-free.** No references to specific conversations, resolved issues,
+  commit hashes, or session artifacts.  A future agent must understand the
+  rule without knowing what prompted it.
+- **Principles over examples.** Prefer abstract guidance.  If an example is
+  needed, make it generic — never name a specific module or function as the
+  motivating case.
+- **No stale specifics.** If a rule names a concrete item (file, function,
+  feature), it must be because the item is structurally important (e.g. the
+  repository layout table), not because it was the subject of a past debate.
+
 ## ⛔ STOP: MANDATORY DESIGN KNOWLEDGE (Read Before ANY Code Changes)
 
 **You MUST understand these constraints before writing ANY code in this repository:**
@@ -431,6 +448,14 @@ Per-user VirtualRoot construction (web/multi-tenant best practice):
 
 ## Code & API Usage Guidelines
 
+### Library vs Application Boundary (External API Design)
+
+All guidance in this file — encoding guarantees in signatures, accepting `&StrictPath<Marker>`, using policy types — applies to **applications** and to a **library's internal logic**. It does **not** mean library authors should force their downstream users to depend on `strict-path`.
+
+- **Applications and internal library code**: Use `StrictPath`/`VirtualPath`/`PathBoundary`/`VirtualRoot` freely in signatures, structs, and module boundaries.
+- **Library public APIs**: Authors should be mindful about whether to expose `strict-path` types in their own public surface. By default, hide `strict-path` behind your own API boundary so your users are not required to import it as a direct dependency. Accept standard types (`&str`, `&Path`, `PathBuf`) in your public API and validate internally.
+- **Exception**: If the library's explicit purpose benefits from having its users work with `strict-path` types (e.g., a security framework, a file-management SDK), then exposing `StrictPath`/`VirtualPath` in the public API is appropriate — but this should be a deliberate design choice, not the default.
+
 - Encode guarantees in function signatures:
   - Accept `&StrictPath<Marker>` / `&VirtualPath<Marker>` (or structs containing them), or
   - Accept `&PathBoundary<Marker>` / `&VirtualRoot<Marker>` plus the untrusted segment.
@@ -526,7 +551,7 @@ Escape hatches:
 - Borrow strict view from virtual with `as_unvirtual()` for shared helpers.
 - Use `.unvirtual()` and `.unstrict()` only when ownership is required; isolate in dedicated “escape hatches” sections.
 
-## Anti‑Patterns (Tell‑offs)
+## Usage Anti‑Patterns (Path Handling & Examples)
 
 - **Validating only constants (CRITICAL)**: `boundary.strict_join("hardcoded.txt")?` — no untrusted segment ever flows through validation. This completely defeats the purpose of the crate and is misleading in examples.
 - **Using generic variable names that hide intent**: Variables must clearly indicate they represent untrusted external input (e.g., `user_input`, `requested_file`, `uploaded_data`) not generic names like `filename`, `path`, `name`.
@@ -741,6 +766,45 @@ mdBook documentation (authoritative source — NEVER use `book/` directory):
 - Do not add helper functions ad‑hoc; propose design (scope, signature, naming, tests, security notes) first.
 - Follow existing module layout: `src/error`, `src/path`, `src/validator`, public re‑exports in `src/lib.rs`.
 - Respect MSRV in the library; demos may use newer crates behind features.
+
+## Git Usage Policy (for agents)
+
+### Read-Only Git Operations Only
+
+Agents are **only permitted to run read-only git commands**. Never run any git command that modifies the working tree, index, or history. This includes, but is not limited to:
+
+**Banned (write) operations:**
+- `git add`, `git stage`
+- `git commit`, `git commit --amend`
+- `git restore`, `git checkout -- <file>`
+- `git reset` (any form)
+- `git stash`, `git stash pop`
+- `git merge`, `git rebase`
+- `git push`, `git pull`, `git fetch`
+- `git rm`, `git mv`
+- `git tag`, `git branch -d`
+
+**Allowed (read) operations:**
+- `git status`, `git diff`, `git diff --staged`
+- `git log`, `git show`, `git blame`
+- `git ls-files`, `git stash list`
+
+If you need to stage, commit, or modify git state, **ask the user to do it** or wait for an explicit instruction. Never take git write actions on your own initiative, even to "clean up" or "fix" something you changed.
+
+### Git Commit Workflow
+
+**ALWAYS check staged files before committing.** If the user explicitly instructs you to commit, you MUST:
+
+1. **Run `git status`** to see what files are staged vs unstaged
+2. **Run `git diff --staged --stat`** to see exactly what will be committed
+3. **Review the staged changes** — ensure they match the intended commit scope
+4. **If unrelated files are staged**, either:
+   - Unstage them with `git reset HEAD <file>` before committing, OR
+   - Ask the user if they should be included
+
+**Never blindly run `git add <file>; git commit`** without checking what was already staged. The user may have staged files for a different purpose.
+
+**Commit message must match staged content.** If the staged diff contains files unrelated to your commit message, STOP and clarify with the user.
 
 ## GitHub Issue Management (for agents)
 
@@ -985,6 +1049,138 @@ This crate is security‑critical. Agents must practice defensive programming to
 
 When in doubt, choose clarity and correctness over cleverness. Small helpers are acceptable if they preserve the security model and reduce misuse.
 
+
+## Coding Guidelines
+
+### Safe Indexing — No Direct Indexing in Production Code
+
+Production code must not use direct indexing (`data[i]`, `parts[1]`,
+`slice[start..end]`) on slices, `Vec`, or `str`.  Direct indexing panics on
+out-of-bounds access, which is a denial-of-service vector in a security‑critical crate.
+
+**Required replacements:**
+
+| Banned                | Replacement                                               |
+| --------------------- | --------------------------------------------------------- |
+| `parts[i]`           | `parts.get(i).ok_or(…)?` or `parts.get(i).map(…)`        |
+| `data[start..end]`   | `data.get(start..end).ok_or(…)?`                          |
+| `slice[i..]`         | `slice.get(i..).unwrap_or_default()`                      |
+
+For **sequential processing**, prefer iterators (`.iter()`, `.enumerate()`,
+`.windows()`, `.chunks()`, `.split()`) over index-based loops.
+
+**Test code** (`#[cfg(test)]` blocks, `tests/`) may use direct indexing when
+the test controls the input and panic-on-bug is acceptable.
+
+### Heap Allocation Awareness
+
+While security is prioritized above raw performance in this crate, unnecessary
+heap allocations should still be avoided in hot paths (path component iteration,
+validation checks, normalization helpers).  Use stack buffers, iterators, and
+streaming operations instead of intermediate `Vec`, `String`, or `Box` where
+practical.
+
+For necessary allocations (variable-length output):
+- Use `Vec::with_capacity(known_size)` to avoid reallocation.
+- Prefer `Vec::extend_from_slice` over N × `push` for bulk copies.
+
+### Type Safety
+
+- Prefer `Option` / `Result` over sentinel values.  Never use empty strings,
+  `-1`, or null-equivalent magic values to signal absence.
+- Prefer `match` over `if let` when handling enums so that adding a new variant
+  produces a compile error at every call site, rather than silently falling
+  through.
+- Keep struct fields private when invariants must be enforced.  Expose
+  transition methods that enforce them.
+
+### RAG / LLM-Friendly File Size
+
+Keep source files under **~600 lines** (production or test) to fit within a
+single LLM context window and improve RAG retrieval precision.
+
+- When a production file grows past ~600 lines, split into focused submodules
+  (e.g. `foo.rs` → `foo/mod.rs` + `foo/helpers.rs`).
+- When a test file grows past ~600 lines, split into thematic files
+  (e.g. `tests_validation.rs`, `tests_security.rs`).
+- Favour a stable top-to-bottom layout so any reader knows where to look:
+  module docs → imports → constants → types → impl blocks → functions → tests.
+
+## Coding Session Discipline
+
+### Test-First / Proof-First
+
+- For every non-trivial behavior change, bug fix, or regression fix:
+  **write or update the tests first** so the expected behavior is explicit
+  before implementation changes begin.
+- The intended workflow is **red → green → refactor**:
+  1. Encode the requirement in a test.
+  2. Observe the old implementation fail or lack the behavior.
+  3. Implement the change.
+  4. Rerun the tests to prove the new behavior.
+- If a task is purely structural (rename, move, formatting) and has no
+  behavioral delta, a new failing test is not required.
+- Every problem or bug fixed must include a regression test as part of the
+  same change set.
+
+### Evidence Rule
+
+Do not claim a feature or fix is complete without evidence:
+
+- Tests (unit, integration, or doctests) proving the behavior.
+- CI output showing clean build + test pass.
+- Manual verification notes (if no automation exists yet).
+
+"Implemented" or "fixed" without proof is not acceptable.
+
+## Handling External Feedback & Reviews
+
+Treat feedback as input, not instruction. Validate every claim before acting.
+
+1. **Check against established principles first.** Before applying any fix —
+   whether from a reviewer, from your own analysis, or from a pragmatic
+   shortcut — ask: "Does this change violate a design principle we already
+   settled?" If yes, the change is wrong regardless of how reasonable it
+   sounds. Fix the surrounding code to uphold the principle; never weaken
+   the principle to match the surrounding code.
+
+2. **Use git history to resolve contradictions.** When two representations
+   disagree, run `git log -S "<term>" --oneline -- <file>` on both sides to
+   determine which text is newer. The newer commit represents the more
+   recent design decision. Always upgrade stale text to match the newer
+   decision, never the reverse.
+
+3. **Verify the factual claim.** Read the text being criticized. Is the
+   characterization accurate? Quote the actual text. If the reviewer
+   misread or mischaracterized the code/doc, say so and reject the finding.
+
+4. **Independently assess severity.** Do not accept a reviewer's severity
+   rating at face value. Assign your own and state it if it differs.
+
+5. **Distinguish bugs from preferences.** A factual contradiction or
+   invariant violation is a bug — fix it. "The code could be cleaner" is a
+   preference — evaluate against the cost of the change.
+
+6. **Reject or downgrade with justification.** If a finding is invalid,
+   reject it explicitly and state the reason. Do not implement changes just
+   because someone flagged something.
+
+7. **Check for cascade inconsistencies.** When fixing a confirmed finding,
+   search for the same pattern in other files. Fix all occurrences in one
+   pass — but only where the same error actually exists.
+
+## PR Checklist (agent self-check)
+
+Before considering any change complete, verify:
+
+- Security guarantees preserved: paths cannot escape boundaries; no new `AsRef<Path>` / `Deref` leaks.
+- All CI steps in `ci-local.ps1` / `ci-local.sh` pass locally.
+- New/changed logic covered by unit and/or integration tests, plus doctests if public behavior changed.
+- Docs updated (README, lib.rs, LLM_CONTEXT_FULL.md) if user-visible behavior changed.
+- No new runtime dependencies; MSRV respected; no unstable features.
+- No `#[allow(...)]` beyond the approved `clippy::type_complexity` exception.
+- Doctests runnable with no skip flags.
+- Regression tests included for every bug fix.
 
 ## Commenting Standard for Functions (LLM-Friendly)
 

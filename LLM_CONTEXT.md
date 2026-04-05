@@ -108,9 +108,11 @@ let text = cfg.read_to_string()?;
 - Examples: `struct PublicAssets;`, `struct UserUploads;`, `StrictPath<(SystemFiles, ReadOnly)>`.
 - Rules:
   - Name markers by what lives under the root (domain nouns). Avoid `Marker/Type/Root` suffixes.
-  - Accept `&StrictPath<Marker>`/`&VirtualPath<Marker>` in function signatures.
+  - Accept `&StrictPath<Marker>`/`&VirtualPath<Marker>` in function signatures (for apps and library internals; library public APIs may accept standard types and validate internally — see note below).
   - Use `change_marker()` only after authorization proof; conversions between types preserve markers automatically.
   - Keep tuple markers FLAT with the resource first, then capabilities: `StrictPath<(SystemFiles, ReadOnly)>`. Avoid nested tuples and human-centric labels unless the directory literally stores those artifacts.
+
+> **Library authors**: All signature guidance applies to applications and internal library code. If you are writing a library, hide `strict-path` behind your own API boundary by default so downstream users don't need to depend on it directly. Expose `strict-path` types only when the library's purpose explicitly benefits from it.
 
 ## Interop vs display
 
