@@ -80,10 +80,6 @@ fn fuzz_strict_join_security_invariant() {
         match sandbox.strict_join(&input) {
             Ok(strict_path) => {
                 // Invariant: If strict_join succeeds, the path MUST be inside the boundary
-                let resolved = strict_path.interop_path();
-                // We need to canonicalize to compare properly because strict_path is canonicalized
-                // and boundary_path is also canonicalized (by try_new).
-                // But strict_path.interop_path() returns the path stored in StrictPath which is already canonicalized.
 
                 // Check if it starts with boundary
                 // Note: On Windows, canonicalization might add \\?\ prefix.
@@ -92,7 +88,8 @@ fn fuzz_strict_join_security_invariant() {
 
                 assert!(
                     strict_path.strictpath_starts_with(&boundary_path),
-                    "Security invariant violated! Path escaped boundary.\nInput: {input:?}\nResult: {resolved:?}\nBoundary: {boundary_path:?}"
+                    "Security invariant violated! Path escaped boundary.\nInput: {input:?}\nResult: {:?}\nBoundary: {boundary_path:?}",
+                    strict_path.interop_path()
                 );
             }
             Err(StrictPathError::PathEscapesBoundary { .. }) => {
