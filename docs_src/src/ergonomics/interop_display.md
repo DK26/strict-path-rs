@@ -1,6 +1,6 @@
 # Interop vs Display
 
-- Interop (AsRef<Path>): use `interop_path()` on `StrictPath`, `VirtualPath`, `PathBoundary`, and `VirtualRoot`. It borrows the underlying OS path without allocations.
+- Interop (`AsRef<Path>`): use `interop_path()` on `StrictPath`, `VirtualPath`, `PathBoundary`, and `VirtualRoot`. It borrows the underlying OS path without allocations.
 - Display to users:
   - System paths: use `strictpath_display()` (on `StrictPath`/`PathBoundary`).
   - Virtual UI paths: use `virtualpath_display()` (on `VirtualPath`).

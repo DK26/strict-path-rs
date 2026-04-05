@@ -214,6 +214,8 @@ That's really all you need to know! The core API is simple:
 
 ## Common Patterns
 
+> **Library authors**: The patterns below show `&StrictPath` in internal helper signatures. If you are writing a library with a public API, accept standard types (`&str`, `&Path`) in your public surface and validate internally — so downstream users don't need to depend on `strict-path` directly. Expose these types only when the library's purpose benefits from it.
+
 ### Web File Upload
 
 ```rust

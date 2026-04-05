@@ -288,7 +288,7 @@ use tar::Archive;
 use std::fs::File;
 
 fn extract_tar(tar_path: &str, extract_to: &str) -> Result<Vec<StrictPath>, Box<dyn std::error::Error>> {
-    let boundary = PathBoundary::try_new_create(extract_to)?;
+    let extract_dir = PathBoundary::try_new_create(extract_to)?;
     let mut extracted = Vec::new();
     
     let file = File::open(tar_path)?;
@@ -300,7 +300,7 @@ fn extract_tar(tar_path: &str, extract_to: &str) -> Result<Vec<StrictPath>, Box<
         let entry_path_str = entry_path.to_string_lossy();
         
         // Validate each entry path
-        let safe_path = match boundary.strict_join(&*entry_path_str) {
+        let safe_path = match extract_dir.strict_join(&*entry_path_str) {
             Ok(path) => path,
             Err(e) => {
                 println!("⚠️  Skipping malicious entry '{}': {}", entry_path_str, e);
@@ -372,10 +372,10 @@ fn extract_to_temp(archive_path: &str) -> Result<(TempDir, Vec<StrictPath>), Box
     let temp = TempDir::new()?;
     
     // Create boundary from temp path
-    let boundary = PathBoundary::try_new(temp.path())?;
+    let extract_dir = PathBoundary::try_new(temp.path())?;
     
     // Extract archive
-    let extracted = extract_archive_to_boundary(&boundary, archive_path)?;
+    let extracted = extract_archive_to_boundary(&extract_dir, archive_path)?;
     
     // Return both TempDir (to keep it alive) and extracted paths
     Ok((temp, extracted))
@@ -405,14 +405,14 @@ Test your extraction code with a malicious archive corpus:
 ```rust
 #[test]
 fn test_archive_extraction_safety() {
-    let boundary = PathBoundary::try_new_create("./test_extract").unwrap();
+    let extract_dir = PathBoundary::try_new_create("./test_extract").unwrap();
     
     // Should succeed
-    assert!(boundary.strict_join("safe/path.txt").is_ok());
+    assert!(extract_dir.strict_join("safe/path.txt").is_ok());
     
     // Should fail
-    assert!(boundary.strict_join("../../../etc/passwd").is_err());
-    assert!(boundary.strict_join("/absolute/path").is_err());
+    assert!(extract_dir.strict_join("../../../etc/passwd").is_err());
+    assert!(extract_dir.strict_join("/absolute/path").is_err());
     
     // Cleanup
     std::fs::remove_dir_all("test_extract").ok();

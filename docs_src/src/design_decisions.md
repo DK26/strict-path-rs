@@ -162,8 +162,8 @@ let abs = Path::new("/safe/link").absolutize_virtually("/safe")?;
 
 // strict-path StrictPath (filesystem-based - SAFE):
 use strict_path::PathBoundary;
-let boundary = PathBoundary::try_new("/safe")?;
-let validated = boundary.strict_join("link")?;  // Follows symlink, sees target is /etc/passwd
+let safe_dir = PathBoundary::try_new("/safe")?;
+let validated = safe_dir.strict_join("link")?;  // Follows symlink, sees target is /etc/passwd
 // Result: Err(PathEscapesBoundary) - attack detected!
 
 // strict-path VirtualPath (filesystem-based with clamping):

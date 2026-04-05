@@ -178,10 +178,10 @@ But what happens when your app grows and you need **multiple** safe directories?
 
 ```rust
 // Create boundary
-let boundary = StrictPath::with_boundary_create("./safe_dir")?;
+let safe_dir = StrictPath::with_boundary_create("./safe_dir")?;
 
 // Validate untrusted input
-let safe_path = boundary.strict_join(untrusted_filename)?;
+let safe_path = safe_dir.strict_join(untrusted_filename)?;
 
 // Perform I/O
 safe_path.write(data)?;

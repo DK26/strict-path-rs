@@ -280,9 +280,9 @@ fn write_file(path: &StrictPath<(UserFiles, ReadWrite)>, content: &[u8]) -> std:
 }
 
 // Usage:
-let boundary: PathBoundary<(UserFiles, ReadOnly)> = 
+let uploads_dir: PathBoundary<(UserFiles, ReadOnly)> = 
     PathBoundary::try_new("./uploads")?;
-let file_ro = boundary.strict_join("document.txt")?;
+let file_ro = uploads_dir.strict_join("document.txt")?;
 
 // Can't write yet - read-only marker
 // write_file(&file_ro, b"data")?;  // ❌ Compile error!

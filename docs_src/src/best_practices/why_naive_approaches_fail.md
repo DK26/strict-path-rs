@@ -184,8 +184,8 @@ Instead of patching individual vulnerabilities, **strict-path solves the entire 
 use strict_path::PathBoundary;
 
 // One line replaces all the complexity above
-let boundary = PathBoundary::try_new("./safe")?;
-let safe_path = boundary.strict_join(user_input)?; // ✅ All attacks blocked
+let safe_dir = PathBoundary::try_new("./safe")?;
+let safe_path = safe_dir.strict_join(user_input)?; // ✅ All attacks blocked
 ```
 
 **The trade-off**: Learn one crate's API vs. implementing (and maintaining) dozens of validation checks.

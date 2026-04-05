@@ -288,10 +288,10 @@ One critical difference between `StrictPath` and `VirtualPath` is how they handl
 use strict_path::StrictPath;
 
 // StrictPath follows symlinks and validates targets
-let boundary = StrictPath::with_boundary_create("./system_root")?;
+let system_root_dir = StrictPath::with_boundary_create("./system_root")?;
 
 // If "system_root/config_link" symlinks to "/etc/app.conf":
-let config = boundary.strict_join("config_link");
+let config = system_root_dir.strict_join("config_link");
 // ❌ Error if target is outside boundary
 // ✅ OK if target resolves to path inside boundary
 ```
@@ -322,6 +322,8 @@ println!("System: {}", config.as_unvirtual().strictpath_display());
 **Key Insight:** In a virtual filesystem, absolute paths (whether from user input or symlink targets) are *always* relative to the virtual root. This makes `VirtualPath` perfect for untrusted inputs where you want graceful containment rather than explicit rejection.
 
 ## Common Patterns Summary
+
+> **Library authors**: The patterns below apply to **applications** and **library internals**. If you are writing a library with a public API, consider accepting standard types in your public surface and validating internally — see the [Function Signatures](./ergonomics/signatures.md) page for details.
 
 1. **Validate once, use everywhere**: Create typed paths at boundaries, pass typed paths to functions
 2. **Encode intent in signatures**: Function parameters should clearly show what domains they work with

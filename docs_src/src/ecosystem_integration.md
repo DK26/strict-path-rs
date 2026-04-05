@@ -89,14 +89,14 @@ use tempfile::TempDir;
 #[test]
 fn test_file_processing() {
     let temp = tempfile::tempdir().unwrap();
-    let boundary = PathBoundary::try_new(temp.path()).unwrap();
+    let test_dir = PathBoundary::try_new(temp.path()).unwrap();
 
     // Setup test files
-    let input = boundary.strict_join("input.txt").unwrap();
+    let input = test_dir.strict_join("input.txt").unwrap();
     input.write(b"test data").unwrap();
 
     // Run your code
-    process_file(&boundary, "input.txt").unwrap();
+    process_file(&test_dir, "input.txt").unwrap();
 
     // Verify results
     let output = boundary.strict_join("output.txt").unwrap();
@@ -160,17 +160,17 @@ fn setup_portable_app() -> Result<(), Box<dyn std::error::Error>> {
     let app_dir = AppPath::with("MyPortableApp");
 
     // Establish boundary for the app directory
-    let boundary = PathBoundary::try_new_create(app_dir)?;
+    let app_data_dir = PathBoundary::try_new_create(app_dir)?;
 
     // Safe operations within app directory
-    let config = boundary.strict_join("config/settings.ini")?;
+    let config = app_data_dir.strict_join("config/settings.ini")?;
     config.create_parent_dir_all()?;
     config.write(b"[settings]\nportable=true\n")?;
 
-    let data = boundary.strict_join("data/userfiles")?;
+    let data = app_data_dir.strict_join("data/userfiles")?;
     data.create_dir_all()?;
 
-    println!("App directory: {}", boundary.strictpath_display());
+    println!("App directory: {}", app_data_dir.strictpath_display());
 
     Ok(())
 }
@@ -189,13 +189,13 @@ fn setup_app_with_override() -> Result<(), Box<dyn std::error::Error>> {
     let env_var = "MY_APP_DATA_DIR";
     let app_path = AppPath::with_override("MyApp", Some(env_var));
 
-    let boundary = PathBoundary::try_new_create(app_path)?;
+    let app_data_dir = PathBoundary::try_new_create(app_path)?;
 
-    println!("Using app directory: {}", boundary.strictpath_display());
+    println!("Using app directory: {}", app_data_dir.strictpath_display());
     // In production: /path/to/exe/MyApp
     // In CI with MY_APP_DATA_DIR=/tmp/ci-test: /tmp/ci-test
 
-    let log_file = boundary.strict_join("logs/app.log")?;
+    let log_file = app_data_dir.strict_join("logs/app.log")?;
     log_file.create_parent_dir_all()?;
     log_file.write(b"Application started\n")?;
 
@@ -267,14 +267,14 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create app-specific subdirectory boundary
     let app_config = config_base.join("myapp");
-    let boundary = PathBoundary::try_new_create(&app_config)?;
+    let app_config_dir = PathBoundary::try_new_create(&app_config)?;
 
     // Platform-specific locations:
     // Linux:   ~/.config/myapp/
     // Windows: C:\Users\Alice\AppData\Roaming\myapp\
     // macOS:   ~/Library/Application Support/myapp/
 
-    let settings = boundary.strict_join("settings.toml")?;
+    let settings = app_config_dir.strict_join("settings.toml")?;
     settings.write(b"[app]\nversion = '1.0'\n")?;
 
     Ok(())
@@ -337,11 +337,11 @@ use strict_path::PathBoundary;
 fn access_user_content() -> Result<(), Box<dyn std::error::Error>> {
     // Downloads directory
     if let Some(downloads) = dirs::download_dir() {
-        let boundary = PathBoundary::try_new(&downloads)?;
+        let downloads_dir = PathBoundary::try_new(&downloads)?;
 
         // Safe access to user-selected file
         let user_input = "report.pdf"; // From file picker or CLI
-        let file = boundary.strict_join(user_input)?;
+        let file = downloads_dir.strict_join(user_input)?;
 
         if file.exists() {
             let data = file.read()?;
@@ -351,9 +351,9 @@ fn access_user_content() -> Result<(), Box<dyn std::error::Error>> {
 
     // Documents directory
     if let Some(documents) = dirs::document_dir() {
-        let boundary = PathBoundary::try_new(&documents)?;
+        let documents_dir = PathBoundary::try_new(&documents)?;
 
-        let export = boundary.strict_join("exports/data.csv")?;
+        let export = documents_dir.strict_join("exports/data.csv")?;
         export.create_parent_dir_all()?;
         export.write(b"col1,col2\nval1,val2\n")?;
 
@@ -533,12 +533,12 @@ use strict_path::{PathBoundary, StrictPath};
 use serde_json::json;
 
 fn serialize_paths() -> Result<(), Box<dyn std::error::Error>> {
-    let boundary = PathBoundary::try_new_create("./data")?;
-    let file = boundary.strict_join("config/settings.json")?;
+    let data_dir = PathBoundary::try_new_create("./data")?;
+    let file = data_dir.strict_join("config/settings.json")?;
 
     // Serialize to JSON using display methods
     let response = json!({
-        "boundary": boundary.strictpath_display().to_string(),
+        "data_dir": data_dir.strictpath_display().to_string(),
         "file": file.strictpath_display().to_string(),
         "file_name": file.strictpath_file_name()
             .unwrap()
@@ -617,12 +617,12 @@ Use `interop_path()` when:
 ```rust
 // ✅ OK: WalkDir only reads, doesn't write or follow user input
 use walkdir::WalkDir;
-let boundary = PathBoundary::try_new("./data")?;
-for entry in WalkDir::new(boundary.interop_path()) {
+let data_dir = PathBoundary::try_new("./data")?;
+for entry in WalkDir::new(data_dir.interop_path()) {
     let entry = entry?;
     // Re-validate each discovered path before operations
-    if let Ok(relative) = entry.path().strip_prefix(boundary.interop_path()) {
-        let safe_path = boundary.strict_join(relative)?;
+    if let Ok(relative) = entry.path().strip_prefix(data_dir.interop_path()) {
+        let safe_path = data_dir.strict_join(relative)?;
         // Now safe to use
     }
 }
@@ -729,21 +729,21 @@ This ensures:
 ```rust
 // Temporary directories
 let temp = tempfile::tempdir()?;
-let boundary = PathBoundary::try_new(temp.path())?;
+let temp_dir = PathBoundary::try_new(temp.path())?;
 
 // Portable app paths
 use app_path::AppPath;
 let app_path = AppPath::with("MyApp");  // Relative to executable directory
-let boundary = PathBoundary::try_new_create(&app_path)?;
+let app_data_dir = PathBoundary::try_new_create(&app_path)?;
 
 // OS directories
 let config = dirs::config_dir().ok_or("No config dir")?;
-let boundary = PathBoundary::try_new_create(config.join("myapp"))?;
+let app_config_dir = PathBoundary::try_new_create(config.join("myapp"))?;
 
 // Deserialization (FromStr)
 #[derive(Deserialize)]
 struct Config {
-    boundary: PathBoundary,  // Automatic via FromStr
+    data_dir: PathBoundary,  // Automatic via FromStr
     user_path: String,        // Manual validation
 }
 ```

@@ -2,6 +2,8 @@
 
 Encode guarantees so misuse is hard:
 
+> **Library authors**: All guidance below applies to **applications** and **library internal code**. If you are writing a library, hide `strict-path` behind your own public API by default — accept standard types (`&str`, `&Path`) and validate internally. Expose `strict-path` types only when the library's purpose explicitly benefits from it.
+
 - Accept validated paths directly when the caller did validation:
   - `fn process(file: &StrictPath<MyMarker>) -> io::Result<()> { ... }`
   - `fn read(user_file: &VirtualPath<MyMarker>) -> io::Result<Vec<u8>> { ... }`

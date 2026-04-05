@@ -181,9 +181,9 @@ fn deserialize_config_file<'de, D>(deserializer: D) -> Result<StrictPath<ConfigF
 where
     D: serde::Deserializer<'de>,
 {
-    let boundary = PathBoundary::<ConfigFiles>::try_new("./config")?;
+    let config_dir = PathBoundary::<ConfigFiles>::try_new("./config")?;
     let path_str = String::deserialize(deserializer)?;
-    boundary.strict_join(&path_str).map_err(serde::de::Error::custom)
+    config_dir.strict_join(&path_str).map_err(serde::de::Error::custom)
 }
 ```
 

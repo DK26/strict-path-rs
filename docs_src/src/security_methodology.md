@@ -30,8 +30,8 @@ Our security is not theoretical—it's validated against actual vulnerabilities 
 
 ```rust
 // Attack attempt: ../../sensitive.doc:stream
-let boundary = PathBoundary::try_new("./archive_extract")?;
-match boundary.strict_join("../../sensitive.doc:stream") {
+let archive_extract_dir = PathBoundary::try_new("./archive_extract")?;
+match archive_extract_dir.strict_join("../../sensitive.doc:stream") {
     Ok(_) => unreachable!("Never succeeds"),
     Err(e) => println!("🛡️ ADS attack blocked: {e}"),
 }
@@ -48,8 +48,8 @@ match boundary.strict_join("../../sensitive.doc:stream") {
 
 ```rust
 // Validation and resolution happen atomically
-let boundary = PathBoundary::try_new("./workspace")?;
-let safe_path = boundary.strict_join("config.toml")?; // Resolves symlinks NOW
+let workspace_dir = PathBoundary::try_new("./workspace")?;
+let safe_path = workspace_dir.strict_join("config.toml")?; // Resolves symlinks NOW
 safe_path.read_to_string()?; // Uses already-resolved path, no race
 ```
 
@@ -64,8 +64,8 @@ safe_path.read_to_string()?; // Uses already-resolved path, no race
 
 ```rust
 // Attack attempt using short name: ../PROGRA~1/system.dll
-let boundary = PathBoundary::try_new("C:/Users/Alice/Documents")?;
-match boundary.strict_join("../PROGRA~1/system.dll") {
+let documents_dir = PathBoundary::try_new("C:/Users/Alice/Documents")?;
+match documents_dir.strict_join("../PROGRA~1/system.dll") {
     Ok(_) => unreachable!("Short name attack blocked"),
     Err(e) => println!("🛡️ 8.3 attack blocked: {e}"),
 }

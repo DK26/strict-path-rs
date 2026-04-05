@@ -80,14 +80,14 @@ This is the **key difference** between `VirtualPath` and `StrictPath`:
 use strict_path::StrictPath;
 
 fn strict_behavior() -> Result<(), Box<dyn std::error::Error>> {
-    let boundary = StrictPath::with_boundary_create("./sandbox")?;
+    let sandbox_dir = StrictPath::with_boundary_create("./sandbox")?;
 
     // Normal path works
-    let file1 = boundary.strict_join("data/file.txt")?;
+    let file1 = sandbox_dir.strict_join("data/file.txt")?;
     println!("✅ Valid: {}", file1.strictpath_display());
 
     // Attack attempt: FAILS with error
-    let file2 = boundary.strict_join("../../../etc/passwd");
+    let file2 = sandbox_dir.strict_join("../../../etc/passwd");
     match file2 {
         Ok(_) => println!("✅ Valid path"),
         Err(e) => println!("❌ Error: {}", e),  // PathEscapesBoundary
@@ -229,10 +229,10 @@ This is where `VirtualPath` truly shines as a **virtual filesystem**. It doesn't
 use strict_path::StrictPath;
 
 fn strict_symlink_behavior() -> Result<(), Box<dyn std::error::Error>> {
-    let boundary = StrictPath::with_boundary_create("./sandbox")?;
+    let sandbox_dir = StrictPath::with_boundary_create("./sandbox")?;
 
     // If "sandbox/config_link" symlinks to "/etc/passwd":
-    let symlink_path = boundary.strict_join("config_link");
+    let symlink_path = sandbox_dir.strict_join("config_link");
     match symlink_path {
         Ok(_) => println!("✅ Symlink target is inside boundary"),
         Err(e) => println!("❌ Symlink escapes boundary: {}", e),

@@ -59,14 +59,14 @@ fn setup_portable_app() -> Result<(), Box<dyn std::error::Error>> {
     let app_dir = app_path.get_app_dir();
 
     // Establish boundary
-    let boundary = PathBoundary::try_new_create(&app_dir)?;
+    let app_data_dir = PathBoundary::try_new_create(&app_dir)?;
 
     // Safe config access
-    let config = boundary.strict_join("config/settings.ini")?;
+    let config = app_data_dir.strict_join("config/settings.ini")?;
     config.create_parent_dir_all()?;
     config.write(b"[settings]\nportable=true\n")?;
 
-    println!("App directory: {}", boundary.strictpath_display());
+    println!("App directory: {}", app_data_dir.strictpath_display());
 
     Ok(())
 }
@@ -88,14 +88,14 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
 
     // App-specific subdirectory boundary
     let app_config = config_base.join("myapp");
-    let boundary = PathBoundary::try_new_create(&app_config)?;
+    let app_config_dir = PathBoundary::try_new_create(&app_config)?;
 
     // Cross-platform locations:
     // Linux:   ~/.config/myapp/
     // Windows: C:\Users\Alice\AppData\Roaming\myapp\
     // macOS:   ~/Library/Application Support/myapp/
 
-    let settings = boundary.strict_join("settings.toml")?;
+    let settings = app_config_dir.strict_join("settings.toml")?;
     settings.write(b"[app]\nversion = '1.0'\n")?;
 
     Ok(())
@@ -308,20 +308,20 @@ Explore these resources to deepen your knowledge:
 ```rust
 // Temporary directories
 let temp = tempfile::tempdir()?;
-let boundary = PathBoundary::try_new(temp.path())?;
+let temp_dir = PathBoundary::try_new(temp.path())?;
 
 // Portable app paths
 let app_dir = app_path::AppPath::new("MyApp").get_app_dir();
-let boundary = PathBoundary::try_new(&app_dir)?;
+let app_data_dir = PathBoundary::try_new(&app_dir)?;
 
 // OS directories
 let config = dirs::config_dir().ok_or("No config")?;
-let boundary = PathBoundary::try_new_create(config.join("myapp"))?;
+let app_config_dir = PathBoundary::try_new_create(config.join("myapp"))?;
 
 // Deserialization (FromStr)
 #[derive(Deserialize)]
 struct Config {
-    boundary: PathBoundary,  // Automatic via FromStr
+    data_dir: PathBoundary,  // Automatic via FromStr
     user_path: String,        // Manual validation
 }
 ```

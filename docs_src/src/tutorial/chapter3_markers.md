@@ -364,11 +364,11 @@ That's where things get really powerful...
 struct MyDomain;
 
 // Create typed boundary
-let boundary: StrictPath<MyDomain> = 
+let typed_dir: StrictPath<MyDomain> = 
     StrictPath::with_boundary_create("./path")?;
 
 // Paths inherit marker
-let file = boundary.strict_join("file.txt")?;  // StrictPath<MyDomain>
+let file = typed_dir.strict_join("file.txt")?;  // StrictPath<MyDomain>
 
 // Functions enforce domain
 fn process(path: &StrictPath<MyDomain>) { ... }

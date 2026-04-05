@@ -12,8 +12,8 @@ Strict link creation (hard link)
 ```rust
 use strict_path::PathBoundary;
 
-let boundary: PathBoundary = PathBoundary::try_new_create("./link_demo")?;
-let target = boundary.strict_join("data/target.txt")?;
+let link_demo_dir: PathBoundary = PathBoundary::try_new_create("./link_demo")?;
+let target = link_demo_dir.strict_join("data/target.txt")?;
 target.create_parent_dir_all()?;
 target.write(b"hello")?;
 
@@ -266,29 +266,29 @@ fn authenticate_user(
     // Check credentials
     if verify_credentials(username, password) {
         let user_dir = format!("/var/data/users/{}", username);
-        let boundary: PathBoundary<ReadOnly> = PathBoundary::try_new(&user_dir)
+        let user_access_dir: PathBoundary<ReadOnly> = PathBoundary::try_new(&user_dir)
             .map_err(|_| AuthError::NoAccess)?;
         
         // Escalate to write access after auth check
-        Ok(boundary.change_marker())
+        Ok(user_access_dir.change_marker())
     } else {
         Err(AuthError::InvalidCredentials)
     }
 }
 
 fn write_user_data(
-    boundary: &PathBoundary<ReadWrite>, // Requires write marker
+    user_write_dir: &PathBoundary<ReadWrite>, // Requires write marker
     filename: &str,
     data: &str
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let file = boundary.strict_join(filename)?;
+    let file = user_write_dir.strict_join(filename)?;
     file.write(data)?;
     Ok(())
 }
 
 // ✅ Can only call write_user_data with ReadWrite marker
-let rw_boundary = authenticate_user("alice", "secret123")?;
-write_user_data(&rw_boundary, "notes.txt", "My notes")?;
+let rw_dir = authenticate_user("alice", "secret123")?;
+write_user_data(&rw_dir, "notes.txt", "My notes")?;
 ```
 
 ## Pattern 8: Error Handling
@@ -302,10 +302,10 @@ fn safe_file_access(
     base: &str,
     user_path: &str
 ) -> Result<String, AppError> {
-    let boundary = PathBoundary::try_new(base)
+    let access_dir = PathBoundary::try_new(base)
         .map_err(|e| AppError::InvalidBase(e))?;
     
-    let file = boundary.strict_join(user_path)
+    let file = access_dir.strict_join(user_path)
         .map_err(|e| match e {
             StrictPathError::PathEscapesBoundary { attempted, boundary } => {
                 AppError::PathEscape { 
@@ -420,17 +420,17 @@ fn audit_read<M>(
 
 ```rust
 // ✅ Good: create boundary once
-let boundary = PathBoundary::try_new("/var/data")?;
+let data_dir = PathBoundary::try_new("/var/data")?;
 
 for filename in filenames {
-    let file = boundary.strict_join(filename)?;
+    let file = data_dir.strict_join(filename)?;
     process(file)?;
 }
 
 // ❌ Bad: recreating boundary every iteration
 for filename in filenames {
-    let boundary = PathBoundary::try_new("/var/data")?; // Wasteful!
-    let file = boundary.strict_join(filename)?;
+    let data_dir = PathBoundary::try_new("/var/data")?; // Wasteful!
+    let file = data_dir.strict_join(filename)?;
     process(file)?;
 }
 ```

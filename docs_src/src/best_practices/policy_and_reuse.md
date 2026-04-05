@@ -29,8 +29,8 @@ use strict_path::PathBoundary;
 // ❌ BAD: Reconstructing boundary for every file
 fn process_files(base_path: &str, filenames: &[String]) -> std::io::Result<()> {
     for name in filenames {
-        let boundary = PathBoundary::try_new(base_path)?; // Repeated canonicalization!
-        let file = boundary.strict_join(name)?;
+        let files_dir = PathBoundary::try_new(base_path)?; // Repeated canonicalization!
+        let file = files_dir.strict_join(name)?;
         file.write(b"data")?;
     }
     Ok(())
@@ -224,8 +224,8 @@ use strict_path::PathBoundary;
 fn slow_approach(files: &[String]) -> std::io::Result<()> {
     // ❌ SLOW: Canonicalizes base path 1000 times
     for name in files {
-        let boundary = PathBoundary::try_new("./data")?; // Filesystem call every time!
-        let _file = boundary.strict_join(name)?;
+        let data_dir = PathBoundary::try_new("./data")?; // Filesystem call every time!
+        let _file = data_dir.strict_join(name)?;
     }
     Ok(())
 }
@@ -238,10 +238,10 @@ use strict_path::PathBoundary;
 
 fn fast_approach(files: &[String]) -> std::io::Result<()> {
     // ✅ FAST: Canonicalizes base path once, reuses for all joins
-    let boundary = PathBoundary::try_new("./data")?; // Single filesystem call
+    let data_dir = PathBoundary::try_new("./data")?; // Single filesystem call
     
     for name in files {
-        let _file = boundary.strict_join(name)?; // Reuses canonical state
+        let _file = data_dir.strict_join(name)?; // Reuses canonical state
     }
     
     Ok(())
@@ -258,14 +258,14 @@ fn benchmark_comparison() -> std::io::Result<()> {
     
     // Slow: ~1000 canonicalization calls
     for name in &files {
-        let boundary = PathBoundary::try_new("./data")?;
-        let _ = boundary.strict_join(name)?;
+        let data_dir = PathBoundary::try_new("./data")?;
+        let _ = data_dir.strict_join(name)?;
     }
     
     // Fast: 1 canonicalization call + 1000 cheap joins
-    let boundary = PathBoundary::try_new("./data")?;
+    let data_dir = PathBoundary::try_new("./data")?;
     for name in &files {
-        let _ = boundary.strict_join(name)?;
+        let _ = data_dir.strict_join(name)?;
     }
     
     Ok(())
@@ -311,13 +311,13 @@ mod tests {
         // Create test boundary
         let temp_dir = std::env::temp_dir().join("test_uploads");
         std::fs::create_dir_all(&temp_dir)?;
-        let boundary = PathBoundary::try_new(&temp_dir)?;
+        let upload_dir = PathBoundary::try_new(&temp_dir)?;
         
         // Test with injected boundary
-        save_user_data(&boundary, "test.txt", b"data")?;
+        save_user_data(&upload_dir, "test.txt", b"data")?;
         
         // Verify
-        let file = boundary.strict_join("test.txt")?;
+        let file = upload_dir.strict_join("test.txt")?;
         assert_eq!(file.read()?, b"data");
         
         // Cleanup
@@ -327,10 +327,10 @@ mod tests {
     
     #[test]
     fn test_rejects_escapes() {
-        let boundary = PathBoundary::try_new(".").unwrap();
+        let test_dir = PathBoundary::try_new(".").unwrap();
         
         // Verify security properties
-        assert!(save_user_data(&boundary, "../../../etc/passwd", b"data").is_err());
+        assert!(save_user_data(&test_dir, "../../../etc/passwd", b"data").is_err());
     }
 }
 ```

@@ -21,10 +21,10 @@ let config_base = dirs::config_dir()
 
 // Create app-specific boundary
 let app_config = config_base.join("myapp");
-let boundary = PathBoundary::try_new_create(&app_config)?;
+let app_config_dir = PathBoundary::try_new_create(&app_config)?;
 
 // Safe operations within boundary
-let settings = boundary.strict_join("settings.toml")?;
+let settings = app_config_dir.strict_join("settings.toml")?;
 settings.write(b"[app]\nversion = '1.0'\n")?;
 ```
 
@@ -68,7 +68,7 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("No config directory available")?;
 
     let app_config = config_base.join("myapp");
-    let boundary: PathBoundary<AppConfig> =
+    let app_config_dir: PathBoundary<AppConfig> =
         PathBoundary::try_new_create(&app_config)?;
 
     // Platform-specific locations:
@@ -76,7 +76,7 @@ fn setup_config() -> Result<(), Box<dyn std::error::Error>> {
     // Windows: C:\Users\Alice\AppData\Roaming\myapp\
     // macOS:   ~/Library/Application Support/myapp/
 
-    let settings = boundary.strict_join("settings.toml")?;
+    let settings = app_config_dir.strict_join("settings.toml")?;
     settings.write(b"[app]\ntheme = 'dark'\n")?;
 
     println!("Config saved to: {}", settings.strictpath_display());
@@ -148,12 +148,12 @@ struct Documents;
 fn access_user_content() -> Result<(), Box<dyn std::error::Error>> {
     // Downloads directory
     if let Some(downloads) = dirs::download_dir() {
-        let boundary: PathBoundary<Downloads> =
+        let downloads_dir: PathBoundary<Downloads> =
             PathBoundary::try_new(&downloads)?;
 
         // Safe access to user-selected file
         let user_input = "report.pdf"; // From file picker or CLI
-        let file = boundary.strict_join(user_input)?;
+        let file = downloads_dir.strict_join(user_input)?;
 
         if file.exists() {
             let data = file.read()?;
@@ -163,10 +163,10 @@ fn access_user_content() -> Result<(), Box<dyn std::error::Error>> {
 
     // Documents directory
     if let Some(documents) = dirs::document_dir() {
-        let boundary: PathBoundary<Documents> =
+        let documents_dir: PathBoundary<Documents> =
             PathBoundary::try_new(&documents)?;
 
-        let export = boundary.strict_join("exports/data.csv")?;
+        let export = documents_dir.strict_join("exports/data.csv")?;
         export.create_parent_dir_all()?;
         export.write(b"col1,col2\nval1,val2\n")?;
 
@@ -321,10 +321,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 let base_dir = dirs::config_dir().ok_or("No config")?;
 
 // Create boundary with strict-path
-let boundary = PathBoundary::try_new_create(base_dir.join("myapp"))?;
+let app_config_dir = PathBoundary::try_new_create(base_dir.join("myapp"))?;
 
 // Use safe operations
-let file = boundary.strict_join(user_input)?;
+let file = app_config_dir.strict_join(user_input)?;
 ```
 
 ---
@@ -351,11 +351,11 @@ Provided methods like `PathBoundary::try_new_os_config()`, but this couples `str
 **Migration is trivial:**
 ```rust
 // OLD (with dirs feature):
-let boundary = PathBoundary::try_new_os_config("myapp")?;
+let app_config_dir = PathBoundary::try_new_os_config("myapp")?;
 
 // NEW (direct integration):
 let config_base = dirs::config_dir().ok_or("No config")?;
-let boundary = PathBoundary::try_new_create(config_base.join("myapp"))?;
+let app_config_dir = PathBoundary::try_new_create(config_base.join("myapp"))?;
 ```
 
 The new approach gives you full control and makes the integration explicit.

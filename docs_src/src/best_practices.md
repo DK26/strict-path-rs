@@ -113,14 +113,14 @@ use strict_path::PathBoundary;
 
 // ❌ SLOW: 1000 canonicalizations
 for name in files {
-    let boundary = PathBoundary::try_new(base)?;
-    boundary.strict_join(name)?;
+    let file_dir = PathBoundary::try_new(base)?;
+    file_dir.strict_join(name)?;
 }
 
 // ✅ FAST: 1 canonicalization
-let boundary = PathBoundary::try_new(base)?;
+let file_dir = PathBoundary::try_new(base)?;
 for name in files {
-    boundary.strict_join(name)?; // Reuses canonical state
+    file_dir.strict_join(name)?; // Reuses canonical state
 }
 ```
 
@@ -133,6 +133,8 @@ for name in files {
 ## Encode Guarantees In Function Signatures
 
 Helpers that touch the filesystem must encode safety in their signatures:
+
+> **Note for library authors**: All signature guidance in this section applies to **applications** and **library internals**. If you are writing a library with a public API, consider hiding `strict-path` behind your own API boundary — accept standard types (`&str`, `&Path`, `PathBuf`) in your public surface and validate internally, so your downstream users are not forced to depend on `strict-path`. Expose `strict-path` types in your public API only when the library's purpose explicitly benefits from it (e.g., a security framework, a file-management SDK).
 
 **Two canonical patterns:**
 1. **Accept validated path** when validation already happened: `fn save(p: &StrictPath) -> io::Result<()>`
