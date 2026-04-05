@@ -32,6 +32,7 @@ mod security_input_encoding;
 mod security_io;
 mod security_symlink_escape;
 mod security_traversal;
+mod softcanon_53_symlink_parent_traversal;
 mod symlink_following_external;
 mod symlink_helpers;
 mod symlink_methods;
