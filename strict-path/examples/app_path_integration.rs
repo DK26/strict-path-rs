@@ -26,20 +26,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Pattern: AppPath::with(\"subdir\") → PathBoundary::try_new_create() → portable operations\n");
 
     // Example 1: Basic portable app
-    println!("1️⃣  Basic Portable Application:");
+    println!("1. Basic Portable Application:");
     basic_portable_app()?;
 
     // Example 2: Multi-directory structure
-    println!("\n2️⃣  Multi-Directory Portable App Structure:");
+    println!("\n2. Multi-Directory Portable App Structure:");
     multi_dir_portable_app()?;
 
     // Example 3: Environment override for testing/CI
-    println!("\n3️⃣  Environment Variable Override (Testing/CI):");
+    println!("\n3. Environment Variable Override (Testing/CI):");
     env_override_pattern()?;
 
-    println!("\n✅ All examples completed successfully!");
-    println!("\n💡 Portable apps: config/data/cache travel with the executable");
-    println!("   Perfect for: USB drives, network shares, no-install deployment");
+    // Example 4: Validating untrusted external input
+    println!("\n4. Validating Untrusted CLI Input (Security Pattern):");
+    cli_input_validation()?;
+
+    println!("\nAll examples completed successfully!");
+    println!("\nPortable apps: config/data/cache travel with the executable");
+    println!("  Perfect for: USB drives, network shares, no-install deployment");
     Ok(())
 }
 
@@ -51,15 +55,15 @@ fn basic_portable_app() -> Result<(), Box<dyn std::error::Error>> {
     println!("   Executable-relative path: {}", app_dir.display());
 
     // Establish boundary for security
-    let boundary: PathBoundary = PathBoundary::try_new_create(app_dir)?;
+    let app_data_dir: PathBoundary = PathBoundary::try_new_create(app_dir)?;
 
     // Create configuration
-    let config = boundary.strict_join("config.ini")?;
+    let config = app_data_dir.strict_join("config.ini")?;
     config.write(b"[Settings]\nportable=true\nversion=1.0\n")?;
     println!("   ✓ Created config.ini");
 
     // Create user data
-    let data = boundary.strict_join("userdata.txt")?;
+    let data = app_data_dir.strict_join("userdata.txt")?;
     data.write(b"User preferences saved locally")?;
     println!("   ✓ Created userdata.txt");
 
@@ -69,13 +73,13 @@ fn basic_portable_app() -> Result<(), Box<dyn std::error::Error>> {
         config
             .read_to_string()?
             .lines()
-            .map(|line| format!("     {}", line))
+            .map(|line| format!("     {line}"))
             .collect::<Vec<_>>()
             .join("\n")
     );
 
     // Clean up demo
-    boundary.remove_dir_all().ok();
+    app_data_dir.remove_dir_all().ok();
 
     Ok(())
 }
@@ -139,6 +143,45 @@ fn multi_dir_portable_app() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Validate untrusted filenames from CLI args before writing to the app data directory.
+///
+/// This is the core security pattern: untrusted input is NEVER used directly as a path.
+/// It must pass through `strict_join()` first, which rejects traversal attacks.
+fn cli_input_validation() -> Result<(), Box<dyn std::error::Error>> {
+    // Application data directory anchored to the executable location
+    let app_dir = AppPath::with("portable-demo-cli");
+    let app_data_dir: PathBoundary = PathBoundary::try_new_create(app_dir)?;
+
+    // Simulate filenames arriving from CLI args, HTTP query params, or config files.
+    // In a real app this would be: let user_input = std::env::args().nth(1).unwrap_or_default();
+    let cli_args: &[&str] = &[
+        // From CLI args, HTTP request, or other external source
+        "report.txt",
+        "../../etc/passwd",   // traversal attack
+        "../outside.txt",     // escape attempt
+        "data/summary.csv",   // valid nested path
+    ];
+
+    println!("   Validating filenames from external input (CLI args / HTTP request):");
+    for user_input in cli_args {
+        // user_input is untrusted — strict_join() validates it against the boundary
+        match app_data_dir.strict_join(user_input) {
+            Ok(safe_path) => {
+                safe_path.create_parent_dir_all()?;
+                safe_path.write(b"app content")?;
+                println!("   OK  '{user_input}' -> {}", safe_path.strictpath_display());
+            }
+            Err(_) => {
+                println!("   BLOCKED  '{user_input}' (path traversal / escape attempt)");
+            }
+        }
+    }
+
+    // Clean up demo files
+    app_data_dir.remove_dir_all().ok();
+    Ok(())
+}
+
 /// Environment variable override for testing/CI/CD pipelines
 fn env_override_pattern() -> Result<(), Box<dyn std::error::Error>> {
     // AppPath has built-in override support for testing/CI
@@ -151,28 +194,28 @@ fn env_override_pattern() -> Result<(), Box<dyn std::error::Error>> {
     let app_path = AppPath::with_override("portable-demo", Some(env_var));
 
     if is_overridden {
-        println!("   🔧 Using override from ${}", env_var);
+        println!("   🔧 Using override from ${env_var}");
         println!("      Path: {}", app_path.display());
     } else {
         println!("   📁 Using executable-relative (no override set)");
         println!("      Path: {}", app_path.display());
-        println!("      Tip: Set {} to override location", env_var);
+        println!("      Tip: Set {env_var} to override location");
     }
 
-    let boundary: PathBoundary = PathBoundary::try_new_create(app_path)?;
+    let app_data_dir: PathBoundary = PathBoundary::try_new_create(app_path)?;
 
     // Application works the same regardless of location
-    let log_file = boundary.strict_join("app.log")?;
+    let log_file = app_data_dir.strict_join("app.log")?;
     log_file.write(b"[INFO] Application started\n[INFO] Initialization complete\n")?;
     println!("   ✓ Created app.log");
 
     println!("\n   💡 Use cases:");
     println!("      • Production: files next to executable");
-    println!("      • CI: ${} = /tmp/ci-test", env_var);
+    println!("      • CI: ${env_var} = /tmp/ci-test");
     println!("      • Development: override to project directory");
 
     // Clean up demo
-    boundary.remove_dir_all().ok();
+    app_data_dir.remove_dir_all().ok();
 
     Ok(())
 }

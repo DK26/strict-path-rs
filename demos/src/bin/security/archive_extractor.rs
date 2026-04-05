@@ -123,8 +123,8 @@ fn detect_archive_format(path: impl AsRef<Path>) -> Option<ArchiveFormat> {
     let path_ref = path.as_ref();
     let ext = path_ref
         .extension()
-        .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase());
+        .and_then(|ext| ext.to_str())
+        .map(|ext_str| ext_str.to_ascii_lowercase());
     match ext.as_deref() {
         Some("zip") => Some(ArchiveFormat::Zip),
         Some("tar") => Some(ArchiveFormat::Tar),
@@ -270,7 +270,7 @@ fn extract_tar_entries<R: Read>(
 
         let mut entry = entry?;
         let entry_path_buf = entry.path()?.into_owned();
-        let entry_path_disp = format!("{}", entry_path_buf.display());
+        let entry_path_display = entry_path_buf.display().to_string();
 
         // CRITICAL SECURITY: Validate path through VirtualRoot - prevents tar slip
         match extraction_root.virtual_join(&entry_path_buf) {
@@ -281,7 +281,7 @@ fn extract_tar_entries<R: Read>(
                     safe_path.create_dir_all()?;
                     stats.directories_created += 1;
                     if cli.verbose {
-                        println!("📁 Created directory: {entry_path_disp}");
+                        println!("📁 Created directory: {entry_path_display}");
                     }
                 } else if header.entry_type().is_file() {
                     // Create parent directories
@@ -298,7 +298,7 @@ fn extract_tar_entries<R: Read>(
                     if cli.verbose {
                         println!(
                             "📄 Extracted: {} ({} bytes)",
-                            entry_path_disp,
+                            entry_path_display,
                             content.len()
                         );
                     }
@@ -306,9 +306,9 @@ fn extract_tar_entries<R: Read>(
             }
             Err(_) => {
                 // Path validation failed - likely a tar slip attempt
-                stats.blocked_paths.push(entry_path_disp.clone());
+                stats.blocked_paths.push(entry_path_display.clone());
                 if cli.verbose {
-                    println!("🚫 Blocked malicious path: {entry_path_disp}");
+                    println!("🚫 Blocked malicious path: {entry_path_display}");
                 }
             }
         }

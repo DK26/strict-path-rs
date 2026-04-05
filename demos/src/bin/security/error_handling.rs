@@ -52,12 +52,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Ok(boundary) => {
+        Ok(secure_dir) => {
             // Test detailed error API
             println!("Validator created successfully!");
 
             // Try to validate a path - this is the only way to check validity
-            match boundary.strict_join("../../../sensitive.txt") {
+            match secure_dir.strict_join("../../../sensitive.txt") {
                 Ok(_) => println!("Unexpected success!"),
                 Err(e) => println!("Correctly blocked traversal: {e}"),
             }

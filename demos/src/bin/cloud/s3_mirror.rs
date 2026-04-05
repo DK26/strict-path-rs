@@ -41,18 +41,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    let source_root_os = mirror_src.interop_path();
-    for entry in WalkDir::new(source_root_os) {
+    let mirror_root_os = mirror_src.interop_path();
+    for entry in WalkDir::new(mirror_root_os) {
         let entry = entry?;
         let entry_path = entry.path();
-        let relative_path = match entry_path.strip_prefix(source_root_os) {
+        let relative_path = match entry_path.strip_prefix(mirror_root_os) {
             Ok(r) if !r.as_os_str().is_empty() => r,
             _ => continue,
         };
-        let source_file = mirror_src.strict_join(relative_path)?;
-        if source_file.is_file() {
+        let mirror_entry = mirror_src.strict_join(relative_path)?;
+        if mirror_entry.is_file() {
             let object_vpath: VirtualPath<Src> = mirror_src_vroot.virtual_join(relative_path)?;
-            let key_part_owned = format!("{}", object_vpath.virtualpath_display());
+            let key_part_owned = object_vpath.virtualpath_display().to_string();
             let key_part = key_part_owned.trim_start_matches('/');
             let key = if prefix.is_empty() {
                 key_part.to_string()
@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 format!("{}/{}", prefix.trim_end_matches('/'), key_part)
             };
             if let Some(ref s3c) = s3 {
-                let body = ByteStream::from_path(source_file.interop_path()).await?;
+                let body = ByteStream::from_path(mirror_entry.interop_path()).await?;
                 s3c.put_object()
                     .bucket(&bucket)
                     .key(&key)
@@ -69,8 +69,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .await?;
                 println!("Uploaded s3://{}/{}", bucket, key);
             } else {
-                let src_disp = source_file.strictpath_display();
-                println!("MOCK upload s3://{bucket}/{key} from {src_disp}");
+                let mirror_entry_display = mirror_entry.strictpath_display();
+                println!("MOCK upload s3://{bucket}/{key} from {mirror_entry_display}");
             }
         }
     }

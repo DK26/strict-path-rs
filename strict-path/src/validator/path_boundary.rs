@@ -27,12 +27,12 @@ use std::sync::Arc;
 /// ```rust
 /// # use strict_path::{PathBoundary, Result};
 /// # fn main() -> Result<()> {
-/// let boundary = PathBoundary::<()>::try_new_create("./sandbox")?;
+/// let sandbox = PathBoundary::<()>::try_new_create("./sandbox")?;
 /// // Untrusted input from request/CLI/config/etc.
 /// let user_input = "sub/file.txt";
 /// // Use the public API that exercises the same validation pipeline
 /// // as this internal helper.
-/// let file = boundary.strict_join(user_input)?;
+/// let file = sandbox.strict_join(user_input)?;
 /// assert!(file.interop_path().to_string_lossy().contains("sandbox"));
 /// # Ok(())
 /// # }
@@ -68,10 +68,10 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
 /// ```rust
 /// # use strict_path::PathBoundary;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let boundary = PathBoundary::<()>::try_new_create("./data")?;
+/// let data_dir = PathBoundary::<()>::try_new_create("./data")?;
 /// // Untrusted input from request/CLI/config/etc.
 /// let requested_file = "logs/app.log";
-/// let file = boundary.strict_join(requested_file)?;
+/// let file = data_dir.strict_join(requested_file)?;
 /// println!("{}", file.strictpath_display());
 /// # Ok(())
 /// # }
@@ -168,7 +168,7 @@ impl<Marker> PathBoundary<Marker> {
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use strict_path::PathBoundary;
-    /// let boundary = PathBoundary::<()>::try_new("./data")?;
+    /// let data_dir = PathBoundary::<()>::try_new("./data")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -228,7 +228,7 @@ impl<Marker> PathBoundary<Marker> {
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use strict_path::PathBoundary;
-    /// let boundary = PathBoundary::<()>::try_new_create("./data")?;
+    /// let data_dir = PathBoundary::<()>::try_new_create("./data")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -279,10 +279,10 @@ impl<Marker> PathBoundary<Marker> {
     /// struct ReadOnly;
     /// struct ReadWrite;
     ///
-    /// let read_boundary: PathBoundary<ReadOnly> = PathBoundary::try_new_create("./data")?;
+    /// let read_only_dir: PathBoundary<ReadOnly> = PathBoundary::try_new_create("./data")?;
     ///
     /// // After authorization check...
-    /// let write_boundary: PathBoundary<ReadWrite> = read_boundary.change_marker();
+    /// let write_access_dir: PathBoundary<ReadWrite> = read_only_dir.change_marker();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[inline]
@@ -309,9 +309,9 @@ impl<Marker> PathBoundary<Marker> {
     /// EXAMPLE:
     /// ```rust
     /// # use strict_path::{PathBoundary, StrictPath};
-    /// let boundary: PathBoundary = PathBoundary::try_new_create("./data")?;
-    /// let boundary_path: StrictPath = boundary.into_strictpath()?;
-    /// assert!(boundary_path.is_dir());
+    /// let data_dir: PathBoundary = PathBoundary::try_new_create("./data")?;
+    /// let data_path: StrictPath = data_dir.into_strictpath()?;
+    /// assert!(data_path.is_dir());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[inline]
@@ -434,11 +434,11 @@ impl<Marker> PathBoundary<Marker> {
     /// use strict_path::PathBoundary;
     ///
     /// # let temp = tempfile::tempdir()?;
-    /// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
-    /// # boundary.strict_join("file.txt")?.write("test")?;
+    /// let data_dir: PathBoundary = PathBoundary::try_new(temp.path())?;
+    /// # data_dir.strict_join("file.txt")?.write("test")?;
     ///
     /// // Auto-validated iteration - no manual re-join needed!
-    /// for entry in boundary.strict_read_dir()? {
+    /// for entry in data_dir.strict_read_dir()? {
     ///     let child = entry?;
     ///     println!("Found: {}", child.strictpath_display());
     /// }
@@ -507,8 +507,8 @@ impl<Marker: Default> std::str::FromStr for PathBoundary<Marker> {
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let boundary: PathBoundary<()> = "./data".parse()?;
-    /// assert!(boundary.exists());
+    /// let data_dir: PathBoundary<()> = "./data".parse()?;
+    /// assert!(data_dir.exists());
     /// # Ok(())
     /// # }
     /// ```
@@ -534,9 +534,9 @@ impl<Marker: Default> std::str::FromStr for PathBoundary<Marker> {
 /// ```rust
 /// # use strict_path::PathBoundary;
 /// # let temp = tempfile::tempdir()?;
-/// let boundary: PathBoundary = PathBoundary::try_new(temp.path())?;
-/// # boundary.strict_join("readme.md")?.write("# Docs")?;
-/// for entry in boundary.strict_read_dir()? {
+/// let data_dir: PathBoundary = PathBoundary::try_new(temp.path())?;
+/// # data_dir.strict_join("readme.md")?.write("# Docs")?;
+/// for entry in data_dir.strict_read_dir()? {
 ///     let child = entry?;
 ///     if child.is_file() {
 ///         println!("File: {}", child.strictpath_display());

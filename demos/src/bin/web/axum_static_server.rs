@@ -66,11 +66,11 @@ async fn serve(
     }
 }
 
-fn serve_vp(p: &VirtualPath<Assets>) -> std::io::Result<String> {
-    if !p.is_file() {
+fn serve_vp(asset_path: &VirtualPath<Assets>) -> std::io::Result<String> {
+    if !asset_path.is_file() {
         return Err(std::io::ErrorKind::NotFound.into());
     }
-    p.read_to_string()
+    asset_path.read_to_string()
 }
 
 // Keep handlers simple: validate Path<String> using State<VirtualRoot<Assets>> directly.

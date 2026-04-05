@@ -68,8 +68,8 @@ fn generate_random_path(rng: &mut Lcg, depth: usize) -> String {
 #[test]
 fn fuzz_strict_join_security_invariant() {
     let temp = tempfile::tempdir().unwrap();
-    let boundary = PathBoundary::<()>::try_new(temp.path()).unwrap();
-    let boundary_path = PathBuf::from(boundary.interop_path());
+    let sandbox = PathBoundary::<()>::try_new(temp.path()).unwrap();
+    let boundary_path = PathBuf::from(sandbox.interop_path());
 
     let mut rng = Lcg::new(12345);
 
@@ -77,7 +77,7 @@ fn fuzz_strict_join_security_invariant() {
         let depth = rng.next_range(10) + 1;
         let input = generate_random_path(&mut rng, depth);
 
-        match boundary.strict_join(&input) {
+        match sandbox.strict_join(&input) {
             Ok(strict_path) => {
                 // Invariant: If strict_join succeeds, the path MUST be inside the boundary
                 let resolved = strict_path.interop_path();
@@ -88,14 +88,11 @@ fn fuzz_strict_join_security_invariant() {
                 // Check if it starts with boundary
                 // Note: On Windows, canonicalization might add \\?\ prefix.
                 // PathBoundary handles this internally, but for raw comparison we need to be careful.
-                // strict_path.strictpath_starts_with(boundary.interop_path()) is the correct check.
+                // strict_path.strictpath_starts_with(sandbox.interop_path()) is the correct check.
 
                 assert!(
                     strict_path.strictpath_starts_with(&boundary_path),
-                    "Security invariant violated! Path escaped boundary.\nInput: {:?}\nResult: {:?}\nBoundary: {:?}",
-                    input,
-                    resolved,
-                    boundary_path
+                    "Security invariant violated! Path escaped boundary.\nInput: {input:?}\nResult: {resolved:?}\nBoundary: {boundary_path:?}"
                 );
             }
             Err(StrictPathError::PathEscapesBoundary { .. }) => {
@@ -111,7 +108,7 @@ fn fuzz_strict_join_security_invariant() {
             }
             Err(e) => {
                 // Other errors are fine, but we shouldn't panic
-                println!("Fuzz input '{:?}' caused error: {:?}", input, e);
+                println!("Fuzz input '{input:?}' caused error: {e:?}");
             }
         }
     }
@@ -145,15 +142,13 @@ fn fuzz_virtual_join_clamping_invariant() {
                 let display = vpath.virtualpath_display().to_string();
                 assert!(
                     display.starts_with('/'),
-                    "Virtual display not rooted: {}",
-                    display
+                    "Virtual display not rooted: {display}"
                 );
 
                 // Invariant 3: Display path must not contain ..
                 assert!(
                     !display.contains("/../") && !display.ends_with("/.."),
-                    "Virtual display contains traversal: {}",
-                    display
+                    "Virtual display contains traversal: {display}"
                 );
             }
             Err(e) => {
@@ -161,8 +156,7 @@ fn fuzz_virtual_join_clamping_invariant() {
                 // It shouldn't return PathEscapesBoundary because it clamps.
                 if let StrictPathError::PathEscapesBoundary { .. } = e {
                     panic!(
-                        "virtual_join should clamp, not error on escape! Input: {:?}",
-                        input
+                        "virtual_join should clamp, not error on escape! Input: {input:?}"
                     );
                 }
             }

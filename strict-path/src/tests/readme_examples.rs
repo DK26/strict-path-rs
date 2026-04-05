@@ -9,12 +9,12 @@ fn readme_policy_types_example() -> Result<(), Box<dyn std::error::Error>> {
     let temp_dir = tempfile::tempdir()?.keep();
 
     // 1. Define the boundary - paths are contained within ./uploads
-    let uploads_boundary: crate::PathBoundary =
+    let uploads_dir: crate::PathBoundary =
         PathBoundary::try_new_create(temp_dir.join("uploads"))?;
 
     // 2. Validate untrusted user input against the boundary
     let user_provided_path = "documents/report.pdf"; // Simulates get_filename_from_request()
-    let user_file = uploads_boundary.strict_join(user_provided_path)?;
+    let user_file = uploads_dir.strict_join(user_provided_path)?;
 
     // 3. Safe I/O operations - guaranteed within boundary
     user_file.create_parent_dir_all()?;
@@ -24,7 +24,7 @@ fn readme_policy_types_example() -> Result<(), Box<dyn std::error::Error>> {
 
     // 4. Escape attempts are detected and rejected
     let malicious_input = "../../etc/passwd"; // Simulates attacker-controlled input
-    match uploads_boundary.strict_join(malicious_input) {
+    match uploads_dir.strict_join(malicious_input) {
         Ok(_) => panic!("Escapes should be caught!"),
         Err(e) => println!("Attack blocked: {e}"), // PathEscapesBoundary error
     }
@@ -86,8 +86,8 @@ fn readme_disaster_prevention_example() -> Result<(), Box<dyn std::error::Error>
     let user_input = "../../../etc/passwd";
 
     // ? This single line makes it mathematically impossible
-    let boundary: crate::StrictPath = StrictPath::with_boundary_create(temp_dir.join("uploads"))?;
-    let result = boundary.strict_join(user_input);
+    let uploads_dir: crate::StrictPath = StrictPath::with_boundary_create(temp_dir.join("uploads"))?;
+    let result = uploads_dir.strict_join(user_input);
     // Returns Err(PathEscapesBoundary) - attack blocked!
     assert!(result.is_err());
 
@@ -101,17 +101,17 @@ fn readme_typical_workflow_strict_links_example() -> Result<(), Box<dyn std::err
     let temp_dir = tempfile::tempdir()?.keep();
 
     // 1) Establish boundary
-    let boundary: crate::PathBoundary = PathBoundary::try_new_create(temp_dir.join("link_demo"))?;
+    let link_demo_dir: crate::PathBoundary = PathBoundary::try_new_create(temp_dir.join("link_demo"))?;
 
     // 2) Validate target path from untrusted input
-    let target = boundary.strict_join("data/target.txt")?;
+    let target = link_demo_dir.strict_join("data/target.txt")?;
     target.create_parent_dir_all()?;
     target.write(b"hello")?;
 
     // 3) Create a sibling hard link under the same directory
     target.strict_hard_link("alias.txt")?;
 
-    let alias = boundary.strict_join("data/alias.txt")?;
+    let alias = link_demo_dir.strict_join("data/alias.txt")?;
     assert_eq!(alias.read_to_string()?, "hello");
 
     Ok(())

@@ -38,9 +38,9 @@ fn anchored_canonicalize_missing_backslash_regression() {
 
     // Regardless of upstream behavior, our wrapper must normalize to a correct form.
     // Call through our normalized wrapper and assert the result has a backslash after the colon.
-    let boundary: crate::PathBoundary = crate::PathBoundary::try_new(tmp.path()).unwrap();
+    let test_dir: crate::PathBoundary = crate::PathBoundary::try_new(tmp.path()).unwrap();
     let anchored = crate::validator::path_history::PathHistory::new(candidate.to_path_buf())
-        .canonicalize_anchored(&boundary)
+        .canonicalize_anchored(&test_dir)
         .expect("normalized anchored canonicalize must succeed");
     let fixed = anchored.to_string_lossy();
     if let Some(rest) = fixed.strip_prefix(r"\\?\") {

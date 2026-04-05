@@ -8,11 +8,11 @@ fn virtualpath_display_is_rooted_and_forward_slashed() {
     // Non-root path
     let jp = restriction.strict_join("foo/bar.txt").unwrap();
     let vp = jp.virtualize();
-    assert_eq!(format!("{}", vp.virtualpath_display()), "/foo/bar.txt");
+    assert_eq!(vp.virtualpath_display().to_string(), "/foo/bar.txt");
     assert_eq!(vp.virtualpath_display().to_string(), "/foo/bar.txt");
 
     // Root path
     let root_vp: crate::path::virtual_path::VirtualPath<()> =
         crate::path::virtual_path::VirtualPath::with_root(restriction).unwrap();
-    assert_eq!(format!("{}", root_vp.virtualpath_display()), "/");
+    assert_eq!(root_vp.virtualpath_display().to_string(), "/");
 }

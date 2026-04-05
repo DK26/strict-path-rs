@@ -14,19 +14,19 @@ fn test_virtual_path_join_and_parent() {
     // join (inside PathBoundary)
     let joined = virtual_path.virtual_join("baz.txt").unwrap();
     assert_eq!(
-        format!("{}", joined.virtualpath_display()),
+        joined.virtualpath_display().to_string(),
         "/foo/bar.txt/baz.txt"
     );
 
     // join (outside PathBoundary, expect clamping)
     let outside = virtual_path.virtual_join("../../../../etc/passwd").unwrap();
-    assert_eq!(format!("{}", outside.virtualpath_display()), "/etc/passwd");
+    assert_eq!(outside.virtualpath_display().to_string(), "/etc/passwd");
 
     // parent (inside PathBoundary)
     let parent = virtual_path.virtualpath_parent().unwrap();
     assert!(parent.is_some());
     let actual_parent = parent.unwrap();
-    assert_eq!(format!("{}", actual_parent.virtualpath_display()), "/foo");
+    assert_eq!(actual_parent.virtualpath_display().to_string(), "/foo");
 
     // parent (at PathBoundary root)
     let root_virtual: crate::path::virtual_path::VirtualPath<()> =
@@ -48,7 +48,7 @@ fn test_virtual_path_pathbuf_methods() {
         .virtualpath_with_file_name("newname.txt")
         .unwrap();
     assert_eq!(
-        format!("{}", with_name.virtualpath_display()),
+        with_name.virtualpath_display().to_string(),
         "/foo/newname.txt"
     );
 
@@ -59,14 +59,14 @@ fn test_virtual_path_pathbuf_methods() {
         .virtualpath_with_file_name("../../etc/passwd")
         .unwrap();
     assert_eq!(
-        format!("{}", escape_attempt.virtualpath_display()),
+        escape_attempt.virtualpath_display().to_string(),
         "/etc/passwd"
     );
 
     // with_extension (inside PathBoundary)
     let with_ext = virtual_path.virtualpath_with_extension("log").unwrap();
     assert_eq!(
-        format!("{}", with_ext.virtualpath_display()),
+        with_ext.virtualpath_display().to_string(),
         "/foo/bar.log"
     );
 
@@ -80,8 +80,8 @@ fn test_virtual_path_pathbuf_methods() {
 #[test]
 fn test_strict_path_create_file() {
     let temp = tempfile::tempdir().unwrap();
-    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
-    let strict = boundary.strict_join("logs/output.txt").unwrap();
+    let test_dir: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+    let strict = test_dir.strict_join("logs/output.txt").unwrap();
     strict.create_parent_dir_all().unwrap();
 
     let mut file = strict.create_file().unwrap();
@@ -98,8 +98,8 @@ fn test_strict_path_create_file() {
 #[test]
 fn test_virtual_path_create_file() {
     let temp = tempfile::tempdir().unwrap();
-    let boundary: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
-    let strict = boundary.strict_join("reports/summary.txt").unwrap();
+    let test_dir: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
+    let strict = test_dir.strict_join("reports/summary.txt").unwrap();
     strict.create_parent_dir_all().unwrap();
     let virtual_path = strict.clone().virtualize();
 
@@ -149,7 +149,7 @@ fn test_virtual_path_symlink_edge_cases() {
         sys_path.interop_path()
     );
     assert_eq!(
-        format!("{}", legitimate_link.virtualpath_display()),
+        legitimate_link.virtualpath_display().to_string(),
         "/docs/shared/link_to_target"
     );
 
@@ -161,7 +161,7 @@ fn test_virtual_path_symlink_edge_cases() {
         .unwrap();
     // This should be clamped to /etc/passwd in virtual space, then point to restriction_boundary/etc/passwd in system space
     assert_eq!(
-        format!("{}", traversal_through_link.virtualpath_display()),
+        traversal_through_link.virtualpath_display().to_string(),
         "/etc/passwd"
     );
 
@@ -189,12 +189,12 @@ fn test_virtual_path_symlink_edge_cases() {
         .unwrap();
     // Virtual layer clamps; the display should show the clamped path within virtual space
     // With symlink clamping (0.4.0), the symlink target gets clamped to virtual root
-    let complex_disp = format!("{}", complex_traversal.virtualpath_display());
+    let complex_virtual_display = complex_traversal.virtualpath_display().to_string();
     assert!(
-        complex_disp == "/shared/link_to_target"
-            || complex_disp == "/target.txt"
-            || complex_disp.contains("/target.txt"), // macOS may show full clamped path
-        "unexpected complex traversal display: {complex_disp}"
+        complex_virtual_display == "/shared/link_to_target"
+            || complex_virtual_display == "/target.txt"
+            || complex_virtual_display.contains("/target.txt"), // macOS may show full clamped path
+        "unexpected complex traversal display: {complex_virtual_display}"
     );
 }
 
@@ -223,7 +223,7 @@ fn test_virtual_path_windows_symlink_edge_cases() {
         .virtual_join("../../../../etc/passwd")
         .unwrap();
     assert_eq!(
-        format!("{}", traversal.virtualpath_display()),
+        traversal.virtualpath_display().to_string(),
         "/etc/passwd"
     );
 
@@ -233,7 +233,7 @@ fn test_virtual_path_windows_symlink_edge_cases() {
         .unwrap();
     // Should be clamped to virtual root area
     assert_eq!(
-        format!("{}", windows_traversal.virtualpath_display()),
+        windows_traversal.virtualpath_display().to_string(),
         "/Windows/System32/config/SAM"
     );
 
@@ -242,7 +242,7 @@ fn test_virtual_path_windows_symlink_edge_cases() {
         .virtual_join("../../../shared/target.txt")
         .unwrap();
     assert_eq!(
-        format!("{}", unc_like.virtualpath_display()),
+        unc_like.virtualpath_display().to_string(),
         "/shared/target.txt"
     );
 }

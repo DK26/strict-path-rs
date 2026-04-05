@@ -122,7 +122,7 @@ fn virtual_semantics_for_parent_helpers() {
     let vroot: crate::VirtualRoot = crate::VirtualRoot::try_new(td.path()).unwrap();
     // Path attempts to traverse above; virtual semantics clamp to "/q/r.txt"
     let vp = vroot.virtual_join("a/../../q/r.txt").unwrap();
-    assert_eq!(format!("{}", vp.virtualpath_display()), "/q/r.txt");
+    assert_eq!(vp.virtualpath_display().to_string(), "/q/r.txt");
     vp.create_parent_dir_all().unwrap();
     // Only q is created under the restricted path root; no stray "a"
     assert!(td.path().join("q").is_dir());

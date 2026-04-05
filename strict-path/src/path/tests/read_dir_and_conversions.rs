@@ -7,10 +7,10 @@ use crate::VirtualRoot;
 #[test]
 fn test_strict_and_virtual_path_read_dir() {
     let temp = tempfile::tempdir().unwrap();
-    let boundary: PathBoundary = PathBoundary::try_new_create(temp.path()).unwrap();
+    let test_dir: PathBoundary = PathBoundary::try_new_create(temp.path()).unwrap();
 
     // Create a directory with children
-    let items_dir = boundary.strict_join("items").unwrap();
+    let items_dir = test_dir.strict_join("items").unwrap();
     items_dir.create_dir_all().unwrap();
     let a_file = items_dir.strict_join("a.txt").unwrap();
     a_file.write("A").unwrap();
@@ -54,34 +54,34 @@ fn test_strict_and_virtual_path_read_dir() {
 #[test]
 fn test_conversion_helpers_for_strict_and_virtual_path() {
     let temp = tempfile::tempdir().unwrap();
-    let boundary: PathBoundary = PathBoundary::try_new_create(temp.path()).unwrap();
+    let test_dir: PathBoundary = PathBoundary::try_new_create(temp.path()).unwrap();
 
-    let dir = boundary.strict_join("workspace").unwrap();
+    let dir = test_dir.strict_join("workspace").unwrap();
     dir.create_dir_all().unwrap();
 
     // StrictPath -> PathBoundary conversion symmetry
-    let b1 = dir.clone().try_into_boundary().unwrap();
-    assert_eq!(dir, b1);
+    let workspace_boundary = dir.clone().try_into_boundary().unwrap();
+    assert_eq!(dir, workspace_boundary);
 
     // Simulate boundary deletion, then try_into_boundary_create recreates it
-    boundary.remove_dir_all().unwrap();
-    assert!(!boundary.exists());
-    let b2 = dir.try_into_boundary_create().unwrap();
-    assert!(b2.exists());
-    assert!(boundary.exists());
+    test_dir.remove_dir_all().unwrap();
+    assert!(!test_dir.exists());
+    let recreated_boundary = dir.try_into_boundary_create().unwrap();
+    assert!(recreated_boundary.exists());
+    assert!(test_dir.exists());
 
     // VirtualPath -> VirtualRoot conversion symmetry
-    let nested_dir = b2.strict_join("nested").unwrap();
+    let nested_dir = recreated_boundary.strict_join("nested").unwrap();
     nested_dir.create_dir_all().unwrap();
     let vdir = nested_dir.clone().virtualize();
-    let nested_boundary = nested_dir.try_into_boundary_create().unwrap();
+    let nested_access_dir = nested_dir.try_into_boundary_create().unwrap();
     let vroot: VirtualRoot = vdir.clone().try_into_root().unwrap();
-    assert_eq!(vroot.as_unvirtual(), &nested_boundary);
+    assert_eq!(vroot.as_unvirtual(), &nested_access_dir);
 
     // Simulate root deletion, then try_into_root_create recreates it
     vroot.remove_dir_all().unwrap();
     assert!(!vroot.exists());
-    let vroot2: VirtualRoot = vdir.try_into_root_create().unwrap();
-    assert!(vroot2.exists());
+    let recreated_root: VirtualRoot = vdir.try_into_root_create().unwrap();
+    assert!(recreated_root.exists());
     assert!(vroot.exists());
 }

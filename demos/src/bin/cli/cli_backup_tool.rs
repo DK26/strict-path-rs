@@ -131,7 +131,7 @@ fn create_backup(
     println!("Creating backup '{backup_name}' from {source_path} to {dest_path}");
 
     // Create secure jails for source and destination
-    let source_dir: PathBoundary<BackupSource> = PathBoundary::try_new_create(source_path)?;
+    let backup_src_dir: PathBoundary<BackupSource> = PathBoundary::try_new_create(source_path)?;
     let backup_dir: PathBoundary<BackupDestination> = PathBoundary::try_new_create(dest_path)?;
 
     // Create backup directory
@@ -141,24 +141,24 @@ fn create_backup(
 
     // Collect files to backup
     let mut backup_files = Vec::new();
-    let source_root_os = source_dir.interop_path();
+    let backup_root_os = backup_src_dir.interop_path();
 
-    for entry in WalkDir::new(source_root_os) {
+    for entry in WalkDir::new(backup_root_os) {
         let entry = entry?;
         let entry_path = entry.path();
 
         // Get relative path from source root
-        let relative = entry_path.strip_prefix(source_root_os)?;
+        let relative = entry_path.strip_prefix(backup_root_os)?;
         if relative.as_os_str().is_empty() {
             continue;
         }
 
-        let relative_str = format!("{}", relative.display());
+        let relative_str = relative.display().to_string();
 
         // Validate the relative path through source PathBoundary
-        let source_file = source_dir.strict_join(&relative_str)?;
+        let backup_entry = backup_src_dir.strict_join(&relative_str)?;
 
-        if source_file.is_file() {
+        if backup_entry.is_file() {
             // Copy file to backup location
             let backup_file_path = format!("{backup_dir_path}/{relative_str}");
             let backup_file = backup_dir.strict_join(&backup_file_path)?;
@@ -167,7 +167,7 @@ fn create_backup(
             backup_file.create_parent_dir_all()?;
 
             // Copy file content
-            let content = source_file.read()?;
+            let content = backup_entry.read()?;
             backup_file.write(&content)?;
 
             backup_files.push(BackupFileEntry {
@@ -177,7 +177,7 @@ fn create_backup(
             });
 
             println!("  Backed up: {relative_str}");
-        } else if source_file.is_dir() {
+        } else if backup_entry.is_dir() {
             let backup_dir_path_new = format!("{backup_dir_path}/{relative_str}");
             let backup_subdir = backup_dir.strict_join(&backup_dir_path_new)?;
             backup_subdir.create_dir_all()?;
@@ -278,7 +278,8 @@ fn list_backups(dest_path: &str) -> Result<(), Box<dyn std::error::Error>> {
         "{:<20} {:<25} {:<15} {:<10}",
         "Name", "Created", "Source", "Files"
     );
-    println!("{}", "-".repeat(75));
+    let sep = "-".repeat(75);
+    println!("{sep}");
 
     // In a real implementation, you'd iterate through metadata directory
     // This shows the secure pattern for accessing backup metadata

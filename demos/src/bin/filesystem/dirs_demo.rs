@@ -138,7 +138,7 @@ impl SystemDirectoryManager {
 
         // Check total cache size (simplified example)
         let cache_size = self.calculate_cache_size()?;
-        println!("📊 Current cache size: {} bytes", cache_size);
+        println!("📊 Current cache size: {cache_size} bytes");
 
         if cache_size > 1024 * 1024 {
             // 1MB limit for demo
@@ -178,9 +178,9 @@ impl SystemDirectoryManager {
             let mut files: Vec<(StrictPath<Cache>, std::time::SystemTime)> = entries
                 .filter_map(|entry| entry.ok())
                 .filter_map(|entry| {
-                    let name = entry.file_name();
-                    let name = name.to_str()?;
-                    let sp = self.cache_dir.strict_join(name).ok()?;
+                    let cache_entry_name = entry.file_name();
+                    let cache_entry_name = cache_entry_name.to_str()?;
+                    let sp = self.cache_dir.strict_join(cache_entry_name).ok()?;
                     let meta = sp.metadata().ok()?;
                     if meta.is_file() {
                         let mtime = meta.modified().unwrap_or(UNIX_EPOCH);

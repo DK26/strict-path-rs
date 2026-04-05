@@ -57,10 +57,14 @@ impl QuickNotes {
         let logs_dir = app_path!("logs", env = "QUICKNOTES_LOGS");
 
         println!("Application directories:");
-        println!("  Config: {}", config_dir.display());
-        println!("  Notes:  {}", notes_dir.display());
-        println!("  Cache:  {}", cache_dir.display());
-        println!("  Logs:   {}", logs_dir.display());
+        let config_display = config_dir.display();
+        let notes_display = notes_dir.display();
+        let cache_display = cache_dir.display();
+        let logs_display = logs_dir.display();
+        println!("  Config: {config_display}");
+        println!("  Notes:  {notes_display}");
+        println!("  Cache:  {cache_display}");
+        println!("  Logs:   {logs_display}");
         println!();
 
         let storage = AppStorage {
@@ -141,13 +145,13 @@ impl QuickNotes {
         }
 
         let safe = title.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_");
-        let filename = format!("{safe}.txt");
-        let note_path: VirtualPath<Notes> = self.storage.notes_root.virtual_join(&filename)?;
+        let sanitized_note_filename = format!("{safe}.txt");
+        let note_path: VirtualPath<Notes> = self.storage.notes_root.virtual_join(&sanitized_note_filename)?;
         let ts = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
         let body = format!("Title: {title}\nCreated: {ts}\n\n{content}");
         note_path.write(&body)?;
 
-        self.update_recent_cache(&filename)?;
+        self.update_recent_cache(&sanitized_note_filename)?;
         Self::log_event(&self.storage.logs_jail, &format!("Created note: {title}"))?;
         println!("Note '{title}' created successfully!");
         Ok(())
@@ -169,7 +173,8 @@ impl QuickNotes {
         } else {
             println!("Available notes:");
             for (i, note) in notes.iter().enumerate() {
-                println!("  {}. {}", i + 1, note);
+                let num = i + 1;
+                println!("  {num}. {note}");
             }
         }
         Ok(())
@@ -181,20 +186,21 @@ impl QuickNotes {
         let mut title = String::new();
         io::stdin().read_line(&mut title)?;
         let title = title.trim();
-        let filename = format!(
+        let sanitized_note_filename = format!(
             "{}.txt",
             title.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_")
         );
-        let note_path: VirtualPath<Notes> = self.storage.notes_root.virtual_join(&filename)?;
+        let note_path: VirtualPath<Notes> = self.storage.notes_root.virtual_join(&sanitized_note_filename)?;
         if !note_path.exists() {
             println!("Note '{title}' not found.");
             return Ok(());
         }
         let content = note_path.read_to_string()?;
-        println!("\n{}", "=".repeat(50));
+        let sep = "=".repeat(50);
+        println!("\n{sep}");
         println!("{content}");
-        println!("{}", "=".repeat(50));
-        self.update_recent_cache(&filename)?;
+        println!("{sep}");
+        self.update_recent_cache(&sanitized_note_filename)?;
         Self::log_event(&self.storage.logs_jail, &format!("Read note: {title}"))?;
         Ok(())
     }
@@ -231,9 +237,12 @@ impl QuickNotes {
 
     fn show_settings(&self) -> Result<(), Box<dyn std::error::Error>> {
         println!("Current settings:");
-        println!("  Auto-save: {}", self.config.auto_save);
-        println!("  Theme: {}", self.config.theme);
-        println!("  Max recent notes: {}", self.config.max_recent);
+        let auto_save = self.config.auto_save;
+        let theme = &self.config.theme;
+        let max_recent = self.config.max_recent;
+        println!("  Auto-save: {auto_save}");
+        println!("  Theme: {theme}");
+        println!("  Max recent notes: {max_recent}");
         Ok(())
     }
 

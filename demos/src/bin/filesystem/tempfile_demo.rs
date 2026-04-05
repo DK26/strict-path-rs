@@ -95,7 +95,7 @@ impl TempFileProcessor {
         // Use strict_read_dir() directly on PathBoundary - no conversion needed!
         for entry in self.work_dir.strict_read_dir()? {
             let child = entry?;
-            if let Some(name) = child.strictpath_file_name().and_then(|n| n.to_str()) {
+            if let Some(name) = child.strictpath_file_name().and_then(|filename| filename.to_str()) {
                 files.push(name.to_string());
             }
         }
@@ -103,7 +103,7 @@ impl TempFileProcessor {
         Ok(files)
     }
 
-    /// Demonstrate batch processing with boundary validation
+    /// Demonstrate batch processing with io_demo_dir validation
     fn process_batch(&self, files: &[(&str, &str)]) -> Result<()> {
         println!("\n🔄 Starting batch processing of {} files...", files.len());
 
@@ -171,7 +171,7 @@ fn demonstrate_compression_workflow() -> Result<()> {
     for entry in temp_work.strict_read_dir()? {
         let child = entry?;
         if child.is_file() {
-            if let Some(name) = child.strictpath_file_name().and_then(|n| n.to_str()) {
+            if let Some(name) = child.strictpath_file_name().and_then(|filename| filename.to_str()) {
                 archive_content.push_str(&format!("- {name}\n"));
                 file_count += 1;
             }
@@ -232,16 +232,16 @@ fn demonstrate_new_io_apis() -> Result<()> {
     println!("\n🆕 New I/O API demonstrations:");
 
     let temp = tempfile::tempdir()?;
-    let boundary = PathBoundary::<()>::try_new(temp.path())?;
+    let io_demo_dir = PathBoundary::<()>::try_new(temp.path())?;
 
     // --- touch(): Create empty file or update mtime ---
     println!("\n  📌 touch() - Create marker files:");
-    let marker_file = boundary.strict_join("build.complete")?;
+    let marker_file = io_demo_dir.strict_join("build.complete")?;
     marker_file.touch()?; // Creates empty file
     println!("    Created marker: {}", marker_file.strictpath_display());
 
     // touch() on existing file updates mtime (preserves content)
-    let existing = boundary.strict_join("existing.txt")?;
+    let existing = io_demo_dir.strict_join("existing.txt")?;
     existing.write("original content")?;
     std::thread::sleep(std::time::Duration::from_millis(10));
     existing.touch()?; // Updates mtime, keeps content
@@ -257,7 +257,7 @@ fn demonstrate_new_io_apis() -> Result<()> {
         Err(e) => println!("    marker_file: permission error - {e}"),
     }
 
-    let nonexistent = boundary.strict_join("does_not_exist.txt")?;
+    let nonexistent = io_demo_dir.strict_join("does_not_exist.txt")?;
     match nonexistent.try_exists() {
         Ok(false) => println!("    nonexistent: correctly reports not found"),
         other => println!("    nonexistent: unexpected result - {other:?}"),
@@ -265,7 +265,7 @@ fn demonstrate_new_io_apis() -> Result<()> {
 
     // --- set_permissions(): Modify file permissions ---
     println!("\n  🔒 set_permissions() - File permission management:");
-    let config_file = boundary.strict_join("config.toml")?;
+    let config_file = io_demo_dir.strict_join("config.toml")?;
     config_file.write("[app]\nkey = \"secret\"")?;
 
     let mut perms = config_file.metadata()?.permissions();
@@ -279,7 +279,7 @@ fn demonstrate_new_io_apis() -> Result<()> {
 
     // --- open_with(): Advanced file opening ---
     println!("\n  🔧 open_with() - Advanced file open options:");
-    let log_file = boundary.strict_join("app.log")?;
+    let log_file = io_demo_dir.strict_join("app.log")?;
 
     // Create with read+write access
     {
@@ -304,7 +304,7 @@ fn demonstrate_new_io_apis() -> Result<()> {
     println!("    Appended entry (total {} bytes)", log_content.len());
 
     // create_new: fails if file exists (for exclusive access)
-    let lock_file = boundary.strict_join("app.lock")?;
+    let lock_file = io_demo_dir.strict_join("app.lock")?;
     match lock_file.open_with().create_new(true).write(true).open() {
         Ok(_) => println!("    Lock file created (exclusive)"),
         Err(e) => println!("    Lock file error: {e}"),
@@ -389,9 +389,9 @@ mod tests {
     #[test]
     fn test_temp_cleanup_on_drop() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
-        let temp_boundary = PathBoundary::<()>::try_new(temp_dir.path())?;
-        let _temp_root_display = temp_boundary.strictpath_display().to_string();
-        drop(temp_boundary); // dropped here
+        let temp_io_demo_dir = PathBoundary::<()>::try_new(temp_dir.path())?;
+        let _temp_root_display = temp_io_demo_dir.strictpath_display().to_string();
+        drop(temp_io_demo_dir); // dropped here
         drop(temp_dir); // tempfile cleanup
 
         // Directory should be cleaned up automatically

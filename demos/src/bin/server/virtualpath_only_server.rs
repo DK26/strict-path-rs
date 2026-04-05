@@ -43,9 +43,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn serve_asset(p: &VirtualPath<Assets>) -> std::io::Result<String> {
-    if !p.is_file() {
+fn serve_asset(asset_path: &VirtualPath<Assets>) -> std::io::Result<String> {
+    if !asset_path.is_file() {
         return Err(std::io::ErrorKind::NotFound.into());
     }
-    p.read_to_string()
+    asset_path.read_to_string()
 }

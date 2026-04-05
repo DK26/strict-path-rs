@@ -36,15 +36,15 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
     let request = String::from_utf8_lossy(&buffer[..]);
     let request_line = request.lines().next().unwrap_or("");
 
-    // Extract the path from the HTTP request line "GET /path HTTP/1.1"
-    let path = request_line
+    // Extract the raw path from the HTTP request line "GET /path HTTP/1.1" (untrusted input)
+    let http_request_path = request_line
         .split_whitespace()
         .nth(1)
         .unwrap_or("/")
         .trim_start_matches('/');
 
     // If the path is empty (e.g., request for "/"), default to "index.html"
-    let requested_path = if path.is_empty() { "index.html" } else { path };
+    let requested_path = if http_request_path.is_empty() { "index.html" } else { http_request_path };
 
     println!("Request for path: {requested_path}");
 
@@ -61,8 +61,8 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
         }
     };
 
-    let vdisp = virtual_path.virtualpath_display();
-    println!("Safely resolved virtual path: {vdisp}");
+    let virtual_path_display = virtual_path.virtualpath_display();
+    println!("Safely resolved virtual path: {virtual_path_display}");
 
     let (status_line, contents) = if virtual_path.is_file() {
         match serve_vpath(&virtual_path) {
@@ -84,8 +84,8 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
     stream.flush().ok();
 }
 
-fn serve_vpath(p: &VirtualPath) -> std::io::Result<String> {
-    p.read_to_string()
+fn serve_vpath(requested_file: &VirtualPath) -> std::io::Result<String> {
+    requested_file.read_to_string()
 }
 
 /// Sets up the file system environment for the example.
