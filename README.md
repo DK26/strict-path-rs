@@ -89,7 +89,7 @@ third_party::process(file.interop_path()); // &OsStr — implements AsRef<Path>
 - ❌ **Not just string checking** (handles symlinks, Windows quirks)
 - ❌ **Not a kernel based sandbox** (path-level security only)
 
-> 📖 **[Read our complete security methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 📚 **[Built-in I/O Methods →](https://dk26.github.io/strict-path-rs/best_practices.html#builtin-io-operations)**
+> 📖 **[Read our complete security methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 📚 **[Built-in I/O Methods →](https://dk26.github.io/strict-path-rs/best_practices/common_operations.html)**
 
 ## 🎯 **StrictPath vs VirtualPath: When to Use What**
 
@@ -254,8 +254,8 @@ Compose with standard Rust crates for complete solutions:
   - [Best Practices](https://dk26.github.io/strict-path-rs/best_practices.html) - Detailed decision matrix
   - [Anti-Patterns](https://dk26.github.io/strict-path-rs/anti_patterns.html) - Common mistakes
   - [Examples](https://dk26.github.io/strict-path-rs/examples/overview.html) - Copy-paste scenarios
-- 🔧 **[LLM_CONTEXT_FULL.md](LLM_CONTEXT_FULL.md)** - Full API reference for AI agents
-- 📝 **[LLM_CONTEXT.md](LLM_CONTEXT.md)** - Context7-style usage guide for AI agents
+- 🔧 **[LLM_CONTEXT_FULL.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md)** - Full API reference for AI agents
+- 📝 **[LLM_CONTEXT.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md)** - Context7-style usage guide for AI agents
 - 🛠️ **[`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)** - Path resolution engine
 
 📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)** | 🧭 **[Choosing Canonicalized vs Lexical Solution](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)**

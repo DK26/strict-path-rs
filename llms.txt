@@ -1,0 +1,27 @@
+# strict-path
+
+> Secure path handling for Rust. Prevents directory traversal, symlink escapes, and path injection from untrusted input (HTTP requests, CLI args, config files, archives, LLM output). Built on canonicalization, not string matching.
+
+## Docs
+
+- [LLM Usage Guide (concise)](https://raw.githubusercontent.com/DK26/strict-path-rs/main/LLM_CONTEXT.md): Context7-style quick reference — types, golden rules, recipes, decision guide
+- [LLM Full API Reference](https://raw.githubusercontent.com/DK26/strict-path-rs/main/LLM_CONTEXT_FULL.md): Complete API surface, all methods, features, ecosystem integration patterns
+- [API Reference (docs.rs)](https://docs.rs/strict-path): Rustdoc API documentation
+- [Getting Started](https://dk26.github.io/strict-path-rs/getting_started.html): First steps, 30-second quickstart, core concepts
+- [Best Practices](https://dk26.github.io/strict-path-rs/best_practices.html): Decision matrices, type selection, interop vs display, do/don't checklist
+- [Anti-Patterns](https://dk26.github.io/strict-path-rs/anti_patterns.html): Common mistakes and how to fix them
+- [Security Methodology](https://dk26.github.io/strict-path-rs/security_methodology.html): CVE coverage, defense-in-depth, canonicalization guarantees
+- [Real-World Examples](https://dk26.github.io/strict-path-rs/examples/overview.html): Web uploads, archive extraction, config loading, CLI tools, multi-tenant storage
+- [Ecosystem Integration](https://dk26.github.io/strict-path-rs/ecosystem_integration.html): tempfile, dirs, app-path, serde patterns
+
+## Optional
+
+- [LLM API Quick Reference](https://raw.githubusercontent.com/DK26/strict-path-rs/main/LLM_API_REFERENCE.md): Compact method-level API reference
+- [Tutorial: Mathematical Security](https://dk26.github.io/strict-path-rs/tutorial/overview.html): 6-chapter progressive guide — boundaries, markers, authorization, virtual paths
+- [Axum Web Service Tutorial](https://dk26.github.io/strict-path-rs/axum_tutorial/overview.html): Build a secure web service with strict-path + Axum
+- [Daily Usage Patterns](https://dk26.github.io/strict-path-rs/ergonomics/daily_patterns.html): Common workflows, chaining, error handling, database paths
+- [Common Operations](https://dk26.github.io/strict-path-rs/best_practices/common_operations.html): Joins, parents, rename, copy, delete, metadata
+- [Design Decisions](https://dk26.github.io/strict-path-rs/design_decisions.html): Why the API is designed this way — for the frustrated Rustacean
+- [Source Code](https://github.com/DK26/strict-path-rs): GitHub repository
+- [Crate](https://crates.io/crates/strict-path): crates.io package
+- [Changelog](https://github.com/DK26/strict-path-rs/blob/main/CHANGELOG.md): Version history and migration notes
