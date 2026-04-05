@@ -106,7 +106,7 @@ fn bench_soft_canonicalize(c: &mut Criterion) {
 /// This includes boundary check + escape detection.
 fn bench_strict_path_from_boundary(c: &mut Criterion) {
     let structure = TestStructure::new().expect("Failed to create test structure");
-    let boundary: PathBoundary<BenchRoot> =
+    let bench_root_dir: PathBoundary<BenchRoot> =
         PathBoundary::try_new(structure.base_path()).expect("Failed to create boundary");
 
     let mut group = c.benchmark_group("strict_path_from_boundary");
@@ -118,7 +118,7 @@ fn bench_strict_path_from_boundary(c: &mut Criterion) {
         b.iter(|| {
             for segment in structure.relative_segments() {
                 // StrictPath validation from boundary
-                let _ = black_box(boundary.strict_join(black_box(segment)));
+                let _ = black_box(bench_root_dir.strict_join(black_box(segment)));
             }
         });
     });
@@ -132,9 +132,11 @@ fn bench_strict_path_from_boundary(c: &mut Criterion) {
 /// This shows the cost of joining from an already-validated path.
 fn bench_strict_path_join(c: &mut Criterion) {
     let structure = TestStructure::new().expect("Failed to create test structure");
-    let boundary: PathBoundary<BenchRoot> =
+    let bench_root_dir: PathBoundary<BenchRoot> =
         PathBoundary::try_new(structure.base_path()).expect("Failed to create boundary");
-    let root: StrictPath<BenchRoot> = boundary.into_strictpath().expect("Failed to get root");
+    let root: StrictPath<BenchRoot> = bench_root_dir
+        .into_strictpath()
+        .expect("Failed to get root");
 
     let mut group = c.benchmark_group("strict_path_join");
     group.throughput(Throughput::Elements(
@@ -213,7 +215,7 @@ fn bench_virtual_path_join(c: &mut Criterion) {
 fn bench_io_operations(c: &mut Criterion) {
     let structure = TestStructure::new().expect("Failed to create test structure");
     let base = structure.base_path();
-    let boundary: PathBoundary<BenchRoot> =
+    let bench_root_dir: PathBoundary<BenchRoot> =
         PathBoundary::try_new(base).expect("Failed to create boundary");
 
     let mut group = c.benchmark_group("io_operations");
@@ -231,7 +233,7 @@ fn bench_io_operations(c: &mut Criterion) {
 
     group.bench_function("exists_strict_path", |b| {
         b.iter(|| {
-            let strict = boundary.strict_join(black_box(test_segment)).unwrap();
+            let strict = bench_root_dir.strict_join(black_box(test_segment)).unwrap();
             black_box(strict.exists())
         });
     });
@@ -247,7 +249,7 @@ fn bench_io_operations(c: &mut Criterion) {
 
     group.bench_function("metadata_strict_path", |b| {
         b.iter(|| {
-            let strict = boundary.strict_join(black_box(test_segment)).unwrap();
+            let strict = bench_root_dir.strict_join(black_box(test_segment)).unwrap();
             let _ = black_box(strict.metadata());
         });
     });
@@ -259,7 +261,7 @@ fn bench_io_operations(c: &mut Criterion) {
 fn bench_comparison_summary(c: &mut Criterion) {
     let structure = TestStructure::new().expect("Failed to create test structure");
 
-    let boundary: PathBoundary<BenchRoot> =
+    let bench_root_dir: PathBoundary<BenchRoot> =
         PathBoundary::try_new(structure.base_path()).expect("Failed to create boundary");
     let vroot: VirtualRoot<BenchRoot> =
         VirtualRoot::try_new(structure.base_path()).expect("Failed to create virtual root");
@@ -293,7 +295,7 @@ fn bench_comparison_summary(c: &mut Criterion) {
         |b, segments| {
             b.iter(|| {
                 for segment in segments {
-                    let _ = black_box(boundary.strict_join(black_box(segment)));
+                    let _ = black_box(bench_root_dir.strict_join(black_box(segment)));
                 }
             });
         },
@@ -323,7 +325,7 @@ fn bench_comparison_summary(c: &mut Criterion) {
 fn bench_repeated_operations(c: &mut Criterion) {
     let structure = TestStructure::new().expect("Failed to create test structure");
     let base = structure.base_path();
-    let boundary: PathBoundary<BenchRoot> =
+    let bench_root_dir: PathBoundary<BenchRoot> =
         PathBoundary::try_new(base).expect("Failed to create boundary");
     let vroot: VirtualRoot<BenchRoot> =
         VirtualRoot::try_new(base).expect("Failed to create virtual root");
@@ -347,7 +349,7 @@ fn bench_repeated_operations(c: &mut Criterion) {
     group.bench_function("strict_path_100x", |b| {
         b.iter(|| {
             for _ in 0..request_count {
-                let _ = black_box(boundary.strict_join(black_box(segment)));
+                let _ = black_box(bench_root_dir.strict_join(black_box(segment)));
             }
         });
     });

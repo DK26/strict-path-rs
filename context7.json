@@ -1,0 +1,41 @@
+{
+    "$schema": "https://context7.com/schema/context7.json",
+    "projectTitle": "strict-path",
+    "description": "Secure path handling for Rust — prevents directory traversal, symlink escapes, and Windows 8.3 short-name attacks with compile-time guarantees via StrictPath and VirtualPath types",
+    "folders": [],
+    "excludeFolders": [
+        "target",
+        "benches",
+        "demos",
+        ".github",
+        "strict-path/sandbox",
+        "strict-path/tenant_data",
+        "strict-path/vlink_demo",
+        "strict-path/data"
+    ],
+    "excludeFiles": [
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+        "LICENSE-APACHE",
+        "LICENSE-MIT",
+        "AGENTS.md",
+        "Cargo.toml",
+        "ci-local.ps1",
+        "ci-local.sh",
+        "ci-check.ps1",
+        "ci-check.sh",
+        "ci-check-demos.ps1",
+        "ci-check-demos.sh",
+        "context7.json",
+        "llms.txt",
+        "LLM_USER.md"
+    ],
+    "rules": [
+        "Always validate untrusted paths via strict_join() or virtual_join() before any filesystem I/O",
+        "Use StrictPath for 90% of cases (detect and reject escape attempts); use VirtualPath only for containment scenarios (multi-tenant isolation, sandboxes)",
+        "Use interop_path() ONLY when a third-party crate requires AsRef<Path>; NEVER expose it to end-users",
+        "Use strictpath_display() for system/admin output; virtualpath_display() for user-facing output — never leak real host paths",
+        "NEVER validate hardcoded string literals — always validate actual untrusted input from HTTP requests, CLI args, config files, archives, or LLM output",
+        "Prefer PathBoundary/VirtualRoot policy types for reuse and performance; use sugar constructors (with_boundary/with_root) only for one-off operations"
+    ]
+}

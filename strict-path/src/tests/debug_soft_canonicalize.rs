@@ -24,8 +24,8 @@ fn debug_soft_canonicalize_with_symlinks() {
     let rel_target = Path::new("safe").join("file.txt");
 
     println!("\n=== TEST 1: Non-canonicalized paths ===");
-    println!("restriction: {:?}", restriction);
-    println!("link_path: {:?}", link_path);
+    println!("restriction: {restriction:?}");
+    println!("link_path: {link_path:?}");
 
     if let Err(e) = symlink_file(&rel_target, &link_path) {
         println!("Skipping test - symlink creation failed: {e:?}");
@@ -40,17 +40,17 @@ fn debug_soft_canonicalize_with_symlinks() {
     // Now test with canonicalized anchor
     println!("\n=== TEST 2: Canonicalized anchor ===");
     let restriction_canon = std::fs::canonicalize(&restriction).unwrap();
-    println!("Canonicalized restriction: {:?}", restriction_canon);
+    println!("Canonicalized restriction: {restriction_canon:?}");
 
     // The symlink already exists at the clean path
     let link_path_canon = restriction_canon.join("link");
-    println!("link_path_canon: {:?}", link_path_canon);
+    println!("link_path_canon: {link_path_canon:?}");
 
     // Can we read it via canonicalized path?
-    println!("Reading via canonicalized path: {:?}", link_path_canon);
+    println!("Reading via canonicalized path: {link_path_canon:?}");
     match std::fs::read_to_string(&link_path_canon) {
-        Ok(content) => println!("✓ Read via canon path succeeded: '{}'", content),
-        Err(e) => println!("✗ Read via canon path failed: {:?}", e),
+        Ok(content) => println!("✓ Read via canon path succeeded: '{content}'"),
+        Err(e) => println!("✗ Read via canon path failed: {e:?}"),
     }
 
     println!("\n--- Testing soft-canonicalize with canonicalized anchor ---");
@@ -59,23 +59,23 @@ fn debug_soft_canonicalize_with_symlinks() {
 
 #[cfg(windows)]
 fn test_anchored_canonicalize(anchor: &Path, candidate: &str) {
-    println!("Anchor: {:?}", anchor);
-    println!("Candidate: {:?}", candidate);
+    println!("Anchor: {anchor:?}");
+    println!("Candidate: {candidate:?}");
 
     match soft_canonicalize::anchored_canonicalize(anchor, candidate) {
         Ok(result) => {
             println!("✓ anchored_canonicalize succeeded");
-            println!("  Result: {:?}", result);
+            println!("  Result: {result:?}");
             println!("  Result exists: {}", result.exists());
 
             // Can we read it?
             match std::fs::read_to_string(&result) {
-                Ok(content) => println!("  ✓ Read succeeded: '{}'", content),
-                Err(e) => println!("  ✗ Read failed: {:?}", e),
+                Ok(content) => println!("  ✓ Read succeeded: '{content}'"),
+                Err(e) => println!("  ✗ Read failed: {e:?}"),
             }
         }
         Err(e) => {
-            println!("✗ anchored_canonicalize failed: {:?}", e);
+            println!("✗ anchored_canonicalize failed: {e:?}");
         }
     }
 }

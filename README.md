@@ -31,6 +31,9 @@ let file = StrictPath::with_boundary("/var/app/downloads")?
 
 let contents = file.read()?; // Safe built-in I/O
 send_response(contents);
+
+// Need to pass to a third-party crate that requires AsRef<Path>?
+third_party::process(file.interop_path()); // &OsStr — implements AsRef<Path>
 ```
 
 > **Note:** Our doc comments and [LLM_CONTEXT_FULL.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md) are designed for LLMs with function calling—enabling AI agents to use this crate safely and correctly for file and path operations.
@@ -86,7 +89,7 @@ send_response(contents);
 - ❌ **Not just string checking** (handles symlinks, Windows quirks)
 - ❌ **Not a kernel based sandbox** (path-level security only)
 
-> 📖 **[Read our complete security methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 📚 **[Built-in I/O Methods →](https://dk26.github.io/strict-path-rs/best_practices.html#builtin-io-operations)**
+> 📖 **[Read our complete security methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 📚 **[Built-in I/O Methods →](https://dk26.github.io/strict-path-rs/best_practices/common_operations.html)**
 
 ## 🎯 **StrictPath vs VirtualPath: When to Use What**
 
@@ -110,7 +113,36 @@ send_response(contents);
 - Container-like plugins
 - **Any case where you would like to allow freedom of operations under complete isolation**
 
-> 📖 **[Complete Decision Matrix →](https://dk26.github.io/strict-path-rs/best_practices.html)** | 📚 **[More Examples →](https://dk26.github.io/strict-path-rs/examples.html)**
+> 📖 **[Complete Decision Matrix →](https://dk26.github.io/strict-path-rs/best_practices.html)** | 📚 **[More Examples →](https://dk26.github.io/strict-path-rs/examples/overview.html)**
+
+---
+
+## 🔗 **Interop with Third-Party Crates**
+
+`StrictPath` and `VirtualPath` intentionally do **not** implement `AsRef<Path>` or `Deref<Target = Path>` — doing so would let any code silently bypass path safety via `std::fs` operations.
+
+When a third-party crate requires `AsRef<Path>`, use `.interop_path()`:
+
+```rust
+use strict_path::StrictPath;
+
+let validated_file = StrictPath::with_boundary("/var/app/data")?
+    .strict_join(&user_input)?;
+
+// .interop_path() returns &OsStr, which implements AsRef<Path>
+external_crate::open(validated_file.interop_path()); // ✅ Pass to third-party APIs
+
+// Use built-in I/O when possible — no interop needed
+let contents = validated_file.read_to_string()?; // ✅ Stays within safety boundary
+```
+
+**Why `&OsStr` instead of `&Path`?**  
+Returning `&Path` would make it easy to accidentally chain `std::path::Path` methods (`.join()`, `.parent()`) that bypass validation. `&OsStr` forces an explicit cast, making unintended std path operations visible in code review.
+
+**Rules of thumb:**
+- **Built-in I/O** (`read()`, `write()`, `create_dir_all()`, etc.) → use directly, no interop needed
+- **Third-party crate** needs `AsRef<Path>` → use `.interop_path()`
+- **Display/logging** → use `.strictpath_display()` or `.virtualpath_display()` (never expose `.interop_path()` to end users — it contains real host paths)
 
 
 > **API Philosophy:** Minimal, restrictive, and explicit—designed to prevent and easily detect both human and LLM agent API misuse. Security is prioritized above performance; if your use case doesn't involve symlinks and you need to squeeze every bit of performance, a lexical-only solution may be a better fit. `strict-path` accesses the disk to validate and secure paths, by resolving all its components. This predicts correctly where a path would end-up leading to on a disk filesystem by simulating disk access. This method ignores anything a hacker could put as input path string, since we validate only against where the file being accessed from or written to, would end up being.
@@ -204,10 +236,10 @@ Compose with standard Rust crates for complete solutions:
 
 | Integration  | Purpose                 | Guide                                                                                       |
 | ------------ | ----------------------- | ------------------------------------------------------------------------------------------- |
-| **tempfile** | Secure temp directories | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#tempfile)          |
+| **tempfile** | Secure temp directories | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#temporary-directories-tempfile) |
 | **dirs**     | OS standard directories | [Guide](https://dk26.github.io/strict-path-rs/os_directories.html)                          |
-| **app-path** | Application directories | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#app-path)          |
-| **serde**    | Safe deserialization    | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#serde-and-fromstr) |
+| **app-path** | Application directories | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#portable-application-paths-app-path) |
+| **serde**    | Safe deserialization    | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#deserializing-boundaries-with-fromstr) |
 | **Axum**     | Web server extractors   | [Tutorial](https://dk26.github.io/strict-path-rs/axum_tutorial/overview.html)               |
 | **Archives** | ZIP/TAR extraction      | [Guide](https://dk26.github.io/strict-path-rs/examples/archive_extraction.html)             |
 
@@ -221,9 +253,9 @@ Compose with standard Rust crates for complete solutions:
 - 📚 **[User Guide](https://dk26.github.io/strict-path-rs/)** - Tutorials and patterns
   - [Best Practices](https://dk26.github.io/strict-path-rs/best_practices.html) - Detailed decision matrix
   - [Anti-Patterns](https://dk26.github.io/strict-path-rs/anti_patterns.html) - Common mistakes
-  - [Examples](https://dk26.github.io/strict-path-rs/examples.html) - Copy-paste scenarios
-- 🔧 **[LLM_CONTEXT_FULL.md](LLM_CONTEXT_FULL.md)** - Full API reference for AI agents
-- 📝 **[LLM_CONTEXT.md](LLM_CONTEXT.md)** - Context7-style usage guide for AI agents
+  - [Examples](https://dk26.github.io/strict-path-rs/examples/overview.html) - Copy-paste scenarios
+- 🔧 **[LLM_CONTEXT_FULL.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md)** - Full API reference for AI agents
+- 📝 **[LLM_CONTEXT.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md)** - Context7-style usage guide for AI agents
 - 🛠️ **[`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)** - Path resolution engine
 
 📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)** | 🧭 **[Choosing Canonicalized vs Lexical Solution](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)**

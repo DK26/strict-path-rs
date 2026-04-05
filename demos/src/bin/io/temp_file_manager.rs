@@ -30,15 +30,15 @@ impl TempFileManager {
                 .as_millis()
         ));
 
-        let temp_dir_boundary = PathBoundary::<TempFiles>::try_new_create(temp_dir)
+        let temp_files_dir = PathBoundary::<TempFiles>::try_new_create(temp_dir)
             .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
 
         println!(
             "[TempManager] Created temporary PathBoundary at: {}",
-            temp_dir_boundary.strictpath_display()
+            temp_files_dir.strictpath_display()
         );
         Ok(Self {
-            temp_dir: temp_dir_boundary,
+            temp_dir: temp_files_dir,
         })
     }
 

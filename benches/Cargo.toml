@@ -9,7 +9,7 @@ strict-path = { path = "../strict-path", features = ["virtual-path"] }
 # Using DK26 fork dev branch for benchmarks consistency with strict-path
 soft-canonicalize = { version = "0.5.3", features = ["anchored"] }
 criterion = "0.8.1"
-tempfile = "3.22"
+tempfile = { version = "3.22", default-features = false }
 
 [[bench]]
 name = "performance_comparison"

@@ -101,7 +101,7 @@ required-features = ["virtual-path"]
 
 [[bin]]
 name = "config_management_example"
-path = "src/bin/config/config_management_example.rs"
+path = "src/bin/config/config_management_example/main.rs"
 required-features = ["virtual-path"]
 
 [[bin]]
@@ -172,21 +172,21 @@ required-features = ["virtual-path"]
 
 [[bin]]
 name = "tenant_workspace_service"
-path = "src/bin/web/tenant_workspace_service.rs"
+path = "src/bin/web/tenant_workspace_service/main.rs"
 required-features = ["virtual-path"]
 
 [[bin]]
 name = "static_site_generator"
-path = "src/bin/web/static_site_generator.rs"
+path = "src/bin/web/static_site_generator/main.rs"
 
 [[bin]]
 name = "rbac_portal_service"
-path = "src/bin/web/rbac_portal_service.rs"
+path = "src/bin/web/rbac_portal_service/main.rs"
 required-features = ["virtual-path"]
 
 [[bin]]
 name = "jwt_token_auth_service"
-path = "src/bin/web/jwt_token_auth_service.rs"
+path = "src/bin/web/jwt_token_auth_service/main.rs"
 required-features = ["with-jwt"]
 
 [[bin]]
@@ -211,5 +211,5 @@ path = "src/bin/io/temp_file_manager.rs"
 # Authorization pattern demos
 [[bin]]
 name = "document_vault_service"
-path = "src/bin/web/document_vault_service.rs"
+path = "src/bin/web/document_vault_service/main.rs"
 required-features = ["virtual-path"]

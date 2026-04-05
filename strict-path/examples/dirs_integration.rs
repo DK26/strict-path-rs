@@ -7,9 +7,9 @@
 //! Each example follows cross-platform conventions (XDG on Linux, Known Folder API
 //! on Windows, Apple Standard Directories on macOS) and enforces path boundaries.
 //!
-//! **External Input Pattern**: In production, the file names passed to `strict_join()`
-//! would come from external sources (user input, config files, CLI args, HTTP requests).
-//! Here we use constants for demonstration, but the validation pattern is identical.
+//! **External Input Pattern**: The `validate_user_config_request` function shows how
+//! to validate untrusted filenames (from CLI args, HTTP requests, form fields) before
+//! writing to OS config directories via `strict_join()`.
 //!
 //! Integration with the `dirs` crate v6.0.0: https://crates.io/crates/dirs
 //!
@@ -22,17 +22,22 @@ use strict_path::VirtualRoot;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== OS Standard Directory Examples ===\n");
-    println!("Pattern: dirs::*_dir() → PathBoundary::try_new_create() → secure operations\n");
+    println!("Pattern: dirs::*_dir() -> PathBoundary::try_new_create() -> secure operations\n");
+
+    // Security pattern: validate untrusted filenames from external sources before I/O
+    println!("Untrusted Input Validation against OS Config Directory:");
+    validate_user_config_request()?;
+    println!();
 
     // Application directories (with app-specific subdirectories)
-    println!("📁 Application Directories:");
+    println!("Application Directories:");
 
     if let Some(config_base) = dirs::config_dir() {
         let config_dir: PathBoundary = PathBoundary::try_new_create(config_base.join("myapp"))?;
         println!("Config: {}", config_dir.strictpath_display());
         let settings = config_dir.strict_join("settings.toml")?;
         settings.write(b"theme = 'dark'\nversion = '1.0'")?;
-        println!("  └─ settings.toml: {}", settings.read_to_string()?);
+        println!("  settings.toml: {}", settings.read_to_string()?);
 
         // Clean up
         config_dir.remove_dir_all().ok();
@@ -61,7 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Platform-specific local directories (Windows/Linux only)
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     {
-        println!("\n📍 Platform-Specific Local Directories:");
+        println!("\nPlatform-Specific Local Directories:");
 
         if let Some(config_local_base) = dirs::config_local_dir() {
             let config_local: PathBoundary =
@@ -78,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    println!("\n📱 User Directories:");
+    println!("\nUser Directories:");
 
     // User directories (direct access, no app subdirectory)
     if let Some(downloads_base) = dirs::download_dir() {
@@ -96,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Pictures: {}", pictures.strictpath_display());
     }
 
-    println!("\n🎵 Media Directories:");
+    println!("\nMedia Directories:");
 
     if let Some(audio_base) = dirs::audio_dir() {
         let audio: PathBoundary = PathBoundary::try_new(audio_base)?;
@@ -108,7 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Videos: {}", videos.strictpath_display());
     }
 
-    println!("\n🏠 System Directories:");
+    println!("\nSystem Directories:");
 
     if let Some(home_base) = dirs::home_dir() {
         let home: PathBoundary = PathBoundary::try_new(home_base)?;
@@ -123,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Unix-specific directories
     #[cfg(unix)]
     {
-        println!("\n🛠️ Unix System Directories:");
+        println!("\nUnix System Directories:");
 
         if let Some(executables_base) = dirs::executable_dir() {
             let executables: PathBoundary = PathBoundary::try_new(executables_base)?;
@@ -139,7 +144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Linux-specific directories
     #[cfg(target_os = "linux")]
     {
-        println!("\n🐧 Linux-Specific Directories:");
+        println!("\nLinux-Specific Directories:");
 
         if let Some(state_base) = dirs::state_dir() {
             let state_dir: PathBoundary = PathBoundary::try_new_create(state_base.join("myapp"))?;
@@ -172,9 +177,58 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    println!("\n✅ All OS directory operations completed successfully!");
-    println!("\n💡 One extra line for explicit security:");
-    println!("   let base = dirs::config_dir().unwrap();");
-    println!("   let boundary = PathBoundary::try_new_create(base.join(\"myapp\"))?;");
+    println!("\nAll OS directory operations completed successfully!");
+    println!("\nOne extra line for explicit security:");
+    println!("  let base = dirs::config_dir().unwrap();");
+    println!("  let config_dir = PathBoundary::try_new_create(base.join(\"myapp\"))?;");
+    Ok(())
+}
+
+/// Validate a filename supplied by an external caller (CLI arg, HTTP form field, etc.)
+/// before writing it inside the application's OS config directory.
+///
+/// The key insight: the OS directory is a trusted boundary; the *filename* is untrusted.
+/// `strict_join()` enforces that the filename cannot escape the boundary.
+fn validate_user_config_request() -> Result<(), Box<dyn std::error::Error>> {
+    let Some(config_base) = dirs::config_dir() else {
+        println!("  (no OS config dir available on this platform, skipping)");
+        return Ok(());
+    };
+
+    let config_dir: PathBoundary = PathBoundary::try_new_create(config_base.join("myapp-demo"))?;
+
+    // Filenames from CLI args, HTTP form fields, API parameters, or config files.
+    // In a real app: let requested_file = std::env::args().nth(1).unwrap_or_default();
+    let external_requests: &[&str] = &[
+        // From CLI args, HTTP request body, or user-submitted form field
+        "preferences.toml",
+        "../../etc/passwd",      // traversal attack — must be blocked
+        "../sibling_app/key",    // escape to adjacent directory — must be blocked
+        "profiles/default.json", // valid nested path
+    ];
+
+    for requested_file in external_requests {
+        // requested_file is untrusted external input — strict_join() validates it
+        match config_dir.strict_join(requested_file) {
+            Ok(safe_config_file) => {
+                safe_config_file.create_parent_dir_all()?;
+                safe_config_file.write(b"key = value")?;
+                println!(
+                    "  OK      '{}' -> {}",
+                    requested_file,
+                    safe_config_file.strictpath_display()
+                );
+            }
+            Err(_) => {
+                println!(
+                    "  BLOCKED '{}' (traversal / escape attempt rejected)",
+                    requested_file
+                );
+            }
+        }
+    }
+
+    // Clean up demo directory
+    config_dir.remove_dir_all().ok();
     Ok(())
 }

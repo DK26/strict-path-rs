@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-05
+
+### Changed
+- **Module reorganization**: Split `StrictPath` and `VirtualPath` from single files into focused submodules (`mod.rs`, `fs.rs`, `iter.rs`, `links.rs`, `traits.rs`, `display.rs`) for better maintainability and LLM-friendly file sizes
+- **Test reorganization**: Split large test files (`security.rs`, `filesystem.rs`, `symlink_methods.rs`, `cve_2025_11001.rs`, `advanced_security.rs`, `proc_magic_symlink.rs`) into thematic submodules for improved RAG retrieval and readability
+- **Examples refactored**: Updated all examples (`app_path_integration`, `dirs_integration`, `marker_transformation`, `tempfile_integration`, `user_virtual_root`) to comply with AGENTS.md naming and style guidelines
+
+### Fixed
+- Updated `soft-canonicalize` dependency from 0.5.3 to 0.5.5
+- Updated `tempfile` dev-dependency to 3.27.0 with `default-features = false`
+- Updated `junction` dependency from 1.4.1 to 1.4.2
+- Improved handling of circular symlinks in VirtualPath tests
+- Updated examples link in README for clarity
+
+### Added
+- Core security tests for `StrictPath` and Unicode separator handling
+- `interop_path` example to README and corresponding test (#40)
+- LLM discoverability files (`.cursorrules`, `context7.json`, `llms.txt`) for enhanced AI agent guidance
+
+### Documentation
+- Enhanced guidance on library public API design and usage principles
+- Enforced AGENTS.md compliance across library and demos
+
 ## [0.1.1] - 2026-01-18
 
 ### Documentation

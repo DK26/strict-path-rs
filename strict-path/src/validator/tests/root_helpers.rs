@@ -4,16 +4,16 @@ use crate::{PathBoundary, VirtualRoot};
 fn test_path_boundary_root_helpers_read_and_remove() {
     let tmp = tempfile::tempdir().unwrap();
     let root_path = tmp.path().join("rootdir");
-    let boundary: PathBoundary = PathBoundary::try_new_create(&root_path).unwrap();
+    let test_dir: PathBoundary = PathBoundary::try_new_create(&root_path).unwrap();
 
     // Create some entries inside the root
-    let file = boundary.strict_join("file.txt").unwrap();
+    let file = test_dir.strict_join("file.txt").unwrap();
     file.write("x").unwrap();
-    let sub = boundary.strict_join("sub").unwrap();
+    let sub = test_dir.strict_join("sub").unwrap();
     sub.create_dir_all().unwrap();
 
     // read_dir on the root
-    let mut names: Vec<String> = boundary
+    let mut names: Vec<String> = test_dir
         .read_dir()
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
@@ -22,10 +22,10 @@ fn test_path_boundary_root_helpers_read_and_remove() {
     assert_eq!(names, vec!["file.txt", "sub"]);
 
     // remove_dir should fail if not empty
-    assert!(boundary.remove_dir().is_err());
+    assert!(test_dir.remove_dir().is_err());
 
     // remove_dir_all removes the whole tree
-    boundary.remove_dir_all().unwrap();
+    test_dir.remove_dir_all().unwrap();
     assert!(!root_path.exists());
 }
 

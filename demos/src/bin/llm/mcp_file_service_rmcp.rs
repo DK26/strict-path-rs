@@ -158,7 +158,7 @@ fn tool_virtual_file_read(
             .read_to_string()
             .map_err(|e| ErrorData::internal_error(format!("I/O error: {e}"), None))?;
         let result = ReadResultVirtual {
-            virtual_path: format!("{}", file_vpath.virtualpath_display()),
+            virtual_path: file_vpath.virtualpath_display().to_string(),
             content,
         };
         Ok(rmcp::Json(result))
@@ -183,7 +183,7 @@ fn tool_virtual_file_write(
             .write(&content)
             .map_err(|e| ErrorData::internal_error(format!("I/O error: {e}"), None))?;
         let result = WriteResultVirtual {
-            virtual_path: format!("{}", file_vpath.virtualpath_display()),
+            virtual_path: file_vpath.virtualpath_display().to_string(),
             bytes: content.len(),
         };
         Ok(rmcp::Json(result))
@@ -217,14 +217,14 @@ fn tool_virtual_file_list(
                 if let Ok(child) = dir_vpath.virtual_join(name) {
                     entries.push(ListEntryVirtual {
                         name: name.to_string(),
-                        virtual_path: format!("{}", child.virtualpath_display()),
+                        virtual_path: child.virtualpath_display().to_string(),
                         is_dir: child.is_dir(),
                     });
                 }
             }
         }
         let result = ListResultVirtual {
-            virtual_path: format!("{}", dir_vpath.virtualpath_display()),
+            virtual_path: dir_vpath.virtualpath_display().to_string(),
             entries,
         };
         Ok(rmcp::Json(result))
@@ -247,7 +247,7 @@ fn tool_strict_file_read(
             .read_to_string()
             .map_err(|e| ErrorData::internal_error(format!("I/O error: {e}"), None))?;
         let result = ReadResultStrict {
-            system_path: format!("{}", file_spath.strictpath_display()),
+            system_path: file_spath.strictpath_display().to_string(),
             content,
         };
         Ok(rmcp::Json(result))
@@ -272,7 +272,7 @@ fn tool_strict_file_write(
             .write(&content)
             .map_err(|e| ErrorData::internal_error(format!("I/O error: {e}"), None))?;
         let result = WriteResultStrict {
-            system_path: format!("{}", file_spath.strictpath_display()),
+            system_path: file_spath.strictpath_display().to_string(),
             bytes: content.len(),
         };
         Ok(rmcp::Json(result))
@@ -306,14 +306,14 @@ fn tool_strict_file_list(
                 if let Ok(child) = dir_spath.strict_join(name) {
                     entries.push(ListEntryStrict {
                         name: name.to_string(),
-                        system_path: format!("{}", child.strictpath_display()),
+                        system_path: child.strictpath_display().to_string(),
                         is_dir: child.is_dir(),
                     });
                 }
             }
         }
         let result = ListResultStrict {
-            system_path: format!("{}", dir_spath.strictpath_display()),
+            system_path: dir_spath.strictpath_display().to_string(),
             entries,
         };
         Ok(rmcp::Json(result))

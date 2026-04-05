@@ -159,7 +159,7 @@ fn handle_read_virtual(root: &VirtualRoot<()>, params: &Value) -> Value {
         Ok(ReadParams { path }) => match root.virtual_join(&path) {
             Ok(file_vpath) => match file_vpath.read_to_string() {
                 Ok(content) => json!({
-                    "virtualPath": format!("{}", file_vpath.virtualpath_display()),
+                    "virtualPath": file_vpath.virtualpath_display().to_string(),
                     "content": content,
                 }),
                 Err(e) => json!({"error": format!("I/O error: {e}")}),
@@ -180,7 +180,7 @@ fn handle_write_virtual(root: &VirtualRoot<()>, params: &Value) -> Value {
                 }
                 match file_vpath.write(&content) {
                     Ok(()) => json!({
-                        "virtualPath": format!("{}", file_vpath.virtualpath_display()),
+                        "virtualPath": file_vpath.virtualpath_display().to_string(),
                         "bytes": content.len(),
                     }),
                     Err(e) => json!({"error": format!("I/O error: {e}")}),
@@ -207,7 +207,7 @@ fn handle_list_virtual(root: &VirtualRoot<()>, params: &Value) -> Value {
                             if let Some(name) = entry.file_name().to_str() {
                                 // Convert to a VirtualPath child for display
                                 if let Ok(child) = dir_vpath.virtual_join(name) {
-                                    let display = format!("{}", child.virtualpath_display());
+                                    let display = child.virtualpath_display().to_string();
                                     entries_json.push(json!({
                                         "name": name,
                                         "virtualPath": display,
@@ -217,7 +217,7 @@ fn handle_list_virtual(root: &VirtualRoot<()>, params: &Value) -> Value {
                             }
                         }
                         json!({
-                            "virtualPath": format!("{}", dir_vpath.virtualpath_display()),
+                            "virtualPath": dir_vpath.virtualpath_display().to_string(),
                             "entries": entries_json,
                         })
                     }
@@ -290,7 +290,7 @@ fn handle_read_strict(root: &PathBoundary<()>, params: &Value) -> Value {
         Ok(ReadParams { path }) => match root.strict_join(&path) {
             Ok(file_spath) => match file_spath.read_to_string() {
                 Ok(content) => json!({
-                    "systemPath": format!("{}", file_spath.strictpath_display()),
+                    "systemPath": file_spath.strictpath_display().to_string(),
                     "content": content,
                 }),
                 Err(e) => json!({"error": format!("I/O error: {e}")}),
@@ -311,7 +311,7 @@ fn handle_write_strict(root: &PathBoundary<()>, params: &Value) -> Value {
                 }
                 match file_spath.write(&content) {
                     Ok(()) => json!({
-                        "systemPath": format!("{}", file_spath.strictpath_display()),
+                        "systemPath": file_spath.strictpath_display().to_string(),
                         "bytes": content.len(),
                     }),
                     Err(e) => json!({"error": format!("I/O error: {e}")}),
@@ -340,14 +340,14 @@ fn handle_list_strict(root: &PathBoundary<()>, params: &Value) -> Value {
                                 if let Ok(child) = dir_spath.strict_join(name) {
                                     entries_json.push(json!({
                                         "name": name,
-                                        "systemPath": format!("{}", child.strictpath_display()),
+                                        "systemPath": child.strictpath_display().to_string(),
                                         "isDir": child.is_dir(),
                                     }));
                                 }
                             }
                         }
                         json!({
-                            "systemPath": format!("{}", dir_spath.strictpath_display()),
+                            "systemPath": dir_spath.strictpath_display().to_string(),
                             "entries": entries_json,
                         })
                     }
@@ -361,17 +361,17 @@ fn handle_list_strict(root: &PathBoundary<()>, params: &Value) -> Value {
 }
 
 fn handle_tools_call_virtual(root: &VirtualRoot<()>, req: &JsonRpcRequest) -> String {
-    let name = req
+    let tool_name = req
         .params
         .get("name")
-        .and_then(|v| v.as_str())
+        .and_then(|value| value.as_str())
         .unwrap_or("");
     let args = req.params.get("arguments").cloned().unwrap_or(json!({}));
-    let payload = match name {
+    let payload = match tool_name {
         "file.read" => handle_read_virtual(root, &args),
         "file.write" => handle_write_virtual(root, &args),
         "file.list" => handle_list_virtual(root, &args),
-        _ => json!({"error": format!("Unknown tool: {name}")}),
+        _ => json!({"error": format!("Unknown tool: {tool_name}")}),
     };
     if let Some(id) = req.id.clone() {
         serde_json::to_string(&JsonRpcResponse {
@@ -386,17 +386,17 @@ fn handle_tools_call_virtual(root: &VirtualRoot<()>, req: &JsonRpcRequest) -> St
 }
 
 fn handle_tools_call_strict(root: &PathBoundary<()>, req: &JsonRpcRequest) -> String {
-    let name = req
+    let tool_name = req
         .params
         .get("name")
-        .and_then(|v| v.as_str())
+        .and_then(|value| value.as_str())
         .unwrap_or("");
     let args = req.params.get("arguments").cloned().unwrap_or(json!({}));
-    let payload = match name {
+    let payload = match tool_name {
         "file.read" => handle_read_strict(root, &args),
         "file.write" => handle_write_strict(root, &args),
         "file.list" => handle_list_strict(root, &args),
-        _ => json!({"error": format!("Unknown tool: {name}")}),
+        _ => json!({"error": format!("Unknown tool: {tool_name}")}),
     };
     if let Some(id) = req.id.clone() {
         serde_json::to_string(&JsonRpcResponse {

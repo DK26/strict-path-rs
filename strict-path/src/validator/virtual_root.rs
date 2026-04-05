@@ -364,7 +364,8 @@ impl<Marker> VirtualRoot<Marker> {
 
 impl<Marker> std::fmt::Display for VirtualRoot<Marker> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.path().display())
+        let display = self.path().display();
+        write!(f, "{display}")
     }
 }
 
@@ -435,7 +436,7 @@ impl<Marker> PartialEq<std::path::Path> for VirtualRoot<Marker> {
         let normalized_other = if other_normalized.starts_with('/') {
             other_normalized
         } else {
-            format!("/{}", other_normalized)
+            format!("/{other_normalized}")
         };
 
         "/" == normalized_other
@@ -475,7 +476,7 @@ impl<Marker> PartialOrd<std::path::Path> for VirtualRoot<Marker> {
         let normalized_other = if other_normalized.starts_with('/') {
             other_normalized
         } else {
-            format!("/{}", other_normalized)
+            format!("/{other_normalized}")
         };
 
         Some("/".cmp(&normalized_other))

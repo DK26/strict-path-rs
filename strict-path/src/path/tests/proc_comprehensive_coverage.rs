@@ -31,8 +31,8 @@ fn issue_44_indirect_symlink_to_proc_root() {
 
     // THE BUG: Previously this would resolve to "/" instead of "/proc/self/root"
     match PathBoundary::<()>::try_new(&link_path) {
-        Ok(boundary) => {
-            let boundary_str = boundary.interop_path().to_string_lossy();
+        Ok(proc_dir) => {
+            let boundary_str = proc_dir.interop_path().to_string_lossy();
 
             // CRITICAL ASSERTION 1: Must NOT be "/"
             assert_ne!(
@@ -43,11 +43,10 @@ fn issue_44_indirect_symlink_to_proc_root() {
             // CRITICAL ASSERTION 2: Must preserve /proc/self/root prefix
             assert!(
                 boundary_str.starts_with("/proc/self/root"),
-                "ISSUE #44 NOT FIXED: Expected /proc/self/root prefix, got: {}",
-                boundary_str
+                "ISSUE #44 NOT FIXED: Expected /proc/self/root prefix, got: {boundary_str}"
             );
 
-            println!("Issue #44 FIXED: Resolved to {}", boundary_str);
+            println!("Issue #44 FIXED: Resolved to {boundary_str}");
         }
         Err(e) => {
             panic!("Issue #44 test failed unexpectedly: {:?}", e);
@@ -66,8 +65,8 @@ fn issue_44_indirect_symlink_with_suffix() {
     std::os::unix::fs::symlink(&target, &link_path).unwrap();
 
     // Create boundary through the symlink, then join a path
-    if let Ok(boundary) = PathBoundary::<()>::try_new(&link_path) {
-        match boundary.strict_join("etc/passwd") {
+    if let Ok(proc_dir) = PathBoundary::<()>::try_new(&link_path) {
+        match proc_dir.strict_join("etc/passwd") {
             Ok(path) => {
                 let path_str = path.strictpath_to_string_lossy();
 
@@ -151,8 +150,8 @@ fn test_chained_symlinks_to_proc_root() {
     std::os::unix::fs::symlink(&link2, &link1).unwrap();
 
     match PathBoundary::<()>::try_new(&link1) {
-        Ok(boundary) => {
-            let boundary_str = boundary.interop_path().to_string_lossy();
+        Ok(proc_dir) => {
+            let boundary_str = proc_dir.interop_path().to_string_lossy();
             println!("Resolved chained boundary: {}", boundary_str);
 
             assert_ne!(boundary_str, "/", "Chained symlink resolved to /");
@@ -182,8 +181,8 @@ fn test_triple_chained_symlinks_to_proc() {
     std::os::unix::fs::symlink(&link2, &link1).unwrap();
 
     match PathBoundary::<()>::try_new(&link1) {
-        Ok(boundary) => {
-            let boundary_str = boundary.interop_path().to_string_lossy();
+        Ok(proc_dir) => {
+            let boundary_str = proc_dir.interop_path().to_string_lossy();
             assert_ne!(boundary_str, "/", "Triple-chained symlink resolved to /");
             assert!(
                 boundary_str.starts_with("/proc/self/root"),
@@ -206,8 +205,8 @@ fn test_proc_self_cwd_preservation() {
     let target = PathBuf::from("/proc/self/cwd");
 
     // Direct access
-    if let Ok(boundary) = PathBoundary::<()>::try_new(&target) {
-        let boundary_str = boundary.interop_path().to_string_lossy();
+    if let Ok(proc_dir) = PathBoundary::<()>::try_new(&target) {
+        let boundary_str = proc_dir.interop_path().to_string_lossy();
         assert_ne!(boundary_str, "/", "/proc/self/cwd resolved to /");
         assert!(
             boundary_str.starts_with("/proc/self/cwd"),
@@ -221,8 +220,8 @@ fn test_proc_self_cwd_preservation() {
     let link = temp.path().join("link_to_cwd");
     std::os::unix::fs::symlink(&target, &link).unwrap();
 
-    if let Ok(boundary) = PathBoundary::<()>::try_new(&link) {
-        let boundary_str = boundary.interop_path().to_string_lossy();
+    if let Ok(proc_dir) = PathBoundary::<()>::try_new(&link) {
+        let boundary_str = proc_dir.interop_path().to_string_lossy();
         assert_ne!(boundary_str, "/", "Symlink to /proc/self/cwd resolved to /");
         assert!(
             boundary_str.starts_with("/proc/self/cwd"),
@@ -243,8 +242,8 @@ fn test_proc_thread_self_root_preservation() {
     let target = PathBuf::from("/proc/thread-self/root");
 
     // Direct access
-    if let Ok(boundary) = PathBoundary::<()>::try_new(&target) {
-        let boundary_str = boundary.interop_path().to_string_lossy();
+    if let Ok(proc_dir) = PathBoundary::<()>::try_new(&target) {
+        let boundary_str = proc_dir.interop_path().to_string_lossy();
         assert_ne!(boundary_str, "/", "/proc/thread-self/root resolved to /");
         assert!(
             boundary_str.starts_with("/proc/thread-self/root"),
@@ -264,8 +263,8 @@ fn test_indirect_symlink_to_proc_thread_self_root() {
 
     std::os::unix::fs::symlink(&target, &link).unwrap();
 
-    if let Ok(boundary) = PathBoundary::<()>::try_new(&link) {
-        let boundary_str = boundary.interop_path().to_string_lossy();
+    if let Ok(proc_dir) = PathBoundary::<()>::try_new(&link) {
+        let boundary_str = proc_dir.interop_path().to_string_lossy();
         assert_ne!(
             boundary_str, "/",
             "Indirect symlink to /proc/thread-self/root resolved to /"
@@ -294,8 +293,8 @@ fn test_proc_pid_root_with_actual_pid() {
         return;
     }
 
-    if let Ok(boundary) = PathBoundary::<()>::try_new(&target) {
-        let boundary_str = boundary.interop_path().to_string_lossy();
+    if let Ok(proc_dir) = PathBoundary::<()>::try_new(&target) {
+        let boundary_str = proc_dir.interop_path().to_string_lossy();
         assert_ne!(boundary_str, "/", "/proc/{}/root resolved to /", pid);
         assert!(
             boundary_str.contains("/proc/") && boundary_str.contains("/root"),
@@ -322,8 +321,8 @@ fn test_indirect_symlink_to_proc_pid_root() {
     let link = temp.path().join("pid_root_link");
     std::os::unix::fs::symlink(&target, &link).unwrap();
 
-    if let Ok(boundary) = PathBoundary::<()>::try_new(&link) {
-        let boundary_str = boundary.interop_path().to_string_lossy();
+    if let Ok(proc_dir) = PathBoundary::<()>::try_new(&link) {
+        let boundary_str = proc_dir.interop_path().to_string_lossy();
         assert_ne!(
             boundary_str, "/",
             "Indirect symlink to /proc/{}/root resolved to /",
@@ -353,8 +352,8 @@ fn test_symlink_deep_into_proc() {
 
     std::os::unix::fs::symlink(&target, &link).unwrap();
 
-    if let Ok(boundary) = PathBoundary::<()>::try_new(&link) {
-        let boundary_str = boundary.interop_path().to_string_lossy();
+    if let Ok(proc_dir) = PathBoundary::<()>::try_new(&link) {
+        let boundary_str = proc_dir.interop_path().to_string_lossy();
         assert_ne!(boundary_str, "/etc", "Deep link resolved to host /etc");
         assert!(
             boundary_str.starts_with("/proc/self/root"),
@@ -405,8 +404,8 @@ fn test_mixed_chain_to_proc() {
     let outer_link = temp.path().join("outer");
     std::os::unix::fs::symlink(&inner_link, &outer_link).unwrap();
 
-    if let Ok(boundary) = PathBoundary::<()>::try_new(&outer_link) {
-        let boundary_str = boundary.interop_path().to_string_lossy();
+    if let Ok(proc_dir) = PathBoundary::<()>::try_new(&outer_link) {
+        let boundary_str = proc_dir.interop_path().to_string_lossy();
         assert_ne!(boundary_str, "/", "Mixed chain resolved to /");
         assert!(
             boundary_str.starts_with("/proc/self/root"),
@@ -437,9 +436,9 @@ fn security_container_boundary_bypass_prevented() {
     // 3. Verify it stays within the namespace
 
     match PathBoundary::<()>::try_new(&container_root_link) {
-        Ok(boundary) => {
+        Ok(proc_dir) => {
             // The boundary should be /proc/self/root, NOT /
-            let boundary_str = boundary.interop_path().to_string_lossy();
+            let boundary_str = proc_dir.interop_path().to_string_lossy();
 
             if boundary_str == "/" {
                 panic!(
@@ -449,7 +448,7 @@ fn security_container_boundary_bypass_prevented() {
             }
 
             // Try to access /etc/shadow through the boundary
-            match boundary.strict_join("etc/shadow") {
+            match proc_dir.strict_join("etc/shadow") {
                 Ok(path) => {
                     let path_str = path.strictpath_to_string_lossy();
                     // MUST be /proc/self/root/etc/shadow, NOT /etc/shadow
@@ -465,7 +464,7 @@ fn security_container_boundary_bypass_prevented() {
             }
 
             // Try traversal attack
-            match boundary.strict_join("../../../etc/shadow") {
+            match proc_dir.strict_join("../../../etc/shadow") {
                 Ok(path) => {
                     let path_str = path.strictpath_to_string_lossy();
                     // Even if somehow accepted, must stay in namespace
@@ -502,8 +501,8 @@ fn security_host_root_never_accessible() {
         let link = temp.path().join(name);
         std::os::unix::fs::symlink(target, &link).unwrap();
 
-        if let Ok(boundary) = PathBoundary::<()>::try_new(&link) {
-            let boundary_str = boundary.interop_path().to_string_lossy();
+        if let Ok(proc_dir) = PathBoundary::<()>::try_new(&link) {
+            let boundary_str = proc_dir.interop_path().to_string_lossy();
 
             assert_ne!(
                 boundary_str, "/",

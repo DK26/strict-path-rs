@@ -107,7 +107,7 @@
 //! > and follows symlinks for validation. If your use case doesn't involve symlinks and you need
 //! > maximum performance, a lexical-only solution may be a better fit.
 //!
-//! **[→ Read attack surface analysis](https://dk26.github.io/strict-path-rs/security_methodology.html#attack-surface)**
+//! **[→ Read attack surface analysis](https://dk26.github.io/strict-path-rs/security_methodology.html#12-coverage-what-we-protect-against)**
 //!
 //! ## Interop with External APIs
 //!

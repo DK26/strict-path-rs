@@ -261,19 +261,19 @@ soft_canonicalize(file2);  // Canonicalizes "/var/uploads" AGAIN (same syscall) 
 
 ```rust
 // Once:
-let boundary = PathBoundary::try_new("/var/uploads")?;
+let upload_root = PathBoundary::try_new("/var/uploads")?;
 // → Canonicalizes "/var/uploads" ONCE, stores result
 
 // Iteration 1:
-let file1 = boundary.strict_join("file1.txt")?;
+let file1 = upload_root.strict_join("file1.txt")?;
 // → Uses cached "/var/uploads" + append "file1.txt" + validate result
 
 // Iteration 2:
-let file2 = boundary.strict_join("file2.txt")?;
+let file2 = upload_root.strict_join("file2.txt")?;
 // → Uses SAME cached "/var/uploads" + append "file2.txt" + validate result
 ```
 
-**Benefit:** The boundary is a hot value in cache. No redundant filesystem syscalls for the prefix.
+**Benefit:** The upload root is a hot value in cache. No redundant filesystem syscalls for the prefix.
 
 ---
 

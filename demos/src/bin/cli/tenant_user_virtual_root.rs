@@ -44,21 +44,21 @@ fn main() -> Result<()> {
     let tenant_dir = service_root
         .strict_join(&cli.tenant)
         .context("tenant join")?;
-    let tenant_boundary: PathBoundary<TenantRoot> = tenant_dir
+    let tenant_access_dir: PathBoundary<TenantRoot> = tenant_dir
         .try_into_boundary_create()
         .context("tenant boundary")?
         .change_marker::<TenantRoot>();
 
     // 3) Derive per-user boundary inside tenant and virtualize to get a VirtualRoot<UserSpace>
     validate_segment(&cli.user)?;
-    let user_dir = tenant_boundary
+    let user_dir = tenant_access_dir
         .strict_join(&cli.user)
         .context("user join")?;
-    let user_boundary = user_dir
+    let user_access_dir = user_dir
         .try_into_boundary_create()
         .context("user boundary")?
         .change_marker::<UserSpace>();
-    let user_vroot: VirtualRoot<UserSpace> = user_boundary.clone().virtualize();
+    let user_vroot: VirtualRoot<UserSpace> = user_access_dir.clone().virtualize();
 
     // All user-visible work happens via VirtualPath off user_vroot
     let note: VirtualPath<UserSpace> = user_vroot
@@ -88,7 +88,7 @@ fn main() -> Result<()> {
                 }
             }
         }
-        entries.sort_by_key(|p| p.virtualpath_display().to_string());
+        entries.sort_by_key(|vpath| vpath.virtualpath_display().to_string());
         println!("docs:");
         for e in entries {
             println!("  {}", e.virtualpath_display());

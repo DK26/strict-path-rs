@@ -26,10 +26,10 @@ fn test_junction_inside_boundary_prefix_mismatch() {
     use crate::PathBoundary;
 
     let td = tempfile::tempdir().unwrap();
-    let boundary = PathBoundary::<()>::try_new_create(td.path()).unwrap();
+    let test_dir = PathBoundary::<()>::try_new_create(td.path()).unwrap();
 
     // Create a target directory inside the boundary
-    let target_dir = boundary.strict_join("target").unwrap();
+    let target_dir = test_dir.strict_join("target").unwrap();
     target_dir.create_dir_all().unwrap();
 
     // Create a file in the target directory
@@ -41,25 +41,25 @@ fn test_junction_inside_boundary_prefix_mismatch() {
 
     // Create a junction pointing to the target directory
     // link -> target
-    let link_dir = boundary.strict_join("link").unwrap();
+    let link_dir = test_dir.strict_join("link").unwrap();
 
     // We use strict_junction helper which handles the creation
     // target_dir.strict_junction(link_path) creates a junction AT link_path pointing TO target_dir
     if let Err(e) = target_dir.strict_junction(link_dir.interop_path()) {
-        eprintln!("Skipping test: failed to create junction: {:?}", e);
+        eprintln!("Skipping test: failed to create junction: {e:?}");
         return;
     }
 
     // Now try to access the file through the junction
-    // boundary.strict_join("link/file.txt")
+    // test_dir.strict_join("link/file.txt")
     // Should resolve to .../target/file.txt
-    match boundary.strict_join("link/file.txt") {
+    match test_dir.strict_join("link/file.txt") {
         Ok(path) => {
             let path_str = path.strictpath_to_string_lossy();
             println!("Resolved path: {path_str}");
 
             // It should be inside the boundary
-            assert!(path.strictpath_starts_with(boundary.interop_path()));
+            assert!(path.strictpath_starts_with(test_dir.interop_path()));
 
             // It should exist
             assert!(path.exists());
@@ -81,13 +81,13 @@ fn test_junction_within_anchor_no_duplication() {
 
     let td = tempfile::tempdir().unwrap();
     let anchor = td.path();
-    let boundary = PathBoundary::<()>::try_new_create(anchor).unwrap();
+    let test_dir = PathBoundary::<()>::try_new_create(anchor).unwrap();
 
     // Create: anchor/data/target and anchor/links/junc -> anchor/data/target
-    let data_target = boundary.strict_join("data/target").unwrap();
+    let data_target = test_dir.strict_join("data/target").unwrap();
     data_target.create_dir_all().unwrap();
 
-    let links_dir = boundary.strict_join("links").unwrap();
+    let links_dir = test_dir.strict_join("links").unwrap();
     links_dir.create_dir_all().unwrap();
 
     // Create junction: links/junc -> data/target
@@ -98,7 +98,7 @@ fn test_junction_within_anchor_no_duplication() {
     }
 
     // Resolve path through junction using strict-path
-    let result = boundary.strict_join("links/junc").unwrap();
+    let result = test_dir.strict_join("links/junc").unwrap();
     let result_str = result.strictpath_to_string_lossy();
     println!("Resolved path: {result_str}");
 

@@ -106,10 +106,10 @@ fn manual_validation_pattern(upload_root: &Path, files: &[String]) {
 /// }
 /// ```
 fn strict_path_pattern(upload_root: &Path, files: &[String]) {
-    let boundary: PathBoundary<BenchRoot> = PathBoundary::try_new(upload_root).unwrap();
+    let upload_root_dir: PathBoundary<BenchRoot> = PathBoundary::try_new(upload_root).unwrap();
 
     for file in files {
-        let validated = boundary.strict_join(black_box(file)).unwrap();
+        let validated = upload_root_dir.strict_join(black_box(file)).unwrap();
         black_box(&validated);
     }
 }
@@ -223,8 +223,8 @@ fn bench_directory_scanning(c: &mut Criterion) {
 
     group.bench_function("strict_path_read_dir", |b| {
         b.iter(|| {
-            let boundary: PathBoundary<BenchRoot> = PathBoundary::try_new(&scan_root).unwrap();
-            let root = boundary.into_strictpath().unwrap();
+            let scan_root_dir: PathBoundary<BenchRoot> = PathBoundary::try_new(&scan_root).unwrap();
+            let root = scan_root_dir.into_strictpath().unwrap();
 
             for entry in root.read_dir().unwrap() {
                 let entry = entry.unwrap();
@@ -288,10 +288,10 @@ fn bench_multi_user_scenario(c: &mut Criterion) {
 
     group.bench_function("strict_path_shared_boundary", |b| {
         b.iter(|| {
-            let boundary: PathBoundary<BenchRoot> = PathBoundary::try_new(&base_root).unwrap();
+            let base_root_dir: PathBoundary<BenchRoot> = PathBoundary::try_new(&base_root).unwrap();
 
             for file in &user_files {
-                let validated = boundary.strict_join(black_box(file)).unwrap();
+                let validated = base_root_dir.strict_join(black_box(file)).unwrap();
                 black_box(&validated);
             }
         });
@@ -347,10 +347,10 @@ fn bench_io_heavy_workload(c: &mut Criterion) {
 
     group.bench_function("strict_path_io", |b| {
         b.iter(|| {
-            let boundary: PathBoundary<BenchRoot> = PathBoundary::try_new(&work_root).unwrap();
+            let work_root_dir: PathBoundary<BenchRoot> = PathBoundary::try_new(&work_root).unwrap();
 
             for file in &files {
-                let validated = boundary.strict_join(black_box(file)).unwrap();
+                let validated = work_root_dir.strict_join(black_box(file)).unwrap();
 
                 // I/O operations (path already validated!)
                 black_box(validated.exists());

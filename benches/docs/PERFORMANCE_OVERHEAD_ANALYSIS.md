@@ -483,4 +483,4 @@ cargo bench --features virtual-path --bench caching_benefits
 # Results in: target/criterion/*/report/index.html
 ```
 
-See [benches/docs/README.md](./README.md) for detailed instructions.
+See [benches/README.md](../README.md) for detailed instructions.

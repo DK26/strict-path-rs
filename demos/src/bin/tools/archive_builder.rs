@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(r) if !r.as_os_str().is_empty() => r,
             _ => continue,
         };
-        let relative_str = format!("{}", relative_path.display());
+        let relative_str = relative_path.display().to_string();
 
         // Validate relative path back through the PathBoundary (defense-in-depth)
         let archive_src_path = match archive_src.strict_join(&relative_str) {

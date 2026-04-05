@@ -20,3 +20,4 @@ Minimal usage reminder (see AGENTS.md for details)
 - Validate untrusted segments via `strict_join`/`virtual_join` before any I/O
 - Use `interop_path()` for OS calls; `strictpath_display()`/`virtualpath_display()` for user output
 - Encode guarantees in signatures by accepting `&StrictPath<_>`/`&VirtualPath<_>` or a policy root plus the untrusted segment
+- Library public APIs: hide `strict-path` behind your own API boundary by default; expose only when the library's purpose benefits from it

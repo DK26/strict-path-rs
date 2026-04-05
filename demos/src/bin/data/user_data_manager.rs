@@ -36,12 +36,12 @@ fn main() -> Result<()> {
             continue;
         }
         let file_name = ingest_file.strictpath_file_name().unwrap_or_default();
-        let fname_disp = file_name.to_string_lossy();
-        println!("\nProcessing: {fname_disp}");
+        let file_name_display = file_name.to_string_lossy();
+        println!("\nProcessing: {file_name_display}");
         match process_and_store_data(&ingest_file, &storage_dir) {
             Ok(stored_path) => {
-                let disp = stored_path.strictpath_display();
-                println!("  -> Successfully processed and stored at: {disp}");
+                let stored_path_display = stored_path.strictpath_display();
+                println!("  -> Successfully processed and stored at: {stored_path_display}");
                 // Use try_exists() for fallible check (distinguishes permission errors)
                 match stored_path.try_exists() {
                     Ok(true) => println!("  -> Verified file exists"),
@@ -56,11 +56,6 @@ fn main() -> Result<()> {
     }
     println!("\n--- Processing Complete ---");
 
-    // --- Verification //
-    let _stored_file = storage_dir
-        .strict_join("user1_config.txt.processed")
-        .unwrap();
-
     println!("\nDemonstrated compile-time safety (see code comments).");
 
     // Cleanup
@@ -74,8 +69,8 @@ fn process_and_store_data(
     storage_dir: &PathBoundary<Storage>,
 ) -> Result<StrictPath<Storage>> {
     // Path already validated by strict_read_dir - no re-validation needed
-    let ingest_disp = ingest_path.strictpath_display();
-    println!("  -> Processing validated path: {ingest_disp}");
+    let ingest_file_display = ingest_path.strictpath_display();
+    println!("  -> Processing validated path: {ingest_file_display}");
     // Get filename for storage path
     let file_name = ingest_path
         .strictpath_file_name()
@@ -90,8 +85,8 @@ fn process_and_store_data(
         .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?
         .strictpath_with_extension("processed")
         .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
-    let storage_disp = storage_path.strictpath_display();
-    println!("  -> Target storage path: {storage_disp}");
+    let storage_file_display = storage_path.strictpath_display();
+    println!("  -> Target storage path: {storage_file_display}");
 
     storage_path.write(&processed_data)?;
 
@@ -105,8 +100,8 @@ fn archive_ingested_file(path_to_archive: &StrictPath<Ingest>) -> Result<()> {
         .strictpath_with_extension("archived")
         .map_err(|e| anyhow::anyhow!("PathBoundary error: {e}"))?;
 
-    let arch_disp = archive_name.strictpath_display();
-    println!("  -> Archiving ingest file to: {arch_disp}");
+    let archived_path_display = archive_name.strictpath_display();
+    println!("  -> Archiving ingest file to: {archived_path_display}");
     // strict_rename validates the destination path stays within boundary.
     // We pass interop_path() because strict_rename expects AsRef<Path>.
     path_to_archive.strict_rename(archive_name.interop_path())?;

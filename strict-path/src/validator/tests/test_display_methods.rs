@@ -51,12 +51,12 @@ mod display_methods_tests {
         let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
 
         // The temp_dir display and std::path::Path display should be the same
-        let temp_dir_display = format!("{}", temp_dir.strictpath_display());
-        let path_display = format!("{}", temp.path().canonicalize().unwrap().display());
+        let temp_dir_display = temp_dir.strictpath_display().to_string();
+        let path_display = temp.path().canonicalize().unwrap().display().to_string();
         assert_eq!(temp_dir_display, path_display);
 
         // The virtual root restricted display should match the temp_dir display
-        let vroot_restricted_display = format!("{}", vroot.as_unvirtual().strictpath_display());
+        let vroot_restricted_display = vroot.as_unvirtual().strictpath_display().to_string();
         assert_eq!(temp_dir_display, vroot_restricted_display);
     }
 
@@ -68,7 +68,7 @@ mod display_methods_tests {
         // Test as_unvirtual() for borrowing
         let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
         let temp_dir_ref = vroot.as_unvirtual();
-        let borrowed_display = format!("{}", temp_dir_ref.strictpath_display());
+        let borrowed_display = temp_dir_ref.strictpath_display().to_string();
         assert!(!borrowed_display.is_empty());
     }
 }

@@ -150,7 +150,8 @@ fn list_volumes(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         "{:<20} {:<15} {:<20} {:<10} {:<12}",
         "Name", "Size (MB)", "Created", "Containers", "Status"
     );
-    println!("{}", "-".repeat(80));
+    let sep = "-".repeat(80);
+    println!("{sep}");
     for entry in volumes_dir.read_dir()? {
         let entry = entry?;
         if !entry.file_type()?.is_dir() {

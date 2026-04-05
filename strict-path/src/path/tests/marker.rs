@@ -62,26 +62,25 @@ fn test_try_into_boundary_changes_marker() {
     struct Reports;
 
     let temp = tempfile::tempdir().unwrap();
-    let vault_boundary = PathBoundary::<VaultRoot>::try_new(temp.path()).unwrap();
+    let vault_dir = PathBoundary::<VaultRoot>::try_new(temp.path()).unwrap();
     let strict_root: StrictPath<VaultRoot> = StrictPath::with_boundary(temp.path()).unwrap();
 
-    let confidential_boundary: PathBoundary<Confidential> = strict_root
+    let confidential_dir: PathBoundary<Confidential> = strict_root
         .clone()
         .change_marker::<Confidential>()
         .try_into_boundary()
         .unwrap();
-    let inferred_boundary: PathBoundary<VaultRoot> =
-        strict_root.clone().try_into_boundary().unwrap();
-    let reports_boundary: PathBoundary<Reports> = strict_root
+    let inferred_dir: PathBoundary<VaultRoot> = strict_root.clone().try_into_boundary().unwrap();
+    let reports_dir: PathBoundary<Reports> = strict_root
         .clone()
         .change_marker::<Reports>()
         .try_into_boundary()
         .unwrap();
 
     // All three boundaries point to the same filesystem location (temp root)
-    assert_eq!(confidential_boundary, vault_boundary);
-    assert_eq!(inferred_boundary, vault_boundary);
-    assert_eq!(reports_boundary, vault_boundary);
+    assert_eq!(confidential_dir, vault_dir);
+    assert_eq!(inferred_dir, vault_dir);
+    assert_eq!(reports_dir, vault_dir);
 
     // The key validation: try_into_boundary() preserves the current marker type.
     // If you want a different marker, call change_marker() first. This is proven above:
@@ -128,8 +127,8 @@ fn test_change_marker_preserves_strict_path_semantics() {
     struct AdminAccess;
 
     let temp = tempfile::tempdir().unwrap();
-    let guest_boundary = PathBoundary::<GuestAccess>::try_new(temp.path()).unwrap();
-    let guest_report = guest_boundary.strict_join("reports/weekly.txt").unwrap();
+    let guest_dir = PathBoundary::<GuestAccess>::try_new(temp.path()).unwrap();
+    let guest_report = guest_dir.strict_join("reports/weekly.txt").unwrap();
 
     let user_report = guest_report.clone().change_marker::<UserAccess>();
     let admin_report = user_report.clone().change_marker::<AdminAccess>();
@@ -189,8 +188,8 @@ fn test_strict_path_change_marker_single_reference() {
     std::fs::create_dir_all(temp.path().join("data")).unwrap();
     std::fs::write(temp.path().join("data/file.txt"), b"content").unwrap();
 
-    let boundary = PathBoundary::<ReadOnly>::try_new(temp.path()).unwrap();
-    let read_path = boundary.strict_join("data/file.txt").unwrap();
+    let readonly_dir = PathBoundary::<ReadOnly>::try_new(temp.path()).unwrap();
+    let read_path = readonly_dir.strict_join("data/file.txt").unwrap();
 
     // At this point, read_path owns the only Arc reference to the boundary
     let write_path: StrictPath<ReadWrite> = read_path.change_marker();
@@ -215,9 +214,9 @@ fn test_strict_path_change_marker_shared_boundary() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(temp.path().join("shared")).unwrap();
 
-    let boundary = PathBoundary::<ReadOnly>::try_new(temp.path()).unwrap();
-    let path1 = boundary.strict_join("shared/file1.txt").unwrap();
-    let path2 = boundary.strict_join("shared/file2.txt").unwrap();
+    let readonly_dir = PathBoundary::<ReadOnly>::try_new(temp.path()).unwrap();
+    let path1 = readonly_dir.strict_join("shared/file1.txt").unwrap();
+    let path2 = readonly_dir.strict_join("shared/file2.txt").unwrap();
 
     // Both paths share the same Arc<PathBoundary>
     // Now change_marker on path1 while path2 still holds a reference
@@ -243,8 +242,8 @@ fn test_strict_path_change_marker_chain() {
     struct Level3;
 
     let temp = tempfile::tempdir().unwrap();
-    let boundary = PathBoundary::<Level1>::try_new(temp.path()).unwrap();
-    let path1 = boundary.strict_join("test").unwrap();
+    let level1_dir = PathBoundary::<Level1>::try_new(temp.path()).unwrap();
+    let path1 = level1_dir.strict_join("test").unwrap();
 
     let _path2: StrictPath<Level2> = path1.change_marker();
 
@@ -254,7 +253,7 @@ fn test_strict_path_change_marker_chain() {
     fn level3_fn(_: StrictPath<Level3>) {}
 
     // Verify type system enforces correct types
-    let path1 = boundary.strict_join("test").unwrap();
+    let path1 = level1_dir.strict_join("test").unwrap();
     level1_fn(path1.clone());
     level2_fn(path1.clone().change_marker());
     level3_fn(path1.change_marker::<Level2>().change_marker::<Level3>());
@@ -272,8 +271,8 @@ fn test_strict_path_change_marker_preserves_io_operations() {
     std::fs::create_dir_all(temp.path().join("io_test")).unwrap();
     std::fs::write(temp.path().join("io_test/data.txt"), b"test content").unwrap();
 
-    let boundary = PathBoundary::<Original>::try_new(temp.path()).unwrap();
-    let original_path = boundary.strict_join("io_test/data.txt").unwrap();
+    let original_dir = PathBoundary::<Original>::try_new(temp.path()).unwrap();
+    let original_path = original_dir.strict_join("io_test/data.txt").unwrap();
     let changed_path: StrictPath<Changed> = original_path.change_marker();
 
     // Test read operations
@@ -305,8 +304,8 @@ fn test_strict_path_change_marker_with_joins() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(temp.path().join("data/sub")).unwrap();
 
-    let boundary = PathBoundary::<UserSpace>::try_new(temp.path()).unwrap();
-    let user_data = boundary.strict_join("data").unwrap();
+    let user_space_dir = PathBoundary::<UserSpace>::try_new(temp.path()).unwrap();
+    let user_data = user_space_dir.strict_join("data").unwrap();
     let admin_data: StrictPath<AdminSpace> = user_data.change_marker();
 
     // Join should work on changed path
@@ -387,23 +386,23 @@ fn test_path_boundary_change_marker() {
     struct Production;
 
     let temp = tempfile::tempdir().unwrap();
-    let dev_boundary = PathBoundary::<Development>::try_new(temp.path()).unwrap();
-    let prod_boundary: PathBoundary<Production> = dev_boundary.clone().change_marker();
+    let dev_dir = PathBoundary::<Development>::try_new(temp.path()).unwrap();
+    let prod_dir: PathBoundary<Production> = dev_dir.clone().change_marker();
 
     // Both should point to same directory
-    assert_eq!(dev_boundary.path(), prod_boundary.path());
+    assert_eq!(dev_dir.path(), prod_dir.path());
 
     // strict_join should work with new marker
     std::fs::write(temp.path().join("config.txt"), b"data").unwrap();
-    let prod_config = prod_boundary.strict_join("config.txt").unwrap();
+    let prod_config = prod_dir.strict_join("config.txt").unwrap();
     assert!(prod_config.exists());
 
     // Type system should enforce marker types
     fn dev_fn(_: PathBoundary<Development>) {}
     fn prod_fn(_: PathBoundary<Production>) {}
 
-    dev_fn(dev_boundary);
-    prod_fn(prod_boundary);
+    dev_fn(dev_dir);
+    prod_fn(prod_dir);
 }
 
 #[test]
@@ -417,14 +416,14 @@ fn test_change_marker_with_tuple_markers() {
     struct ReadWrite;
 
     let temp = tempfile::tempdir().unwrap();
-    let boundary = PathBoundary::<(UserFiles, ReadOnly)>::try_new(temp.path()).unwrap();
+    let user_files_dir = PathBoundary::<(UserFiles, ReadOnly)>::try_new(temp.path()).unwrap();
 
     // Verify type enforcement
     fn accepts_readonly(_: StrictPath<(UserFiles, ReadOnly)>) {}
     fn accepts_readwrite(_: StrictPath<(UserFiles, ReadWrite)>) {}
 
     // Simulate authorization: upgrade from ReadOnly to ReadWrite
-    let readonly_path = boundary.strict_join("document.txt").unwrap();
+    let readonly_path = user_files_dir.strict_join("document.txt").unwrap();
     accepts_readonly(readonly_path.clone());
     accepts_readwrite(readonly_path.change_marker());
 }
@@ -445,17 +444,17 @@ fn test_change_marker_does_not_mutate_original_boundary() {
     std::fs::write(temp.path().join("data/file2.txt"), b"content2").unwrap();
 
     // Step 1: Create a boundary with OriginalMarker
-    let boundary = PathBoundary::<OriginalMarker>::try_new(temp.path()).unwrap();
+    let original_dir = PathBoundary::<OriginalMarker>::try_new(temp.path()).unwrap();
 
     // Step 2: Create StrictPath from boundary
-    let path1 = boundary.strict_join("data/file1.txt").unwrap();
+    let path1 = original_dir.strict_join("data/file1.txt").unwrap();
 
     // Step 3: Change marker on the derived path
     let _changed_path: StrictPath<ChangedMarker> = path1.change_marker();
 
     // Step 4: CRITICAL - Verify the original boundary still works with OriginalMarker
     // This proves that change_marker() did NOT mutate the shared Arc<PathBoundary>
-    let path2 = boundary.strict_join("data/file2.txt").unwrap();
+    let path2 = original_dir.strict_join("data/file2.txt").unwrap();
 
     // If the boundary was mutated, this would fail to compile or behave incorrectly
     fn requires_original(_: StrictPath<OriginalMarker>) {}
@@ -466,7 +465,7 @@ fn test_change_marker_does_not_mutate_original_boundary() {
     assert_eq!(path2.read_to_string().unwrap(), "content2");
 
     // Verify we can still create new paths with original marker
-    let path3 = boundary.strict_join("data").unwrap();
+    let path3 = original_dir.strict_join("data").unwrap();
     requires_original(path3);
 }
 
@@ -483,11 +482,11 @@ fn test_change_marker_with_multiple_references_to_boundary() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(temp.path().join("shared")).unwrap();
 
-    let boundary = PathBoundary::<SharedMarker>::try_new(temp.path()).unwrap();
+    let shared_dir = PathBoundary::<SharedMarker>::try_new(temp.path()).unwrap();
 
     // Create two paths that share the same Arc<PathBoundary>
-    let path1 = boundary.strict_join("shared/file1.txt").unwrap();
-    let path2 = boundary.strict_join("shared/file2.txt").unwrap();
+    let path1 = shared_dir.strict_join("shared/file1.txt").unwrap();
+    let path2 = shared_dir.strict_join("shared/file2.txt").unwrap();
 
     // At this point, the Arc reference count is >= 2
     // Changing marker on path1 should clone the boundary (Arc::try_unwrap fails)
@@ -508,7 +507,7 @@ fn test_change_marker_with_multiple_references_to_boundary() {
     assert!(path2.strictpath_to_string_lossy().contains("file2.txt"));
 
     // Original boundary should still be usable
-    let path3 = boundary.strict_join("shared/file3.txt").unwrap();
+    let path3 = shared_dir.strict_join("shared/file3.txt").unwrap();
     requires_shared(path3);
 }
 
@@ -521,10 +520,10 @@ fn test_change_marker_memory_safety() {
     struct Type2;
 
     let temp = tempfile::tempdir().unwrap();
-    let boundary = PathBoundary::<Type1>::try_new(temp.path()).unwrap();
+    let type1_dir = PathBoundary::<Type1>::try_new(temp.path()).unwrap();
 
     for _ in 0..1000 {
-        let path1 = boundary.strict_join("test").unwrap();
+        let path1 = type1_dir.strict_join("test").unwrap();
         let path2: StrictPath<Type2> = path1.change_marker();
         let path3: StrictPath<Type1> = path2.change_marker();
 
