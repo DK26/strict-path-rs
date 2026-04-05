@@ -47,9 +47,11 @@ fn symlink_inside_ok_via_virtual() {
     let file_path = data.join("file.txt");
     fs::write(&file_path, b"ok").unwrap();
 
-    // Create a symlink to the internal directory
+    // Create a relative symlink to the internal directory.
+    // Using a relative target ("data") avoids macOS /var → /private/var
+    // mismatch when the symlink stores an absolute non-canonical path.
     let link = jail_root.join("ln");
-    unix_fs::symlink(&data, &link).unwrap();
+    unix_fs::symlink("data", &link).unwrap();
 
     let vroot: VirtualRoot = VirtualRoot::try_new(jail_root).unwrap();
 
