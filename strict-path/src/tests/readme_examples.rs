@@ -9,8 +9,7 @@ fn readme_policy_types_example() -> Result<(), Box<dyn std::error::Error>> {
     let temp_dir = tempfile::tempdir()?.keep();
 
     // 1. Define the boundary - paths are contained within ./uploads
-    let uploads_dir: crate::PathBoundary =
-        PathBoundary::try_new_create(temp_dir.join("uploads"))?;
+    let uploads_dir: crate::PathBoundary = PathBoundary::try_new_create(temp_dir.join("uploads"))?;
 
     // 2. Validate untrusted user input against the boundary
     let user_provided_path = "documents/report.pdf"; // Simulates get_filename_from_request()
@@ -86,7 +85,8 @@ fn readme_disaster_prevention_example() -> Result<(), Box<dyn std::error::Error>
     let user_input = "../../../etc/passwd";
 
     // ? This single line makes it mathematically impossible
-    let uploads_dir: crate::StrictPath = StrictPath::with_boundary_create(temp_dir.join("uploads"))?;
+    let uploads_dir: crate::StrictPath =
+        StrictPath::with_boundary_create(temp_dir.join("uploads"))?;
     let result = uploads_dir.strict_join(user_input);
     // Returns Err(PathEscapesBoundary) - attack blocked!
     assert!(result.is_err());
@@ -101,7 +101,8 @@ fn readme_typical_workflow_strict_links_example() -> Result<(), Box<dyn std::err
     let temp_dir = tempfile::tempdir()?.keep();
 
     // 1) Establish boundary
-    let link_demo_dir: crate::PathBoundary = PathBoundary::try_new_create(temp_dir.join("link_demo"))?;
+    let link_demo_dir: crate::PathBoundary =
+        PathBoundary::try_new_create(temp_dir.join("link_demo"))?;
 
     // 2) Validate target path from untrusted input
     let target = link_demo_dir.strict_join("data/target.txt")?;

@@ -202,8 +202,8 @@ fn validate_user_config_request() -> Result<(), Box<dyn std::error::Error>> {
     let external_requests: &[&str] = &[
         // From CLI args, HTTP request body, or user-submitted form field
         "preferences.toml",
-        "../../etc/passwd",     // traversal attack — must be blocked
-        "../sibling_app/key",   // escape to adjacent directory — must be blocked
+        "../../etc/passwd",      // traversal attack — must be blocked
+        "../sibling_app/key",    // escape to adjacent directory — must be blocked
         "profiles/default.json", // valid nested path
     ];
 

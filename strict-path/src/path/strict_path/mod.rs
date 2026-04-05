@@ -279,7 +279,7 @@ impl<Marker> StrictPath<Marker> {
     /// # let data_dir: PathBoundary = PathBoundary::try_new(temp.path())?;
     /// let file_path = data_dir.strict_join("docs/readme.md")?;
     /// let vpath = file_path.virtualize();
-    /// println!("{}", vpath);
+    /// println!("{}", vpath.virtualpath_display());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[cfg(feature = "virtual-path")]
@@ -668,7 +668,8 @@ impl<Marker> StrictPath<Marker> {
     /// # let temp = tempfile::tempdir()?;
     /// # let data_dir: PathBoundary = PathBoundary::try_new(temp.path())?;
     /// let file_path = data_dir.strict_join("logs/app.log")?;
-    /// assert!(file_path.strictpath_starts_with(temp.path()));
+    /// // Use the boundary's canonical path (interop_path) as the prefix to compare against
+    /// assert!(file_path.strictpath_starts_with(data_dir.interop_path()));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[inline]

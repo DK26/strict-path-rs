@@ -2,21 +2,33 @@
     "$schema": "https://context7.com/schema/context7.json",
     "projectTitle": "strict-path",
     "description": "Secure path handling for Rust — prevents directory traversal, symlink escapes, and Windows 8.3 short-name attacks with compile-time guarantees via StrictPath and VirtualPath types",
-    "folders": [
-        "strict-path/src",
-        "strict-path/examples"
-    ],
+    "folders": [],
     "excludeFolders": [
         "target",
         "benches",
-        "demos/target",
-        ".github"
+        "demos",
+        ".github",
+        "strict-path/sandbox",
+        "strict-path/tenant_data",
+        "strict-path/vlink_demo",
+        "strict-path/data"
     ],
     "excludeFiles": [
         "CHANGELOG.md",
         "CONTRIBUTING.md",
         "LICENSE-APACHE",
-        "LICENSE-MIT"
+        "LICENSE-MIT",
+        "AGENTS.md",
+        "Cargo.toml",
+        "ci-local.ps1",
+        "ci-local.sh",
+        "ci-check.ps1",
+        "ci-check.sh",
+        "ci-check-demos.ps1",
+        "ci-check-demos.sh",
+        "context7.json",
+        "llms.txt",
+        "LLM_USER.md"
     ],
     "rules": [
         "Always validate untrusted paths via strict_join() or virtual_join() before any filesystem I/O",

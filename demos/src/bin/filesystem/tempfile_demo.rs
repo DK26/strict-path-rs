@@ -95,7 +95,10 @@ impl TempFileProcessor {
         // Use strict_read_dir() directly on PathBoundary - no conversion needed!
         for entry in self.work_dir.strict_read_dir()? {
             let child = entry?;
-            if let Some(name) = child.strictpath_file_name().and_then(|filename| filename.to_str()) {
+            if let Some(name) = child
+                .strictpath_file_name()
+                .and_then(|filename| filename.to_str())
+            {
                 files.push(name.to_string());
             }
         }
@@ -171,7 +174,10 @@ fn demonstrate_compression_workflow() -> Result<()> {
     for entry in temp_work.strict_read_dir()? {
         let child = entry?;
         if child.is_file() {
-            if let Some(name) = child.strictpath_file_name().and_then(|filename| filename.to_str()) {
+            if let Some(name) = child
+                .strictpath_file_name()
+                .and_then(|filename| filename.to_str())
+            {
                 archive_content.push_str(&format!("- {name}\n"));
                 file_count += 1;
             }

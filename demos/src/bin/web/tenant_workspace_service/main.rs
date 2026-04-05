@@ -24,7 +24,7 @@ use types::{
     ApiError, ApiResult, AuditResponse, CaptureAuditRequest, CreateDocumentRequest,
     DocumentResponse, ImportTemplateRequest, ListAuditResponse, ListDocumentsResponse,
 };
-use workspace::{TenantDirectoryRegistry, TemplateLibrary, TokenStore};
+use workspace::{TemplateLibrary, TenantDirectoryRegistry, TokenStore};
 
 type SharedState = Arc<AppState>;
 

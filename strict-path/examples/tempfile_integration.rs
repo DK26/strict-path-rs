@@ -78,8 +78,8 @@ fn validate_uploaded_files() -> Result<(), Box<dyn std::error::Error>> {
     let incoming_uploads: &[&str] = &[
         // From HTTP multipart upload headers, CLI args, or form data
         "report.pdf",
-        "../../etc/passwd",       // traversal attack — must be blocked
-        "../outside_staging.txt", // escape attempt — must be blocked
+        "../../etc/passwd",          // traversal attack — must be blocked
+        "../outside_staging.txt",    // escape attempt — must be blocked
         "data/user_files/notes.txt", // valid nested filename
     ];
 

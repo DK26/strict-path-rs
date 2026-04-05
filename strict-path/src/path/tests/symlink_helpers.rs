@@ -353,7 +353,8 @@ fn strict_symlink_rejects_escape_targets() {
     link.create_parent_dir_all().unwrap();
 
     let outside_dir = tempfile::tempdir().unwrap();
-    let outside_access_dir: PathBoundary = PathBoundary::try_new_create(outside_dir.path()).unwrap();
+    let outside_access_dir: PathBoundary =
+        PathBoundary::try_new_create(outside_dir.path()).unwrap();
     let outside_target = outside_access_dir.strict_join("secret.txt").unwrap();
 
     let err = outside_target
@@ -376,7 +377,8 @@ fn strict_hard_link_rejects_escape_targets() {
     link.create_parent_dir_all().unwrap();
 
     let outside_dir = tempfile::tempdir().unwrap();
-    let outside_access_dir: PathBoundary = PathBoundary::try_new_create(outside_dir.path()).unwrap();
+    let outside_access_dir: PathBoundary =
+        PathBoundary::try_new_create(outside_dir.path()).unwrap();
     let outside_target = outside_access_dir.strict_join("secret.txt").unwrap();
     outside_target.write(b"secret").unwrap();
 

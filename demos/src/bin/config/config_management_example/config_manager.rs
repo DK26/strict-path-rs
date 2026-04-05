@@ -5,9 +5,8 @@ use strict_path::{PathBoundary, VirtualRoot};
 
 use crate::types::{
     AppData, AppEnvironment, ApplicationLogs, RawAppConfig, RawLoggingConfig, RawSecurityConfig,
-    RawServerConfig, RawStorageConfig, SecurityCerts, SystemCache, UserUploads,
-    ValidatedAppConfig, ValidatedLoggingConfig, ValidatedSecurityConfig, ValidatedServerConfig,
-    ValidatedStorageConfig,
+    RawServerConfig, RawStorageConfig, SecurityCerts, SystemCache, UserUploads, ValidatedAppConfig,
+    ValidatedLoggingConfig, ValidatedSecurityConfig, ValidatedServerConfig, ValidatedStorageConfig,
 };
 
 pub struct ConfigManager;
@@ -170,8 +169,8 @@ impl ConfigManager {
 
         // Validate optional static files directory
         let static_files_dir = if let Some(ref static_dir) = server.static_files_dir {
-            let static_files_dir =
-                PathBoundary::<AppData>::try_new_create(static_dir).with_context(|| {
+            let static_files_dir = PathBoundary::<AppData>::try_new_create(static_dir)
+                .with_context(|| {
                     format!("Failed to create static files directory: {static_dir}")
                 })?;
 
@@ -233,9 +232,7 @@ impl ConfigManager {
 
         // Create cache boundary (strict, not virtual - for system use)
         let cache_dir = PathBoundary::<SystemCache>::try_new_create(&storage.cache_root)
-            .with_context(|| {
-                format!("Failed to create cache directory: {}", storage.cache_root)
-            })?;
+            .with_context(|| format!("Failed to create cache directory: {}", storage.cache_root))?;
 
         println!("  Cache root: {}", cache_dir.strictpath_display());
 
@@ -260,7 +257,10 @@ impl ConfigManager {
                 )
             })?;
 
-        println!("  Certificate directory: {}", certs_dir.strictpath_display());
+        println!(
+            "  Certificate directory: {}",
+            certs_dir.strictpath_display()
+        );
 
         // Validate key file within certificate boundary
         let key_file = certs_dir

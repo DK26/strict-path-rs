@@ -70,8 +70,7 @@ fn test_try_into_boundary_changes_marker() {
         .change_marker::<Confidential>()
         .try_into_boundary()
         .unwrap();
-    let inferred_dir: PathBoundary<VaultRoot> =
-        strict_root.clone().try_into_boundary().unwrap();
+    let inferred_dir: PathBoundary<VaultRoot> = strict_root.clone().try_into_boundary().unwrap();
     let reports_dir: PathBoundary<Reports> = strict_root
         .clone()
         .change_marker::<Reports>()

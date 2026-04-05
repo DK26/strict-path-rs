@@ -126,7 +126,8 @@ fn test_cve_2025_11001_desktop_symlink_attack_blocked() {
     let attack = MaliciousZipStructure::new_desktop_attack("TestUser");
 
     let extraction_dir = tempfile::tempdir().unwrap();
-    let extraction_sandbox: PathBoundary = PathBoundary::try_new_create(extraction_dir.path()).unwrap();
+    let extraction_sandbox: PathBoundary =
+        PathBoundary::try_new_create(extraction_dir.path()).unwrap();
 
     // Step 1: Attacker attempts to create top-level directory (this succeeds)
     let top_dir_path = extraction_sandbox.strict_join(&attack.top_dir).unwrap();
@@ -267,9 +268,7 @@ fn test_cve_2025_11001_desktop_symlink_attack_blocked() {
         Err(e) => {
             // Path join was rejected - this is the expected defense!
             // The link might point outside, so strict-path blocks traversal through it
-            eprintln!(
-                "Attack blocked: strict_join rejected path through symlink: {e}"
-            );
+            eprintln!("Attack blocked: strict_join rejected path through symlink: {e}");
 
             // Verify Desktop was not modified
             let desktop_path = Path::new(&attack.symlink_target).join(&attack.payload_file);
@@ -297,10 +296,13 @@ fn test_cve_2025_11001_desktop_symlink_attack_blocked() {
 #[test]
 fn test_cve_2025_11001_issue2_prepended_directory_bypass_blocked() {
     let extraction_dir = tempfile::tempdir().unwrap();
-    let extraction_sandbox: PathBoundary = PathBoundary::try_new_create(extraction_dir.path()).unwrap();
+    let extraction_sandbox: PathBoundary =
+        PathBoundary::try_new_create(extraction_dir.path()).unwrap();
 
     // Create nested directory structure like in the exploit
-    let nested_dir = extraction_sandbox.strict_join("data/subdir/nested").unwrap();
+    let nested_dir = extraction_sandbox
+        .strict_join("data/subdir/nested")
+        .unwrap();
     nested_dir.create_dir_all().unwrap();
 
     // Simulate 7-Zip's vulnerable pattern: prepending directory to absolute path
@@ -327,9 +329,9 @@ fn test_cve_2025_11001_issue2_prepended_directory_bypass_blocked() {
             | Err(StrictPathError::PathResolutionError { .. }) => {
                 // Expected - absolute path detected and rejected
             }
-            Ok(_) => panic!(
-                "Prepended directory MUST NOT bypass absolute path detection: {target}"
-            ),
+            Ok(_) => {
+                panic!("Prepended directory MUST NOT bypass absolute path detection: {target}")
+            }
             Err(other) => panic!("Unexpected error for '{target}': {other:?}"),
         }
     }
@@ -351,7 +353,8 @@ fn test_cve_2025_11001_system32_attack_blocked() {
     let attack = MaliciousZipStructure::new_system32_attack();
 
     let extraction_dir = tempfile::tempdir().unwrap();
-    let extraction_sandbox: PathBoundary = PathBoundary::try_new_create(extraction_dir.path()).unwrap();
+    let extraction_sandbox: PathBoundary =
+        PathBoundary::try_new_create(extraction_dir.path()).unwrap();
 
     // Attempt to validate symlink target pointing to System32
     let symlink_target_result = extraction_sandbox.strict_join(&attack.symlink_target);
@@ -380,7 +383,8 @@ fn test_cve_2025_11001_system32_attack_blocked() {
 #[test]
 fn test_cve_2025_11001_forward_slash_absolute_windows_paths_blocked() {
     let extraction_dir = tempfile::tempdir().unwrap();
-    let extraction_sandbox: PathBoundary = PathBoundary::try_new_create(extraction_dir.path()).unwrap();
+    let extraction_sandbox: PathBoundary =
+        PathBoundary::try_new_create(extraction_dir.path()).unwrap();
 
     // Representative absolute Windows paths using forward slashes
     let absolute_targets = vec!["C:/Windows/System32", "C:/Users/Public/Desktop"];
@@ -397,9 +401,7 @@ fn test_cve_2025_11001_forward_slash_absolute_windows_paths_blocked() {
             | Err(StrictPathError::PathResolutionError { .. }) => {
                 // Expected: treated as absolute/escaping and rejected.
             }
-            Ok(p) => panic!(
-                "strict_join MUST NOT accept forward-slash absolute path: {p:?}"
-            ),
+            Ok(p) => panic!("strict_join MUST NOT accept forward-slash absolute path: {p:?}"),
             Err(other) => panic!("Unexpected error variant: {other:?}"),
         }
     }
@@ -410,7 +412,8 @@ fn test_cve_2025_11001_relative_traversal_blocked() {
     let attack = MaliciousZipStructure::new_relative_traversal_attack();
 
     let extraction_dir = tempfile::tempdir().unwrap();
-    let extraction_sandbox: PathBoundary = PathBoundary::try_new_create(extraction_dir.path()).unwrap();
+    let extraction_sandbox: PathBoundary =
+        PathBoundary::try_new_create(extraction_dir.path()).unwrap();
 
     // Create top-level directory
     let top_dir_path = extraction_sandbox.strict_join(&attack.top_dir).unwrap();
@@ -452,7 +455,8 @@ fn test_cve_2025_11001_unc_path_attack_blocked() {
     ];
 
     let extraction_dir = tempfile::tempdir().unwrap();
-    let extraction_sandbox: PathBoundary = PathBoundary::try_new_create(extraction_dir.path()).unwrap();
+    let extraction_sandbox: PathBoundary =
+        PathBoundary::try_new_create(extraction_dir.path()).unwrap();
 
     for unc_path in unc_targets {
         let result = extraction_sandbox.strict_join(unc_path);
@@ -484,7 +488,8 @@ fn test_cve_2025_11001_mixed_encoding_attack_blocked() {
     ];
 
     let extraction_dir = tempfile::tempdir().unwrap();
-    let extraction_sandbox: PathBoundary = PathBoundary::try_new_create(extraction_dir.path()).unwrap();
+    let extraction_sandbox: PathBoundary =
+        PathBoundary::try_new_create(extraction_dir.path()).unwrap();
 
     for encoded_path in encoded_attacks {
         let result = extraction_sandbox.strict_join(encoded_path);
@@ -504,9 +509,7 @@ fn test_cve_2025_11001_mixed_encoding_attack_blocked() {
             | Err(StrictPathError::PathResolutionError { .. }) => {
                 // Also acceptable - rejected as traversal
             }
-            Err(other) => panic!(
-                "Unexpected error for encoded path '{encoded_path}': {other:?}"
-            ),
+            Err(other) => panic!("Unexpected error for encoded path '{encoded_path}': {other:?}"),
         }
     }
 }

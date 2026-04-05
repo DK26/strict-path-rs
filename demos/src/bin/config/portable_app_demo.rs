@@ -146,7 +146,10 @@ impl QuickNotes {
 
         let safe = title.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_");
         let sanitized_note_filename = format!("{safe}.txt");
-        let note_path: VirtualPath<Notes> = self.storage.notes_root.virtual_join(&sanitized_note_filename)?;
+        let note_path: VirtualPath<Notes> = self
+            .storage
+            .notes_root
+            .virtual_join(&sanitized_note_filename)?;
         let ts = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
         let body = format!("Title: {title}\nCreated: {ts}\n\n{content}");
         note_path.write(&body)?;
@@ -190,7 +193,10 @@ impl QuickNotes {
             "{}.txt",
             title.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_")
         );
-        let note_path: VirtualPath<Notes> = self.storage.notes_root.virtual_join(&sanitized_note_filename)?;
+        let note_path: VirtualPath<Notes> = self
+            .storage
+            .notes_root
+            .virtual_join(&sanitized_note_filename)?;
         if !note_path.exists() {
             println!("Note '{title}' not found.");
             return Ok(());

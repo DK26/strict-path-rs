@@ -134,7 +134,9 @@ fn bench_strict_path_join(c: &mut Criterion) {
     let structure = TestStructure::new().expect("Failed to create test structure");
     let bench_root_dir: PathBoundary<BenchRoot> =
         PathBoundary::try_new(structure.base_path()).expect("Failed to create boundary");
-    let root: StrictPath<BenchRoot> = bench_root_dir.into_strictpath().expect("Failed to get root");
+    let root: StrictPath<BenchRoot> = bench_root_dir
+        .into_strictpath()
+        .expect("Failed to get root");
 
     let mut group = c.benchmark_group("strict_path_join");
     group.throughput(Throughput::Elements(

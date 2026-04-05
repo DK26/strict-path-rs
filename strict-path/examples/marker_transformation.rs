@@ -130,7 +130,8 @@ fn delete_document(path: &StrictPath<(ProjectDocuments, AdminAccess)>) -> std::i
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tmp = tempfile::tempdir()?;
-    let project_docs_dir: PathBoundary<ProjectDocuments> = PathBoundary::try_new_create(tmp.path())?;
+    let project_docs_dir: PathBoundary<ProjectDocuments> =
+        PathBoundary::try_new_create(tmp.path())?;
     let requested = "projects/roadmap.md";
 
     let base_path: StrictPath<ProjectDocuments> = project_docs_dir.strict_join(requested)?;

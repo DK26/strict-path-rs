@@ -77,8 +77,7 @@ pub fn load_templates(
             if let Some(extension) = path.extension() {
                 if extension == "html" {
                     let relative = path.strip_prefix(layouts_dir.interop_path())?;
-                    let template_name =
-                        relative.display().to_string().replace('\\', "/");
+                    let template_name = relative.display().to_string().replace('\\', "/");
 
                     // Validate the template path through directory restriction
                     let template_path_str = format!("layouts/{template_name}");
@@ -112,8 +111,7 @@ pub fn process_content_directory(
             if let Some(extension) = path.extension() {
                 if extension == "md" {
                     let relative = path.strip_prefix(content_dir.interop_path())?;
-                    let relative_str =
-                        relative.display().to_string().replace('\\', "/");
+                    let relative_str = relative.display().to_string().replace('\\', "/");
 
                     // Validate through directory restriction
                     let content_path_str = format!("{dir_name}/{relative_str}");

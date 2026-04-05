@@ -20,12 +20,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use std::{
-    fs,
-    net::SocketAddr,
-    path::Path as StdPath,
-    sync::Arc,
-};
+use std::{fs, net::SocketAddr, path::Path as StdPath, sync::Arc};
 use tokio::{net::TcpListener, signal};
 
 use types::{

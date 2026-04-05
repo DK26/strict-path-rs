@@ -34,8 +34,8 @@ mod security_symlink_escape;
 mod security_traversal;
 mod symlink_following_external;
 mod symlink_helpers;
-mod symlink_resolution;
 mod symlink_methods;
+mod symlink_resolution;
 mod symlink_virtual_clamping;
 #[cfg(feature = "virtual-path")]
 mod virtual_display;

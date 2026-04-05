@@ -38,7 +38,10 @@ fn test_mixed_separators_and_encoded_inputs() {
             .as_unvirtual()
             .strictpath_starts_with(vroot.interop_path()));
         let virtual_display = vp.virtualpath_display().to_string();
-        assert!(virtual_display.starts_with(expected_prefix), "{inp} => {virtual_display}");
+        assert!(
+            virtual_display.starts_with(expected_prefix),
+            "{inp} => {virtual_display}"
+        );
     }
 }
 

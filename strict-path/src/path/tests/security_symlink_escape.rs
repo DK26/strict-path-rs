@@ -1,10 +1,10 @@
 // Tests for symlink and junction escape detection/clamping, TOCTOU attacks,
 // and archive extraction (zip/tar slip) scenarios.
 
-#[cfg(all(feature = "virtual-path", unix))]
-use crate::VirtualRoot;
 #[cfg(feature = "virtual-path")]
 use crate::PathBoundary;
+#[cfg(all(feature = "virtual-path", unix))]
+use crate::VirtualRoot;
 
 #[cfg(feature = "virtual-path")]
 #[test]

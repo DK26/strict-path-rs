@@ -20,7 +20,8 @@ fn test_safe_archive_extraction_workflow() {
     // This is what archive libraries SHOULD do to prevent CVE-2025-11001
 
     let extraction_dir = tempfile::tempdir().unwrap();
-    let extraction_sandbox: PathBoundary = PathBoundary::try_new_create(extraction_dir.path()).unwrap();
+    let extraction_sandbox: PathBoundary =
+        PathBoundary::try_new_create(extraction_dir.path()).unwrap();
 
     // Simulated archive contents (safe structure)
     let archive_entries: Vec<(&str, Option<&[u8]>)> = vec![
@@ -101,7 +102,8 @@ fn test_symbolic_link_validation_prevents_attack() {
 fn test_archive_with_malicious_filenames() {
     // Test various malicious filename patterns that might appear in archives
     let extraction_dir = tempfile::tempdir().unwrap();
-    let extraction_sandbox: PathBoundary = PathBoundary::try_new_create(extraction_dir.path()).unwrap();
+    let extraction_sandbox: PathBoundary =
+        PathBoundary::try_new_create(extraction_dir.path()).unwrap();
 
     let malicious_filenames = vec![
         // Absolute paths
@@ -141,9 +143,7 @@ fn test_archive_with_malicious_filenames() {
                 // Expected - malicious path rejected
             }
             Err(other) => {
-                panic!(
-                    "Unexpected error for malicious filename '{filename}': {other:?}"
-                );
+                panic!("Unexpected error for malicious filename '{filename}': {other:?}");
             }
         }
     }
@@ -153,7 +153,8 @@ fn test_archive_with_malicious_filenames() {
 fn test_cve_2025_11001_prevents_arbitrary_file_write() {
     // End-to-end test demonstrating that the attack pattern fails completely
     let extraction_dir = tempfile::tempdir().unwrap();
-    let extraction_sandbox: PathBoundary = PathBoundary::try_new_create(extraction_dir.path()).unwrap();
+    let extraction_sandbox: PathBoundary =
+        PathBoundary::try_new_create(extraction_dir.path()).unwrap();
 
     // Attacker's goal: Write a file to C:\Users\Public\malware.exe
     let target_outside_boundary = "C:\\Users\\Public\\malware.exe";
@@ -342,7 +343,8 @@ fn test_vulnerability_comparison_table() {
 fn test_cve_2025_11001_preexisting_malicious_link_blocked() {
     // Arrange boundary and directory layout
     let extraction_dir = tempfile::tempdir().unwrap();
-    let extraction_sandbox: PathBoundary = PathBoundary::try_new_create(extraction_dir.path()).unwrap();
+    let extraction_sandbox: PathBoundary =
+        PathBoundary::try_new_create(extraction_dir.path()).unwrap();
 
     let data_dir = extraction_sandbox.strict_join("data").unwrap();
     data_dir.create_dir_all().unwrap();

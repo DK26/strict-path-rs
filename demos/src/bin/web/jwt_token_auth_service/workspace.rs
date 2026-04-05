@@ -124,8 +124,7 @@ pub struct WorkspaceAccess {
     // Personal files directory with different capability levels
     pub personal_files_readonly: PathBoundary<(PersonalFiles, CanRead)>,
     pub personal_files_readwrite: Option<PathBoundary<(PersonalFiles, CanRead, CanWrite)>>,
-    pub personal_files_full:
-        Option<PathBoundary<(PersonalFiles, CanRead, CanWrite, CanDelete)>>,
+    pub personal_files_full: Option<PathBoundary<(PersonalFiles, CanRead, CanWrite, CanDelete)>>,
     // Shared files directory with different capability levels
     pub shared_files_readonly: PathBoundary<(SharedFiles, CanRead)>,
     pub shared_files_readwrite: Option<PathBoundary<(SharedFiles, CanRead, CanWrite)>>,

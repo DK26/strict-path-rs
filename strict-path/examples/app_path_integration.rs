@@ -157,9 +157,9 @@ fn cli_input_validation() -> Result<(), Box<dyn std::error::Error>> {
     let cli_args: &[&str] = &[
         // From CLI args, HTTP request, or other external source
         "report.txt",
-        "../../etc/passwd",   // traversal attack
-        "../outside.txt",     // escape attempt
-        "data/summary.csv",   // valid nested path
+        "../../etc/passwd", // traversal attack
+        "../outside.txt",   // escape attempt
+        "data/summary.csv", // valid nested path
     ];
 
     println!("   Validating filenames from external input (CLI args / HTTP request):");
@@ -169,7 +169,10 @@ fn cli_input_validation() -> Result<(), Box<dyn std::error::Error>> {
             Ok(safe_path) => {
                 safe_path.create_parent_dir_all()?;
                 safe_path.write(b"app content")?;
-                println!("   OK  '{user_input}' -> {}", safe_path.strictpath_display());
+                println!(
+                    "   OK  '{user_input}' -> {}",
+                    safe_path.strictpath_display()
+                );
             }
             Err(_) => {
                 println!("   BLOCKED  '{user_input}' (path traversal / escape attempt)");

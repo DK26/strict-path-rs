@@ -21,9 +21,7 @@ fn test_case_sensitivity_bypass_attack() {
             // Correctly rejected.
         }
         Ok(p) => {
-            panic!(
-                "SECURITY FAILURE: Case-sensitivity bypass was not detected. Path: {p:?}"
-            );
+            panic!("SECURITY FAILURE: Case-sensitivity bypass was not detected. Path: {p:?}");
         }
         Err(e) => {
             panic!("Unexpected error for case-sensitivity attack: {e:?}");
@@ -247,9 +245,7 @@ fn test_environment_variable_injection() {
                 // Correctly rejected as a literal traversal.
             }
             Ok(p) => {
-                panic!(
-                    "SECURITY FAILURE: Environment variable was likely expanded. Path: {p:?}"
-                );
+                panic!("SECURITY FAILURE: Environment variable was likely expanded. Path: {p:?}");
             }
             Err(e) => {
                 // On some platforms, characters like '$' or '%' might be invalid in paths,

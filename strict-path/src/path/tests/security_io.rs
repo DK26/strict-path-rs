@@ -3,7 +3,10 @@
 
 #[cfg(all(feature = "virtual-path", unix))]
 use crate::VirtualRoot;
-#[cfg(all(feature = "virtual-path", any(unix, all(windows, feature = "junctions"))))]
+#[cfg(all(
+    feature = "virtual-path",
+    any(unix, all(windows, feature = "junctions"))
+))]
 use crate::{PathBoundary, StrictPathError};
 
 // ============================================================

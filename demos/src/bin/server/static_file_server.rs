@@ -44,7 +44,11 @@ fn handle_client(mut stream: TcpStream, vroot: &VirtualRoot) {
         .trim_start_matches('/');
 
     // If the path is empty (e.g., request for "/"), default to "index.html"
-    let requested_path = if http_request_path.is_empty() { "index.html" } else { http_request_path };
+    let requested_path = if http_request_path.is_empty() {
+        "index.html"
+    } else {
+        http_request_path
+    };
 
     println!("Request for path: {requested_path}");
 

@@ -65,10 +65,7 @@ fn test_virtual_path_pathbuf_methods() {
 
     // with_extension (inside PathBoundary)
     let with_ext = virtual_path.virtualpath_with_extension("log").unwrap();
-    assert_eq!(
-        with_ext.virtualpath_display().to_string(),
-        "/foo/bar.log"
-    );
+    assert_eq!(with_ext.virtualpath_display().to_string(), "/foo/bar.log");
 
     // unvirtual -> strict -> System path suffix
     let strict_again = virtual_path.unvirtual();
@@ -222,10 +219,7 @@ fn test_virtual_path_windows_symlink_edge_cases() {
     let traversal = virtual_start
         .virtual_join("../../../../etc/passwd")
         .unwrap();
-    assert_eq!(
-        traversal.virtualpath_display().to_string(),
-        "/etc/passwd"
-    );
+    assert_eq!(traversal.virtualpath_display().to_string(), "/etc/passwd");
 
     // Test Case 2: Complex traversal with Windows paths
     let windows_traversal = virtual_start

@@ -155,9 +155,7 @@ fn fuzz_virtual_join_clamping_invariant() {
                 // Virtual join should generally succeed unless there are resolution errors (e.g. null bytes)
                 // It shouldn't return PathEscapesBoundary because it clamps.
                 if let StrictPathError::PathEscapesBoundary { .. } = e {
-                    panic!(
-                        "virtual_join should clamp, not error on escape! Input: {input:?}"
-                    );
+                    panic!("virtual_join should clamp, not error on escape! Input: {input:?}");
                 }
             }
         }

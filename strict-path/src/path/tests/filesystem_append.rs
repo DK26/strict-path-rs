@@ -1,6 +1,6 @@
+use crate::PathBoundary;
 #[cfg(feature = "virtual-path")]
 use crate::VirtualRoot;
-use crate::PathBoundary;
 
 // ============================================================
 // append() tests

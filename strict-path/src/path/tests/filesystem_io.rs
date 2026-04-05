@@ -1,6 +1,6 @@
+use crate::PathBoundary;
 #[cfg(feature = "virtual-path")]
 use crate::VirtualRoot;
-use crate::PathBoundary;
 
 // ============================================================
 // strict_read_dir() / virtual_read_dir() tests
