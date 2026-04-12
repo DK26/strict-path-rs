@@ -1052,6 +1052,73 @@ When in doubt, choose clarity and correctness over cleverness. Small helpers are
 
 ## Coding Guidelines
 
+### Compiler Diagnostic Annotations (`#[must_use]`)
+
+This crate uses `#[must_use]` annotations systematically to create a
+compiler-driven feedback loop — especially for AI agents and LLMs that
+consume compiler warnings as their primary signal.
+
+**Principle:** Every public method or type whose return value carries
+security or correctness significance must have `#[must_use]`, with a
+descriptive message that tells the caller _what to do next_.
+
+#### Categorization Rules
+
+| Category | Annotation | Examples |
+| --- | --- | --- |
+| **Structs** (core validated types) | `#[must_use = "...guidance..."]` | `StrictPath`, `VirtualPath`, `PathBoundary`, `VirtualRoot`, `StrictOpenOptions` |
+| **Error enums** | `#[must_use = "...guidance..."]` | `StrictPathError` |
+| **Validation / join methods** (return `Result`) | `#[must_use = "...guidance..."]` | `strict_join()`, `virtual_join()`, `try_new()`, `try_new_create()` |
+| **Consuming methods** (take `self`) | `#[must_use = "...guidance..."]` | `change_marker()`, `unstrict()`, `unvirtual()`, `into_strictpath()`, `into_virtualpath()` |
+| **Security-critical accessors** | `#[must_use = "...guidance..."]` | `interop_path()`, `strictpath_display()`, `virtualpath_display()`, `as_unvirtual()` |
+| **Sugar constructors** (return `Result`) | `#[must_use = "...guidance..."]` | `StrictPath::with_boundary()`, `VirtualPath::with_root()` |
+| **Builder entry points** | `#[must_use = "...guidance..."]` | `open_with()` |
+| **Pure query methods** (return `bool`, `Option`) | `#[must_use]` (no message) | `exists()`, `is_file()`, `is_dir()`, `file_name()`, `file_stem()`, `extension()`, `starts_with()`, `ends_with()` |
+| **I/O methods returning `io::Result`** | **No `#[must_use]`** | `metadata()`, `read_to_string()`, `read()`, `read_dir()`, `try_exists()` |
+| **Side-effect methods** (return `()` or `io::Result<()>`) | **No `#[must_use]`** | `write()`, `create_file()`, `create_dir()`, `remove_file()`, `touch()`, `set_permissions()` |
+| **Builder chainable methods** (return `Self` on a `#[must_use]` struct) | **No `#[must_use]`** | `StrictOpenOptions::read()`, `.write()`, `.create()` |
+
+**Why no `#[must_use]` on `io::Result` methods?** `Result` already has
+`#[must_use]` in the standard library. Adding a plain `#[must_use]` on the
+method triggers `clippy::double_must_use`. Only add `#[must_use = "message"]`
+with a descriptive message if the method has security implications beyond
+what `Result`'s built-in warning conveys.
+
+**Why no `#[must_use]` on builder chain methods?** The builder struct itself
+already carries `#[must_use]`. Adding it on each `.read()`, `.write()` etc.
+triggers `clippy::double_must_use` since they return `Self`.
+
+#### Message Format Guidelines
+
+Messages should be actionable and tell the caller what to do next:
+
+```rust
+// ✅ Good: tells the agent what to do with the result
+#[must_use = "strict_join() validates untrusted input against the boundary — always handle the Result to detect path traversal attacks"]
+
+// ✅ Good: explains the consuming semantics
+#[must_use = "unstrict() consumes self — use the returned PathBuf for interop, or prefer .interop_path() to borrow without consuming"]
+
+// ✅ Good: warns about security-critical output
+#[must_use = "pass interop_path() directly to third-party APIs requiring AsRef<Path> — never wrap it in Path::new() or PathBuf::from(); NEVER expose this in user-facing output (use .virtualpath_display() instead)"]
+
+// ❌ Bad: no guidance
+#[must_use]  // on a method returning Result — triggers double_must_use
+#[must_use = "returns a value"]  // too vague, doesn't help
+```
+
+#### Checklist for New Public APIs
+
+When adding any new public method, check:
+
+- [ ] Does it return a value? → Needs `#[must_use]` consideration
+- [ ] Does it return `Result` or `io::Result`? → **Do NOT add plain `#[must_use]`**; add `#[must_use = "message"]` only if it has security implications beyond what `Result` already warns about
+- [ ] Does it return `Self` on a `#[must_use]` struct? → **Do NOT add `#[must_use]`** (struct already warns)
+- [ ] Does it return `bool`, `Option`, or non-`must_use` types? → Add `#[must_use]` (plain is OK for simple queries)
+- [ ] Is it a consuming method (`self`)? → Add `#[must_use = "...consumes self..."]`
+- [ ] Is it security-critical (`interop_path`, display helpers)? → Add `#[must_use = "...security guidance..."]`
+- [ ] Is it a side-effect method? → **No `#[must_use]`**
+
 ### Safe Indexing — No Direct Indexing in Production Code
 
 Production code must not use direct indexing (`data[i]`, `parts[1]`,

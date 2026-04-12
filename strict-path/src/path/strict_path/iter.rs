@@ -26,6 +26,7 @@ use super::StrictPath;
 /// file.write_all(b"log entry\n")?;
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
+#[must_use = "open_with() returns a builder — chain .read(), .write(), .create(), .open() to use it"]
 pub struct StrictOpenOptions<'a, Marker> {
     path: &'a StrictPath<Marker>,
     options: std::fs::OpenOptions,

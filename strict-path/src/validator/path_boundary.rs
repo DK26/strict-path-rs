@@ -76,6 +76,7 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
 /// # Ok(())
 /// # }
 /// ```
+#[must_use = "a PathBoundary is validated and ready to enforce path restrictions — call .strict_join() to validate untrusted input, .into_strictpath() to get the boundary path, or pass to functions that accept &PathBoundary<Marker>"]
 pub struct PathBoundary<Marker = ()> {
     path: Arc<PathHistory<((Raw, Canonicalized), Exists)>>,
     _marker: PhantomData<Marker>,
@@ -172,6 +173,7 @@ impl<Marker> PathBoundary<Marker> {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use = "this returns a Result containing the validated PathBoundary — handle the Result to detect invalid boundary directories"]
     #[inline]
     pub fn try_new<P: AsRef<Path>>(restriction_path: P) -> Result<Self> {
         let restriction_path = restriction_path.as_ref();
@@ -232,6 +234,7 @@ impl<Marker> PathBoundary<Marker> {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use = "this returns a Result containing the validated PathBoundary — handle the Result to detect invalid boundary directories"]
     pub fn try_new_create<P: AsRef<Path>>(boundary_dir: P) -> Result<Self> {
         let boundary_path = boundary_dir.as_ref();
         if !boundary_path.exists() {
@@ -253,6 +256,7 @@ impl<Marker> PathBoundary<Marker> {
     ///
     /// ERRORS:
     /// - `StrictPathError::PathResolutionError`, `StrictPathError::PathEscapesBoundary`.
+    #[must_use = "strict_join() validates untrusted input against the boundary — always handle the Result to detect path traversal attacks"]
     #[inline]
     pub fn strict_join(&self, candidate_path: impl AsRef<Path>) -> Result<StrictPath<Marker>> {
         canonicalize_and_enforce_restriction_boundary(candidate_path, self)
@@ -285,6 +289,7 @@ impl<Marker> PathBoundary<Marker> {
     /// let write_access_dir: PathBoundary<ReadWrite> = read_only_dir.change_marker();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "change_marker() consumes self — the original PathBoundary is moved; use the returned PathBoundary<NewMarker>"]
     #[inline]
     pub fn change_marker<NewMarker>(self) -> PathBoundary<NewMarker> {
         PathBoundary {
@@ -314,6 +319,7 @@ impl<Marker> PathBoundary<Marker> {
     /// assert!(data_path.is_dir());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "into_strictpath() consumes the PathBoundary — use the returned StrictPath for I/O operations"]
     #[inline]
     pub fn into_strictpath(self) -> Result<StrictPath<Marker>> {
         let root_history = self.path.clone();
@@ -339,6 +345,7 @@ impl<Marker> PathBoundary<Marker> {
     /// Returns true if the PathBoundary directory exists.
     ///
     /// This is always true for a constructed PathBoundary, but we query the filesystem for robustness.
+    #[must_use]
     #[inline]
     pub fn exists(&self) -> bool {
         self.path.exists()
@@ -346,12 +353,14 @@ impl<Marker> PathBoundary<Marker> {
 
     /// SUMMARY:
     /// Return the boundary directory path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop (no allocation).
+    #[must_use = "pass interop_path() directly to third-party APIs requiring AsRef<Path> — never wrap it in Path::new() or PathBuf::from() as that defeats boundary safety"]
     #[inline]
     pub fn interop_path(&self) -> &std::ffi::OsStr {
         self.path.as_os_str()
     }
 
     /// Returns a Display wrapper that shows the PathBoundary directory system path.
+    #[must_use = "strictpath_display() shows the real system path (admin/debug use) — for user-facing output prefer VirtualPath::virtualpath_display() which hides internal paths"]
     #[inline]
     pub fn strictpath_display(&self) -> std::path::Display<'_> {
         self.path().display()
@@ -468,6 +477,7 @@ impl<Marker> PathBoundary<Marker> {
 
     /// SUMMARY:
     /// Convert this boundary into a `VirtualRoot` for virtual path operations.
+    #[must_use = "virtualize() consumes self — use the returned VirtualRoot for virtual path operations (.virtual_join(), .into_virtualpath())"]
     #[cfg(feature = "virtual-path")]
     #[inline]
     pub fn virtualize(self) -> crate::VirtualRoot<Marker> {

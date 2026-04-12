@@ -143,6 +143,7 @@ impl<Marker> VirtualPath<Marker> {
     /// # std::fs::remove_dir_all(&root)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "open_with() returns a builder — chain .read(), .write(), .create(), .open() to use it"]
     #[inline]
     pub fn open_with(&self) -> crate::path::strict_path::StrictOpenOptions<'_, Marker> {
         self.inner.open_with()

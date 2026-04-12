@@ -47,7 +47,8 @@ fn path_escape_display_mentions_attempt_and_boundary() {
         restriction_boundary: PathBuf::from("/tmp/restriction"),
     };
     let rendered = error.to_string();
-    assert!(rendered.contains("escapes path restriction boundary"));
+    assert!(rendered.contains("escapes"));
+    assert!(rendered.contains("restriction boundary"));
     assert!(rendered.contains("/tmp/attempt"));
     assert!(rendered.contains("/tmp/restriction"));
 }

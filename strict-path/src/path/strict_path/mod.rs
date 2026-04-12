@@ -39,6 +39,7 @@ pub(super) fn strip_verbatim_prefix(path: &Path) -> std::borrow::Cow<'_, Path> {
 /// `strictpath_parent` preserve guarantees. `Display` shows the real system path. String
 /// accessors are prefixed with `strictpath_` to avoid confusion.
 #[derive(Clone)]
+#[must_use = "a StrictPath is boundary-validated and ready for I/O — use .strict_join() to compose child paths, built-in I/O helpers (.read(), .write(), .create_file()), or pass to functions accepting &StrictPath<Marker>"]
 pub struct StrictPath<Marker = ()> {
     path: PathHistory<((Raw, Canonicalized), BoundaryChecked)>,
     boundary: Arc<crate::PathBoundary<Marker>>,
@@ -67,6 +68,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(base.is_dir());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "with_boundary() returns the boundary root as a StrictPath — handle the Result, then use .strict_join() to validate untrusted input"]
     pub fn with_boundary<P: AsRef<Path>>(dir_path: P) -> Result<Self> {
         let validated_dir = crate::PathBoundary::try_new(dir_path)?;
         validated_dir.into_strictpath()
@@ -93,6 +95,7 @@ impl<Marker> StrictPath<Marker> {
     /// # std::fs::remove_dir_all(&dir)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "with_boundary_create() returns the boundary root as a StrictPath — handle the Result, then use .strict_join() to validate untrusted input"]
     pub fn with_boundary_create<P: AsRef<Path>>(dir_path: P) -> Result<Self> {
         let validated_dir = crate::PathBoundary::try_new_create(dir_path)?;
         validated_dir.into_strictpath()
@@ -147,6 +150,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(s.ends_with("report.txt"));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "this returns the real system path as a string — for user-facing output prefer VirtualPath::virtualpath_display() which hides internal paths"]
     #[inline]
     pub fn strictpath_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
         self.path.to_string_lossy()
@@ -175,6 +179,7 @@ impl<Marker> StrictPath<Marker> {
     /// }
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "this returns the real system path as a string — for user-facing output prefer VirtualPath::virtualpath_display() which hides internal paths"]
     #[inline]
     pub fn strictpath_to_str(&self) -> Option<&str> {
         self.path.to_str()
@@ -202,6 +207,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(std::path::Path::new(os_str).exists() || !std::path::Path::new(os_str).exists());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "pass interop_path() directly to third-party APIs requiring AsRef<Path> — never wrap it in Path::new() or PathBuf::from() as that defeats boundary safety"]
     #[inline]
     pub fn interop_path(&self) -> &OsStr {
         self.path.as_os_str()
@@ -228,6 +234,7 @@ impl<Marker> StrictPath<Marker> {
     /// println!("Path: {}", file_path.strictpath_display());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "strictpath_display() shows the real system path (admin/debug use) — for user-facing output prefer VirtualPath::virtualpath_display() which hides internal paths"]
     #[inline]
     pub fn strictpath_display(&self) -> std::path::Display<'_> {
         self.path.display()
@@ -255,6 +262,7 @@ impl<Marker> StrictPath<Marker> {
     /// // raw is now a plain PathBuf — use only for unavoidable interop
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "unstrict() consumes self and relinquishes boundary guarantees — use the returned PathBuf, or prefer .interop_path() to borrow without consuming"]
     #[inline]
     pub fn unstrict(self) -> PathBuf {
         self.path.into_inner()
@@ -282,6 +290,7 @@ impl<Marker> StrictPath<Marker> {
     /// println!("{}", vpath.virtualpath_display());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "virtualize() consumes self — use the returned VirtualPath for user-facing display (.virtualpath_display()) and virtual path operations"]
     #[cfg(feature = "virtual-path")]
     #[inline]
     pub fn virtualize(self) -> crate::path::virtual_path::VirtualPath<Marker> {
@@ -376,6 +385,7 @@ impl<Marker> StrictPath<Marker> {
     /// // ❌ Compile error: expected `StrictPath<WritePermission>`, found `StrictPath<ReadOnly>`
     /// require_write(read_only_path);
     /// ```
+    #[must_use = "change_marker() consumes self — the original StrictPath is moved; use the returned StrictPath<NewMarker>"]
     #[inline]
     pub fn change_marker<NewMarker>(self) -> StrictPath<NewMarker> {
         let StrictPath { path, boundary, .. } = self;
@@ -417,6 +427,7 @@ impl<Marker> StrictPath<Marker> {
     /// let _ = sub_boundary.strict_join("file.bin")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "try_into_boundary() consumes self — use the returned PathBoundary for creating a new path restriction"]
     #[inline]
     pub fn try_into_boundary(self) -> Result<crate::PathBoundary<Marker>> {
         let StrictPath { path, .. } = self;
@@ -447,6 +458,7 @@ impl<Marker> StrictPath<Marker> {
     /// let _ = sub_boundary.strict_join("item.bin")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "try_into_boundary_create() consumes self — use the returned PathBoundary for creating a new path restriction"]
     #[inline]
     pub fn try_into_boundary_create(self) -> Result<crate::PathBoundary<Marker>> {
         let StrictPath { path, .. } = self;
@@ -468,6 +480,7 @@ impl<Marker> StrictPath<Marker> {
     ///
     /// ERRORS:
     /// - `StrictPathError::PathResolutionError`, `StrictPathError::PathEscapesBoundary`.
+    #[must_use = "strict_join() validates untrusted input against the boundary — always handle the Result to detect path traversal attacks"]
     #[inline]
     pub fn strict_join<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_systempath = self.path.join(path);
@@ -498,6 +511,7 @@ impl<Marker> StrictPath<Marker> {
     /// }
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "strictpath_parent() returns Result<Option> — handle the error, then match Some(parent) for traversal or None at the boundary root"]
     pub fn strictpath_parent(&self) -> Result<Option<Self>> {
         match self.path.parent() {
             Some(p) => match self.boundary.strict_join(p) {
@@ -531,6 +545,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(renamed.strictpath_display().to_string().ends_with("new.txt"));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "returns a new validated StrictPath with the file name replaced — the original is unchanged; handle the Result to detect boundary escapes"]
     #[inline]
     pub fn strictpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
         let new_systempath = self.path.with_file_name(file_name);
@@ -560,6 +575,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(converted.strictpath_display().to_string().ends_with("report.md"));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "returns a new validated StrictPath with the extension changed — the original is unchanged; handle the Result to detect boundary escapes"]
     pub fn strictpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self> {
         let system_path = &self.path;
         if system_path.file_name().is_none() {
@@ -593,6 +609,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert_eq!(file_path.strictpath_file_name().unwrap(), "notes.txt");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     #[inline]
     pub fn strictpath_file_name(&self) -> Option<&OsStr> {
         self.path.file_name()
@@ -619,6 +636,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert_eq!(file_path.strictpath_file_stem().unwrap(), "report");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     #[inline]
     pub fn strictpath_file_stem(&self) -> Option<&OsStr> {
         self.path.file_stem()
@@ -645,6 +663,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert_eq!(file_path.strictpath_extension().unwrap(), "gz");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     #[inline]
     pub fn strictpath_extension(&self) -> Option<&OsStr> {
         self.path.extension()
@@ -672,6 +691,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(file_path.strictpath_starts_with(data_dir.interop_path()));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     #[inline]
     pub fn strictpath_starts_with<P: AsRef<Path>>(&self, p: P) -> bool {
         self.path.starts_with(p.as_ref())
@@ -698,6 +718,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(file_path.strictpath_ends_with("summary.csv"));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     #[inline]
     pub fn strictpath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool {
         self.path.ends_with(p.as_ref())
@@ -726,6 +747,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(file_path.exists());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn exists(&self) -> bool {
         self.path.exists()
     }
@@ -753,6 +775,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(!data_dir.strict_join(".")?.is_file());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn is_file(&self) -> bool {
         self.path.is_file()
     }
@@ -779,6 +802,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(subdir.is_dir());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn is_dir(&self) -> bool {
         self.path.is_dir()
     }

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-04-12
+
+### Added
+- **Compiler diagnostic annotations**: Systematic `#[must_use]` with descriptive messages across all public APIs to create a compiler-driven feedback loop for AI agents and LLMs
+  - Core structs (`StrictPath`, `VirtualPath`, `PathBoundary`, `VirtualRoot`, `StrictOpenOptions`, `StrictPathError`) annotated with actionable guidance messages
+  - Validation/join methods (`strict_join`, `virtual_join`, `try_new`, `try_new_create`) annotated with security-focused messages
+  - Consuming methods (`change_marker`, `unstrict`, `unvirtual`, `into_strictpath`, `into_virtualpath`) annotated with ownership guidance
+  - Security-critical accessors (`interop_path`, `strictpath_display`, `virtualpath_display`, `as_unvirtual`) annotated with misuse warnings
+  - Pure query methods (`exists`, `is_file`, `is_dir`, `file_name`, `file_stem`, `extension`, `starts_with`, `ends_with`) annotated with plain `#[must_use]`
+  - Builder entry points (`open_with`) annotated with chaining guidance
+  - Correctly omitted on `io::Result` methods and builder chain methods to avoid `clippy::double_must_use`
+
+### Changed
+- **Improved `StrictPathError` Display messages**: Error formatting now includes the underlying OS error inline and actionable fix suggestions (e.g., "use `try_new_create()` to auto-create it", "Validate untrusted input through `strict_join()`/`virtual_join()`")
+
+### Documentation
+- **AGENTS.md**: Added `Compiler Diagnostic Annotations (#[must_use])` section with categorization table, message format guidelines, and checklist for new public APIs
+- **LLM_CONTEXT.md**: Added "Critical mistakes that compile but are WRONG" section front-loaded near quickstart for small-context LLM visibility
+
 ## [0.1.2] - 2026-04-05
 
 ### Changed

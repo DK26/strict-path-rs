@@ -109,6 +109,7 @@ impl<Marker> StrictPath<Marker> {
     /// # std::fs::remove_dir_all(&boundary_dir)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "open_with() returns a builder — chain .read(), .write(), .create(), .open() to use it"]
     #[inline]
     pub fn open_with(&self) -> StrictOpenOptions<'_, Marker> {
         StrictOpenOptions::new(self)

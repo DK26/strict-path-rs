@@ -9,6 +9,7 @@ use std::path::Path;
 /// SUMMARY:
 /// Provide a user‑facing virtual root that produces `VirtualPath` values clamped to a boundary.
 #[derive(Clone)]
+#[must_use = "a VirtualRoot is validated and ready to enforce virtual path restrictions — call .virtual_join() to validate untrusted input, .into_virtualpath() to get the root path, or pass to functions that accept &VirtualRoot<Marker>"]
 pub struct VirtualRoot<Marker = ()> {
     pub(crate) root: PathBoundary<Marker>,
     pub(crate) _marker: PhantomData<Marker>,
@@ -36,6 +37,7 @@ impl<Marker> VirtualRoot<Marker> {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use = "this returns a Result containing the validated VirtualRoot — handle the Result to detect invalid root directories"]
     #[inline]
     pub fn try_new<P: AsRef<Path>>(root_path: P) -> Result<Self> {
         let root = PathBoundary::try_new(root_path)?;
@@ -76,6 +78,7 @@ impl<Marker> VirtualRoot<Marker> {
     /// # std::fs::remove_dir_all(&root)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "into_virtualpath() consumes the VirtualRoot — use the returned VirtualPath for virtual path operations"]
     #[inline]
     pub fn into_virtualpath(self) -> Result<VirtualPath<Marker>> {
         let strict_root = self.root.into_strictpath()?;
@@ -113,6 +116,7 @@ impl<Marker> VirtualRoot<Marker> {
     /// # std::fs::remove_dir_all(&root_dir)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "change_marker() consumes self — the original VirtualRoot is moved; use the returned VirtualRoot<NewMarker>"]
     #[inline]
     pub fn change_marker<NewMarker>(self) -> VirtualRoot<NewMarker> {
         let VirtualRoot { root, .. } = self;
@@ -257,6 +261,7 @@ impl<Marker> VirtualRoot<Marker> {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use = "this returns a Result containing the validated VirtualRoot — handle the Result to detect invalid root directories"]
     #[inline]
     pub fn try_new_create<P: AsRef<Path>>(root_path: P) -> Result<Self> {
         let root = PathBoundary::try_new_create(root_path)?;
@@ -305,6 +310,7 @@ impl<Marker> VirtualRoot<Marker> {
     /// // Both paths are safely within the virtual root on the actual filesystem
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "virtual_join() validates untrusted input against the virtual root — always handle the Result to detect escape attempts"]
     #[inline]
     pub fn virtual_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<VirtualPath<Marker>> {
         // 1) Anchor in virtual space (clamps virtual root and resolves relative parts)
@@ -330,12 +336,14 @@ impl<Marker> VirtualRoot<Marker> {
 
     /// SUMMARY:
     /// Return the virtual root path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop.
+    #[must_use = "pass interop_path() directly to third-party APIs requiring AsRef<Path> — never wrap it in Path::new() or PathBuf::from() as that defeats boundary safety"]
     #[inline]
     pub fn interop_path(&self) -> &std::ffi::OsStr {
         self.root.interop_path()
     }
 
     /// Returns true if the underlying path boundary root exists.
+    #[must_use]
     #[inline]
     pub fn exists(&self) -> bool {
         self.root.exists()
@@ -343,6 +351,7 @@ impl<Marker> VirtualRoot<Marker> {
 
     /// SUMMARY:
     /// Borrow the underlying `PathBoundary`.
+    #[must_use = "as_unvirtual() borrows the underlying PathBoundary — use it for strict operations or pass to functions accepting &PathBoundary<Marker>"]
     #[inline]
     pub fn as_unvirtual(&self) -> &PathBoundary<Marker> {
         &self.root
@@ -350,6 +359,7 @@ impl<Marker> VirtualRoot<Marker> {
 
     /// SUMMARY:
     /// Consume this `VirtualRoot` and return the underlying `PathBoundary` (symmetry with `virtualize`).
+    #[must_use = "unvirtual() consumes self — use the returned PathBoundary for strict path operations, or prefer .as_unvirtual() to borrow without consuming"]
     #[inline]
     pub fn unvirtual(self) -> PathBoundary<Marker> {
         self.root

@@ -46,6 +46,7 @@ pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
 /// - `PathEscapesBoundary`: A candidate path would resolve outside the boundary.
 /// - `PathResolutionError`: Canonicalization or resolution failed (I/O error).
 #[derive(Debug)]
+#[must_use = "this error indicates a path validation failure — handle it to detect path traversal attacks or invalid boundaries"]
 pub enum StrictPathError {
     /// SUMMARY:
     /// The boundary directory is invalid (missing, not a directory, or I/O error).
@@ -110,11 +111,15 @@ impl StrictPathError {
 impl fmt::Display for StrictPathError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            StrictPathError::InvalidRestriction { restriction, .. } => {
+            StrictPathError::InvalidRestriction {
+                restriction,
+                source,
+            } => {
                 write!(
                     f,
-                    "Invalid PathBoundary directory: {}",
-                    restriction.display()
+                    "Invalid PathBoundary: '{}' is not a valid boundary directory ({source}). \
+                     Ensure the path points to an existing directory, or use try_new_create() to auto-create it.",
+                    truncate_path_display(restriction, MAX_ERROR_PATH_LEN)
                 )
             }
             StrictPathError::PathEscapesBoundary {
@@ -126,11 +131,18 @@ impl fmt::Display for StrictPathError {
                     truncate_path_display(restriction_boundary, MAX_ERROR_PATH_LEN);
                 write!(
                     f,
-                    "Path '{truncated_attempted}' escapes path restriction boundary '{truncated_boundary}'"
+                    "Path escapes boundary: '{truncated_attempted}' resolves outside restriction boundary \
+                     '{truncated_boundary}' — this path traversal attempt was blocked. \
+                     Validate untrusted input through strict_join()/virtual_join() which prevents escapes."
                 )
             }
-            StrictPathError::PathResolutionError { path, .. } => {
-                write!(f, "Cannot resolve path: {}", path.display())
+            StrictPathError::PathResolutionError { path, source } => {
+                write!(
+                    f,
+                    "Cannot resolve path: '{}' ({source}). \
+                     Ensure the target exists and is accessible, or create parent directories first.",
+                    truncate_path_display(path, MAX_ERROR_PATH_LEN)
+                )
             }
         }
     }
