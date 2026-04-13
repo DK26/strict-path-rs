@@ -114,6 +114,7 @@ Every rule must stand on its own without session context.
 - Foundation: Built on `soft-canonicalize` (with `proc-canonicalize` for Linux container realpath support); canonicalization handles Windows 8.3 short names transparently.
 - **CRITICAL DESIGN PRINCIPLE**: Canonicalization **always resolves symlinks** to their targets. You can NEVER get a `StrictPath` or `VirtualPath` that points to a symlink itself — only to the resolved target. This is by design: it's what proves the path is truly within the boundary. See "Critical Design Implication: StrictPath/VirtualPath Are Always Resolved" section for details.
 - API philosophy: Minimal, restrictive, and explicit—designed to prevent human and LLM API misuse. Security is prioritized above performance.
+- **TOCTOU scope**: This crate validates at join-time (canonicalization + boundary check). Filesystem changes that occur *between* validation and subsequent I/O are outside scope — the same limitation as SQL prepared statements, which prevent injection but don't protect against concurrent schema changes. TOCTOU is an inherent OS-level concern that no user-space path library can fully eliminate.
 
 ### Which Type Should I Use?
 
@@ -207,9 +208,41 @@ Quick reminder of core principles:
 - Security model: "Restrict every external path." Any path from untrusted inputs (user I/O, config, DB, LLMs, archives) must be validated into a restriction‑enforced type (`StrictPath` or `VirtualPath`) before I/O.
 - Foundation: Built on `soft-canonicalize` (with `proc-canonicalize` for Linux container realpath support); Windows 8.3 short‑name handling is considered a security surface.
 
-Do not implement leaky trait impls for secure types:
-- Forbidden: `AsRef<Path>`, `Deref<Target = Path>`, implicit `From/Into` conversions for `StrictPath`/`VirtualPath`.
-- Rationale: They would bypass validation and blur dimension semantics (strict vs virtual).
+Do not implement leaky trait impls for any crate type:
+- Forbidden: `AsRef<Path>`, `Deref<Target = Path>`, implicit `From/Into` conversions for `StrictPath`/`VirtualPath`/`PathBoundary`/`VirtualRoot`.
+- Rationale: They bypass the `interop_path()` gate, let callers silently escape the secure API, and blur dimension semantics (strict vs virtual).
+
+### `interop_path()` Returns `&OsStr` — Design Decision (Settled)
+
+`.interop_path()` on all four core types returns `&std::ffi::OsStr` directly. This is a deliberate, settled design choice. Do not propose wrapper types, newtypes, or returning `&Path`.
+
+**Why `&OsStr` (not `&Path`):**
+- `OsStr` has no `.join()`, `.parent()`, `.starts_with()` — this prevents callers from accidentally re-entering path manipulation after leaving the secure API.
+- `&OsStr` implements `AsRef<Path>`, so it can be passed directly to any third-party API that expects `impl AsRef<Path>` (the sole purpose of interop).
+- To get `&Path`, callers must write `Path::new(x.interop_path())` — a visible, deliberate step that signals the code has left strict-path's security scope.
+
+**Why NOT a newtype wrapper (settled — do not revisit):**
+- A newtype around `&OsStr` that only adds `AsRef<Path>` provides zero additional security value — `&OsStr` already satisfies `AsRef<Path>` and already lacks path manipulation methods.
+- Once a user calls `interop_path()`, they have explicitly chosen to leave strict-path's scope. Policing what they do with the returned reference is not this crate's responsibility.
+- The wrapper adds maintenance cost (type definition, trait impls, documentation, re-exports) with no practical benefit.
+- This was tried (as `InteropPath<'a>`) and deliberately removed after evaluation.
+
+**The ONLY thing you should do** with the `&OsStr` from `interop_path()` is pass it to a function that accepts `impl AsRef<Path>`. For display, use `strictpath_display()` / `virtualpath_display()`. For everything else, use the crate's built-in safe operations.
+
+### One Way Principle (Non-Negotiable)
+
+There must be exactly **one correct way** to accomplish each operation. Redundant methods that achieve the same thing create confusion, dilute documentation, and make the API harder to learn.
+
+**Canonical operations:**
+
+| Goal | The ONE way | Notes |
+| --- | --- | --- |
+| Path as string (display/comparison) | `strictpath_display().to_string()` | Returns `std::path::Display<'_>` |
+| Path for third-party `AsRef<Path>` APIs | `.interop_path()` | Returns `&OsStr` (is `AsRef<Path>`) |
+| Virtual path as user-visible string | `virtualpath_display()` | Rooted forward-slash view |
+| Escape to owned `PathBuf` | `.unstrict()` / `.unvirtual()` | Explicit escape hatch, use sparingly |
+
+**Do not add** alternative string conversion methods (e.g., `to_string_lossy()`, `to_str()`, `as_path()` wrappers) that provide a second way to achieve the same goal. If a method exists solely as a convenience wrapper around an existing canonical operation, it should not exist.
 
 ### Helper API Restrictions (Unbreakable)
 
@@ -388,12 +421,12 @@ cargo bench
   - Demos are linted only (not built/run): `cd demos && cargo clippy --all-targets --features "with-zip,with-app-path,with-dirs,with-tempfile,with-rmcp" -- -D warnings`.
     - Heavier integrations like `with-aws` are included when toolchain prerequisites (e.g., `cmake`, `nasm`) are available on runners.
   - `cargo test -p strict-path --all-features` (library only).
-- MSRV job (linux, Rust 1.71.0):
+- MSRV job (linux, Rust 1.76.0):
   - `check`/`clippy`/`test` scoped to `-p strict-path --lib --locked` using separate target dir.
 
 ## MSRV Policy (Library Only)
 
-- MSRV: Rust 1.71.0 (declared in `strict-path/Cargo.toml`).
+- MSRV: Rust 1.76.0 (declared in `strict-path/Cargo.toml`).
 - Avoid dependencies or features that raise MSRV without discussion.
 - Forbid unsafe code; pass clippy with `-D warnings`.
 
@@ -469,7 +502,7 @@ All guidance in this file — encoding guarantees in signatures, accepting `&Str
     - Keep a `PathBoundary`/`VirtualRoot` and call `strict_join`/`virtual_join` repeatedly.
     - Use policy types whenever passing “the root” across module boundaries, or when serde/OS-dirs/temp RAII are involved.
 - Interop vs display:
-  - Interop (`AsRef<Path>`): Call `.interop_path()` on `StrictPath`/`VirtualPath`/`PathBoundary`/`VirtualRoot` **only** when a third-party crate (including stdlib adapters that you cannot wrap) insists on an `AsRef<Path>` argument. If you reach for `.interop_path()` in any other context, pause and re-evaluate—the crate almost certainly already exposes a strict helper for that operation.
+  - Interop: Call `.interop_path()` on `StrictPath`/`VirtualPath`/`PathBoundary`/`VirtualRoot` **only** when a third-party crate (including stdlib adapters that you cannot wrap) insists on an `AsRef<Path>` argument. No type in this crate implements `AsRef<Path>` — `.interop_path()` returns `&OsStr` (which satisfies `AsRef<Path>`) and is the single explicit gate for leaving the secure API. If you reach for `.interop_path()` in any other context, pause and re-evaluate—the crate almost certainly already exposes a strict helper for that operation.
   - **SECURITY CRITICAL**: `interop_path()` returns the **real host filesystem path**. NEVER expose it to end-users (API responses, error messages, user-visible logs). In multi-tenant or cloud scenarios, this leaks internal server structure, tenant IDs, and infrastructure details. Use `virtualpath_display()` for user-facing output.
   - Display: `strictpath_display()` (system/admin) / `virtualpath_display()` (user-facing, hides real paths).
   - Windows junctions (feature = `junctions`): Prefer built-in helpers (`StrictPath::strict_junction`, `VirtualPath::virtual_junction`, and root/boundary wrappers) instead of direct calls to junction crates in application code. Tests may still call third-party crates when simulating environment-specific behavior.
@@ -485,7 +518,7 @@ All guidance in this file — encoding guarantees in signatures, accepting `&Str
 - Always use built-in I/O (e.g., `read_dir()`, `exists()`) to verify link behavior; avoid `std::fs` calls on `.interop_path()`.
 - Explicit operations by dimension:
   - `strict_join`/`virtual_join`, `strictpath_parent`/`virtualpath_parent`, `strictpath_with_*`/`virtualpath_with_*`.
-  - `.interop_path()` returns `&OsStr` (already `AsRef<Path>`) — never wrap it in `Path::new()` to use std path operations.
+  - `.interop_path()` returns `&OsStr` (implements `AsRef<Path>`) — pass directly to third-party APIs; never wrap it in `Path::new()` to use std path operations.
 - Escape hatches only where needed:
   - Prefer borrowing: `vpath.as_unvirtual()` to pass `&StrictPath`.
   - Avoid `.unvirtual()`/`.unstrict()` unless ownership is required; isolate in dedicated “escape hatches” sections.
@@ -537,6 +570,12 @@ PathHistory is the internal engine that performs normalization, canonicalization
 - Display semantics:
   - `VirtualPath::virtualpath_display()` returns rooted, forward‑slashed user view (e.g., `"/a/b.txt"`).
   - `StrictPath::strictpath_display()` shows the real system path. `Debug` for `VirtualPath` is verbose by design (system path + virtual view + restriction root + marker type).
+  - `VirtualRoot::Display` shows `"/"` (the virtual root), never the real system path. This prevents accidental leakage of host filesystem structure in user-facing output.
+
+- Arc ownership tradeoff:
+  - Every `StrictPath` carries an `Arc<PathBoundary>` so it can re-validate on mutations (`strict_join`, `strictpath_parent`, `strictpath_with_*`), support `change_marker()`, and provide boundary context for error messages.
+  - Processing N files from the same boundary means N `Arc` refs to the same allocation — correct by design, not a leak. The clone is a pointer-width atomic increment, not a deep copy.
+  - This is a conscious tradeoff: security correctness (every path carries its proof of origin) over minimal per-path overhead.
 
 ### Constructor Parameter Design: `AsRef<Path>`
 
@@ -568,7 +607,7 @@ Escape hatches:
 
 Path handling rules (very important):
 - Do not expose raw `Path`/`PathBuf` from `StrictPath`/`VirtualPath` in public APIs or examples.
-- `.interop_path()` returns `&OsStr` (already `AsRef<Path>`) — pass directly to external APIs, never wrap in `Path::new()` or `PathBuf::from()`.
+- `.interop_path()` returns `&OsStr` (implements `AsRef<Path>`) — pass directly to external APIs, never wrap in `Path::new()` or `PathBuf::from()`.
 - Never wrap `.interop_path()` to use std path operations — that defeats all security. Use dimension-specific operations instead.
 - `.unstrict()` is the explicit escape hatch — after calling it, you own a `PathBuf` and leave safety guarantees.
 - Stay in one dimension per flow; if you need the other, upgrade/downgrade explicitly.
@@ -989,6 +1028,8 @@ Guidelines:
 - Do: use explicit operations and display helpers.
 - Don't: wrap `.interop_path()` in `Path::new()` or `PathBuf::from()` to use std path operations — that defeats all security.
 - Don’t: validate constants “just to use the API”.
+- Don't: add redundant ways to achieve the same thing --- one correct way per operation.
+- Don't: use `pub(crate)` methods in tests as shortcuts around the public API.
 
 ---
 
@@ -1174,6 +1215,53 @@ single LLM context window and improve RAG retrieval precision.
   module docs → imports → constants → types → impl blocks → functions → tests.
 
 ## Coding Session Discipline
+
+### Trust the Code — Ask Before "Fixing"
+
+When you encounter a design choice that seems unusual, wrong, or suboptimal:
+
+1. **Assume it was intentional.** This crate has deliberate, security-motivated
+   design decisions. What looks like an oversight is usually a conscious
+   constraint.
+2. **Read surrounding code and docs** to understand the rationale before
+   forming an opinion.
+3. **ASK the maintainer** if you still don't understand the "why." Present
+   your confusion as a question, not a fix.
+4. **Never "fix" design choices unilaterally.** Changing established patterns
+   without understanding them breaks invariants and wastes time undoing the
+   damage.
+
+This applies especially to:
+- API surface restrictions (why a type deliberately lacks a trait impl or method)
+- Seemingly "missing" convenience methods (they may have been removed on purpose)
+- Internal visibility choices (`pub(crate)` vs `pub` vs private)
+- Type design decisions (why `interop_path()` returns `&OsStr` instead of `&Path`)
+
+**The rule:** If something looks wrong but already exists in committed code,
+the default hypothesis is "the maintainer had a reason." Verify before acting.
+
+### Tests Must Use Public API Only
+
+Tests exist to validate the experience that real users have with the crate's
+public API. Using internal-only methods in tests defeats this purpose.
+
+**Forbidden in tests:**
+- Calling `pub(crate)` methods to get path data, compare values, or bypass
+  the public API surface.
+- Accessing private fields or internal representations that users cannot reach.
+- Any pattern that "works in tests" but would fail for a downstream consumer.
+
+**Required approach:**
+- Use `strictpath_display().to_string()` for string comparisons.
+- Use `interop_path()` where `AsRef<Path>` is needed (e.g., `std::fs` calls
+  in test setup/verification).
+- Use the crate's built-in I/O helpers (`read_to_string()`, `exists()`,
+  `read_dir()`, etc.) for filesystem assertions.
+
+**Rationale:** If a test cannot be written using the public API, that is a
+signal the public API is missing something — fix the API, do not add an
+internal shortcut. Tests that cheat with internal methods hide usability
+problems that only real users would discover.
 
 ### Test-First / Proof-First
 

@@ -171,7 +171,7 @@ impl<Marker> VirtualPath<Marker> {
             Ok(Some(parent)) => parent.create_dir(),
             Ok(None) => Ok(()),
             Err(crate::StrictPathError::PathEscapesBoundary { .. }) => Ok(()),
-            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            Err(e) => Err(std::io::Error::other(e)),
         }
     }
 
@@ -183,7 +183,7 @@ impl<Marker> VirtualPath<Marker> {
             Ok(Some(parent)) => parent.create_dir_all(),
             Ok(None) => Ok(()),
             Err(crate::StrictPathError::PathEscapesBoundary { .. }) => Ok(()),
-            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            Err(e) => Err(std::io::Error::other(e)),
         }
     }
 

@@ -60,6 +60,6 @@ impl<T: AsRef<Path>, Marker> PartialOrd<T> for StrictPath<Marker> {
 impl<Marker> PartialEq<crate::path::virtual_path::VirtualPath<Marker>> for StrictPath<Marker> {
     #[inline]
     fn eq(&self, other: &crate::path::virtual_path::VirtualPath<Marker>) -> bool {
-        self.path() == other.interop_path()
+        self.path() == other.as_unvirtual().path()
     }
 }

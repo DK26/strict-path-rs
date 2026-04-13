@@ -33,7 +33,7 @@ use std::sync::Arc;
 /// // Use the public API that exercises the same validation pipeline
 /// // as this internal helper.
 /// let file = sandbox.strict_join(user_input)?;
-/// assert!(file.interop_path().to_string_lossy().contains("sandbox"));
+/// assert!(file.strictpath_display().to_string().contains("sandbox"));
 /// # Ok(())
 /// # }
 /// ```
@@ -385,7 +385,7 @@ impl<Marker> PathBoundary<Marker> {
         let root = self
             .clone()
             .into_strictpath()
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+            .map_err(std::io::Error::other)?;
 
         root.strict_symlink(link_path)
     }
@@ -398,7 +398,7 @@ impl<Marker> PathBoundary<Marker> {
         let root = self
             .clone()
             .into_strictpath()
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+            .map_err(std::io::Error::other)?;
 
         root.strict_hard_link(link_path)
     }
@@ -414,7 +414,7 @@ impl<Marker> PathBoundary<Marker> {
         let root = self
             .clone()
             .into_strictpath()
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+            .map_err(std::io::Error::other)?;
 
         root.strict_junction(link_path)
     }
@@ -488,14 +488,6 @@ impl<Marker> PathBoundary<Marker> {
     }
 
     // Note: Do not add new crate-private helpers unless necessary; use existing flows.
-}
-
-impl<Marker> AsRef<Path> for PathBoundary<Marker> {
-    #[inline]
-    fn as_ref(&self) -> &Path {
-        // PathHistory implements AsRef<Path>, so forward to it
-        self.path.as_ref()
-    }
 }
 
 impl<Marker> std::fmt::Debug for PathBoundary<Marker> {

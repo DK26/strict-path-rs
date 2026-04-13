@@ -7,24 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.3] - 2026-04-12
+## [0.2.0] - 2026-04-14
+
+### Breaking Changes
+- **MSRV bumped from 1.71.0 to 1.76.0**: Enables `io::Error::other()` and `Arc::unwrap_or_clone()`.
+- **Removed `AsRef<Path>` from `PathBoundary` and `VirtualRoot`**: These leaked the secure API boundary, allowing callers to bypass `strict_join()`/`virtual_join()` and use unsafe `Path::join()` directly. Use `interop_path()` for third-party APIs requiring `AsRef<Path>`.
+- **Removed `StrictPath::strictpath_to_string_lossy()` and `StrictPath::strictpath_to_str()`**: These violated the One Way Principle — use `strictpath_display().to_string()` for string output, or `interop_path()` for third-party API interop.
 
 ### Added
-- **Compiler diagnostic annotations**: Systematic `#[must_use]` with descriptive messages across all public APIs to create a compiler-driven feedback loop for AI agents and LLMs
-  - Core structs (`StrictPath`, `VirtualPath`, `PathBoundary`, `VirtualRoot`, `StrictOpenOptions`, `StrictPathError`) annotated with actionable guidance messages
-  - Validation/join methods (`strict_join`, `virtual_join`, `try_new`, `try_new_create`) annotated with security-focused messages
-  - Consuming methods (`change_marker`, `unstrict`, `unvirtual`, `into_strictpath`, `into_virtualpath`) annotated with ownership guidance
-  - Security-critical accessors (`interop_path`, `strictpath_display`, `virtualpath_display`, `as_unvirtual`) annotated with misuse warnings
-  - Pure query methods (`exists`, `is_file`, `is_dir`, `file_name`, `file_stem`, `extension`, `starts_with`, `ends_with`) annotated with plain `#[must_use]`
-  - Builder entry points (`open_with`) annotated with chaining guidance
-  - Correctly omitted on `io::Result` methods and builder chain methods to avoid `clippy::double_must_use`
+- **Compiler diagnostic annotations**: Systematic `#[must_use]` with descriptive messages across all public APIs to create a compiler-driven feedback loop for AI agents and LLMs.
+- **TOCTOU scope statement**: Documented in lib.rs and AGENTS.md that validation happens at join-time; filesystem changes between validation and I/O are outside scope (same limitation as SQL prepared statements).
+- **Arc\<PathBoundary\> tradeoff documentation**: Documented in AGENTS.md that every `StrictPath` carries an `Arc<PathBoundary>` for re-validation and `change_marker()` support — a conscious security-correctness tradeoff.
 
 ### Changed
-- **Improved `StrictPathError` Display messages**: Error formatting now includes the underlying OS error inline and actionable fix suggestions (e.g., "use `try_new_create()` to auto-create it", "Validate untrusted input through `strict_join()`/`virtual_join()`")
+- **Crate description rewritten**: Focuses on the user-facing guarantee ("paths can't escape") rather than implementation details.
+- **README rewritten**: Leads with a comparison table showing what string checks miss vs what `strict-path` catches. LLM integration section moved to collapsible `<details>`.
+- **lib.rs tagline rewritten**: "Secure path handling for untrusted input" — focuses on the guarantee, not the algorithm.
+- **Improved `StrictPathError` Display messages**: Error formatting now includes the underlying OS error inline and actionable fix suggestions.
+- Replaced ~50 `io::Error::new(ErrorKind::Other, …)` call sites with `io::Error::other()` (MSRV 1.76).
+- Replaced 1 `Arc::try_unwrap().unwrap_or_else(|arc| (*arc).clone())` with `Arc::unwrap_or_clone()` (MSRV 1.76).
 
 ### Documentation
-- **AGENTS.md**: Added `Compiler Diagnostic Annotations (#[must_use])` section with categorization table, message format guidelines, and checklist for new public APIs
-- **LLM_CONTEXT.md**: Added "Critical mistakes that compile but are WRONG" section front-loaded near quickstart for small-context LLM visibility
+- **AGENTS.md**: Added `interop_path()` settled design decision, One Way Principle, Arc ownership tradeoff, TOCTOU scope, `#[must_use]` categorization, and "Trust the Code" coding session discipline sections.
+- **LLM_CONTEXT.md**: Added "Critical mistakes that compile but are WRONG" section front-loaded near quickstart for small-context LLM visibility.
 
 ## [0.1.2] - 2026-04-05
 

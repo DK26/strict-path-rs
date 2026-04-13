@@ -142,7 +142,7 @@ fn blackbox_container_escape_via_traversal_rejected() {
                 }
                 Ok(path) => {
                     // Verify the path is still within the boundary (clamped)
-                    let path_str = path.strictpath_to_string_lossy();
+                    let path_str = path.strictpath_display().to_string();
                     assert!(
                         path_str.starts_with("/proc/self/root"),
                         "SECURITY FAILURE: Attack pattern '{}' escaped to: {}",
@@ -172,7 +172,7 @@ fn blackbox_host_etc_passwd_access_blocked() {
         // NOT /etc/passwd on the host
         match container_dir.strict_join("etc/passwd") {
             Ok(passwd_path) => {
-                let path_str = passwd_path.strictpath_to_string_lossy();
+                let path_str = passwd_path.strictpath_display().to_string();
 
                 // CRITICAL: The path MUST be within /proc/self/root
                 assert!(
@@ -215,7 +215,7 @@ fn blackbox_absolute_path_escape_rejected() {
                 }
                 Ok(path) => {
                     // If accepted, must still be within the namespace boundary
-                    let path_str = path.strictpath_to_string_lossy();
+                    let path_str = path.strictpath_display().to_string();
                     assert!(
                         path_str.starts_with("/proc/self/root"),
                         "SECURITY FAILURE: Absolute path '{}' escaped to: {}",
@@ -360,7 +360,7 @@ fn whitebox_symlink_inside_proc_namespace() {
             assert!(
                 path.strictpath_starts_with(container_dir.interop_path()),
                 "Symlink escape: {} is outside boundary",
-                path.strictpath_to_string_lossy()
+                path.strictpath_display().to_string()
             );
         }
         Err(e) => {
@@ -387,7 +387,7 @@ fn whitebox_nested_proc_paths_preserve_context() {
         for nested_input in nested_paths {
             match container_dir.strict_join(nested_input) {
                 Ok(path) => {
-                    let path_str = path.strictpath_to_string_lossy();
+                    let path_str = path.strictpath_display().to_string();
                     assert!(
                         path_str.starts_with("/proc/self/root"),
                         "Nested path '{}' lost namespace context: {}",
@@ -434,7 +434,7 @@ fn cve_resistance_runc_style_proc_self_escape() {
                 }
                 Ok(path) => {
                     // If somehow accepted, verify containment
-                    let path_str = path.strictpath_to_string_lossy();
+                    let path_str = path.strictpath_display().to_string();
                     assert!(
                         path_str.starts_with("/proc/self/root"),
                         "CVE-2019-5736 style escape succeeded: '{}' -> '{}'",
@@ -482,7 +482,7 @@ fn cve_resistance_container_runtime_escape_patterns() {
                 }
                 Ok(path) => {
                     // Verify containment if accepted
-                    let path_str = path.strictpath_to_string_lossy();
+                    let path_str = path.strictpath_display().to_string();
                     assert!(
                         path_str.starts_with("/proc/self/root"),
                         "Container escape pattern '{}' succeeded: {}",
@@ -514,7 +514,7 @@ fn cve_resistance_namespace_confusion_attacks() {
             let result = container_dir.strict_join(attack_input);
             match result {
                 Ok(path) => {
-                    let path_str = path.strictpath_to_string_lossy();
+                    let path_str = path.strictpath_display().to_string();
                     // Must stay within namespace boundary
                     assert!(
                         path_str.starts_with("/proc/self/root"),
@@ -576,7 +576,7 @@ fn pathboundary_strict_join_rejects_traversal() {
             }
             Ok(path) => {
                 // If somehow accepted (e.g., path doesn't exist), verify containment
-                let path_str = path.strictpath_to_string_lossy();
+                let path_str = path.strictpath_display().to_string();
                 assert!(
                     path_str.starts_with("/proc/self/root"),
                     "Traversal escaped boundary: {}",

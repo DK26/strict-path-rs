@@ -42,7 +42,7 @@ impl<Marker> VirtualPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             // Resolve as sibling
@@ -56,13 +56,13 @@ impl<Marker> VirtualPath<Marker> {
                     .into_virtualpath()
                 {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
@@ -121,7 +121,7 @@ impl<Marker> VirtualPath<Marker> {
         let vroot = self.inner.boundary().clone().virtualize();
         vroot
             .virtual_join(resolved_target)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+            .map_err(std::io::Error::other)
     }
 
     /// SUMMARY:
@@ -161,7 +161,7 @@ impl<Marker> VirtualPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             // Resolve as sibling
@@ -175,13 +175,13 @@ impl<Marker> VirtualPath<Marker> {
                     .into_virtualpath()
                 {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
@@ -203,7 +203,7 @@ impl<Marker> VirtualPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.virtualpath_parent() {
@@ -216,13 +216,13 @@ impl<Marker> VirtualPath<Marker> {
                     .into_virtualpath()
                 {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
@@ -267,7 +267,7 @@ impl<Marker> VirtualPath<Marker> {
         let dest_v = if dest_ref.is_absolute() {
             match self.virtual_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             // Resolve as sibling under the current virtual parent (or root if at "/")
@@ -281,13 +281,13 @@ impl<Marker> VirtualPath<Marker> {
                     .into_virtualpath()
                 {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.virtual_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
@@ -336,7 +336,7 @@ impl<Marker> VirtualPath<Marker> {
         let dest_v = if dest_ref.is_absolute() {
             match self.virtual_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             // Resolve as sibling under the current virtual parent (or root if at "/")
@@ -350,13 +350,13 @@ impl<Marker> VirtualPath<Marker> {
                     .into_virtualpath()
                 {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.virtual_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 

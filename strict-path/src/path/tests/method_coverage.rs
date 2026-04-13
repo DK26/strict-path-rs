@@ -12,11 +12,8 @@ fn test_strict_path_accessors_and_manipulation() {
     file.write("hello").unwrap();
 
     // Basic accessors
-    assert!(file.strictpath_to_str().is_some());
-    assert_eq!(
-        file.strictpath_to_string_lossy(),
-        file.interop_path().to_string_lossy()
-    );
+    let display_str = file.strictpath_display().to_string();
+    assert!(!display_str.is_empty());
 
     // Components
     assert_eq!(
@@ -33,7 +30,7 @@ fn test_strict_path_accessors_and_manipulation() {
     );
 
     // Starts/ends checks
-    assert!(file.strictpath_starts_with(restriction.path()));
+    assert!(file.strictpath_starts_with(restriction.interop_path()));
     assert!(file.strictpath_ends_with("file.txt"));
 
     // Parent
@@ -118,12 +115,12 @@ fn test_virtual_path_components_and_checks() {
 
     // Cross accessors should match
     assert_eq!(
-        vp.as_unvirtual().strictpath_to_string_lossy(),
-        jp.strictpath_to_string_lossy()
+        vp.as_unvirtual().strictpath_display().to_string(),
+        jp.strictpath_display().to_string()
     );
     assert_eq!(
-        vp.interop_path().to_string_lossy(),
-        jp.interop_path().to_string_lossy()
+        vp.as_unvirtual().strictpath_display().to_string(),
+        jp.strictpath_display().to_string()
     );
 
     // Delegated I/O operations from VirtualPath

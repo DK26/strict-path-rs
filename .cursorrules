@@ -12,7 +12,7 @@ This repository uses `AGENTS.md` as the single source of truth for AI agent guid
 - Encode guarantees in signatures by accepting `&StrictPath<_>`/`&VirtualPath<_>`.
 - Check for existing functionality before implementing anything new.
 - No `AsRef<Path>`, `Deref<Target = Path>`, or implicit conversions for secure types.
-- MSRV: Rust 1.71.0 for the library crate (`strict-path/`).
+- MSRV: Rust 1.76.0 for the library crate (`strict-path/`).
 
 ## Key files
 

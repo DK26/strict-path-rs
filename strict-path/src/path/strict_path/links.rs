@@ -49,20 +49,20 @@ impl<Marker> StrictPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.boundary().strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
                 Ok(None) => match self.boundary().clone().into_strictpath() {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
@@ -132,7 +132,7 @@ impl<Marker> StrictPath<Marker> {
         // Validate the resolved target against the boundary
         self.boundary()
             .strict_join(resolved_target)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+            .map_err(std::io::Error::other)
     }
 
     /// SUMMARY:
@@ -145,20 +145,20 @@ impl<Marker> StrictPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.boundary().strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
                 Ok(None) => match self.boundary().clone().into_strictpath() {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
@@ -187,28 +187,27 @@ impl<Marker> StrictPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.boundary().strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
                 Ok(None) => match self.boundary().clone().into_strictpath() {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
         // Validate target is a directory (junctions are directory-only)
         let meta = std::fs::metadata(self.path())?;
         if !meta.is_dir() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(std::io::Error::other(
                 "junction targets must be directories",
             ));
         }
@@ -233,20 +232,20 @@ impl<Marker> StrictPath<Marker> {
         let dest_path = if dest_ref.is_absolute() {
             match self.boundary().strict_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
                 Ok(None) => match self.boundary().clone().into_strictpath() {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.strict_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
@@ -263,20 +262,20 @@ impl<Marker> StrictPath<Marker> {
         let dest_path = if dest_ref.is_absolute() {
             match self.boundary().strict_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
                 Ok(None) => match self.boundary().clone().into_strictpath() {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.strict_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 

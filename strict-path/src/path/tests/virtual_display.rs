@@ -13,6 +13,6 @@ fn virtualpath_display_is_rooted_and_forward_slashed() {
 
     // Root path
     let root_vp: crate::path::virtual_path::VirtualPath<()> =
-        crate::path::virtual_path::VirtualPath::with_root(restriction).unwrap();
+        crate::path::virtual_path::VirtualPath::with_root(restriction.interop_path()).unwrap();
     assert_eq!(root_vp.virtualpath_display().to_string(), "/");
 }

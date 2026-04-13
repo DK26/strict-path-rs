@@ -1,11 +1,11 @@
 [package]
 name = "strict-path"
-version = "0.1.3"
+version = "0.2.0"
 edition = "2021"
 # Minimum supported Rust version (MSRV)
-rust-version = "1.71"
+rust-version = "1.76"
 authors = ["David Krasnitsky <dikaveman@gmail.com>"]
-description = "Handle paths from external or unknown sources securely. Defends against 19+ real-world CVEs including symlinks, Windows 8.3 short names, and encoding tricks and exploits."
+description = "Secure path handling for untrusted input. Prevents directory traversal, symlink escapes, and 19+ real-world CVE attack patterns."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/DK26/strict-path-rs"
 homepage = "https://github.com/DK26/strict-path-rs"

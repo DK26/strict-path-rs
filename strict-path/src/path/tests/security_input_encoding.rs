@@ -460,7 +460,7 @@ fn test_winrar_like_edge_cases() {
                     vp.as_unvirtual()
                         .strictpath_starts_with(vroot.interop_path()),
                     "escaped PathBoundary for input: {c} -> {}",
-                    vp.as_unvirtual().strictpath_to_string_lossy()
+                    vp.as_unvirtual().strictpath_display()
                 );
                 // Nothing should point to real system locations; it's virtual-rooted
                 let v = vp.virtualpath_display().to_string();

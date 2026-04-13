@@ -68,7 +68,7 @@ fn issue_44_indirect_symlink_with_suffix() {
     if let Ok(proc_dir) = PathBoundary::<()>::try_new(&link_path) {
         match proc_dir.strict_join("etc/passwd") {
             Ok(path) => {
-                let path_str = path.strictpath_to_string_lossy();
+                let path_str = path.strictpath_display().to_string();
 
                 // Must be /proc/self/root/etc/passwd, NOT /etc/passwd
                 assert!(
@@ -117,7 +117,7 @@ fn issue_44_virtualroot_indirect_symlink() {
 
             // Test virtual_join through this root
             if let Ok(vpath) = vroot.virtual_join("etc/passwd") {
-                let system_path = vpath.as_unvirtual().strictpath_to_string_lossy();
+                let system_path = vpath.as_unvirtual().strictpath_display().to_string();
                 assert!(
                     system_path.starts_with("/proc/self/root"),
                     "VirtualPath escaped via indirect symlink: {}",
@@ -450,7 +450,7 @@ fn security_container_boundary_bypass_prevented() {
             // Try to access /etc/shadow through the boundary
             match proc_dir.strict_join("etc/shadow") {
                 Ok(path) => {
-                    let path_str = path.strictpath_to_string_lossy();
+                    let path_str = path.strictpath_display().to_string();
                     // MUST be /proc/self/root/etc/shadow, NOT /etc/shadow
                     assert!(
                         path_str.starts_with("/proc/self/root"),
@@ -466,7 +466,7 @@ fn security_container_boundary_bypass_prevented() {
             // Try traversal attack
             match proc_dir.strict_join("../../../etc/shadow") {
                 Ok(path) => {
-                    let path_str = path.strictpath_to_string_lossy();
+                    let path_str = path.strictpath_display().to_string();
                     // Even if somehow accepted, must stay in namespace
                     assert!(
                         path_str.starts_with("/proc/self/root"),

@@ -1,7 +1,7 @@
 ## Demos crate (intentionally NOT in the workspace)
 ##
 ## Why this is separate:
-## - Our library (`strict-path/`) targets MSRV Rust 1.71 and is checked with
+## - Our library (`strict-path/`) targets MSRV Rust 1.76 and is checked with
 ##   `--locked` on that toolchain in CI.
 ## - Real-world demos often want newer crates and features (latest stable),
 ##   which can raise MSRV if coupled through a shared workspace lockfile.

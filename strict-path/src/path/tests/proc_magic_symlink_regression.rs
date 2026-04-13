@@ -112,7 +112,7 @@ fn regression_escaping_symlinks_rejected() {
         Ok(path) => {
             panic!(
                 "Symlink escape was allowed: {}",
-                path.strictpath_to_string_lossy()
+                path.strictpath_display().to_string()
             );
         }
         Err(e) => {
@@ -142,7 +142,7 @@ fn edge_case_proc_self_with_components() {
             }
             Ok(path) => {
                 // If allowed, verify it's clamped to the boundary
-                let path_str = path.strictpath_to_string_lossy();
+                let path_str = path.strictpath_display().to_string();
                 assert!(
                     path_str.starts_with("/proc/self/root"),
                     "Parent traversal escaped namespace: {}",
@@ -175,7 +175,7 @@ fn edge_case_empty_segments_in_proc_namespace() {
                     path.strictpath_starts_with(container_dir.interop_path()),
                     "Pattern '{}' escaped: {}",
                     pattern,
-                    path.strictpath_to_string_lossy()
+                    path.strictpath_display().to_string()
                 );
             }
         }

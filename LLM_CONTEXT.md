@@ -66,9 +66,8 @@ let parent = Path::new(p).parent();        // Compiles! But escapes the boundary
 // ✅ RIGHT: use the crate's own method
 let parent = safe_path.strictpath_parent()?;
 
-// ❌ WRONG: using PathBoundary directly with std::fs (skips validation entirely)
-let boundary = PathBoundary::try_new("./uploads")?;
-let data = std::fs::read_to_string(boundary.as_ref().join(user_input))?;
+// ❌ WRONG: bypassing validation with std::fs (won't compile — no AsRef<Path> on PathBoundary)
+// let data = std::fs::read_to_string(&boundary)?;  // Compiler prevents this!
 // ✅ RIGHT: always validate through strict_join first
 let validated = boundary.strict_join(user_input)?;
 let data = validated.read_to_string()?;

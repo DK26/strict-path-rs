@@ -129,70 +129,15 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// SUMMARY:
-    /// Return a lossy `String` view of the system path. Prefer `.interop_path()` only for unavoidable third-party interop.
-    ///
-    /// PARAMETERS:
-    /// - _none_
-    ///
-    /// RETURNS:
-    /// - `Cow<'_, str>`: The path as a UTF-8 string, with replacement characters for non-UTF-8 bytes.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
-    /// ```rust
-    /// # use strict_path::PathBoundary;
-    /// # let temp = tempfile::tempdir()?;
-    /// # let data_dir: PathBoundary = PathBoundary::try_new(temp.path())?;
-    /// let file_path = data_dir.strict_join("report.txt")?;
-    /// let s = file_path.strictpath_to_string_lossy();
-    /// assert!(s.ends_with("report.txt"));
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
-    /// ```
-    #[must_use = "this returns the real system path as a string — for user-facing output prefer VirtualPath::virtualpath_display() which hides internal paths"]
-    #[inline]
-    pub fn strictpath_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
-        self.path.to_string_lossy()
-    }
-
-    /// SUMMARY:
-    /// Return the underlying system path as `&str` if valid UTF‑8; otherwise `None`.
-    ///
-    /// PARAMETERS:
-    /// - _none_
-    ///
-    /// RETURNS:
-    /// - `Option<&str>`: The path as a string slice, or `None` if the path contains non-UTF-8 bytes.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
-    /// ```rust
-    /// # use strict_path::PathBoundary;
-    /// # let temp = tempfile::tempdir()?;
-    /// # let data_dir: PathBoundary = PathBoundary::try_new(temp.path())?;
-    /// let file_path = data_dir.strict_join("config.toml")?;
-    /// if let Some(s) = file_path.strictpath_to_str() {
-    ///     assert!(s.ends_with("config.toml"));
-    /// }
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
-    /// ```
-    #[must_use = "this returns the real system path as a string — for user-facing output prefer VirtualPath::virtualpath_display() which hides internal paths"]
-    #[inline]
-    pub fn strictpath_to_str(&self) -> Option<&str> {
-        self.path.to_str()
-    }
-
-    /// SUMMARY:
     /// Return the underlying system path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop.
     ///
     /// PARAMETERS:
     /// - _none_
     ///
     /// RETURNS:
-    /// - `&OsStr`: The raw OS string representation of the system path.
+    /// - `&OsStr`: The raw OS path string. Implements `AsRef<Path>` so it can be passed
+    ///   directly to third-party APIs. Does NOT have `.join()`, `.parent()`, or other
+    ///   path manipulation methods — use the crate's strict helpers for those.
     ///
     /// ERRORS:
     /// - None (infallible).
@@ -200,16 +145,16 @@ impl<Marker> StrictPath<Marker> {
     /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
+    /// # fn third_party_api(_p: impl AsRef<std::path::Path>) {}
     /// # let temp = tempfile::tempdir()?;
     /// # let data_dir: PathBoundary = PathBoundary::try_new(temp.path())?;
     /// let file_path = data_dir.strict_join("data.bin")?;
-    /// let os_str = file_path.interop_path();
-    /// assert!(std::path::Path::new(os_str).exists() || !std::path::Path::new(os_str).exists());
+    /// third_party_api(file_path.interop_path()); // AsRef<Path> satisfied
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[must_use = "pass interop_path() directly to third-party APIs requiring AsRef<Path> — never wrap it in Path::new() or PathBuf::from() as that defeats boundary safety"]
     #[inline]
-    pub fn interop_path(&self) -> &OsStr {
+    pub fn interop_path(&self) -> &std::ffi::OsStr {
         self.path.as_os_str()
     }
 
@@ -390,9 +335,9 @@ impl<Marker> StrictPath<Marker> {
     pub fn change_marker<NewMarker>(self) -> StrictPath<NewMarker> {
         let StrictPath { path, boundary, .. } = self;
 
-        // Try to unwrap the Arc (zero-cost if this is the only reference).
+        // Unwrap the Arc (zero-cost if this is the only reference).
         // If other references exist, clone the boundary (allocation needed).
-        let boundary_owned = Arc::try_unwrap(boundary).unwrap_or_else(|arc| (*arc).clone());
+        let boundary_owned = Arc::unwrap_or_clone(boundary);
         let new_boundary = Arc::new(boundary_owned.change_marker::<NewMarker>());
 
         StrictPath {

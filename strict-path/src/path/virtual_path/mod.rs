@@ -295,7 +295,7 @@ impl<Marker> VirtualPath<Marker> {
     /// Return the underlying system path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop.
     #[must_use = "pass interop_path() directly to third-party APIs requiring AsRef<Path> — never wrap it in Path::new() or PathBuf::from(); NEVER expose this in user-facing output (use .virtualpath_display() instead)"]
     #[inline]
-    pub fn interop_path(&self) -> &OsStr {
+    pub fn interop_path(&self) -> &std::ffi::OsStr {
         self.inner.interop_path()
     }
 

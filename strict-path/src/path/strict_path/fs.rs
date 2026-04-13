@@ -197,7 +197,7 @@ impl<Marker> StrictPath<Marker> {
             Ok(Some(parent)) => parent.create_dir(),
             Ok(None) => Ok(()),
             Err(StrictPathError::PathEscapesBoundary { .. }) => Ok(()),
-            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            Err(e) => Err(std::io::Error::other(e)),
         }
     }
 
@@ -228,7 +228,7 @@ impl<Marker> StrictPath<Marker> {
             Ok(Some(parent)) => parent.create_dir_all(),
             Ok(None) => Ok(()),
             Err(StrictPathError::PathEscapesBoundary { .. }) => Ok(()),
-            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            Err(e) => Err(std::io::Error::other(e)),
         }
     }
 
