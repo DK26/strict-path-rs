@@ -1,4 +1,4 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 Operational guide for AI assistants and automation working in this repository.
 
@@ -7,6 +7,9 @@ Operational guide for AI assistants and automation working in this repository.
 AGENTS.md is read by stateless agents with no memory of prior sessions.
 Every rule must stand on its own without session context.
 
+- **Only non-inferable content.** Do not duplicate what an agent can learn
+  by reading the code. Redundant content increases token cost and hurts
+  retrieval precision.
 - **General, not reactive.** Do not add rules to address a single past
   mistake.  Only codify patterns that could recur across sessions.
 - **Context-free.** No references to specific conversations, resolved issues,
@@ -105,6 +108,21 @@ Every rule must stand on its own without session context.
 - Result in rejected contributions
 
 **Remember:** Understanding code is not optional - it's the foundation of any change.
+
+## Build & Test
+
+```bash
+cargo build -p strict-path --all-features
+cargo test -p strict-path --all-features
+cargo test --doc -p strict-path --all-features
+cargo clippy -p strict-path --all-targets --all-features -- -D warnings
+cargo fmt --all -- --check
+cargo doc -p strict-path --no-deps --document-private-items --all-features
+```
+
+MSRV: `rustup run 1.76 cargo build -p strict-path --all-features`
+
+Local CI (full pipeline): `./ci-local.ps1` (Windows) or `bash ./ci-local.sh` (Unix/WSL).
 
 ## Project Overview
 
@@ -1162,9 +1180,22 @@ When adding any new public method, check:
 
 ### Safe Indexing — No Direct Indexing in Production Code
 
-Production code must not use direct indexing (`data[i]`, `parts[1]`,
-`slice[start..end]`) on slices, `Vec`, or `str`.  Direct indexing panics on
-out-of-bounds access, which is a denial-of-service vector in a security‑critical crate.
+Production code must **never** use direct indexing on **any type** —
+`&[u8]`, `&str`, `Vec<T>`, `&[T]`, or any other indexable container.
+This applies regardless of whether the index "feels safe" (e.g. derived
+from `.find()` or bounded by a loop guard).  Direct indexing panics on
+out-of-bounds access, which is a denial-of-service vector in a
+security‑critical crate.
+
+**Banned patterns (all of these panic on OOB):**
+
+```rust
+parts[i]              // slice element access
+data[start..end]      // slice range
+line[pos..]           // string slicing
+content[..colon_pos]  // string slicing with find()-derived index
+value.as_bytes()[0]   // first-byte access
+```
 
 **Required replacements:**
 
@@ -1173,6 +1204,22 @@ out-of-bounds access, which is a denial-of-service vector in a security‑critic
 | `parts[i]`           | `parts.get(i).ok_or(…)?` or `parts.get(i).map(…)`        |
 | `data[start..end]`   | `data.get(start..end).ok_or(…)?`                          |
 | `slice[i..]`         | `slice.get(i..).unwrap_or_default()`                      |
+| `&line[..pos]`       | `line.get(..pos).unwrap_or(line)`                         |
+| `value.as_bytes()[0]`| `value.as_bytes().first()`                                |
+
+**Prior bounds checks do not exempt direct indexing.**  A manual check
+immediately before the access — `if end > data.len() { return Err(…) }` or
+a `while i < slice.len()` loop guard — does **not** satisfy this rule.  The
+replacement must be at the call site:
+
+```rust
+// Wrong — reader must trace the preceding guard to verify safety:
+if end > data.len() { return Err(…); }
+let slice = &data[offset..end];
+
+// Correct — safety is self-evident at the call site:
+let slice = data.get(offset..end).ok_or(…)?;
+```
 
 For **sequential processing**, prefer iterators (`.iter()`, `.enumerate()`,
 `.windows()`, `.chunks()`, `.split()`) over index-based loops.
@@ -1201,6 +1248,40 @@ For necessary allocations (variable-length output):
   through.
 - Keep struct fields private when invariants must be enforced.  Expose
   transition methods that enforce them.
+
+### Lifetime Naming
+
+- Lifetime parameter names must be meaningful: name the lifetime after the
+  item whose lifetime it represents (for example `'boundary` for a borrowed
+  boundary, `'path` for a path reference, `'input` for untrusted input
+  data).  Avoid vague single-letter names like `'a` in public APIs;
+  single-letter lifetimes may be acceptable in very small local scopes or
+  short-lived closures.
+- Prefer descriptive lifetime names in structs and function signatures so
+  reviewers and automated tools can immediately identify what is being
+  borrowed and why.  This improves readability and reduces confusion when
+  multiple lifetimes are present.
+
+### No Unsafe Code
+
+This crate must never contain `unsafe` blocks, `unsafe fn`, or `unsafe impl`.
+If a dependency requires an unsafe interface, wrap it in a dedicated dependency
+crate — never bring `unsafe` into this crate's source.
+
+### Module Independence
+
+- **One concept per file.** Each module should be independently understandable
+  — its purpose, invariants, and failure modes must be clear without reading
+  the rest of the crate.
+- **DAG dependencies only.** Dependencies between modules flow through explicit
+  public APIs, not shared mutable state, implicit ordering, or circular imports.
+  If module A calls module B and B calls A, the design is wrong — restructure
+  until the dependency graph is a DAG.
+- **Testable in isolation.** Extract pure logic from side-effectful functions.
+  If a function mixes computation with I/O, split it: a pure function that
+  takes inputs and returns outputs, and a thin wrapper that handles I/O
+  and delegates to the pure function. The pure function gets unit-tested
+  without mocks.
 
 ### RAG / LLM-Friendly File Size
 
@@ -1337,35 +1418,61 @@ Before considering any change complete, verify:
 - Doctests runnable with no skip flags.
 - Regression tests included for every bug fix.
 
-## Commenting Standard for Functions (LLM-Friendly)
 
-To ensure LLMs can use this crate’s API correctly, every function must follow this doc-comment style:
+## Commenting Style
 
-```rust
-/// SUMMARY:
-/// One–two sentences describing what the function does. Use **imperative form**
-/// and mention its dimension (strict or virtual) if relevant.
-///
-/// PARAMETERS:
-/// - `param_name` (Type): What it is, constraints, and if it’s user input.
-///
-/// RETURNS:
-/// - Type: What the function returns and its guarantees (e.g., “always inside boundary”).
-///
-/// ERRORS:
-/// - VariantName: Condition when it occurs.
-/// - VariantName: Condition when it occurs.
-///
-/// EXAMPLE:
-/// ```rust
-/// let out = boundary.strict_join("etc/config.toml")?;
-/// println!("{}", out.strictpath_display());
-/// ```
-```
+### Comments Are the Permanent Record
 
-**Rules:**
-- Always use imperative style in the summary (“Join child onto strict path”), not descriptive (“This function joins...”).
-- Cover *all parameters*, *returns*, and *error variants* explicitly.
-- Show at least one success example; add a failure case if common.
-- Do not hide invariants: state guarantees such as “never escapes boundary”.
-- Avoid vague terms like “etc.” or “magic”.
+Every comment — doc comment, module comment, inline comment — must carry
+**full context in place**. Do not assume the reader has read other files,
+git history, issue trackers, or the original author's mind. The moment
+you write code for a reason, that reason must be written down **next to
+the code**, because:
+
+* **Memory is unreliable.** The original author will forget why they did
+  something. Six months later they will "fix" it and reintroduce the bug
+  the code was written to prevent.
+* **Git blame is fragile.** Refactors, moves, and reformats break the
+  trail. A comment survives all of them.
+* **External references rot.** Issue links close, wikis move, Slack
+  threads scroll away. The code outlives them all.
+
+If the reason for a piece of code is not written next to it, treat it
+as if the reason does not exist.
+
+### Why > What > How
+
+Every non-trivial block of code must carry comments that answer up to
+three questions, **in this order**:
+
+1. **Why** — the design decision, domain rationale, or constraint that
+   motivated this code. **Lead with this.** A reader who knows why
+   something exists can decide instantly whether they need the details.
+2. **What** — a plain-language summary of what the code does, now that
+   the reader knows why it matters.
+3. **How** (when non-obvious) — algorithm steps, domain-specific
+   mechanics, or interaction with external crates that a reader
+   unfamiliar with the ecosystem would not immediately grasp.
+
+Not every block needs all three. Trivial code needs none. But when in
+doubt, over-explain the **why** — it is never obvious in hindsight.
+
+### Rules
+
+- Use `///` doc comments on every public item. Every module must open
+  with `//!` stating why the module exists, what it provides, and how
+  it fits into the crate.
+- Don't restate the type signature in English. Rust's type system and
+  `cargo doc` already convey parameters, return types, and error variants.
+- Constants and magic numbers must document their origin and meaning.
+- Safety-critical paths must have an inline comment explaining **what
+  attack or failure** the check prevents.
+- Use section headers (`// \u2500\u2500 Section name \u2500\u2500\u2500`) to visually separate
+  logical phases within long functions.
+- When modifying a function, update its comments to match this style.
+  Don't rewrite comments in bulk — only update what you touch.
+- Always use imperative style in the summary ("Join child onto strict
+  path"), not descriptive ("This function joins...").
+- Show at least one compilable example in doc comments; add a failure
+  case if common. Do not hide invariants: state guarantees such as
+  "never escapes boundary".
