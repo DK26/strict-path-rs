@@ -1,4 +1,12 @@
-// Content copied from original src/validator/stated_path.rs
+//! Type-state pipeline that canonicalizes and boundary-checks paths.
+//!
+//! `PathHistory<S>` is a newtype over `PathBuf` whose phantom type parameter `S`
+//! records which validation stages have been applied. The compiler rejects use of a
+//! partially-validated path where a fully-validated one is required, making it
+//! impossible to skip a stage accidentally. The states flow:
+//! `Raw → Canonicalized → BoundaryChecked` (strict) or
+//! `Raw → (Virtualized) → Canonicalized → BoundaryChecked` (virtual).
+//! This module is internal; callers interact through `PathBoundary` and `VirtualRoot`.
 use crate::{Result, StrictPathError};
 use soft_canonicalize::{anchored_canonicalize, soft_canonicalize};
 use std::ops::Deref;

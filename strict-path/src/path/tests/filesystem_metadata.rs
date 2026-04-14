@@ -50,7 +50,7 @@ fn test_strict_path_metadata_behavior() {
     let test_dir: PathBoundary = PathBoundary::try_new(temp.path()).unwrap();
     let strict_file: StrictPath = test_dir.strict_join("file.txt").unwrap();
 
-    std::fs::write(strict_file.interop_path(), b"hello").unwrap();
+    strict_file.write(b"hello").unwrap();
     let metadata = strict_file.metadata().unwrap();
     assert!(metadata.is_file());
     assert_eq!(metadata.len(), 5);
@@ -66,7 +66,7 @@ fn test_virtual_path_metadata_behavior() {
     let vroot: VirtualRoot = VirtualRoot::try_new(temp.path()).unwrap();
     let vpath = vroot.virtual_join("file.txt").unwrap();
 
-    std::fs::write(vpath.as_unvirtual().interop_path(), b"abc").unwrap();
+    vpath.write(b"abc").unwrap();
     let metadata = vpath.metadata().unwrap();
     assert!(metadata.is_file());
     assert_eq!(metadata.len(), 3);

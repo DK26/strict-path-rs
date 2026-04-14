@@ -1,3 +1,9 @@
+//! `VirtualPath<Marker>` — a user-facing path clamped to a virtual root.
+//!
+//! `VirtualPath` wraps a `StrictPath` and adds a virtual path component rooted at `"/"`.
+//! The virtual path is what users see (e.g., `"/uploads/logo.png"`); the real system path
+//! is never exposed. Use `virtualpath_display()` for safe user-visible output and
+//! `as_unvirtual()` to obtain the underlying `StrictPath` for system-facing I/O.
 mod display;
 mod fs;
 mod iter;
@@ -7,7 +13,6 @@ mod traits;
 pub use display::VirtualPathDisplay;
 pub use iter::VirtualReadDir;
 
-// Content copied from original src/path/virtual_path.rs
 use crate::error::StrictPathError;
 use crate::path::strict_path::StrictPath;
 use crate::validator::path_history::{Canonicalized, PathHistory};
@@ -16,10 +21,8 @@ use crate::Result;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-/// SUMMARY:
 /// Hold a user‑facing path clamped to a virtual root (`"/"`) over a `PathBoundary`.
 ///
-/// DETAILS:
 /// `virtualpath_display()` shows rooted, forward‑slashed paths (e.g., `"/a/b.txt"`).
 /// Use virtual manipulation methods to compose paths while preserving clamping, then convert to
 /// `StrictPath` with `unvirtual()` for system‑facing I/O.
@@ -39,7 +42,6 @@ fn clamp<Marker, H>(
 }
 
 impl<Marker> VirtualPath<Marker> {
-    /// SUMMARY:
     /// Create the virtual root (`"/"`) for the given filesystem root.
     #[must_use = "this returns a Result containing the validated VirtualPath — handle the Result to detect invalid roots"]
     pub fn with_root<P: AsRef<Path>>(root: P) -> Result<Self> {
@@ -47,7 +49,6 @@ impl<Marker> VirtualPath<Marker> {
         vroot.into_virtualpath()
     }
 
-    /// SUMMARY:
     /// Create the virtual root, creating the filesystem root if missing.
     #[must_use = "this returns a Result containing the validated VirtualPath — handle the Result to detect invalid roots"]
     pub fn with_root_create<P: AsRef<Path>>(root: P) -> Result<Self> {
@@ -156,7 +157,6 @@ impl<Marker> VirtualPath<Marker> {
         }
     }
 
-    /// SUMMARY:
     /// Convert this `VirtualPath` back into a system‑facing `StrictPath`.
     #[must_use = "unvirtual() consumes self — use the returned StrictPath for system-facing I/O, or prefer .as_unvirtual() to borrow without consuming"]
     #[inline]
@@ -164,7 +164,6 @@ impl<Marker> VirtualPath<Marker> {
         self.inner
     }
 
-    /// SUMMARY:
     /// Change the compile-time marker while keeping the virtual and strict views in sync.
     ///
     /// WHEN TO USE:
@@ -177,20 +176,16 @@ impl<Marker> VirtualPath<Marker> {
     /// - When the current marker already matches your needs - no transformation needed
     /// - When you haven't verified authorization - NEVER change markers without checking permissions
     ///
-    /// PARAMETERS:
-    /// - `_none_`
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `VirtualPath<NewMarker>`: Same clamped path encoded with the new marker.
-    ///
-    /// ERRORS:
     /// - `_none_`
     ///
     /// SECURITY:
     /// This method performs no permission checks. Only elevate markers after verifying real
     /// authorization out-of-band.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::VirtualPath;
     /// # struct GuestAccess;
@@ -248,13 +243,10 @@ impl<Marker> VirtualPath<Marker> {
         }
     }
 
-    /// SUMMARY:
     /// Consume and return the `VirtualRoot` for its boundary (no directory creation).
     ///
-    /// RETURNS:
-    /// - `Result<VirtualRoot<Marker>>`: Virtual root anchored at the strict path's directory.
+    /// # Errors
     ///
-    /// ERRORS:
     /// - `StrictPathError::InvalidRestriction`: Propagated from `try_into_boundary` when the
     ///   strict path does not exist or is not a directory.
     #[must_use = "try_into_root() consumes self — use the returned VirtualRoot to restrict future path operations"]
@@ -263,14 +255,10 @@ impl<Marker> VirtualPath<Marker> {
         Ok(self.inner.try_into_boundary()?.virtualize())
     }
 
-    /// SUMMARY:
     /// Consume and return a `VirtualRoot`, creating the underlying directory if missing.
     ///
-    /// RETURNS:
-    /// - `Result<VirtualRoot<Marker>>`: Virtual root anchored at the strict path's directory
-    ///   (created if necessary).
+    /// # Errors
     ///
-    /// ERRORS:
     /// - `StrictPathError::InvalidRestriction`: Propagated from `try_into_boundary` or directory
     ///   creation failures wrapped in `InvalidRestriction`.
     #[must_use = "try_into_root_create() consumes self — use the returned VirtualRoot to restrict future path operations"]
@@ -283,7 +271,6 @@ impl<Marker> VirtualPath<Marker> {
         Ok(validated_dir.virtualize())
     }
 
-    /// SUMMARY:
     /// Borrow the underlying system‑facing `StrictPath` (no allocation).
     #[must_use = "as_unvirtual() borrows the system-facing StrictPath — use it for system I/O or pass to functions accepting &StrictPath<Marker>"]
     #[inline]
@@ -291,7 +278,6 @@ impl<Marker> VirtualPath<Marker> {
         &self.inner
     }
 
-    /// SUMMARY:
     /// Return the underlying system path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop.
     #[must_use = "pass interop_path() directly to third-party APIs requiring AsRef<Path> — never wrap it in Path::new() or PathBuf::from(); NEVER expose this in user-facing output (use .virtualpath_display() instead)"]
     #[inline]
@@ -299,21 +285,14 @@ impl<Marker> VirtualPath<Marker> {
         self.inner.interop_path()
     }
 
-    /// SUMMARY:
     /// Join a virtual path segment (virtual semantics) and re‑validate within the same restriction.
     ///
-    /// DETAILS:
     /// Applies virtual path clamping: absolute paths are interpreted relative to the virtual root,
     /// and traversal attempts are clamped to prevent escaping the boundary. This method maintains
     /// the security guarantee that all `VirtualPath` instances stay within their virtual root.
     ///
-    /// PARAMETERS:
-    /// - `path` (`impl AsRef<Path>`): Path segment to join. Absolute paths are clamped to virtual root.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `Result<VirtualPath<Marker>>`: New virtual path within the same restriction.
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::VirtualRoot;
     /// # let td = tempfile::tempdir().unwrap();
@@ -339,7 +318,6 @@ impl<Marker> VirtualPath<Marker> {
     // No local clamping helpers; virtual flows should route through
     // PathHistory::virtualize_to_jail + PathBoundary::strict_join to avoid drift.
 
-    /// SUMMARY:
     /// Return the parent virtual path, or `None` at the virtual root.
     #[must_use = "returns a Result<Option> — handle both the error case and the None (at virtual root) case"]
     pub fn virtualpath_parent(&self) -> Result<Option<Self>> {
@@ -356,7 +334,6 @@ impl<Marker> VirtualPath<Marker> {
         }
     }
 
-    /// SUMMARY:
     /// Return a new virtual path with file name changed, preserving clamping.
     #[must_use = "returns a new validated VirtualPath with the file name replaced — the original is unchanged; handle the Result to detect boundary escapes"]
     #[inline]
@@ -368,7 +345,6 @@ impl<Marker> VirtualPath<Marker> {
         Ok(VirtualPath::new(validated_path))
     }
 
-    /// SUMMARY:
     /// Return a new virtual path with the extension changed, preserving clamping.
     #[must_use = "returns a new validated VirtualPath with the extension changed — the original is unchanged; handle the Result to detect boundary escapes"]
     pub fn virtualpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self> {
@@ -386,7 +362,6 @@ impl<Marker> VirtualPath<Marker> {
         Ok(VirtualPath::new(validated_path))
     }
 
-    /// SUMMARY:
     /// Return the file name component of the virtual path, if any.
     #[must_use]
     #[inline]
@@ -394,7 +369,6 @@ impl<Marker> VirtualPath<Marker> {
         self.virtual_path.file_name()
     }
 
-    /// SUMMARY:
     /// Return the file stem of the virtual path, if any.
     #[must_use]
     #[inline]
@@ -402,7 +376,6 @@ impl<Marker> VirtualPath<Marker> {
         self.virtual_path.file_stem()
     }
 
-    /// SUMMARY:
     /// Return the extension of the virtual path, if any.
     #[must_use]
     #[inline]
@@ -410,7 +383,6 @@ impl<Marker> VirtualPath<Marker> {
         self.virtual_path.extension()
     }
 
-    /// SUMMARY:
     /// Return `true` if the virtual path starts with the given prefix (virtual semantics).
     #[must_use]
     #[inline]
@@ -418,7 +390,6 @@ impl<Marker> VirtualPath<Marker> {
         self.virtual_path.starts_with(p)
     }
 
-    /// SUMMARY:
     /// Return `true` if the virtual path ends with the given suffix (virtual semantics).
     #[must_use]
     #[inline]
@@ -426,7 +397,6 @@ impl<Marker> VirtualPath<Marker> {
         self.virtual_path.ends_with(p)
     }
 
-    /// SUMMARY:
     /// Return a Display wrapper that shows a rooted virtual path (e.g., `"/a/b.txt").
     #[must_use = "virtualpath_display() returns a safe user-facing path representation — use this (not interop_path()) in API responses, logs, and UI"]
     #[inline]
@@ -434,7 +404,6 @@ impl<Marker> VirtualPath<Marker> {
         VirtualPathDisplay(self)
     }
 
-    /// SUMMARY:
     /// Return `true` if the underlying system path exists.
     #[must_use]
     #[inline]
@@ -442,7 +411,6 @@ impl<Marker> VirtualPath<Marker> {
         self.inner.exists()
     }
 
-    /// SUMMARY:
     /// Return `true` if the underlying system path is a file.
     #[must_use]
     #[inline]
@@ -450,7 +418,6 @@ impl<Marker> VirtualPath<Marker> {
         self.inner.is_file()
     }
 
-    /// SUMMARY:
     /// Return `true` if the underlying system path is a directory.
     #[must_use]
     #[inline]
@@ -458,104 +425,77 @@ impl<Marker> VirtualPath<Marker> {
         self.inner.is_dir()
     }
 
-    /// SUMMARY:
     /// Return metadata for the underlying system path.
     #[inline]
     pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
         self.inner.metadata()
     }
 
-    /// SUMMARY:
     /// Read the file contents as `String` from the underlying system path.
     #[inline]
     pub fn read_to_string(&self) -> std::io::Result<String> {
         self.inner.read_to_string()
     }
 
-    /// SUMMARY:
     /// Read raw bytes from the underlying system path.
     #[inline]
     pub fn read(&self) -> std::io::Result<Vec<u8>> {
         self.inner.read()
     }
 
-    /// SUMMARY:
     /// Return metadata for the underlying system path without following symlinks.
     #[inline]
     pub fn symlink_metadata(&self) -> std::io::Result<std::fs::Metadata> {
         self.inner.symlink_metadata()
     }
 
-    /// SUMMARY:
     /// Set permissions on the file or directory at this path.
     ///
-    /// PARAMETERS:
-    /// - `perm` (`std::fs::Permissions`): The permissions to set.
-    ///
-    /// RETURNS:
-    /// - `io::Result<()>`: Success or I/O error.
     #[inline]
     pub fn set_permissions(&self, perm: std::fs::Permissions) -> std::io::Result<()> {
         self.inner.set_permissions(perm)
     }
 
-    /// SUMMARY:
     /// Check if the path exists, returning an error on permission issues.
     ///
-    /// DETAILS:
     /// Unlike `exists()` which returns `false` on permission errors, this method
     /// distinguishes between "path does not exist" (`Ok(false)`) and "cannot check
     /// due to permission error" (`Err(...)`).
     ///
-    /// RETURNS:
-    /// - `Ok(true)`: Path exists
-    /// - `Ok(false)`: Path does not exist
-    /// - `Err(...)`: Permission or other I/O error prevented the check
     #[inline]
     pub fn try_exists(&self) -> std::io::Result<bool> {
         self.inner.try_exists()
     }
 
-    /// SUMMARY:
     /// Create an empty file if it doesn't exist, or update the modification time if it does.
     ///
-    /// DETAILS:
     /// This is a convenience method combining file creation and mtime update.
     /// Uses `OpenOptions` with `create(true).write(true)` which creates the file
     /// if missing or opens it for writing if it exists, updating mtime on close.
     ///
-    /// RETURNS:
-    /// - `io::Result<()>`: Success or I/O error.
     pub fn touch(&self) -> std::io::Result<()> {
         self.inner.touch()
     }
 
-    /// SUMMARY:
     /// Read directory entries (discovery). Re‑join names with `virtual_join(...)` to preserve clamping.
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
         self.inner.read_dir()
     }
 
-    /// SUMMARY:
     /// Read directory entries as validated `VirtualPath` values (auto re-joins each entry).
     ///
-    /// DETAILS:
     /// Unlike `read_dir()` which returns raw `std::fs::DirEntry`, this method automatically
     /// validates each directory entry through `virtual_join()`, returning an iterator of
     /// `Result<VirtualPath<Marker>>`. This eliminates the need for manual re-validation loops
     /// while preserving the virtual path semantics.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `io::Result<VirtualReadDir<Marker>>`: Iterator yielding validated `VirtualPath` entries.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If the directory cannot be read.
     /// - Each yielded item may also be `Err` if validation fails for that entry.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::{VirtualRoot, VirtualPath};
     /// # let temp = tempfile::tempdir()?;
@@ -567,7 +507,8 @@ impl<Marker> VirtualPath<Marker> {
     /// // Iterate with automatic validation
     /// for entry in dir.virtual_read_dir()? {
     ///     let child: VirtualPath = entry?;
-    ///     println!("{}", child.virtualpath_display());
+    ///     let child_display = child.virtualpath_display();
+    ///     println!("{child_display}");
     /// }
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```

@@ -1,18 +1,23 @@
+//! `StrictOpenOptions` builder and `StrictReadDir` iterator for `StrictPath`.
+//!
+//! `StrictOpenOptions` mirrors `std::fs::OpenOptions` but operates on a validated path,
+//! so the file opened is guaranteed to be within the boundary. `StrictReadDir` wraps
+//! `std::fs::ReadDir` and re-validates each entry through `strict_join`, preventing a
+//! directory listing from producing raw paths that bypass the boundary check.
 use super::StrictPath;
 
 // ============================================================
 // StrictOpenOptions — Builder for advanced file opening
 // ============================================================
 
-/// SUMMARY:
 /// Builder for opening files with custom options (read, write, append, create, truncate, create_new).
 ///
-/// DETAILS:
 /// Use `StrictPath::open_with()` to get an instance. Chain builder methods to configure
 /// options, then call `.open()` to obtain the file handle. This mirrors `std::fs::OpenOptions`
 /// but operates on a validated `StrictPath`, so the path is guaranteed to be within its boundary.
 ///
-/// EXAMPLE:
+/// # Examples
+///
 /// ```rust
 /// # use strict_path::{PathBoundary, StrictPath};
 /// # use std::io::Write;
@@ -27,36 +32,27 @@ use super::StrictPath;
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
 #[must_use = "open_with() returns a builder — chain .read(), .write(), .create(), .open() to use it"]
-pub struct StrictOpenOptions<'a, Marker> {
-    path: &'a StrictPath<Marker>,
+pub struct StrictOpenOptions<'path, Marker> {
+    path: &'path StrictPath<Marker>,
     options: std::fs::OpenOptions,
 }
 
-impl<'a, Marker> StrictOpenOptions<'a, Marker> {
+impl<'path, Marker> StrictOpenOptions<'path, Marker> {
     /// Create a new builder with default options (all flags false).
     #[inline]
-    pub(crate) fn new(path: &'a StrictPath<Marker>) -> Self {
+    pub(crate) fn new(path: &'path StrictPath<Marker>) -> Self {
         Self {
             path,
             options: std::fs::OpenOptions::new(),
         }
     }
 
-    /// SUMMARY:
-    /// Sets the option for read access.
+    /// Set the option for read access.
     ///
     /// When `true`, the file will be readable after opening.
     ///
-    /// PARAMETERS:
-    /// - `read` (`bool`): Whether to enable read access.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `Self`: The builder with the read flag applied (for chaining).
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -72,23 +68,14 @@ impl<'a, Marker> StrictOpenOptions<'a, Marker> {
         self
     }
 
-    /// SUMMARY:
-    /// Sets the option for write access.
+    /// Set the option for write access.
     ///
     /// When `true`, the file will be writable after opening.
     /// If the file exists, writes will overwrite existing content starting at the beginning
     /// unless `.append(true)` is also set.
     ///
-    /// PARAMETERS:
-    /// - `write` (`bool`): Whether to enable write access.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `Self`: The builder with the write flag applied (for chaining).
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -103,22 +90,13 @@ impl<'a, Marker> StrictOpenOptions<'a, Marker> {
         self
     }
 
-    /// SUMMARY:
-    /// Sets the option for append mode.
+    /// Set the option for append mode.
     ///
     /// When `true`, all writes will append to the end of the file instead of overwriting.
     /// Implies `.write(true)`.
     ///
-    /// PARAMETERS:
-    /// - `append` (`bool`): Whether to enable append mode.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `Self`: The builder with the append flag applied (for chaining).
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -133,22 +111,13 @@ impl<'a, Marker> StrictOpenOptions<'a, Marker> {
         self
     }
 
-    /// SUMMARY:
-    /// Sets the option for truncating the file.
+    /// Set the option for truncating the file.
     ///
     /// When `true`, the file will be truncated to zero length upon opening.
     /// Requires `.write(true)`.
     ///
-    /// PARAMETERS:
-    /// - `truncate` (`bool`): Whether to truncate the file to zero on open.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `Self`: The builder with the truncate flag applied (for chaining).
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -164,21 +133,12 @@ impl<'a, Marker> StrictOpenOptions<'a, Marker> {
         self
     }
 
-    /// SUMMARY:
-    /// Sets the option to create the file if it doesn't exist.
+    /// Set the option to create the file if it doesn't exist.
     ///
     /// When `true`, the file will be created if missing. Requires `.write(true)` or `.append(true)`.
     ///
-    /// PARAMETERS:
-    /// - `create` (`bool`): Whether to create the file if it does not exist.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `Self`: The builder with the create flag applied (for chaining).
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -193,22 +153,13 @@ impl<'a, Marker> StrictOpenOptions<'a, Marker> {
         self
     }
 
-    /// SUMMARY:
-    /// Sets the option for exclusive creation (fail if file exists).
+    /// Set the option for exclusive creation (fail if file exists).
     ///
     /// When `true`, the file must not exist; opening will fail with `AlreadyExists` if it does.
     /// Requires `.write(true)` and implies `.create(true)`.
     ///
-    /// PARAMETERS:
-    /// - `create_new` (`bool`): Whether to require the file to not exist on open.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `Self`: The builder with the create_new flag applied (for chaining).
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -223,19 +174,10 @@ impl<'a, Marker> StrictOpenOptions<'a, Marker> {
         self
     }
 
-    /// SUMMARY:
     /// Open the file with the configured options.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `std::fs::File`: The opened file handle.
-    ///
-    /// ERRORS:
-    /// - `std::io::Error`: Propagates OS errors (file not found, permission denied, already exists, etc.).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -254,15 +196,14 @@ impl<'a, Marker> StrictOpenOptions<'a, Marker> {
 // StrictReadDir — Iterator for validated directory entries
 // ============================================================
 
-/// SUMMARY:
 /// Iterator over directory entries that yields validated `StrictPath` values.
 ///
-/// DETAILS:
 /// Created by `StrictPath::strict_read_dir()`. Each iteration automatically validates
 /// the directory entry through `strict_join()`, so you get `StrictPath` values directly
 /// instead of raw `std::fs::DirEntry` that would require manual re-validation.
 ///
-/// EXAMPLE:
+/// # Examples
+///
 /// ```rust
 /// # use strict_path::{PathBoundary, StrictPath};
 /// # let temp = tempfile::tempdir()?;
@@ -278,9 +219,9 @@ impl<'a, Marker> StrictOpenOptions<'a, Marker> {
 /// }
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
-pub struct StrictReadDir<'a, Marker> {
+pub struct StrictReadDir<'path, Marker> {
     pub(super) inner: std::fs::ReadDir,
-    pub(super) parent: &'a StrictPath<Marker>,
+    pub(super) parent: &'path StrictPath<Marker>,
 }
 
 impl<Marker> std::fmt::Debug for StrictReadDir<'_, Marker> {

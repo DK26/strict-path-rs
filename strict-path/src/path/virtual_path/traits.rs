@@ -1,3 +1,9 @@
+//! Standard trait impls for `VirtualPath`: `Display`, `Debug`, `PartialEq`, `Eq`,
+//! `PartialOrd`, `Ord`, `Hash`, and cross-type comparisons with `StrictPath`.
+//!
+//! `Display` shows the virtual path (rooted, forward-slash). `Debug` is verbose by design:
+//! it exposes both the virtual view and the real system path so developers can trace
+//! the full picture during debugging without accidentally leaking it in production output.
 use super::VirtualPath;
 use std::fmt;
 use std::hash::{Hash, Hasher};

@@ -1,9 +1,15 @@
+//! `VirtualPathDisplay` — formats a `VirtualPath` as a rooted, forward-slash string.
+//!
+//! Returns the virtual (user-facing) view, not the real system path. The real path is
+//! intentionally hidden to prevent leaking host filesystem structure in API responses,
+//! error messages, or multi-tenant UIs. Use `strictpath_display()` when the real path
+//! is needed (e.g., for system administrators or internal logging).
 use super::VirtualPath;
 use std::fmt;
 
-pub struct VirtualPathDisplay<'a, Marker>(pub(super) &'a VirtualPath<Marker>);
+pub struct VirtualPathDisplay<'vpath, Marker>(pub(super) &'vpath VirtualPath<Marker>);
 
-impl<'a, Marker> fmt::Display for VirtualPathDisplay<'a, Marker> {
+impl<'vpath, Marker> fmt::Display for VirtualPathDisplay<'vpath, Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Ensure leading slash and normalize to forward slashes for display
         let s_lossy = self.0.virtual_path.to_string_lossy();

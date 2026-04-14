@@ -36,10 +36,10 @@ mod verification {
 
         let result = virtualize(&components);
 
-        // Property: The result should only contain Normal components.
-        // This proves that the virtualization logic effectively strips all
-        // traversal (ParentDir), root resets (RootDir/Prefix), and no-ops (CurDir),
-        // leaving only a safe relative path.
+        // Invariant: the result must contain only Normal components — no traversal
+        // (`ParentDir`), root resets (`RootDir`/`Prefix`), or no-ops (`CurDir`).
+        // This proves virtual_join cannot produce a path that escapes the virtual root,
+        // regardless of what components an attacker injects.
         for comp in &result {
             match comp {
                 MockComponent::Normal => {}

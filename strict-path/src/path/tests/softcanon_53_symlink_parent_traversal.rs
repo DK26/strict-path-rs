@@ -422,8 +422,8 @@ fn strict_symlink_to_dot_parent_traversal_escape() {
         // Must be the boundary root itself
         let canonical_boundary = fs::canonicalize(&boundary_dir).unwrap();
         assert_eq!(
-            std::path::PathBuf::from(sp.interop_path()),
-            canonical_boundary,
+            sp.interop_path(),
+            canonical_boundary.as_os_str(),
             "link/.. should resolve to boundary root"
         );
     }

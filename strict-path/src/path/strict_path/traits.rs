@@ -1,3 +1,9 @@
+//! Standard trait impls for `StrictPath`: `Display`, `Debug`, `PartialEq`, `Eq`, `PartialOrd`,
+//! `Ord`, `Hash`.
+//!
+//! Equality and ordering are based solely on the underlying system path, not the marker type.
+//! This lets paths with different markers be compared when the application needs to deduplicate
+//! or sort — while the type system still prevents mixing them in security-sensitive operations.
 use super::StrictPath;
 use std::cmp::Ordering;
 use std::fmt;

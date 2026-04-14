@@ -22,92 +22,13 @@ Every rule must stand on its own without session context.
   feature), it must be because the item is structurally important (e.g. the
   repository layout table), not because it was the subject of a past debate.
 
-## ⛔ STOP: MANDATORY DESIGN KNOWLEDGE (Read Before ANY Code Changes)
+## ⛔ Read Before Any Code Changes
 
-**You MUST understand these constraints before writing ANY code in this repository:**
+Before writing or suggesting any code:
 
-1. **Canonicalization ALWAYS resolves symlinks** → You can NEVER get a `StrictPath`/`VirtualPath` pointing to a symlink itself. The path ALWAYS points to the resolved target. This is non-negotiable.
-
-2. **`strict_join()`/`virtual_join()` is where validation happens** → By the time you have a `StrictPath`, all symlinks are resolved, all `..` components are gone, and the path is proven to be within the boundary.
-
-3. **Any API that assumes "the path might be a symlink" is broken** → Because it won't be. Ever.
-
-**Before proposing ANY new filesystem API, you MUST be able to answer YES to:**
-- "Does this API work correctly when given a path that is NEVER a symlink?"
-- "Does this API work correctly when given a path with NO relative components?"
-
-**If you cannot answer YES, the API is incompatible with this crate's design. Do not implement it.**
-
----
-
-## CRITICAL: Read Project Documentation FIRST
-
-**Before making ANY suggestions or implementations:**
-
-1. **Check MCP Memory Server** - Read user preferences, frustrations, and project context stored in memory
-2. **Read relevant source files** - Study how existing features are implemented
-3. **Read issue discussion** - Understand the problem context and any prior discussions
-4. **CHECK FOR EXISTING FUNCTIONALITY** - Before implementing anything, verify it doesn't already exist in the codebase
-
-**NEVER propose designs without understanding:**
-- How the existing codebase works
-- What patterns are already established
-- What the actual requirements are
-- **What functionality already exists** - avoid redundant implementations
-
-**Failure to read documentation first wastes everyone's time and produces incorrect designs.**
-
-## CRITICAL: CHECK FOR EXISTING FUNCTIONALITY BEFORE IMPLEMENTING
-
-**When asked to implement or add functionality, you MUST:**
-
-1. **SEARCH the codebase first** - Use `grep_search` or `semantic_search` to find if the feature already exists
-2. **READ the source files** - Check module implementations and rustdoc comments for existing methods
-3. **CHECK the type definitions** - Look in relevant modules for similar implementations
-4. **VERIFY it doesn't exist** - Only after confirming absence should you propose implementation
-
-**Common mistakes that waste time:**
-- Implementing a method that already exists with a different name
-- Adding functionality that's already provided by a different API
-- Creating helpers that duplicate existing methods
-- Not checking if a feature is already implemented but just needs documentation
-
-**Before writing ANY new code, ask yourself:**
-- Does this functionality already exist somewhere?
-- Is there a similar method I should check first?
-- Have I searched the codebase for related implementations?
-- Did I check the API reference documentation?
-
-**The rule:** SEARCH FIRST, IMPLEMENT SECOND. Always.
-
-## CRITICAL: UNDERSTAND BEFORE CHANGING
-
-**ABSOLUTE REQUIREMENT: Before making ANY code changes, you MUST:**
-
-1. **READ the code you're about to change** - Never modify code you haven't read and understood
-2. **UNDERSTAND the implementation** - Know what it does, how it works, and why it exists
-3. **COMPREHEND the patterns** - Understand the design decisions and conventions used
-4. **VERIFY your understanding** - Make sure you grasp the full context before proceeding
-
-**This is NON-NEGOTIABLE:**
-- Making changes without understanding the existing code is unacceptable
-- Modifying code you haven't reviewed completely pisses off the user
-- Code comprehension ALWAYS comes before code modification
-- If you don't understand it, you don't change it - period
-
-**Workflow for ANY code change:**
-1. **FIRST:** Read and understand the existing implementation
-2. **SECOND:** Analyze the patterns, conventions, and design decisions
-3. **THIRD:** Only after full comprehension, propose or make changes
-4. **NEVER:** Skip straight to modifications without understanding
-
-**Failure to follow this requirement will:**
-- Break existing functionality
-- Violate established patterns
-- Frustrate the maintainer
-- Result in rejected contributions
-
-**Remember:** Understanding code is not optional - it's the foundation of any change.
+1. **Read the relevant source files.** Never modify code you haven't read and understood.
+2. **Search before implementing.** Verify the functionality doesn't already exist.
+3. **Critical design constraint — canonicalization always resolves symlinks.** You can never get a `StrictPath`/`VirtualPath` pointing to a symlink itself. Any API that assumes a path might be a symlink is fundamentally incompatible with this crate. See [Critical Design Implication](#critical-design-implication-strictpathvirtualpath-are-always-resolved) below.
 
 ## Build & Test
 

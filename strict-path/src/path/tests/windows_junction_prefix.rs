@@ -255,10 +255,10 @@ fn test_virtual_path_junction_prefix_mismatch() {
     );
 
     // System path should be valid and not duplicated
-    // Use as_unvirtual() to access StrictPath methods
     let system_str = file_through_link
         .as_unvirtual()
-        .strictpath_display().to_string();
+        .strictpath_display()
+        .to_string();
     println!("System path: {system_str}");
     assert_eq!(
         system_str.matches("real_data").count(),
