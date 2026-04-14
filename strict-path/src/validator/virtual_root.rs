@@ -329,6 +329,9 @@ impl<Marker> VirtualRoot<Marker> {
     // the actual location (e.g., "~/.config/myapp/config.toml").
 }
 
+/// Display shows "/": The real system path must never appear in user-facing output
+/// (logs, API responses, error messages).  Showing "/" reinforces that VirtualRoot
+/// represents a virtual namespace root, not a concrete filesystem location.
 impl<Marker> std::fmt::Display for VirtualRoot<Marker> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "/")
@@ -381,6 +384,9 @@ impl<M1, M2> PartialEq<crate::PathBoundary<M2>> for VirtualRoot<M1> {
     }
 }
 
+/// compare against "/": VirtualRoot's public identity is the virtual namespace root.
+/// Comparing against the real system path would leak implementation details and break the
+/// abstraction — callers should never need to know the underlying directory.
 impl<Marker> PartialEq<std::path::Path> for VirtualRoot<Marker> {
     #[inline]
     fn eq(&self, other: &std::path::Path) -> bool {

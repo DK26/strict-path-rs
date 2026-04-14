@@ -42,6 +42,10 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
     path: impl AsRef<Path>,
     restriction: &PathBoundary<Marker>,
 ) -> Result<StrictPath<Marker>> {
+    // Relative paths are anchored to the boundary so they cannot be
+    // interpreted relative to the process CWD (which is outside our control).
+    // Absolute paths are accepted as-is because canonicalization + boundary_check
+    // will still reject any path that resolves outside the boundary.
     let target_path = if path.as_ref().is_absolute() {
         path.as_ref().to_path_buf()
     } else {

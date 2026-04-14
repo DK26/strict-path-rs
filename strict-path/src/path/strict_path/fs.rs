@@ -167,6 +167,10 @@ impl<Marker> StrictPath<Marker> {
         match self.strictpath_parent() {
             Ok(Some(parent)) => parent.create_dir(),
             Ok(None) => Ok(()),
+            // Ok(()): At the boundary root, the "parent" would escape the
+            // boundary, but there is nothing to create — the boundary dir already
+            // exists.  Returning an error here would force every caller to handle
+            // a case that never requires action.
             Err(StrictPathError::PathEscapesBoundary { .. }) => Ok(()),
             Err(e) => Err(std::io::Error::other(e)),
         }
@@ -193,6 +197,8 @@ impl<Marker> StrictPath<Marker> {
         match self.strictpath_parent() {
             Ok(Some(parent)) => parent.create_dir_all(),
             Ok(None) => Ok(()),
+            // Ok(()): Same rationale as create_parent_dir — boundary root's
+            // parent escapes, but the boundary itself already exists; no action needed.
             Err(StrictPathError::PathEscapesBoundary { .. }) => Ok(()),
             Err(e) => Err(std::io::Error::other(e)),
         }

@@ -10,6 +10,13 @@ use std::path::Path;
 // Windows symlink helper
 // ============================================================
 
+/// Create a Windows symlink, selecting file vs directory variant by target metadata.
+///
+/// Windows requires the caller to choose `symlink_file` or `symlink_dir` at
+/// creation time (unlike Unix where a single `symlink` call works for both).  When
+/// the target exists we inspect its metadata.  When the target is missing we optimistically
+/// try `symlink_file`; if the OS returns ERROR_DIRECTORY (267) — meaning the target resolved
+/// as a directory through another link — we retry with `symlink_dir`.
 #[cfg(windows)]
 pub(super) fn create_windows_symlink(src: &Path, link: &Path) -> std::io::Result<()> {
     use std::os::windows::fs::{symlink_dir, symlink_file};
