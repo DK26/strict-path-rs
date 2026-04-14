@@ -1,10 +1,10 @@
 # .cursorrules — strict-path-rs
 
-This repository uses `AGENTS.md` as the single source of truth for AI agent guidance.
+This repository uses `AGENTS.md` as the hub with `.agents/*.md` satellite files for topic-specific depth.
 
 ## Quick rules
 
-- Read `AGENTS.md` before making any code changes.
+- Read `AGENTS.md` before making any code changes; read `.agents/*.md` satellites for topic depth.
 - Read `LLM_CONTEXT_FULL.md` for the full API reference (types, methods, features).
 - Validate untrusted segments via `strict_join`/`virtual_join` before any I/O.
 - Use `interop_path()` for OS calls; `strictpath_display()`/`virtualpath_display()` for user output.
