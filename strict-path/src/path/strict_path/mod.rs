@@ -123,10 +123,6 @@ impl<Marker> StrictPath<Marker> {
 
     /// Return the underlying system path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop.
     ///
-    /// # Errors
-    ///
-    /// - None (infallible).
-    ///
     /// # Examples
     ///
     /// ```rust
@@ -146,10 +142,6 @@ impl<Marker> StrictPath<Marker> {
 
     /// Return a `Display` wrapper that shows the real system path.
     ///
-    /// # Errors
-    ///
-    /// - None (infallible).
-    ///
     /// # Examples
     ///
     /// ```rust
@@ -167,10 +159,6 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// Consume and return the inner `PathBuf` (escape hatch). Prefer `.interop_path()` (third-party adapters only) to borrow.
-    ///
-    /// # Errors
-    ///
-    /// - None (infallible).
     ///
     /// # Examples
     ///
@@ -190,10 +178,6 @@ impl<Marker> StrictPath<Marker> {
     }
 
     /// Convert this `StrictPath` into a user‑facing `VirtualPath`.
-    ///
-    /// # Errors
-    ///
-    /// - None (infallible).
     ///
     /// # Examples
     ///
@@ -225,10 +209,6 @@ impl<Marker> StrictPath<Marker> {
     /// - When converting between path types - conversions preserve markers automatically
     /// - When the current marker already matches your needs - no transformation needed
     /// - When you haven't verified authorization - NEVER change markers without checking permissions
-    ///
-    /// # Errors
-    ///
-    /// - `_none_`
     ///
     /// SECURITY:
     /// The caller MUST ensure the new marker reflects real-world permissions. This method does not
@@ -466,11 +446,7 @@ impl<Marker> StrictPath<Marker> {
         self.boundary.strict_join(new_systempath)
     }
 
-    /// Returns the file name component of the system path, if any.
-    ///
-    /// # Errors
-    ///
-    /// - None (infallible).
+    /// Return the file name component of the system path, if any.
     ///
     /// # Examples
     ///
@@ -488,11 +464,7 @@ impl<Marker> StrictPath<Marker> {
         self.path.file_name()
     }
 
-    /// Returns the file stem of the system path, if any.
-    ///
-    /// # Errors
-    ///
-    /// - None (infallible).
+    /// Return the file stem of the system path, if any.
     ///
     /// # Examples
     ///
@@ -510,11 +482,7 @@ impl<Marker> StrictPath<Marker> {
         self.path.file_stem()
     }
 
-    /// Returns the extension of the system path, if any.
-    ///
-    /// # Errors
-    ///
-    /// - None (infallible).
+    /// Return the extension of the system path, if any.
     ///
     /// # Examples
     ///
@@ -532,11 +500,7 @@ impl<Marker> StrictPath<Marker> {
         self.path.extension()
     }
 
-    /// Returns `true` if the system path starts with the given prefix.
-    ///
-    /// # Errors
-    ///
-    /// - None (infallible).
+    /// Return `true` if the system path starts with the given prefix.
     ///
     /// # Examples
     ///
@@ -555,11 +519,7 @@ impl<Marker> StrictPath<Marker> {
         self.path.starts_with(p.as_ref())
     }
 
-    /// Returns `true` if the system path ends with the given suffix.
-    ///
-    /// # Errors
-    ///
-    /// - None (infallible).
+    /// Return `true` if the system path ends with the given suffix.
     ///
     /// # Examples
     ///
@@ -577,11 +537,9 @@ impl<Marker> StrictPath<Marker> {
         self.path.ends_with(p.as_ref())
     }
 
-    /// Returns `true` if the system path exists.
+    /// Return `true` if the system path exists.
     ///
-    /// # Errors
-    ///
-    /// - None (infallible — permission errors return `false`; use `try_exists` to distinguish).
+    /// Permission errors return `false`; use `try_exists` to distinguish.
     ///
     /// # Examples
     ///
@@ -600,11 +558,7 @@ impl<Marker> StrictPath<Marker> {
         self.path.exists()
     }
 
-    /// Returns `true` if the system path is a file.
-    ///
-    /// # Errors
-    ///
-    /// - None (infallible).
+    /// Return `true` if the system path is a file.
     ///
     /// # Examples
     ///
@@ -623,11 +577,7 @@ impl<Marker> StrictPath<Marker> {
         self.path.is_file()
     }
 
-    /// Returns `true` if the system path is a directory.
-    ///
-    /// # Errors
-    ///
-    /// - None (infallible).
+    /// Return `true` if the system path is a directory.
     ///
     /// # Examples
     ///
@@ -645,11 +595,7 @@ impl<Marker> StrictPath<Marker> {
         self.path.is_dir()
     }
 
-    /// Returns the metadata for the system path.
-    ///
-    /// # Errors
-    ///
-    /// - `std::io::Error`: If the path does not exist or cannot be accessed.
+    /// Return the metadata for the system path.
     ///
     /// # Examples
     ///

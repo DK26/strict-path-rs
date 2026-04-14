@@ -33,6 +33,11 @@ pub struct VirtualPath<Marker = ()> {
     pub(crate) virtual_path: PathBuf,
 }
 
+/// Re-validate a canonicalized path against the boundary after virtual-space manipulation.
+///
+/// Every virtual mutation (join, parent, with_*) produces a candidate in virtual space that
+/// must be re-anchored and boundary-checked before it becomes a real `StrictPath`. This
+/// centralizes that re-validation so each caller does not duplicate the check.
 #[inline]
 fn clamp<Marker, H>(
     restriction: &PathBoundary<Marker>,
@@ -58,6 +63,11 @@ impl<Marker> VirtualPath<Marker> {
 
     #[inline]
     pub(crate) fn new(strict_path: StrictPath<Marker>) -> Self {
+        /// Derive the user-facing virtual path from the real system path and boundary.
+        ///
+        /// WHY: Users must never see the real host path (leaks tenant IDs, infra details).
+        /// This function strips the boundary prefix from the system path and sanitizes
+        /// the remaining components to produce a safe, rooted virtual view.
         fn compute_virtual<Marker>(
             system_path: &std::path::Path,
             restriction: &crate::PathBoundary<Marker>,
@@ -65,6 +75,9 @@ impl<Marker> VirtualPath<Marker> {
             use std::ffi::OsString;
             use std::path::Component;
 
+            // WHY: Windows canonicalization adds a `\\?\` verbatim prefix that breaks
+            // `strip_prefix` comparisons between system_path and jail_norm. Remove it
+            // so prefix-based derivation of the virtual path works correctly.
             #[cfg(windows)]
             fn strip_verbatim(p: &std::path::Path) -> std::path::PathBuf {
                 let s = p.as_os_str().to_string_lossy();
@@ -85,11 +98,16 @@ impl<Marker> VirtualPath<Marker> {
             let system_norm = strip_verbatim(system_path);
             let jail_norm = strip_verbatim(restriction.path());
 
+            // Fast path: strip the boundary prefix directly. This works when both
+            // paths share a common prefix after verbatim normalization.
             if let Ok(stripped) = system_norm.strip_prefix(&jail_norm) {
                 let mut cleaned = std::path::PathBuf::new();
                 for comp in stripped.components() {
                     if let Component::Normal(name) = comp {
                         let s = name.to_string_lossy();
+                        // WHY: Newlines and semicolons in path components can
+                        // enable log injection and HTTP header injection when
+                        // the virtual path appears in user-facing output.
                         let cleaned_s = s.replace(['\n', ';'], "_");
                         if cleaned_s == s {
                             cleaned.push(name);
@@ -101,6 +119,9 @@ impl<Marker> VirtualPath<Marker> {
                 return cleaned;
             }
 
+            // Fallback: when strip_prefix fails (e.g., case differences on
+            // Windows, or UNC vs local prefix mismatch), walk components
+            // manually and skip the shared prefix with platform-aware comparison.
             let mut strictpath_comps: Vec<_> = system_norm
                 .components()
                 .filter(|c| !matches!(c, Component::Prefix(_) | Component::RootDir))
@@ -175,10 +196,6 @@ impl<Marker> VirtualPath<Marker> {
     /// - When converting between path types - conversions preserve markers automatically
     /// - When the current marker already matches your needs - no transformation needed
     /// - When you haven't verified authorization - NEVER change markers without checking permissions
-    ///
-    /// # Errors
-    ///
-    /// - `_none_`
     ///
     /// SECURITY:
     /// This method performs no permission checks. Only elevate markers after verifying real

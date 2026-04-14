@@ -7,6 +7,9 @@ use std::error::Error;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+/// Maximum characters shown per path in error messages. Paths longer than this are
+/// truncated with `...` in the middle to keep diagnostics readable without hiding
+/// the meaningful prefix and suffix (drive letter / filename).
 const MAX_ERROR_PATH_LEN: usize = 256;
 
 // Internal helper: render error-friendly path display (truncate long values).

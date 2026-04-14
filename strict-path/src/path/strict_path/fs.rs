@@ -68,10 +68,6 @@ impl<Marker> StrictPath<Marker> {
 
     /// Return an options builder for advanced file opening (read+write, append, exclusive create, etc.).
     ///
-    /// # Errors
-    ///
-    /// - None (infallible — errors are deferred to `.open()`).
-    ///
     /// # Examples
     ///
     /// ```rust
