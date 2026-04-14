@@ -360,7 +360,7 @@ fn whitebox_symlink_inside_proc_namespace() {
             assert!(
                 path.strictpath_starts_with(container_dir.interop_path()),
                 "Symlink escape: {} is outside boundary",
-                path.strictpath_display().to_string()
+                path.strictpath_display()
             );
         }
         Err(e) => {

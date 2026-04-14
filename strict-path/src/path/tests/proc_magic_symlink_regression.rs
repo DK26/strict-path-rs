@@ -110,10 +110,7 @@ fn regression_escaping_symlinks_rejected() {
             // Expected
         }
         Ok(path) => {
-            panic!(
-                "Symlink escape was allowed: {}",
-                path.strictpath_display().to_string()
-            );
+            panic!("Symlink escape was allowed: {}", path.strictpath_display());
         }
         Err(e) => {
             // Other errors may be acceptable
@@ -175,7 +172,7 @@ fn edge_case_empty_segments_in_proc_namespace() {
                     path.strictpath_starts_with(container_dir.interop_path()),
                     "Pattern '{}' escaped: {}",
                     pattern,
-                    path.strictpath_display().to_string()
+                    path.strictpath_display()
                 );
             }
         }

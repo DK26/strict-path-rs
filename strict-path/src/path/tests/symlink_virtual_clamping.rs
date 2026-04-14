@@ -248,7 +248,7 @@ fn virtual_join_clamps_absolute_paths_before_symlink_creation() {
         );
 
         // It should point to a path within the temp directory (our virtual root)
-        let temp_path = td.strictpath_display().to_string();
+        let temp_path = td.path().to_string_lossy();
         assert!(
             target_str.contains(&*temp_path),
             "Symlink should point within virtual root temp dir, got: {target_str}"

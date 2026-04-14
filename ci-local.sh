@@ -434,8 +434,10 @@ get_changed_demo_files_ci() {
             demo_changes+=("$change")
         fi
     done
-    
-    printf '%s\n' "${demo_changes[@]}"
+
+    if [[ ${#demo_changes[@]} -gt 0 ]]; then
+        printf '%s\n' "${demo_changes[@]}"
+    fi
 }
 
 # Function to extract binary names from demo file paths
@@ -451,7 +453,9 @@ get_binary_names_from_paths_ci() {
     done
     
     # Remove duplicates and sort
-    printf '%s\n' "${binary_names[@]}" | sort -u
+    if [[ ${#binary_names[@]} -gt 0 ]]; then
+        printf '%s\n' "${binary_names[@]}" | sort -u
+    fi
 }
 
 # Determine what demos to test
