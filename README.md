@@ -124,25 +124,7 @@ https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md
 
 ---
 
-## 🔗 **Interop with Third-Party Crates**
-
-When a third-party crate needs `AsRef<Path>`, use `.interop_path()`:
-
-```rust
-use strict_path::StrictPath;
-
-let file = StrictPath::with_boundary("/var/app/data")?
-    .strict_join(&user_input)?;
-
-external_crate::open(file.interop_path()); // &OsStr — implements AsRef<Path>
-file.read_to_string()?;                    // Built-in I/O — no interop needed
-```
-
-Prefer built-in I/O when possible. For display/logging, use `.strictpath_display()` or `.virtualpath_display()` — never expose `.interop_path()` to end users.
-
----
-
-## 🚀 **More Real-World Examples**
+##  **More Real-World Examples**
 
 ### Archive Extraction (Zip Slip Prevention)
 
@@ -219,8 +201,6 @@ let sys_file = sys_boundary.strict_join("config.toml")?;
 - `soft-canonicalize` = low-level path resolution engine (returns `PathBuf`)
 - `strict-path` = high-level security API (returns `StrictPath<Marker>` with compile-time guarantees: fit for LLM era)
 
-> 📖 **[Security Methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 📚 **[Anti-Patterns Guide →](https://dk26.github.io/strict-path-rs/anti_patterns.html)**
-
 ---
 
 ## 🔌 **Ecosystem Integration**
@@ -242,16 +222,7 @@ Compose with standard Rust crates for complete solutions:
 
 ## 📚 **Learn More**
 
-- 📖 **[API Documentation](https://docs.rs/strict-path)** - Complete API reference
-- 📚 **[User Guide](https://dk26.github.io/strict-path-rs/)** - Tutorials and patterns
-  - [Best Practices](https://dk26.github.io/strict-path-rs/best_practices.html) - Detailed decision matrix
-  - [Anti-Patterns](https://dk26.github.io/strict-path-rs/anti_patterns.html) - Common mistakes
-  - [Examples](https://dk26.github.io/strict-path-rs/examples/overview.html) - Copy-paste scenarios
-- 🔧 **[LLM_CONTEXT_FULL.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md)** - Full API reference for AI agents
-- 📝 **[LLM_CONTEXT.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md)** - Context7-style usage guide for AI agents
-- 🛠️ **[`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)** - Path resolution engine
-
-📚 **[Complete Guide & Examples](https://dk26.github.io/strict-path-rs/)** | 📖 **[API Docs](https://docs.rs/strict-path)** | 🧭 **[Choosing Canonicalized vs Lexical Solution](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)**
+📖 **[API Docs](https://docs.rs/strict-path)** | 📚 **[User Guide](https://dk26.github.io/strict-path-rs/)** | 📚 **[Anti-Patterns](https://dk26.github.io/strict-path-rs/anti_patterns.html)** | 📖 **[Security Methodology](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 🧭 **[Canonicalized vs Lexical](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)** | 🛠️ **[`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)**
 
 ---
 
