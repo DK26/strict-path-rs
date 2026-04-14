@@ -1,6 +1,6 @@
 // Cargo.toml
 // [dependencies]
-// strict-path = "0.1.0-alpha.1"
+// strict-path = "0.2"
 // zip = "0.6"
 // tar = "0.4"
 // flate2 = "1.0"

@@ -55,15 +55,13 @@ fn following_symlink_pointing_outside_vroot() {
         .expect("Symlink should be resolved with clamping");
 
     // EXPECTED BEHAVIOR: Symlink target should be CLAMPED to virtual root
-    // interop_path() returns ALREADY CANONICALIZED &OsStr from our secure types
-    // &OsStr implements AsRef<Path>, so Path::starts_with() accepts it directly
-    // Canonicalize vroot for comparison (macOS has /var -> /private/var symlink)
-    let system_path = vpath.interop_path();
+    // Use strictpath_starts_with for security invariant checks
     let canonical_vroot = std::fs::canonicalize(td.path()).unwrap();
 
     assert!(
-        AsRef::<std::path::Path>::as_ref(system_path).starts_with(&canonical_vroot),
-        "Symlink target MUST be clamped within virtual root.\nGot: {system_path:?}\nVRoot: {canonical_vroot:?}\nOriginal target: {external_target:?}"
+        vpath.as_unvirtual().strictpath_starts_with(&canonical_vroot),
+        "Symlink target MUST be clamped within virtual root.\nGot: {:?}\nVRoot: {canonical_vroot:?}\nOriginal target: {external_target:?}",
+        vpath.as_unvirtual().strictpath_display()
     );
 
     // The clamped path should include the original absolute path structure
@@ -76,7 +74,8 @@ fn following_symlink_pointing_outside_vroot() {
         let expected_clamped = canonical_vroot.join(external_stripped);
 
         assert_eq!(
-            system_path, expected_clamped,
+            vpath.as_unvirtual().strictpath_display().to_string(),
+            expected_clamped.to_string_lossy(),
             "Clamped path should preserve original absolute path structure within vroot"
         );
     }
@@ -86,7 +85,9 @@ fn following_symlink_pointing_outside_vroot() {
         // On Windows, the absolute path structure is preserved differently
         // Just verify it's within vroot
         assert!(
-            AsRef::<std::path::Path>::as_ref(system_path).starts_with(&canonical_vroot),
+            vpath
+                .as_unvirtual()
+                .strictpath_starts_with(&canonical_vroot),
             "Clamped path should be within vroot on Windows"
         );
     }
@@ -144,16 +145,13 @@ fn following_junction_pointing_outside_vroot() {
         .expect("Junction should be resolved with clamping");
 
     // EXPECTED BEHAVIOR: Junction target should be CLAMPED to virtual root
-    // interop_path() returns ALREADY CANONICALIZED &OsStr from our secure types
-    // &OsStr implements AsRef<Path>, so Path::starts_with() accepts it directly
-    let system_path = vpath.interop_path();
-
-    // Canonicalize vroot to match the format of the already-canonicalized system_path
+    // Use crate's own API for security invariant checks
     let canonical_vroot = std::fs::canonicalize(td.path()).unwrap();
 
     assert!(
-        AsRef::<std::path::Path>::as_ref(system_path).starts_with(&canonical_vroot),
-        "Junction target MUST be clamped within virtual root.\nGot: {system_path:?}\nVRoot: {canonical_vroot:?}\nOriginal target: {external_target:?}"
+        vpath.as_unvirtual().strictpath_starts_with(&canonical_vroot),
+        "Junction target MUST be clamped within virtual root.\nGot: {:?}\nVRoot: {canonical_vroot:?}\nOriginal target: {external_target:?}",
+        vpath.as_unvirtual().strictpath_display()
     );
 
     // Reading the clamped location should NOT return external content
@@ -213,16 +211,13 @@ fn following_junction_with_relative_escape() {
         .expect("Junction should be resolved with clamping");
 
     // EXPECTED BEHAVIOR: Junction target should be CLAMPED to virtual root
-    // interop_path() returns ALREADY CANONICALIZED &OsStr from our secure types
-    // &OsStr implements AsRef<Path>, so Path::starts_with() accepts it directly
-    let system_path = vpath.interop_path();
-
-    // Canonicalize vroot to match the format of the already-canonicalized system_path
+    // Use crate's own API for security invariant checks
     let canonical_vroot = std::fs::canonicalize(td.path()).unwrap();
 
     assert!(
-        AsRef::<std::path::Path>::as_ref(system_path).starts_with(&canonical_vroot),
-        "Junction target MUST be clamped within virtual root.\nGot: {system_path:?}\nVRoot: {canonical_vroot:?}\nOriginal target: {external_target:?}"
+        vpath.as_unvirtual().strictpath_starts_with(&canonical_vroot),
+        "Junction target MUST be clamped within virtual root.\nGot: {:?}\nVRoot: {canonical_vroot:?}\nOriginal target: {external_target:?}",
+        vpath.as_unvirtual().strictpath_display()
     );
 
     // Reading the clamped location should NOT return external content

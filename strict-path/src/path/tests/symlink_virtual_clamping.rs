@@ -449,7 +449,7 @@ fn virtual_join_with_traversal_attempts_clamps_to_root() {
     let escaped = vroot.virtual_join("../../../../etc/passwd").unwrap();
 
     // Should be clamped to vroot/etc/passwd, not escape to system /etc/passwd
-    let escaped_system = escaped.interop_path().to_string_lossy();
+    let escaped_system = escaped.as_unvirtual().strictpath_display().to_string();
     let vroot_canonical = std::fs::canonicalize(td.path()).unwrap();
     let vroot_str = vroot_canonical.to_string_lossy();
 
@@ -537,8 +537,8 @@ fn virtual_hard_link_from_root_with_absolute_target() {
 
     // Verify link was created at the clamped location within vroot
     assert!(link.exists(), "Hard link should exist");
-    let link_system = link.interop_path().to_string_lossy();
-    let vroot_path = td.path().to_string_lossy();
+    let link_system = link.as_unvirtual().strictpath_display().to_string();
+    let vroot_path = td.path().display().to_string();
     assert!(
         link_system.contains(&*vroot_path),
         "Link should be inside vroot, got: {link_system}"

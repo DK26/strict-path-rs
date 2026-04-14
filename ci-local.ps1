@@ -561,47 +561,47 @@ if (Get-Command cargo-audit -ErrorAction SilentlyContinue) {
 }
 
 # Check MSRV compatibility (same as GitHub Actions)
-Write-Host "Checking Minimum Supported Rust Version (1.71.0)..." -ForegroundColor Cyan
+Write-Host "Checking Minimum Supported Rust Version (1.76.0)..." -ForegroundColor Cyan
 if (Get-Command rustup -ErrorAction SilentlyContinue) {
     $toolchains = & rustup toolchain list
     if ($toolchains -match "1\.71\.0") {
-        Write-Host "SUCCESS: Found Rust 1.71.0 toolchain, checking MSRV compatibility..." -ForegroundColor Green
+        Write-Host "SUCCESS: Found Rust 1.76.0 toolchain, checking MSRV compatibility..." -ForegroundColor Green
 
         # Ensure Clippy is installed for MSRV
-        if (-not (& rustup component list --toolchain 1.71.0 | Select-String "clippy.*(installed)")) {
-            Write-Host "Installing Clippy for Rust 1.71.0..." -ForegroundColor Blue
-            & rustup component add clippy --toolchain 1.71.0
+        if (-not (& rustup component list --toolchain 1.76.0 | Select-String "clippy.*(installed)")) {
+            Write-Host "Installing Clippy for Rust 1.76.0..." -ForegroundColor Blue
+            & rustup component add clippy --toolchain 1.76.0
         }
 
         Write-Host "Running MSRV checks against library package (no demos)..." -ForegroundColor Blue
-    Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
-    Run-Check-Try "MSRV Check (Rust 1.71.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose"
-    Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
-    Run-Check-Try "MSRV Clippy Lint (no features)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
-    Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose"
+    Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
+    Run-Check-Try "MSRV Check (Rust 1.76.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo check --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo check --locked -p strict-path --lib --verbose"
+    Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
+    Run-Check-Try "MSRV Clippy Lint (no features)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
+    Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo test --locked -p strict-path --lib --all-features --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo test --locked -p strict-path --lib --all-features --verbose"
     } else {
-        Write-Host "WARNING: Rust 1.71.0 not installed. Installing for MSRV check..." -ForegroundColor Yellow
+        Write-Host "WARNING: Rust 1.76.0 not installed. Installing for MSRV check..." -ForegroundColor Yellow
         try {
-            & rustup toolchain install 1.71.0
+            & rustup toolchain install 1.76.0
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "Installing Clippy for Rust 1.71.0..." -ForegroundColor Blue
-                & rustup component add clippy --toolchain 1.71.0
-                Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
-                Run-Check-Try "MSRV Check (Rust 1.71.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo check --locked -p strict-path --lib --verbose"
-                Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
-                Run-Check-Try "MSRV Clippy Lint (no features)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
-                Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.71.0 cargo test --locked -p strict-path --lib --all-features --verbose"
+                Write-Host "Installing Clippy for Rust 1.76.0..." -ForegroundColor Blue
+                & rustup component add clippy --toolchain 1.76.0
+                Run-Fix "MSRV Clippy Auto-fix" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo clippy -p strict-path --lib --fix --allow-dirty --allow-staged --all-features" | Out-Null
+                Run-Check-Try "MSRV Check (Rust 1.76.0)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo check --locked -p strict-path --lib --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo check --locked -p strict-path --lib --verbose"
+                Run-Check-Try "MSRV Clippy Lint" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo clippy --locked -p strict-path --lib --all-features -- -D warnings"
+                Run-Check-Try "MSRV Clippy Lint (no features)" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo clippy --locked -p strict-path --lib --no-default-features -- -D warnings"
+                Run-Check-Try "MSRV Test" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo test --locked -p strict-path --lib --all-features --verbose" "`$env:CARGO_TARGET_DIR='target/msrv'; rustup run 1.76.0 cargo test --locked -p strict-path --lib --all-features --verbose"
             } else {
                 throw "toolchain install failed"
             }
         } catch {
-            Write-Host "ERROR: Failed to install Rust 1.71.0. Skipping MSRV check." -ForegroundColor Red
-            Write-Host "INFO: To install manually: rustup toolchain install 1.71.0" -ForegroundColor Yellow
+            Write-Host "ERROR: Failed to install Rust 1.76.0. Skipping MSRV check." -ForegroundColor Red
+            Write-Host "INFO: To install manually: rustup toolchain install 1.76.0" -ForegroundColor Yellow
         }
     }
 } else {
     Write-Host "WARNING: rustup not found. Skipping MSRV check." -ForegroundColor Yellow
-    Write-Host "INFO: MSRV check requires rustup to install Rust 1.71.0" -ForegroundColor Yellow
+    Write-Host "INFO: MSRV check requires rustup to install Rust 1.76.0" -ForegroundColor Yellow
 }
 
 Write-Host "SUCCESS: All CI checks passed!" -ForegroundColor Green

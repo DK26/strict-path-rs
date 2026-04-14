@@ -1,3 +1,8 @@
+//! Symlink, junction, copy, and rename operations for `StrictPath`.
+//!
+//! `strict_symlink` and `strict_junction` accept the link location as a raw `&OsStr` because
+//! the link file does not yet exist — there is nothing to canonicalize. The link's parent
+//! directory is validated through `strict_join`; the final name component is appended after.
 use super::StrictPath;
 use std::path::Path;
 
@@ -5,6 +10,13 @@ use std::path::Path;
 // Windows symlink helper
 // ============================================================
 
+/// Create a Windows symlink, selecting file vs directory variant by target metadata.
+///
+/// Windows requires the caller to choose `symlink_file` or `symlink_dir` at
+/// creation time (unlike Unix where a single `symlink` call works for both).  When
+/// the target exists we inspect its metadata.  When the target is missing we optimistically
+/// try `symlink_file`; if the OS returns ERROR_DIRECTORY (267) — meaning the target resolved
+/// as a directory through another link — we retry with `symlink_dir`.
 #[cfg(windows)]
 pub(super) fn create_windows_symlink(src: &Path, link: &Path) -> std::io::Result<()> {
     use std::os::windows::fs::{symlink_dir, symlink_file};
@@ -38,7 +50,6 @@ pub(super) fn create_windows_symlink(src: &Path, link: &Path) -> std::io::Result
 // Note: No separate helper for junction creation by design — keep surface minimal
 
 impl<Marker> StrictPath<Marker> {
-    /// SUMMARY:
     /// Create a symbolic link at `link_path` pointing to this path (same boundary required).
     /// On Windows, file vs directory symlink is selected by target metadata (or best‑effort when missing).
     /// Relative paths are resolved as siblings; absolute paths are validated against the boundary.
@@ -49,20 +60,20 @@ impl<Marker> StrictPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.boundary().strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
                 Ok(None) => match self.boundary().clone().into_strictpath() {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
@@ -79,7 +90,6 @@ impl<Marker> StrictPath<Marker> {
         Ok(())
     }
 
-    /// SUMMARY:
     /// Read the target of a symbolic link and validate it is within the boundary.
     ///
     /// DESIGN NOTE:
@@ -90,7 +100,8 @@ impl<Marker> StrictPath<Marker> {
     /// To read a symlink target before validation, use `std::fs::read_link` on the raw
     /// path, then validate the target with `strict_join`:
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// use strict_path::PathBoundary;
     ///
@@ -132,10 +143,9 @@ impl<Marker> StrictPath<Marker> {
         // Validate the resolved target against the boundary
         self.boundary()
             .strict_join(resolved_target)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+            .map_err(std::io::Error::other)
     }
 
-    /// SUMMARY:
     /// Create a hard link at `link_path` pointing to this path (same boundary; caller creates parents).
     /// Relative paths are resolved as siblings; absolute paths are validated against the boundary.
     pub fn strict_hard_link<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
@@ -145,39 +155,35 @@ impl<Marker> StrictPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.boundary().strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
                 Ok(None) => match self.boundary().clone().into_strictpath() {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
         std::fs::hard_link(self.path(), validated_link.path())
     }
 
-    /// SUMMARY:
     /// Create a Windows NTFS directory junction at `link_path` pointing to this path.
     ///
-    /// DETAILS:
     /// - Windows-only and behind the `junctions` crate feature.
     /// - Junctions are directory-only. This call will fail if the target is not a directory.
     /// - Both `self` (target) and `link_path` must be within the same `PathBoundary`.
     /// - Parents for `link_path` are not created automatically; call `create_parent_dir_all()` first.
     ///
-    /// RETURNS:
-    /// - `io::Result<()>`: Mirrors OS semantics (and `junction` crate behavior).
+    /// # Errors
     ///
-    /// ERRORS:
     /// - Returns an error if the target is not a directory, or the OS call fails.
     #[cfg(all(windows, feature = "junctions"))]
     pub fn strict_junction<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
@@ -187,28 +193,27 @@ impl<Marker> StrictPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.boundary().strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
                 Ok(None) => match self.boundary().clone().into_strictpath() {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.strict_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
         // Validate target is a directory (junctions are directory-only)
         let meta = std::fs::metadata(self.path())?;
         if !meta.is_dir() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(std::io::Error::other(
                 "junction targets must be directories",
             ));
         }
@@ -216,14 +221,12 @@ impl<Marker> StrictPath<Marker> {
         // The junction crate does not handle verbatim `\\?\` prefix paths correctly.
         // It creates broken junctions that return ERROR_INVALID_NAME (123) when accessed.
         // Strip the prefix before passing to the junction crate.
-        // See: https://github.com/tesuji/junction/issues/30
         let target_path = super::strip_verbatim_prefix(self.path());
         let link_path = super::strip_verbatim_prefix(validated_link.path());
 
         junction::create(target_path.as_ref(), link_path.as_ref())
     }
 
-    /// SUMMARY:
     /// Rename/move within the same boundary. Relative destinations are siblings; absolute are validated.
     /// Parents are not created automatically.
     pub fn strict_rename<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<()> {
@@ -233,27 +236,26 @@ impl<Marker> StrictPath<Marker> {
         let dest_path = if dest_ref.is_absolute() {
             match self.boundary().strict_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
                 Ok(None) => match self.boundary().clone().into_strictpath() {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.strict_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
         std::fs::rename(self.path(), dest_path.path())
     }
 
-    /// SUMMARY:
     /// Copy within the same boundary. Relative destinations are siblings; absolute are validated.
     /// Parents are not created automatically. Returns bytes copied.
     pub fn strict_copy<P: AsRef<Path>>(&self, dest: P) -> std::io::Result<u64> {
@@ -263,20 +265,20 @@ impl<Marker> StrictPath<Marker> {
         let dest_path = if dest_ref.is_absolute() {
             match self.boundary().strict_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.strictpath_parent() {
                 Ok(Some(p)) => p,
                 Ok(None) => match self.boundary().clone().into_strictpath() {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.strict_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 

@@ -23,13 +23,13 @@ fn truncate_path_display_inserts_ellipsis_for_long_paths() {
 fn strict_path_error_sources_are_reported() {
     let invalid = StrictPathError::InvalidRestriction {
         restriction: PathBuf::from("/root"),
-        source: io::Error::new(io::ErrorKind::Other, "boom"),
+        source: io::Error::other("boom"),
     };
     assert!(invalid.source().is_some());
 
     let resolution = StrictPathError::PathResolutionError {
         path: PathBuf::from("/root/file"),
-        source: io::Error::new(io::ErrorKind::Other, "fail"),
+        source: io::Error::other("fail"),
     };
     assert!(resolution.source().is_some());
 
@@ -47,7 +47,8 @@ fn path_escape_display_mentions_attempt_and_boundary() {
         restriction_boundary: PathBuf::from("/tmp/restriction"),
     };
     let rendered = error.to_string();
-    assert!(rendered.contains("escapes path restriction boundary"));
+    assert!(rendered.contains("escapes"));
+    assert!(rendered.contains("restriction boundary"));
     assert!(rendered.contains("/tmp/attempt"));
     assert!(rendered.contains("/tmp/restriction"));
 }

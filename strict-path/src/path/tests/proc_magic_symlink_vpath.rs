@@ -34,7 +34,7 @@ fn virtualroot_virtual_join_clamps_to_namespace() {
         match vroot.virtual_join("../../../etc/passwd") {
             Ok(vpath) => {
                 // Virtual path must stay within the /proc/self/root namespace
-                let system_path = vpath.as_unvirtual().strictpath_to_string_lossy();
+                let system_path = vpath.as_unvirtual().strictpath_display().to_string();
                 assert!(
                     system_path.starts_with("/proc/self/root"),
                     "VirtualPath escaped namespace: {system_path}"
@@ -83,7 +83,7 @@ fn virtualroot_absolute_input_clamped_to_namespace() {
         // Absolute path input should be clamped to the virtual root
         match vroot.virtual_join("/etc/shadow") {
             Ok(vpath) => {
-                let system_path = vpath.as_unvirtual().strictpath_to_string_lossy();
+                let system_path = vpath.as_unvirtual().strictpath_display().to_string();
                 assert!(
                     system_path.starts_with("/proc/self/root"),
                     "Absolute input escaped namespace: {system_path}"

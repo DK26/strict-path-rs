@@ -1,6 +1,6 @@
 // Cargo.toml
 // [dependencies]
-// strict-path = "0.1.0-alpha.1"
+// strict-path = "0.2"
 // clap = { version = "4.0", features = ["derive"] }
 // serde = { version = "1.0", features = ["derive"] }
 // serde_json = "1.0"

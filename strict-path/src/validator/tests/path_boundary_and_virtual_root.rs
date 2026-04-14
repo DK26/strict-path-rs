@@ -8,10 +8,10 @@ fn test_restriction_try_new_create_and_path() {
     assert!(!target.exists());
     let test_dir = PathBoundary::<()>::try_new_create(&target).unwrap();
     assert!(target.exists());
-    // path() should point to the created directory
+    // strictpath_display should point to the created directory
     assert_eq!(
-        test_dir.interop_path(),
-        target.canonicalize().unwrap().as_os_str()
+        test_dir.strictpath_display().to_string(),
+        target.canonicalize().unwrap().display().to_string()
     );
 }
 
@@ -23,8 +23,8 @@ fn test_path_boundary_into_strictpath_returns_root() {
     let root = test_dir.into_strictpath().unwrap();
     assert!(root.is_dir());
     assert_eq!(
-        root.interop_path(),
-        tmp.path().canonicalize().unwrap().as_os_str()
+        root.strictpath_display().to_string(),
+        tmp.path().canonicalize().unwrap().display().to_string()
     );
 }
 
@@ -35,8 +35,8 @@ fn test_virtual_root_try_new_create_and_path() {
     let vroot: VirtualRoot = VirtualRoot::try_new_create(&root).unwrap();
     assert!(root.exists());
     assert_eq!(
-        vroot.interop_path(),
-        root.canonicalize().unwrap().as_os_str()
+        vroot.as_unvirtual().strictpath_display().to_string(),
+        root.canonicalize().unwrap().display().to_string()
     );
 }
 
@@ -63,7 +63,7 @@ fn test_jailed_join_and_virtual_join_roundtrip() {
     assert_eq!(vp.virtualpath_display().to_string(), "/alpha/beta.txt");
     // Conversions are explicit and consistent
     assert_eq!(
-        vp.as_unvirtual().strictpath_to_string_lossy(),
-        jp.strictpath_to_string_lossy()
+        vp.as_unvirtual().strictpath_display().to_string(),
+        jp.strictpath_display().to_string()
     );
 }

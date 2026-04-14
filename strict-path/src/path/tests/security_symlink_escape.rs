@@ -127,8 +127,8 @@ fn test_symlink_escape_is_rejected() {
 
     // Verify the path is clamped within the virtual root
     // Since escape.txt doesn't exist, we need to find the deepest existing ancestor
-    let clamped_path = clamped.as_unvirtual().interop_path();
-    let mut check_path = std::path::PathBuf::from(clamped_path);
+    let clamped_path = clamped.as_unvirtual().clone().unstrict();
+    let mut check_path = clamped_path;
 
     // Walk up until we find an existing path
     while !check_path.exists() && check_path.pop() {
@@ -193,11 +193,11 @@ fn test_junction_escape_is_rejected() {
         .expect("VirtualPath should clamp junction target to virtual root");
 
     // Verify the junction was clamped within virtual root
-    let system_path = clamped.interop_path();
     let vroot_canonical = std::fs::canonicalize(&restriction_dir).unwrap();
     assert!(
-        AsRef::<std::path::Path>::as_ref(system_path).starts_with(&vroot_canonical),
-        "Junction target should be clamped within virtual root. Got: {system_path:?}, Expected within: {vroot_canonical:?}"
+        clamped.as_unvirtual().strictpath_starts_with(&vroot_canonical),
+        "Junction target should be clamped within virtual root. Got: {:?}, Expected within: {vroot_canonical:?}",
+        clamped.as_unvirtual().strictpath_display()
     );
 }
 
@@ -319,11 +319,11 @@ fn test_toctou_virtual_parent_attack() {
         Ok(Some(parent)) => {
             // New expected behavior: parent is clamped within virtual root
             // Canonicalize both paths for comparison (macOS has /var -> /private/var symlink)
-            let parent_system = parent.interop_path();
             let canonical_restriction = std::fs::canonicalize(&restriction_dir).unwrap();
             assert!(
-                AsRef::<std::path::Path>::as_ref(parent_system).starts_with(&canonical_restriction),
-                "Parent should be clamped within virtual root. Got: {parent_system:?}, Expected to start with: {canonical_restriction:?}"
+                parent.as_unvirtual().strictpath_starts_with(&canonical_restriction),
+                "Parent should be clamped within virtual root. Got: {:?}, Expected to start with: {canonical_restriction:?}",
+                parent.as_unvirtual().strictpath_display()
             );
         }
         Err(crate::StrictPathError::PathResolutionError { .. }) => {
@@ -384,7 +384,7 @@ fn test_zip_slip_style_extraction() {
                 } else {
                     panic!(
                         "Expected rejection for '{name}', but joined to {}",
-                        vp.as_unvirtual().strictpath_to_string_lossy()
+                        vp.as_unvirtual().strictpath_display()
                     );
                 }
             }

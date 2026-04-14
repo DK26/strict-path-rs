@@ -55,7 +55,7 @@ fn test_junction_inside_boundary_prefix_mismatch() {
     // Should resolve to .../target/file.txt
     match test_dir.strict_join("link/file.txt") {
         Ok(path) => {
-            let path_str = path.strictpath_to_string_lossy();
+            let path_str = path.strictpath_display().to_string();
             println!("Resolved path: {path_str}");
 
             // It should be inside the boundary
@@ -99,7 +99,7 @@ fn test_junction_within_anchor_no_duplication() {
 
     // Resolve path through junction using strict-path
     let result = test_dir.strict_join("links/junc").unwrap();
-    let result_str = result.strictpath_to_string_lossy();
+    let result_str = result.strictpath_display().to_string();
     println!("Resolved path: {result_str}");
 
     // CRITICAL: Result should NOT have duplicated path segments
@@ -255,10 +255,10 @@ fn test_virtual_path_junction_prefix_mismatch() {
     );
 
     // System path should be valid and not duplicated
-    // Use as_unvirtual() to access StrictPath methods
     let system_str = file_through_link
         .as_unvirtual()
-        .strictpath_to_string_lossy();
+        .strictpath_display()
+        .to_string();
     println!("System path: {system_str}");
     assert_eq!(
         system_str.matches("real_data").count(),

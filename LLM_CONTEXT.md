@@ -55,6 +55,32 @@ doc.write(b"hello")?;
 println!("user sees: {}", doc.virtualpath_display());
 ```
 
+## Critical mistakes that compile but are WRONG
+
+These patterns compile without errors but silently bypass security. A compiler warning will NOT save you here:
+
+```rust
+// ❌ WRONG: wrapping interop_path() in Path::new() defeats ALL safety
+let p = safe_path.interop_path();
+let parent = Path::new(p).parent();        // Compiles! But escapes the boundary.
+// ✅ RIGHT: use the crate's own method
+let parent = safe_path.strictpath_parent()?;
+
+// ❌ WRONG: bypassing validation with std::fs (won't compile — no AsRef<Path> on PathBoundary)
+// let data = std::fs::read_to_string(&boundary)?;  // Compiler prevents this!
+// ✅ RIGHT: always validate through strict_join first
+let validated = boundary.strict_join(user_input)?;
+let data = validated.read_to_string()?;
+
+// ❌ WRONG: printing with {:?} leaks real system paths to users
+println!("Path: {:?}", safe_path);         // Shows internal paths!
+// ✅ RIGHT: use explicit display helpers
+println!("Path: {}", safe_path.strictpath_display());    // system/admin
+println!("Path: {}", virtual_path.virtualpath_display()); // user-facing
+```
+
+**Rule of thumb:** If you're calling `std::fs::*`, `Path::new()`, `Path::join()`, or `PathBuf::from()` anywhere near untrusted input, you're doing it wrong. Use the crate's built-in I/O methods instead.
+
 ## Contract (what this guarantees)
 
 - Inputs: Untrusted segments (user/LLM/CLI/config/archive).

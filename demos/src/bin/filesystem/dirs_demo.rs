@@ -98,7 +98,7 @@ impl SystemDirectoryManager {
             Ok(config)
         } else {
             let config = AppConfig::default();
-            self.save_config(&config)?;
+            let _ = self.save_config(&config)?;
             println!(
                 "✅ Created default config at: {}",
                 config_file.strictpath_display()
@@ -329,28 +329,28 @@ fn main() -> Result<()> {
     // Update config and save
     config.theme = "light".to_string();
     config.max_cache_size_mb = 150;
-    manager.save_config(&config)?;
+    let _ = manager.save_config(&config)?;
 
     // Set up organized data directories
     manager.setup_data_organization()?;
 
     // Save some user data
-    manager.save_user_data(
+    let _ = manager.save_user_data(
         "projects/project1.md",
         "# Project 1\nThis is a sample project file.",
     )?;
 
-    manager.save_user_data(
+    let _ = manager.save_user_data(
         "templates/letter.txt",
         "Dear [NAME],\n\nThank you for your interest in our product.\n\nBest regards,\n[SENDER]",
     )?;
 
     // Cache some data
-    manager.cache_data(
+    let _ = manager.cache_data(
         "api_response_users",
         r#"{"users": [{"id": 1, "name": "Alice"}]}"#,
     )?;
-    manager.cache_data("processed_image_thumb", "fake_image_data_here")?;
+    let _ = manager.cache_data("processed_image_thumb", "fake_image_data_here")?;
 
     // Show what we have
     println!("\n📂 User data files:");
@@ -475,7 +475,7 @@ mod tests {
         };
 
         // Save and reload
-        manager.save_config(&original_config)?;
+        let _ = manager.save_config(&original_config)?;
         let loaded_config = manager.load_config()?;
 
         // Should be identical

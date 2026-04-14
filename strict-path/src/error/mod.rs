@@ -1,20 +1,15 @@
-//! SUMMARY:
 //! Define error types and helpers for boundary creation and strict/virtual path validation.
 //!
-//! OVERVIEW:
-//! This module exposes the crate-wide error enum `StrictPathError`, which captures
-//! boundary creation failures, path resolution errors, boundary escape attempts,
-//! and (on Windows) 8.3 short-name rejections. These errors are surfaced by
-//! public constructors and join operations throughout the crate.
-//!
-//! STYLE:
-//! All items follow the standardized doc format with explicit sections to keep
-//! behavior unambiguous for both humans and LLMs.
-// Content copied from original src/error/mod.rs
+//! Exposes the crate-wide error enum `StrictPathError`, which captures boundary creation
+//! failures, path resolution errors, and boundary escape attempts. These errors are surfaced
+//! by public constructors and join operations throughout the crate.
 use std::error::Error;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+/// Maximum characters shown per path in error messages. Paths longer than this are
+/// truncated with `...` in the middle to keep diagnostics readable without hiding
+/// the meaningful prefix and suffix (drive letter / filename).
 const MAX_ERROR_PATH_LEN: usize = 256;
 
 // Internal helper: render error-friendly path display (truncate long values).
@@ -32,48 +27,25 @@ pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
     format!("{start}...{end}")
 }
 
-/// SUMMARY:
-/// Represent errors produced by boundary creation and strict/virtual path validation.
+/// Errors produced by boundary creation and strict/virtual path validation.
 ///
-/// DETAILS:
-/// This error type is returned by operations that construct `PathBoundary`
-///`VirtualRoot` or that compose `StrictPath`/`VirtualPath` via joins. Each
-/// variant carries enough context for actionable diagnostics while avoiding
-/// leaking unbounded path data into messages (we truncate long displays).
-///
-/// VARIANTS:
-/// - `InvalidRestriction`: The boundary directory is missing, not a directory, or failed I/O checks.
-/// - `PathEscapesBoundary`: A candidate path would resolve outside the boundary.
-/// - `PathResolutionError`: Canonicalization or resolution failed (I/O error).
+/// Returned by operations that construct `PathBoundary`/`VirtualRoot` or compose
+/// `StrictPath`/`VirtualPath` via joins. Each variant carries enough context for
+/// actionable diagnostics while avoiding leaking unbounded path data into messages.
 #[derive(Debug)]
+#[must_use = "this error indicates a path validation failure — handle it to detect path traversal attacks or invalid boundaries"]
 pub enum StrictPathError {
-    /// SUMMARY:
     /// The boundary directory is invalid (missing, not a directory, or I/O error).
-    ///
-    /// FIELDS:
-    /// - `restriction` (`PathBuf`): The attempted boundary path.
-    /// - `source` (`std::io::Error`): Underlying OS error that explains why the
-    ///   restriction is invalid.
     InvalidRestriction {
         restriction: PathBuf,
         source: std::io::Error,
     },
-    /// SUMMARY:
-    /// The attempted path would resolve outside the PathBoundary boundary.
-    ///
-    /// FIELDS:
-    /// - `attempted_path` (`PathBuf`): The user-supplied or composed candidate.
-    /// - `restriction_boundary` (`PathBuf`): The effective boundary root.
+    /// The attempted path resolves outside the `PathBoundary` — a traversal attack was blocked.
     PathEscapesBoundary {
         attempted_path: PathBuf,
         restriction_boundary: PathBuf,
     },
-    /// SUMMARY:
-    /// Canonicalization/resolution failed for the given path.
-    ///
-    /// FIELDS:
-    /// - `path` (`PathBuf`): The path whose resolution failed.
-    /// - `source` (`std::io::Error`): Underlying I/O cause.
+    /// Canonicalization or resolution failed for the given path.
     PathResolutionError {
         path: PathBuf,
         source: std::io::Error,
@@ -110,11 +82,15 @@ impl StrictPathError {
 impl fmt::Display for StrictPathError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            StrictPathError::InvalidRestriction { restriction, .. } => {
+            StrictPathError::InvalidRestriction {
+                restriction,
+                source,
+            } => {
                 write!(
                     f,
-                    "Invalid PathBoundary directory: {}",
-                    restriction.display()
+                    "Invalid PathBoundary: '{}' is not a valid boundary directory ({source}). \
+                     Ensure the path points to an existing directory, or use try_new_create() to auto-create it.",
+                    truncate_path_display(restriction, MAX_ERROR_PATH_LEN)
                 )
             }
             StrictPathError::PathEscapesBoundary {
@@ -126,11 +102,18 @@ impl fmt::Display for StrictPathError {
                     truncate_path_display(restriction_boundary, MAX_ERROR_PATH_LEN);
                 write!(
                     f,
-                    "Path '{truncated_attempted}' escapes path restriction boundary '{truncated_boundary}'"
+                    "Path escapes boundary: '{truncated_attempted}' resolves outside restriction boundary \
+                     '{truncated_boundary}' — this path traversal attempt was blocked. \
+                     Validate untrusted input through strict_join()/virtual_join() which prevents escapes."
                 )
             }
-            StrictPathError::PathResolutionError { path, .. } => {
-                write!(f, "Cannot resolve path: {}", path.display())
+            StrictPathError::PathResolutionError { path, source } => {
+                write!(
+                    f,
+                    "Cannot resolve path: '{}' ({source}). \
+                     Ensure the target exists and is accessible, or create parent directories first.",
+                    truncate_path_display(path, MAX_ERROR_PATH_LEN)
+                )
             }
         }
     }

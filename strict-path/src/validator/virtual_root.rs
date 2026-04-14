@@ -1,4 +1,9 @@
-// Content copied from original src/validator/virtual_root.rs
+//! `VirtualRoot<Marker>` — the factory for `VirtualPath` values clamped to a virtual root.
+//!
+//! A `VirtualRoot` wraps a `PathBoundary` and maps all paths into a virtual namespace
+//! rooted at `"/"`. Traversal past the root is clamped (not rejected): `virtual_join("../../x")`
+//! resolves to `"/x"` rather than escaping the real filesystem boundary. This makes
+//! `VirtualRoot` safe to expose to untrusted input even without returning errors.
 use crate::path::virtual_path::VirtualPath;
 use crate::validator::path_history::PathHistory;
 use crate::PathBoundary;
@@ -6,9 +11,9 @@ use crate::Result;
 use std::marker::PhantomData;
 use std::path::Path;
 
-/// SUMMARY:
 /// Provide a user‑facing virtual root that produces `VirtualPath` values clamped to a boundary.
 #[derive(Clone)]
+#[must_use = "a VirtualRoot is validated and ready to enforce virtual path restrictions — call .virtual_join() to validate untrusted input, .into_virtualpath() to get the root path, or pass to functions that accept &VirtualRoot<Marker>"]
 pub struct VirtualRoot<Marker = ()> {
     pub(crate) root: PathBoundary<Marker>,
     pub(crate) _marker: PhantomData<Marker>,
@@ -16,19 +21,14 @@ pub struct VirtualRoot<Marker = ()> {
 
 impl<Marker> VirtualRoot<Marker> {
     // no extra constructors; use PathBoundary::virtualize() or VirtualRoot::try_new
-    /// SUMMARY:
     /// Create a `VirtualRoot` from an existing directory.
     ///
-    /// PARAMETERS:
-    /// - `root_path` (`AsRef<Path>`): Existing directory to anchor the virtual root.
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Result<VirtualRoot<Marker>>`: New virtual root with clamped operations.
-    ///
-    /// ERRORS:
     /// - `StrictPathError::InvalidRestriction`: Root invalid or cannot be canonicalized.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use strict_path::VirtualRoot;
@@ -36,6 +36,7 @@ impl<Marker> VirtualRoot<Marker> {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use = "this returns a Result containing the validated VirtualRoot — handle the Result to detect invalid root directories"]
     #[inline]
     pub fn try_new<P: AsRef<Path>>(root_path: P) -> Result<Self> {
         let root = PathBoundary::try_new(root_path)?;
@@ -45,27 +46,21 @@ impl<Marker> VirtualRoot<Marker> {
         })
     }
 
-    /// SUMMARY:
     /// Return filesystem metadata for the underlying root directory.
     #[inline]
     pub fn metadata(&self) -> std::io::Result<std::fs::Metadata> {
         self.root.metadata()
     }
 
-    /// SUMMARY:
     /// Consume this virtual root and return the rooted `VirtualPath` ("/").
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Result<VirtualPath<Marker>>`: Virtual root path clamped to this boundary.
-    ///
-    /// ERRORS:
     /// - `StrictPathError::PathResolutionError`: Canonicalization fails (root removed or inaccessible).
     /// - `StrictPathError::PathEscapesBoundary`: Root moved outside the boundary between checks.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::{VirtualPath, VirtualRoot};
     /// # let root = std::env::temp_dir().join("into-virtualpath-example");
@@ -76,28 +71,22 @@ impl<Marker> VirtualRoot<Marker> {
     /// # std::fs::remove_dir_all(&root)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "into_virtualpath() consumes the VirtualRoot — use the returned VirtualPath for virtual path operations"]
     #[inline]
     pub fn into_virtualpath(self) -> Result<VirtualPath<Marker>> {
         let strict_root = self.root.into_strictpath()?;
         Ok(strict_root.virtualize())
     }
 
-    /// SUMMARY:
     /// Consume this virtual root and substitute a new marker type.
     ///
-    /// DETAILS:
     /// Mirrors [`crate::PathBoundary::change_marker`], [`crate::StrictPath::change_marker`], and
     /// [`crate::VirtualPath::change_marker`]. Use this when encoding proven authorization
     /// into the type system (e.g., after validating a user's permissions). The
     /// consumption makes marker changes explicit during code review.
     ///
-    /// PARAMETERS:
-    /// - `NewMarker` (type parameter): Marker to associate with the virtual root.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `VirtualRoot<NewMarker>`: Same underlying root, rebranded with `NewMarker`.
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::VirtualRoot;
     /// # let root_dir = std::env::temp_dir().join("vroot-change-marker-example");
@@ -113,6 +102,7 @@ impl<Marker> VirtualRoot<Marker> {
     /// # std::fs::remove_dir_all(&root_dir)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "change_marker() consumes self — the original VirtualRoot is moved; use the returned VirtualRoot<NewMarker>"]
     #[inline]
     pub fn change_marker<NewMarker>(self) -> VirtualRoot<NewMarker> {
         let VirtualRoot { root, .. } = self;
@@ -123,92 +113,75 @@ impl<Marker> VirtualRoot<Marker> {
         }
     }
 
-    /// SUMMARY:
     /// Create a symbolic link at `link_path` pointing to this root's underlying directory.
     ///
-    /// DETAILS:
     /// `link_path` is interpreted in the virtual dimension and resolved via `virtual_join()`
     /// so that absolute virtual paths ("/links/a") are clamped within this virtual root and
     /// relative paths are resolved relative to the virtual root.
     pub fn virtual_symlink<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
         // Resolve the link location in virtual space first (clamps/anchors under this root)
         let link_ref = link_path.as_ref();
-        let validated_link = self
-            .virtual_join(link_ref)
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+        let validated_link = self.virtual_join(link_ref).map_err(std::io::Error::other)?;
 
         // Obtain the strict target for the root directory
         let root = self
             .root
             .clone()
             .into_strictpath()
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+            .map_err(std::io::Error::other)?;
 
         root.strict_symlink(validated_link.as_unvirtual().path())
     }
 
-    /// SUMMARY:
     /// Create a hard link at `link_path` pointing to this root's underlying directory.
     ///
-    /// DETAILS:
     /// The link location is resolved via `virtual_join()` to clamp/anchor within this root.
     /// Note: Most platforms forbid directory hard links; expect an error from the OS.
     pub fn virtual_hard_link<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
         let link_ref = link_path.as_ref();
-        let validated_link = self
-            .virtual_join(link_ref)
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+        let validated_link = self.virtual_join(link_ref).map_err(std::io::Error::other)?;
 
         let root = self
             .root
             .clone()
             .into_strictpath()
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+            .map_err(std::io::Error::other)?;
 
         root.strict_hard_link(validated_link.as_unvirtual().path())
     }
 
-    /// SUMMARY:
     /// Create a Windows NTFS directory junction at `link_path` pointing to this virtual root's directory.
     ///
-    /// DETAILS:
     /// - Windows-only and behind the `junctions` feature.
     #[cfg(all(windows, feature = "junctions"))]
     pub fn virtual_junction<P: AsRef<Path>>(&self, link_path: P) -> std::io::Result<()> {
         let link_ref = link_path.as_ref();
-        let validated_link = self
-            .virtual_join(link_ref)
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+        let validated_link = self.virtual_join(link_ref).map_err(std::io::Error::other)?;
 
         let root = self
             .root
             .clone()
             .into_strictpath()
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+            .map_err(std::io::Error::other)?;
 
         root.strict_junction(validated_link.as_unvirtual().path())
     }
 
-    /// SUMMARY:
     /// Read directory entries at the virtual root (discovery). Re‑join names through virtual/strict APIs before I/O.
     #[inline]
     pub fn read_dir(&self) -> std::io::Result<std::fs::ReadDir> {
         self.root.read_dir()
     }
 
-    /// SUMMARY:
     /// Iterate directory entries at the virtual root, yielding validated `VirtualPath` values.
     ///
-    /// DETAILS:
     /// Unlike `read_dir()` which returns raw `std::fs::DirEntry` values requiring manual
     /// re-validation, this method yields `VirtualPath` entries directly. Each entry is
     /// automatically validated through `virtual_join()` so you can use it immediately
     /// for I/O operations without additional validation.
     ///
-    /// RETURNS:
-    /// - `io::Result<VirtualRootReadDir<Marker>>`: Iterator over validated `VirtualPath` entries.
+    /// # Examples
     ///
-    /// EXAMPLE:
     /// ```rust
     /// use strict_path::VirtualRoot;
     ///
@@ -231,24 +204,22 @@ impl<Marker> VirtualRoot<Marker> {
         })
     }
 
-    /// SUMMARY:
     /// Remove the underlying root directory (non‑recursive); fails if not empty.
     #[inline]
     pub fn remove_dir(&self) -> std::io::Result<()> {
         self.root.remove_dir()
     }
 
-    /// SUMMARY:
     /// Recursively remove the underlying root directory and all its contents.
     #[inline]
     pub fn remove_dir_all(&self) -> std::io::Result<()> {
         self.root.remove_dir_all()
     }
 
-    /// SUMMARY:
     /// Ensure the directory exists (create if missing), then return a `VirtualRoot`.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// Uses `AsRef<Path>` for maximum ergonomics, including direct `TempDir` support for clean shadowing patterns:
     /// ```rust
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -257,6 +228,7 @@ impl<Marker> VirtualRoot<Marker> {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use = "this returns a Result containing the validated VirtualRoot — handle the Result to detect invalid root directories"]
     #[inline]
     pub fn try_new_create<P: AsRef<Path>>(root_path: P) -> Result<Self> {
         let root = PathBoundary::try_new_create(root_path)?;
@@ -266,27 +238,20 @@ impl<Marker> VirtualRoot<Marker> {
         })
     }
 
-    /// SUMMARY:
     /// Join a candidate path to this virtual root, producing a clamped `VirtualPath`.
     ///
-    /// DETAILS:
     /// This is the security gateway for virtual paths. Absolute paths (starting with `"/"`) are
     /// automatically clamped to the virtual root, ensuring paths cannot escape the sandbox.
     /// For example, `"/etc/config"` becomes `vroot/etc/config`, and traversal attempts like
     /// `"../../../../etc/passwd"` are clamped to `vroot/etc/passwd`. This clamping behavior is
     /// what makes the `virtual_` dimension safe for user-facing operations.
     ///
-    /// PARAMETERS:
-    /// - `candidate_path` (`AsRef<Path>`): Virtual path to resolve and clamp. Absolute paths
-    ///   are interpreted relative to the virtual root, not the system root.
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Result<VirtualPath<Marker>>`: Clamped, validated path within the virtual root.
-    ///
-    /// ERRORS:
     /// - `StrictPathError::PathResolutionError`, `StrictPathError::PathEscapesBoundary`.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::VirtualRoot;
     /// # let td = tempfile::tempdir().unwrap();
@@ -305,6 +270,7 @@ impl<Marker> VirtualRoot<Marker> {
     /// // Both paths are safely within the virtual root on the actual filesystem
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "virtual_join() validates untrusted input against the virtual root — always handle the Result to detect escape attempts"]
     #[inline]
     pub fn virtual_join<P: AsRef<Path>>(&self, candidate_path: P) -> Result<VirtualPath<Marker>> {
         // 1) Anchor in virtual space (clamps virtual root and resolves relative parts)
@@ -328,28 +294,29 @@ impl<Marker> VirtualRoot<Marker> {
         self.root.path()
     }
 
-    /// SUMMARY:
     /// Return the virtual root path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop.
+    #[must_use = "pass interop_path() directly to third-party APIs requiring AsRef<Path> — never wrap it in Path::new() or PathBuf::from() as that defeats boundary safety"]
     #[inline]
     pub fn interop_path(&self) -> &std::ffi::OsStr {
         self.root.interop_path()
     }
 
     /// Returns true if the underlying path boundary root exists.
+    #[must_use]
     #[inline]
     pub fn exists(&self) -> bool {
         self.root.exists()
     }
 
-    /// SUMMARY:
     /// Borrow the underlying `PathBoundary`.
+    #[must_use = "as_unvirtual() borrows the underlying PathBoundary — use it for strict operations or pass to functions accepting &PathBoundary<Marker>"]
     #[inline]
     pub fn as_unvirtual(&self) -> &PathBoundary<Marker> {
         &self.root
     }
 
-    /// SUMMARY:
     /// Consume this `VirtualRoot` and return the underlying `PathBoundary` (symmetry with `virtualize`).
+    #[must_use = "unvirtual() consumes self — use the returned PathBoundary for strict path operations, or prefer .as_unvirtual() to borrow without consuming"]
     #[inline]
     pub fn unvirtual(self) -> PathBoundary<Marker> {
         self.root
@@ -362,16 +329,12 @@ impl<Marker> VirtualRoot<Marker> {
     // the actual location (e.g., "~/.config/myapp/config.toml").
 }
 
+/// Display shows "/": The real system path must never appear in user-facing output
+/// (logs, API responses, error messages).  Showing "/" reinforces that VirtualRoot
+/// represents a virtual namespace root, not a concrete filesystem location.
 impl<Marker> std::fmt::Display for VirtualRoot<Marker> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let display = self.path().display();
-        write!(f, "{display}")
-    }
-}
-
-impl<Marker> AsRef<Path> for VirtualRoot<Marker> {
-    fn as_ref(&self) -> &Path {
-        self.path()
+        write!(f, "/")
     }
 }
 
@@ -421,6 +384,9 @@ impl<M1, M2> PartialEq<crate::PathBoundary<M2>> for VirtualRoot<M1> {
     }
 }
 
+/// compare against "/": VirtualRoot's public identity is the virtual namespace root.
+/// Comparing against the real system path would leak implementation details and break the
+/// abstraction — callers should never need to know the underlying directory.
 impl<Marker> PartialEq<std::path::Path> for VirtualRoot<Marker> {
     #[inline]
     fn eq(&self, other: &std::path::Path) -> bool {
@@ -524,15 +490,14 @@ impl<Marker: Default> std::str::FromStr for VirtualRoot<Marker> {
 // VirtualRootReadDir — Iterator for validated virtual directory entries
 // ============================================================
 
-/// SUMMARY:
 /// Iterator over directory entries that yields validated `VirtualPath` values.
 ///
-/// DETAILS:
 /// Created by `VirtualRoot::virtual_read_dir()`. Each iteration automatically validates
 /// the directory entry through `virtual_join()`, so you get `VirtualPath` values directly
 /// instead of raw `std::fs::DirEntry` that would require manual re-validation.
 ///
-/// EXAMPLE:
+/// # Examples
+///
 /// ```rust
 /// # use strict_path::VirtualRoot;
 /// # let temp = tempfile::tempdir()?;

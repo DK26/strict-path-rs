@@ -1,7 +1,6 @@
 #[cfg(feature = "virtual-path")]
 use crate::VirtualRoot;
 use crate::{PathBoundary, StrictPathError};
-use std::path::PathBuf;
 
 struct Lcg {
     state: u64,
@@ -69,7 +68,7 @@ fn generate_random_path(rng: &mut Lcg, depth: usize) -> String {
 fn fuzz_strict_join_security_invariant() {
     let temp = tempfile::tempdir().unwrap();
     let sandbox = PathBoundary::<()>::try_new(temp.path()).unwrap();
-    let boundary_path = PathBuf::from(sandbox.interop_path());
+    let boundary_path = temp.path().canonicalize().unwrap();
 
     let mut rng = Lcg::new(12345);
 
@@ -116,7 +115,7 @@ fn fuzz_strict_join_security_invariant() {
 fn fuzz_virtual_join_clamping_invariant() {
     let temp = tempfile::tempdir().unwrap();
     let vroot = VirtualRoot::<()>::try_new(temp.path()).unwrap();
-    let boundary_path = PathBuf::from(vroot.interop_path());
+    let boundary_path = temp.path().canonicalize().unwrap();
 
     let mut rng = Lcg::new(67890);
 

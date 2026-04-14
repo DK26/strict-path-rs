@@ -1,17 +1,20 @@
+//! Symlink and junction operations for `VirtualPath`.
+//!
+//! All link operations delegate to the inner `StrictPath`, which enforces boundary checks.
+//! The virtual-path view is preserved across link creation.
 use super::VirtualPath;
 use std::path::Path;
 
 impl<Marker> VirtualPath<Marker> {
-    /// SUMMARY:
     /// Create a symlink at `link_path` pointing to this virtual path (same virtual root required).
     ///
-    /// DETAILS:
     /// Both `self` (target) and `link_path` must be `VirtualPath` instances created via `virtual_join()`,
     /// which ensures all paths are clamped to the virtual root. Absolute paths like `"/etc/config"`
     /// passed to `virtual_join()` are automatically clamped to `vroot/etc/config`, ensuring symlinks
     /// cannot escape the virtual root boundary.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::VirtualRoot;
     /// # let td = tempfile::tempdir().unwrap();
@@ -42,7 +45,7 @@ impl<Marker> VirtualPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             // Resolve as sibling
@@ -56,20 +59,19 @@ impl<Marker> VirtualPath<Marker> {
                     .into_virtualpath()
                 {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
         self.inner.strict_symlink(validated_link.inner.path())
     }
 
-    /// SUMMARY:
     /// Read the target of a symbolic link and return it as a validated `VirtualPath`.
     ///
     /// DESIGN NOTE:
@@ -80,7 +82,8 @@ impl<Marker> VirtualPath<Marker> {
     /// To read a symlink target before validation, use `std::fs::read_link` on the raw
     /// path, then validate the target with `virtual_join`:
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// use strict_path::VirtualRoot;
     ///
@@ -121,19 +124,18 @@ impl<Marker> VirtualPath<Marker> {
         let vroot = self.inner.boundary().clone().virtualize();
         vroot
             .virtual_join(resolved_target)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+            .map_err(std::io::Error::other)
     }
 
-    /// SUMMARY:
     /// Create a hard link at `link_path` pointing to this virtual path (same virtual root required).
     ///
-    /// DETAILS:
     /// Both `self` (target) and `link_path` must be `VirtualPath` instances created via `virtual_join()`,
     /// which ensures all paths are clamped to the virtual root. Absolute paths like `"/etc/data"`
     /// passed to `virtual_join()` are automatically clamped to `vroot/etc/data`, ensuring hard links
     /// cannot escape the virtual root boundary.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::VirtualRoot;
     /// # let td = tempfile::tempdir().unwrap();
@@ -161,7 +163,7 @@ impl<Marker> VirtualPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             // Resolve as sibling
@@ -175,23 +177,21 @@ impl<Marker> VirtualPath<Marker> {
                     .into_virtualpath()
                 {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
         self.inner.strict_hard_link(validated_link.inner.path())
     }
 
-    /// SUMMARY:
     /// Create a Windows NTFS directory junction at `link_path` pointing to this virtual path.
     ///
-    /// DETAILS:
     /// - Windows-only and behind the `junctions` feature.
     /// - Directory-only semantics; both paths must share the same virtual root.
     #[cfg(all(windows, feature = "junctions"))]
@@ -203,7 +203,7 @@ impl<Marker> VirtualPath<Marker> {
         let validated_link = if link_ref.is_absolute() {
             match self.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             let parent = match self.virtualpath_parent() {
@@ -216,13 +216,13 @@ impl<Marker> VirtualPath<Marker> {
                     .into_virtualpath()
                 {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.virtual_join(link_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
@@ -230,20 +230,15 @@ impl<Marker> VirtualPath<Marker> {
         self.inner.strict_junction(validated_link.inner.path())
     }
 
-    /// SUMMARY:
     /// Rename/move within the same virtual root. Relative destinations are siblings; absolute are clamped to root.
     ///
-    /// DETAILS:
     /// Accepts `impl AsRef<Path>` for the destination. Absolute paths (starting with `"/"`) are
     /// automatically clamped to the virtual root via internal `virtual_join()` call, ensuring the
     /// destination cannot escape the virtual boundary. Relative paths are resolved as siblings.
     /// Parent directories are not created automatically.
     ///
-    /// PARAMETERS:
-    /// - `dest` (`impl AsRef<Path>`): Destination path. Absolute paths like `"/archive/file.txt"`
-    ///   are clamped to `vroot/archive/file.txt`.
+    /// # Examples
     ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::VirtualRoot;
     /// # let td = tempfile::tempdir().unwrap();
@@ -267,7 +262,7 @@ impl<Marker> VirtualPath<Marker> {
         let dest_v = if dest_ref.is_absolute() {
             match self.virtual_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             // Resolve as sibling under the current virtual parent (or root if at "/")
@@ -281,13 +276,13 @@ impl<Marker> VirtualPath<Marker> {
                     .into_virtualpath()
                 {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.virtual_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 
@@ -295,23 +290,15 @@ impl<Marker> VirtualPath<Marker> {
         self.inner.strict_rename(dest_v.inner.path())
     }
 
-    /// SUMMARY:
     /// Copy within the same virtual root. Relative destinations are siblings; absolute are clamped to root.
     ///
-    /// DETAILS:
     /// Accepts `impl AsRef<Path>` for the destination. Absolute paths (starting with `"/"`) are
     /// automatically clamped to the virtual root via internal `virtual_join()` call, ensuring the
     /// destination cannot escape the virtual boundary. Relative paths are resolved as siblings.
     /// Parent directories are not created automatically. Returns the number of bytes copied.
     ///
-    /// PARAMETERS:
-    /// - `dest` (`impl AsRef<Path>`): Destination path. Absolute paths like `"/backup/file.txt"`
-    ///   are clamped to `vroot/backup/file.txt`.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `u64`: Number of bytes copied.
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::VirtualRoot;
     /// # let td = tempfile::tempdir().unwrap();
@@ -336,7 +323,7 @@ impl<Marker> VirtualPath<Marker> {
         let dest_v = if dest_ref.is_absolute() {
             match self.virtual_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         } else {
             // Resolve as sibling under the current virtual parent (or root if at "/")
@@ -350,13 +337,13 @@ impl<Marker> VirtualPath<Marker> {
                     .into_virtualpath()
                 {
                     Ok(root) => root,
-                    Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    Err(e) => return Err(std::io::Error::other(e)),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             };
             match parent.virtual_join(dest_ref) {
                 Ok(p) => p,
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Err(e) => return Err(std::io::Error::other(e)),
             }
         };
 

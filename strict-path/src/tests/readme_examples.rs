@@ -157,9 +157,9 @@ fn readme_interop_path_example() -> Result<(), Box<dyn std::error::Error>> {
     // Write via built-in I/O (no interop needed)
     validated_file.write(b"report contents")?;
 
-    // .interop_path() returns &OsStr, which implements AsRef<Path>
-    let interop = validated_file.interop_path();
-    assert!(std::path::Path::new(interop).exists());
+    // .interop_path() returns &OsStr — only usable for third-party APIs via AsRef<Path>
+    // Use built-in exists() to check file existence
+    assert!(validated_file.exists());
 
     // Built-in I/O stays within safety boundary
     let contents = validated_file.read_to_string()?;

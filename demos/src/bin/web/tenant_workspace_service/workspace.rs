@@ -308,7 +308,7 @@ impl TenantRoots {
 
     pub fn workspace_write_access(&self) -> Result<WorkspaceWriteAccess> {
         let writer_root = PathBoundary::<(WorkspaceStorage, WorkspaceWrite)>::try_new(
-            self.workspace_dir.as_ref(),
+            self.workspace_dir.interop_path(),
         )?
         .virtualize();
         Ok(WorkspaceWriteAccess { writer_root })
@@ -316,7 +316,7 @@ impl TenantRoots {
 
     pub fn workspace_read_access(&self) -> Result<WorkspaceReadAccess> {
         let reader_root = PathBoundary::<(WorkspaceStorage, WorkspaceRead)>::try_new(
-            self.workspace_dir.as_ref(),
+            self.workspace_dir.interop_path(),
         )?
         .virtualize();
         Ok(WorkspaceReadAccess { root: reader_root })
@@ -324,7 +324,7 @@ impl TenantRoots {
 
     pub fn audit_reader_access(&self) -> Result<AuditReadAccess> {
         let reader_root =
-            PathBoundary::<(AuditStorage, AuditRead)>::try_new(self.audit_dir.as_ref())?
+            PathBoundary::<(AuditStorage, AuditRead)>::try_new(self.audit_dir.interop_path())?
                 .virtualize();
         Ok(AuditReadAccess { root: reader_root })
     }

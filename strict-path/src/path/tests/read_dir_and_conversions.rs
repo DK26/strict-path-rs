@@ -61,7 +61,7 @@ fn test_conversion_helpers_for_strict_and_virtual_path() {
 
     // StrictPath -> PathBoundary conversion symmetry
     let workspace_boundary = dir.clone().try_into_boundary().unwrap();
-    assert_eq!(dir, workspace_boundary);
+    assert_eq!(dir.interop_path(), workspace_boundary.interop_path());
 
     // Simulate boundary deletion, then try_into_boundary_create recreates it
     test_dir.remove_dir_all().unwrap();

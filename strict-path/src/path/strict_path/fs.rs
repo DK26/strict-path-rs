@@ -1,20 +1,20 @@
+//! Filesystem I/O methods for `StrictPath`.
+//!
+//! Every method here delegates to the OS through the validated, canonicalized inner path.
+//! Keeping I/O separate from path composition makes it easy to audit: all boundary enforcement
+//! happens in `mod.rs`; this file only performs reads, writes, and directory operations.
 use super::{iter::StrictOpenOptions, StrictPath};
 use crate::StrictPathError;
 
 impl<Marker> StrictPath<Marker> {
-    /// SUMMARY:
     /// Create or truncate the file at this strict path and return a writable handle.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `std::fs::File`: Writable handle scoped to this boundary.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: Propagates OS errors when the parent directory is missing or file creation fails.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::{PathBoundary, StrictPath};
     /// # use std::io::Write;
@@ -35,19 +35,14 @@ impl<Marker> StrictPath<Marker> {
         std::fs::File::create(self.path())
     }
 
-    /// SUMMARY:
     /// Open the file at this strict path in read-only mode.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `std::fs::File`: Read-only handle scoped to this boundary.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: Propagates OS errors when the file is missing or inaccessible.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::{PathBoundary, StrictPath};
     /// # use std::io::{Read, Write};
@@ -71,19 +66,10 @@ impl<Marker> StrictPath<Marker> {
         std::fs::File::open(self.path())
     }
 
-    /// SUMMARY:
     /// Return an options builder for advanced file opening (read+write, append, exclusive create, etc.).
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `StrictOpenOptions<Marker>`: Builder to configure file opening options.
-    ///
-    /// ERRORS:
-    /// - None (infallible — errors are deferred to `.open()`).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::{PathBoundary, StrictPath};
     /// # use std::io::{Read, Write, Seek, SeekFrom};
@@ -109,24 +95,20 @@ impl<Marker> StrictPath<Marker> {
     /// # std::fs::remove_dir_all(&boundary_dir)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "open_with() returns a builder — chain .read(), .write(), .create(), .open() to use it"]
     #[inline]
     pub fn open_with(&self) -> StrictOpenOptions<'_, Marker> {
         StrictOpenOptions::new(self)
     }
 
-    /// SUMMARY:
     /// Creates all directories in the system path if missing (like `std::fs::create_dir_all`).
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `()`: Directories created (or already existed) successfully.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: Propagates OS errors if any directory cannot be created.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -140,22 +122,17 @@ impl<Marker> StrictPath<Marker> {
         std::fs::create_dir_all(self.path())
     }
 
-    /// SUMMARY:
     /// Creates the directory at the system path (non-recursive, like `std::fs::create_dir`).
     ///
     /// Fails if the parent directory does not exist. Use `create_dir_all` to
     /// create missing parent directories recursively.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `()`: Directory created successfully.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If the parent directory is missing or the directory already exists.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -169,19 +146,14 @@ impl<Marker> StrictPath<Marker> {
         std::fs::create_dir(self.path())
     }
 
-    /// SUMMARY:
     /// Create only the immediate parent directory (non‑recursive). `Ok(())` at the boundary root.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `()`: Parent directory created (or is at boundary root where no creation is needed).
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If the grandparent directory is missing or creation fails.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -195,24 +167,23 @@ impl<Marker> StrictPath<Marker> {
         match self.strictpath_parent() {
             Ok(Some(parent)) => parent.create_dir(),
             Ok(None) => Ok(()),
+            // Ok(()): At the boundary root, the "parent" would escape the
+            // boundary, but there is nothing to create — the boundary dir already
+            // exists.  Returning an error here would force every caller to handle
+            // a case that never requires action.
             Err(StrictPathError::PathEscapesBoundary { .. }) => Ok(()),
-            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            Err(e) => Err(std::io::Error::other(e)),
         }
     }
 
-    /// SUMMARY:
     /// Recursively create all missing directories up to the immediate parent. `Ok(())` at boundary.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `()`: All parent directories created (or already existed).
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If any directory in the chain cannot be created.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -226,24 +197,21 @@ impl<Marker> StrictPath<Marker> {
         match self.strictpath_parent() {
             Ok(Some(parent)) => parent.create_dir_all(),
             Ok(None) => Ok(()),
+            // Ok(()): Same rationale as create_parent_dir — boundary root's
+            // parent escapes, but the boundary itself already exists; no action needed.
             Err(StrictPathError::PathEscapesBoundary { .. }) => Ok(()),
-            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            Err(e) => Err(std::io::Error::other(e)),
         }
     }
 
-    /// SUMMARY:
     /// Remove the file at this path.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `()`: File removed successfully.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If the file does not exist or cannot be removed.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -258,19 +226,14 @@ impl<Marker> StrictPath<Marker> {
         std::fs::remove_file(self.path())
     }
 
-    /// SUMMARY:
     /// Remove the directory at this path.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `()`: Directory removed successfully.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If the directory does not exist, is not empty, or cannot be removed.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -285,19 +248,14 @@ impl<Marker> StrictPath<Marker> {
         std::fs::remove_dir(self.path())
     }
 
-    /// SUMMARY:
     /// Recursively remove the directory and its contents.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `()`: Directory and all contents removed successfully.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If the directory does not exist or removal fails partway through.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;

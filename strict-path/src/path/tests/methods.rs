@@ -30,7 +30,7 @@ fn test_virtual_path_join_and_parent() {
 
     // parent (at PathBoundary root)
     let root_virtual: crate::path::virtual_path::VirtualPath<()> =
-        crate::path::virtual_path::VirtualPath::with_root(temp_dir.as_ref()).unwrap();
+        crate::path::virtual_path::VirtualPath::with_root(temp_dir.interop_path()).unwrap();
     let parent_none = root_virtual.virtualpath_parent().unwrap();
     assert!(parent_none.is_none());
 }
@@ -54,7 +54,7 @@ fn test_virtual_path_pathbuf_methods() {
 
     // with_file_name (potential escape attempt)
     let root_virtual: crate::path::virtual_path::VirtualPath<()> =
-        crate::path::virtual_path::VirtualPath::with_root(temp_dir.as_ref()).unwrap();
+        crate::path::virtual_path::VirtualPath::with_root(temp_dir.interop_path()).unwrap();
     let escape_attempt = root_virtual
         .virtualpath_with_file_name("../../etc/passwd")
         .unwrap();

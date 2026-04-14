@@ -1,3 +1,9 @@
+//! `StrictPath<Marker>` — a path canonicalized and boundary-checked at construction time.
+//!
+//! A `StrictPath` is produced exclusively through `PathBoundary::strict_join()` or
+//! `StrictPath::with_boundary()`. Once in hand, the path is guaranteed to resolve inside
+//! its boundary. All path-composition methods (`strict_join`, `strictpath_parent`, etc.)
+//! re-validate the result, maintaining the invariant across every operation.
 mod fs;
 mod iter;
 mod links;
@@ -18,7 +24,6 @@ use std::sync::Arc;
 /// broken junctions that return ERROR_INVALID_NAME (123) when accessed.
 /// This helper strips the prefix so junction creation works correctly.
 ///
-/// See: <https://github.com/tesuji/junction/issues/30>
 #[cfg(all(windows, feature = "junctions"))]
 pub(super) fn strip_verbatim_prefix(path: &Path) -> std::borrow::Cow<'_, Path> {
     use std::borrow::Cow;
@@ -30,15 +35,14 @@ pub(super) fn strip_verbatim_prefix(path: &Path) -> std::borrow::Cow<'_, Path> {
     }
 }
 
-/// SUMMARY:
 /// Hold a validated, system-facing filesystem path guaranteed to be within a `PathBoundary`.
 ///
-/// DETAILS:
 /// Use when you need system-facing I/O with safety proofs. For user-facing display and rooted
 /// virtual operations prefer `VirtualPath`. Operations like `strict_join` and
 /// `strictpath_parent` preserve guarantees. `Display` shows the real system path. String
 /// accessors are prefixed with `strictpath_` to avoid confusion.
 #[derive(Clone)]
+#[must_use = "a StrictPath is boundary-validated and ready for I/O — use .strict_join() to compose child paths, built-in I/O helpers (.read(), .write(), .create_file()), or pass to functions accepting &StrictPath<Marker>"]
 pub struct StrictPath<Marker = ()> {
     path: PathHistory<((Raw, Canonicalized), BoundaryChecked)>,
     boundary: Arc<crate::PathBoundary<Marker>>,
@@ -46,45 +50,36 @@ pub struct StrictPath<Marker = ()> {
 }
 
 impl<Marker> StrictPath<Marker> {
-    /// SUMMARY:
     /// Create the base `StrictPath` anchored at the provided boundary directory.
     ///
-    /// PARAMETERS:
-    /// - `dir_path` (`AsRef<Path>`): Boundary directory (must exist).
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Result<StrictPath<Marker>>`: Base path ("" join) within the boundary.
-    ///
-    /// ERRORS:
     /// - `StrictPathError::InvalidRestriction`: If the boundary cannot be created/validated.
     ///
-    /// NOTE: Prefer passing `PathBoundary` in reusable flows.
+    /// Prefer passing `PathBoundary` in reusable flows.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::StrictPath;
     /// let base: StrictPath = StrictPath::with_boundary(std::env::temp_dir())?;
     /// assert!(base.is_dir());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "with_boundary() returns the boundary root as a StrictPath — handle the Result, then use .strict_join() to validate untrusted input"]
     pub fn with_boundary<P: AsRef<Path>>(dir_path: P) -> Result<Self> {
         let validated_dir = crate::PathBoundary::try_new(dir_path)?;
         validated_dir.into_strictpath()
     }
 
-    /// SUMMARY:
     /// Create the base `StrictPath`, creating the boundary directory if missing.
     ///
-    /// PARAMETERS:
-    /// - `dir_path` (`AsRef<Path>`): Boundary directory (created if absent).
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Result<StrictPath<Marker>>`: Base path ("" join) within the boundary.
-    ///
-    /// ERRORS:
     /// - `StrictPathError::InvalidRestriction`: If the directory cannot be created or canonicalized.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::StrictPath;
     /// let dir = std::env::temp_dir().join("strict-path-wbc-example");
@@ -93,6 +88,7 @@ impl<Marker> StrictPath<Marker> {
     /// # std::fs::remove_dir_all(&dir)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "with_boundary_create() returns the boundary root as a StrictPath — handle the Result, then use .strict_join() to validate untrusted input"]
     pub fn with_boundary_create<P: AsRef<Path>>(dir_path: P) -> Result<Self> {
         let validated_dir = crate::PathBoundary::try_new_create(dir_path)?;
         validated_dir.into_strictpath()
@@ -125,101 +121,29 @@ impl<Marker> StrictPath<Marker> {
         &self.path
     }
 
-    /// SUMMARY:
-    /// Return a lossy `String` view of the system path. Prefer `.interop_path()` only for unavoidable third-party interop.
-    ///
-    /// PARAMETERS:
-    /// - _none_
-    ///
-    /// RETURNS:
-    /// - `Cow<'_, str>`: The path as a UTF-8 string, with replacement characters for non-UTF-8 bytes.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
-    /// ```rust
-    /// # use strict_path::PathBoundary;
-    /// # let temp = tempfile::tempdir()?;
-    /// # let data_dir: PathBoundary = PathBoundary::try_new(temp.path())?;
-    /// let file_path = data_dir.strict_join("report.txt")?;
-    /// let s = file_path.strictpath_to_string_lossy();
-    /// assert!(s.ends_with("report.txt"));
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
-    /// ```
-    #[inline]
-    pub fn strictpath_to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
-        self.path.to_string_lossy()
-    }
-
-    /// SUMMARY:
-    /// Return the underlying system path as `&str` if valid UTF‑8; otherwise `None`.
-    ///
-    /// PARAMETERS:
-    /// - _none_
-    ///
-    /// RETURNS:
-    /// - `Option<&str>`: The path as a string slice, or `None` if the path contains non-UTF-8 bytes.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
-    /// ```rust
-    /// # use strict_path::PathBoundary;
-    /// # let temp = tempfile::tempdir()?;
-    /// # let data_dir: PathBoundary = PathBoundary::try_new(temp.path())?;
-    /// let file_path = data_dir.strict_join("config.toml")?;
-    /// if let Some(s) = file_path.strictpath_to_str() {
-    ///     assert!(s.ends_with("config.toml"));
-    /// }
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
-    /// ```
-    #[inline]
-    pub fn strictpath_to_str(&self) -> Option<&str> {
-        self.path.to_str()
-    }
-
-    /// SUMMARY:
     /// Return the underlying system path as `&OsStr` for unavoidable third-party `AsRef<Path>` interop.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `&OsStr`: The raw OS string representation of the system path.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
+    /// # fn third_party_api(_p: impl AsRef<std::path::Path>) {}
     /// # let temp = tempfile::tempdir()?;
     /// # let data_dir: PathBoundary = PathBoundary::try_new(temp.path())?;
     /// let file_path = data_dir.strict_join("data.bin")?;
-    /// let os_str = file_path.interop_path();
-    /// assert!(std::path::Path::new(os_str).exists() || !std::path::Path::new(os_str).exists());
+    /// third_party_api(file_path.interop_path()); // AsRef<Path> satisfied
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "pass interop_path() directly to third-party APIs requiring AsRef<Path> — never wrap it in Path::new() or PathBuf::from() as that defeats boundary safety"]
     #[inline]
-    pub fn interop_path(&self) -> &OsStr {
+    pub fn interop_path(&self) -> &std::ffi::OsStr {
         self.path.as_os_str()
     }
 
-    /// SUMMARY:
     /// Return a `Display` wrapper that shows the real system path.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `std::path::Display<'_>`: A display adapter suitable for use with `println!` or `format!`.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -228,24 +152,16 @@ impl<Marker> StrictPath<Marker> {
     /// println!("Path: {}", file_path.strictpath_display());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "strictpath_display() shows the real system path (admin/debug use) — for user-facing output prefer VirtualPath::virtualpath_display() which hides internal paths"]
     #[inline]
     pub fn strictpath_display(&self) -> std::path::Display<'_> {
         self.path.display()
     }
 
-    /// SUMMARY:
     /// Consume and return the inner `PathBuf` (escape hatch). Prefer `.interop_path()` (third-party adapters only) to borrow.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `PathBuf`: The validated system path, relinquishing all boundary guarantees.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -255,40 +171,33 @@ impl<Marker> StrictPath<Marker> {
     /// // raw is now a plain PathBuf — use only for unavoidable interop
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "unstrict() consumes self and relinquishes boundary guarantees — use the returned PathBuf, or prefer .interop_path() to borrow without consuming"]
     #[inline]
     pub fn unstrict(self) -> PathBuf {
         self.path.into_inner()
     }
 
-    /// SUMMARY:
     /// Convert this `StrictPath` into a user‑facing `VirtualPath`.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `VirtualPath<Marker>`: A user-facing path derived from this strict path's boundary and location.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
     /// # let data_dir: PathBoundary = PathBoundary::try_new(temp.path())?;
     /// let file_path = data_dir.strict_join("docs/readme.md")?;
     /// let vpath = file_path.virtualize();
-    /// println!("{}", vpath.virtualpath_display());
+    /// let display = vpath.virtualpath_display();
+    /// println!("{display}");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "virtualize() consumes self — use the returned VirtualPath for user-facing display (.virtualpath_display()) and virtual path operations"]
     #[cfg(feature = "virtual-path")]
     #[inline]
     pub fn virtualize(self) -> crate::path::virtual_path::VirtualPath<Marker> {
         crate::path::virtual_path::VirtualPath::new(self)
     }
 
-    /// SUMMARY:
     /// Change the compile-time marker while reusing the validated strict path.
     ///
     /// WHEN TO USE:
@@ -301,20 +210,12 @@ impl<Marker> StrictPath<Marker> {
     /// - When the current marker already matches your needs - no transformation needed
     /// - When you haven't verified authorization - NEVER change markers without checking permissions
     ///
-    /// PARAMETERS:
-    /// - `_none_`
-    ///
-    /// RETURNS:
-    /// - `StrictPath<NewMarker>`: Same boundary-checked system path encoded with the new marker.
-    ///
-    /// ERRORS:
-    /// - `_none_`
-    ///
     /// SECURITY:
     /// The caller MUST ensure the new marker reflects real-world permissions. This method does not
     /// perform any authorization checks.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::{PathBoundary, StrictPath};
     /// # use std::io;
@@ -376,13 +277,14 @@ impl<Marker> StrictPath<Marker> {
     /// // ❌ Compile error: expected `StrictPath<WritePermission>`, found `StrictPath<ReadOnly>`
     /// require_write(read_only_path);
     /// ```
+    #[must_use = "change_marker() consumes self — the original StrictPath is moved; use the returned StrictPath<NewMarker>"]
     #[inline]
     pub fn change_marker<NewMarker>(self) -> StrictPath<NewMarker> {
         let StrictPath { path, boundary, .. } = self;
 
-        // Try to unwrap the Arc (zero-cost if this is the only reference).
+        // Unwrap the Arc (zero-cost if this is the only reference).
         // If other references exist, clone the boundary (allocation needed).
-        let boundary_owned = Arc::try_unwrap(boundary).unwrap_or_else(|arc| (*arc).clone());
+        let boundary_owned = Arc::unwrap_or_clone(boundary);
         let new_boundary = Arc::new(boundary_owned.change_marker::<NewMarker>());
 
         StrictPath {
@@ -392,21 +294,15 @@ impl<Marker> StrictPath<Marker> {
         }
     }
 
-    /// SUMMARY:
     /// Consume and return a new `PathBoundary` anchored at this strict path.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Result<PathBoundary<Marker>>`: Boundary anchored at the strict path's
-    ///   system location (must already exist and be a directory).
-    ///
-    /// ERRORS:
     /// - `StrictPathError::InvalidRestriction`: If the strict path does not exist
     ///   or is not a directory.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -417,26 +313,21 @@ impl<Marker> StrictPath<Marker> {
     /// let _ = sub_boundary.strict_join("file.bin")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "try_into_boundary() consumes self — use the returned PathBoundary for creating a new path restriction"]
     #[inline]
     pub fn try_into_boundary(self) -> Result<crate::PathBoundary<Marker>> {
         let StrictPath { path, .. } = self;
         crate::PathBoundary::try_new(path.into_inner())
     }
 
-    /// SUMMARY:
     /// Consume and return a `PathBoundary`, creating the directory if missing.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Result<PathBoundary<Marker>>`: Boundary anchored at the strict path's
-    ///   system location (created if necessary).
-    ///
-    /// ERRORS:
     /// - `StrictPathError::InvalidRestriction`: If creation or canonicalization fails.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -447,47 +338,37 @@ impl<Marker> StrictPath<Marker> {
     /// let _ = sub_boundary.strict_join("item.bin")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "try_into_boundary_create() consumes self — use the returned PathBoundary for creating a new path restriction"]
     #[inline]
     pub fn try_into_boundary_create(self) -> Result<crate::PathBoundary<Marker>> {
         let StrictPath { path, .. } = self;
         crate::PathBoundary::try_new_create(path.into_inner())
     }
 
-    /// SUMMARY:
     /// Join a path segment and re-validate against the boundary.
     ///
-    /// NOTE:
-    /// Never wrap `.interop_path()` in `Path::new()` to use `Path::join()` — that defeats all security. Always use this method.
-    /// After `.unstrict()` (explicit escape hatch), you own a `PathBuf` and can do whatever you need.
+    /// Never wrap `.interop_path()` in `Path::new()` to use `Path::join()` — that defeats all
+    /// security. After `.unstrict()` (explicit escape hatch), you own a `PathBuf`.
     ///
-    /// PARAMETERS:
-    /// - `path` (`AsRef<Path>`): Segment or absolute path to validate.
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Result<StrictPath<Marker>>`: Validated path inside the boundary.
-    ///
-    /// ERRORS:
     /// - `StrictPathError::PathResolutionError`, `StrictPathError::PathEscapesBoundary`.
+    #[must_use = "strict_join() validates untrusted input against the boundary — always handle the Result to detect path traversal attacks"]
     #[inline]
     pub fn strict_join<P: AsRef<Path>>(&self, path: P) -> Result<Self> {
         let new_systempath = self.path.join(path);
         self.boundary.strict_join(new_systempath)
     }
 
-    /// SUMMARY:
     /// Return the parent as a new `StrictPath`, or `None` at the boundary root.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Result<Option<StrictPath<Marker>>>`: The parent path, or `None` if already at the boundary root.
-    ///
-    /// ERRORS:
     /// - `StrictPathError::PathResolutionError`: If the parent path cannot be resolved.
     /// - `StrictPathError::PathEscapesBoundary`: If the parent escapes the boundary (cannot occur in practice).
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -498,6 +379,7 @@ impl<Marker> StrictPath<Marker> {
     /// }
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "strictpath_parent() returns Result<Option> — handle the error, then match Some(parent) for traversal or None at the boundary root"]
     pub fn strictpath_parent(&self) -> Result<Option<Self>> {
         match self.path.parent() {
             Some(p) => match self.boundary.strict_join(p) {
@@ -508,20 +390,15 @@ impl<Marker> StrictPath<Marker> {
         }
     }
 
-    /// SUMMARY:
     /// Return a new path with file name changed, re‑validating against the boundary.
     ///
-    /// PARAMETERS:
-    /// - `file_name` (`AsRef<OsStr>`): The new file name to substitute.
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Result<StrictPath<Marker>>`: A new strict path with the file name replaced, validated within the boundary.
-    ///
-    /// ERRORS:
     /// - `StrictPathError::PathResolutionError`: If the resulting path cannot be resolved.
     /// - `StrictPathError::PathEscapesBoundary`: If the new name would escape the boundary.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -531,26 +408,22 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(renamed.strictpath_display().to_string().ends_with("new.txt"));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "returns a new validated StrictPath with the file name replaced — the original is unchanged; handle the Result to detect boundary escapes"]
     #[inline]
     pub fn strictpath_with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Result<Self> {
         let new_systempath = self.path.with_file_name(file_name);
         self.boundary.strict_join(new_systempath)
     }
 
-    /// SUMMARY:
     /// Return a new path with extension changed; error at the boundary root.
     ///
-    /// PARAMETERS:
-    /// - `extension` (`AsRef<OsStr>`): The new extension to apply (without leading dot).
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Result<StrictPath<Marker>>`: A new strict path with the extension replaced, validated within the boundary.
-    ///
-    /// ERRORS:
     /// - `StrictPathError::PathEscapesBoundary`: If called on the boundary root (no file name).
     /// - `StrictPathError::PathResolutionError`: If the resulting path cannot be resolved.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -560,6 +433,7 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(converted.strictpath_display().to_string().ends_with("report.md"));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "returns a new validated StrictPath with the extension changed — the original is unchanged; handle the Result to detect boundary escapes"]
     pub fn strictpath_with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Result<Self> {
         let system_path = &self.path;
         if system_path.file_name().is_none() {
@@ -572,19 +446,10 @@ impl<Marker> StrictPath<Marker> {
         self.boundary.strict_join(new_systempath)
     }
 
-    /// SUMMARY:
-    /// Returns the file name component of the system path, if any.
+    /// Return the file name component of the system path, if any.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `Option<&OsStr>`: The final path component, or `None` if the path ends with `..`.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -593,24 +458,16 @@ impl<Marker> StrictPath<Marker> {
     /// assert_eq!(file_path.strictpath_file_name().unwrap(), "notes.txt");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     #[inline]
     pub fn strictpath_file_name(&self) -> Option<&OsStr> {
         self.path.file_name()
     }
 
-    /// SUMMARY:
-    /// Returns the file stem of the system path, if any.
+    /// Return the file stem of the system path, if any.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `Option<&OsStr>`: The file name without its extension, or `None` if no file name.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -619,24 +476,16 @@ impl<Marker> StrictPath<Marker> {
     /// assert_eq!(file_path.strictpath_file_stem().unwrap(), "report");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     #[inline]
     pub fn strictpath_file_stem(&self) -> Option<&OsStr> {
         self.path.file_stem()
     }
 
-    /// SUMMARY:
-    /// Returns the extension of the system path, if any.
+    /// Return the extension of the system path, if any.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `Option<&OsStr>`: The file extension (without leading dot), or `None` if there is none.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -645,24 +494,16 @@ impl<Marker> StrictPath<Marker> {
     /// assert_eq!(file_path.strictpath_extension().unwrap(), "gz");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     #[inline]
     pub fn strictpath_extension(&self) -> Option<&OsStr> {
         self.path.extension()
     }
 
-    /// SUMMARY:
-    /// Returns `true` if the system path starts with the given prefix.
+    /// Return `true` if the system path starts with the given prefix.
     ///
-    /// PARAMETERS:
-    /// - `p` (`AsRef<Path>`): The path prefix to check against.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `bool`: `true` if the system path starts with the given prefix, `false` otherwise.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -672,24 +513,16 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(file_path.strictpath_starts_with(data_dir.interop_path()));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     #[inline]
     pub fn strictpath_starts_with<P: AsRef<Path>>(&self, p: P) -> bool {
         self.path.starts_with(p.as_ref())
     }
 
-    /// SUMMARY:
-    /// Returns `true` if the system path ends with the given suffix.
+    /// Return `true` if the system path ends with the given suffix.
     ///
-    /// PARAMETERS:
-    /// - `p` (`AsRef<Path>`): The path suffix to check against.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `bool`: `true` if the system path ends with the given suffix, `false` otherwise.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -698,24 +531,18 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(file_path.strictpath_ends_with("summary.csv"));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     #[inline]
     pub fn strictpath_ends_with<P: AsRef<Path>>(&self, p: P) -> bool {
         self.path.ends_with(p.as_ref())
     }
 
-    /// SUMMARY:
-    /// Returns `true` if the system path exists.
+    /// Return `true` if the system path exists.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// Permission errors return `false`; use `try_exists` to distinguish.
     ///
-    /// RETURNS:
-    /// - `bool`: `true` if the path exists on the filesystem, `false` otherwise (including on permission errors).
+    /// # Examples
     ///
-    /// ERRORS:
-    /// - None (infallible — permission errors return `false`; use `try_exists` to distinguish).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -726,23 +553,15 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(file_path.exists());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn exists(&self) -> bool {
         self.path.exists()
     }
 
-    /// SUMMARY:
-    /// Returns `true` if the system path is a file.
+    /// Return `true` if the system path is a file.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `bool`: `true` if the path exists and is a regular file, `false` otherwise.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -753,23 +572,15 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(!data_dir.strict_join(".")?.is_file());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn is_file(&self) -> bool {
         self.path.is_file()
     }
 
-    /// SUMMARY:
-    /// Returns `true` if the system path is a directory.
+    /// Return `true` if the system path is a directory.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `bool`: `true` if the path exists and is a directory, `false` otherwise.
-    ///
-    /// ERRORS:
-    /// - None (infallible).
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -779,23 +590,15 @@ impl<Marker> StrictPath<Marker> {
     /// assert!(subdir.is_dir());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn is_dir(&self) -> bool {
         self.path.is_dir()
     }
 
-    /// SUMMARY:
-    /// Returns the metadata for the system path.
+    /// Return the metadata for the system path.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `std::fs::Metadata`: Filesystem metadata (size, permissions, timestamps, etc.).
-    ///
-    /// ERRORS:
-    /// - `std::io::Error`: If the path does not exist or cannot be accessed.
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -810,10 +613,8 @@ impl<Marker> StrictPath<Marker> {
         std::fs::metadata(&self.path)
     }
 
-    /// SUMMARY:
     /// Return the metadata for the system path without following symlinks (like `std::fs::symlink_metadata`).
     ///
-    /// DETAILS:
     /// This retrieves metadata about the path entry itself. On symlinks, this reports
     /// information about the link, not the target.
     #[inline]
@@ -821,16 +622,10 @@ impl<Marker> StrictPath<Marker> {
         std::fs::symlink_metadata(&self.path)
     }
 
-    /// SUMMARY:
     /// Set permissions on the file or directory at this path.
     ///
-    /// PARAMETERS:
-    /// - `perm` (`std::fs::Permissions`): The permissions to set.
+    /// # Examples
     ///
-    /// RETURNS:
-    /// - `io::Result<()>`: Success or I/O error.
-    ///
-    /// EXAMPLE:
     /// ```rust
     /// use strict_path::PathBoundary;
     ///
@@ -852,20 +647,14 @@ impl<Marker> StrictPath<Marker> {
         std::fs::set_permissions(&self.path, perm)
     }
 
-    /// SUMMARY:
     /// Check if the path exists, returning an error on permission issues.
     ///
-    /// DETAILS:
     /// Unlike `exists()` which returns `false` on permission errors, this method
     /// distinguishes between "path does not exist" (`Ok(false)`) and "cannot check
     /// due to permission error" (`Err(...)`).
     ///
-    /// RETURNS:
-    /// - `Ok(true)`: Path exists
-    /// - `Ok(false)`: Path does not exist
-    /// - `Err(...)`: Permission or other I/O error prevented the check
+    /// # Examples
     ///
-    /// EXAMPLE:
     /// ```rust
     /// use strict_path::PathBoundary;
     ///
@@ -885,18 +674,14 @@ impl<Marker> StrictPath<Marker> {
         self.path.try_exists()
     }
 
-    /// SUMMARY:
     /// Create an empty file if it doesn't exist, or update the modification time if it does.
     ///
-    /// DETAILS:
     /// This is a convenience method combining file creation and mtime update.
     /// Uses `OpenOptions` with `create(true).write(true)` which creates the file
     /// if missing or opens it for writing if it exists, updating mtime on close.
     ///
-    /// RETURNS:
-    /// - `io::Result<()>`: Success or I/O error.
+    /// # Examples
     ///
-    /// EXAMPLE:
     /// ```rust
     /// use strict_path::PathBoundary;
     ///
@@ -921,19 +706,14 @@ impl<Marker> StrictPath<Marker> {
         Ok(())
     }
 
-    /// SUMMARY:
     /// Read directory entries at this path (discovery). Re‑join names through strict/virtual APIs before I/O.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `std::fs::ReadDir`: Raw iterator over directory entries (names are not yet re-validated).
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If the path is not a directory or cannot be read.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -942,7 +722,8 @@ impl<Marker> StrictPath<Marker> {
     /// for entry in data_dir.strict_join(".")?.read_dir()? {
     ///     let entry = entry?;
     ///     let child = data_dir.strict_join(entry.file_name())?;
-    ///     println!("{}", child.strictpath_display());
+    ///     let child_display = child.strictpath_display();
+    ///     println!("{child_display}");
     /// }
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -950,25 +731,19 @@ impl<Marker> StrictPath<Marker> {
         std::fs::read_dir(&self.path)
     }
 
-    /// SUMMARY:
     /// Read directory entries as validated `StrictPath` values (auto re-joins each entry).
     ///
-    /// DETAILS:
     /// Unlike `read_dir()` which returns raw `std::fs::DirEntry`, this method automatically
     /// validates each directory entry through `strict_join()`, returning an iterator of
     /// `Result<StrictPath<Marker>>`. This eliminates the need for manual re-validation loops.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `io::Result<StrictReadDir<Marker>>`: Iterator yielding validated `StrictPath` entries.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If the directory cannot be read.
     /// - Each yielded item may also be `Err` if validation fails for that entry.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::{PathBoundary, StrictPath};
     /// # let temp = tempfile::tempdir()?;
@@ -980,7 +755,8 @@ impl<Marker> StrictPath<Marker> {
     /// // Iterate with automatic validation
     /// for entry in dir.strict_read_dir()? {
     ///     let child: StrictPath = entry?;
-    ///     println!("{}", child.strictpath_display());
+    ///     let child_display = child.strictpath_display();
+    ///     println!("{child_display}");
     /// }
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -992,19 +768,14 @@ impl<Marker> StrictPath<Marker> {
         })
     }
 
-    /// SUMMARY:
     /// Reads the file contents as `String`.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `String`: The entire file contents decoded as UTF-8.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If the file cannot be read or contains invalid UTF-8.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -1018,19 +789,14 @@ impl<Marker> StrictPath<Marker> {
         std::fs::read_to_string(&self.path)
     }
 
-    /// SUMMARY:
     /// Reads the file contents as raw bytes.
     ///
-    /// PARAMETERS:
-    /// - _none_
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `Vec<u8>`: The entire file contents as a byte vector.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If the file cannot be read.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -1045,19 +811,14 @@ impl<Marker> StrictPath<Marker> {
         std::fs::read(&self.path)
     }
 
-    /// SUMMARY:
     /// Write bytes to the file (create if missing). Accepts any `AsRef<[u8]>` (e.g., `&str`, `&[u8]`).
     ///
-    /// PARAMETERS:
-    /// - `contents` (`AsRef<[u8]>`): The bytes to write; replaces any existing file content.
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `()`: File written successfully.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: If the file cannot be created or written (e.g., parent missing, permission denied).
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # let temp = tempfile::tempdir()?;
@@ -1072,19 +833,14 @@ impl<Marker> StrictPath<Marker> {
         std::fs::write(&self.path, contents)
     }
 
-    /// SUMMARY:
     /// Append bytes to the file (create if missing). Accepts any `AsRef<[u8]>` (e.g., `&str`, `&[u8]`).
     ///
-    /// PARAMETERS:
-    /// - `data` (`AsRef<[u8]>`): Bytes to append to the file.
+    /// # Errors
     ///
-    /// RETURNS:
-    /// - `()`: Returns nothing on success.
-    ///
-    /// ERRORS:
     /// - `std::io::Error`: Propagates OS errors when the file cannot be opened or written.
     ///
-    /// EXAMPLE:
+    /// # Examples
+    ///
     /// ```rust
     /// # use strict_path::{PathBoundary, StrictPath};
     /// # let boundary_dir = std::env::temp_dir().join("strict-path-append-example");

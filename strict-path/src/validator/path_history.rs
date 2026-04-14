@@ -1,20 +1,40 @@
-// Content copied from original src/validator/stated_path.rs
+//! Type-state pipeline that canonicalizes and boundary-checks paths.
+//!
+//! `PathHistory<S>` is a newtype over `PathBuf` whose phantom type parameter `S`
+//! records which validation stages have been applied. The compiler rejects use of a
+//! partially-validated path where a fully-validated one is required, making it
+//! impossible to skip a stage accidentally. The states flow:
+//! `Raw → Canonicalized → BoundaryChecked` (strict) or
+//! `Raw → (Virtualized) → Canonicalized → BoundaryChecked` (virtual).
+//! This module is internal; callers interact through `PathBoundary` and `VirtualRoot`.
 use crate::{Result, StrictPathError};
 use soft_canonicalize::{anchored_canonicalize, soft_canonicalize};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
+/// Unvalidated state — constructed from any `AsRef<Path>` input.
 #[derive(Debug, Clone)]
 pub struct Raw;
+/// Fully canonicalized — `.`, `..`, and symlinks resolved to real targets.
 #[derive(Debug, Clone)]
 pub struct Canonicalized;
+/// Proven to reside within the boundary — ready for `StrictPath` construction.
 #[derive(Debug, Clone)]
 pub struct BoundaryChecked;
+/// Canonicalized path confirmed to exist as a directory (used for boundary roots).
 #[derive(Debug, Clone)]
 pub struct Exists;
+/// Pre-canonicalization: components clamped in virtual space so `..` cannot
+/// walk above the virtual root.
 #[derive(Debug, Clone)]
 pub struct Virtualized;
 
+/// Type-state wrapper over `PathBuf` recording which validation stages have been applied.
+///
+/// The phantom `History` parameter is a nested tuple that grows as stages complete:
+/// `Raw → (Raw, Canonicalized) → ((Raw, Canonicalized), BoundaryChecked)`.  
+/// This prevents accidental use of a partially-validated path where a fully-validated one
+/// is required — the compiler rejects the mismatch.
 #[derive(Debug, Clone)]
 pub struct PathHistory<History> {
     inner: std::path::PathBuf,
@@ -37,6 +57,7 @@ impl<H> Deref for PathHistory<H> {
 }
 
 impl PathHistory<Raw> {
+    /// Wrap a raw path for the start of the validation pipeline.
     #[inline]
     pub fn new<P: Into<std::path::PathBuf>>(path: P) -> Self {
         PathHistory {
@@ -47,6 +68,7 @@ impl PathHistory<Raw> {
 }
 
 impl<H> PathHistory<H> {
+    /// Consume the wrapper and return the underlying `PathBuf`.
     #[inline]
     pub fn into_inner(self) -> std::path::PathBuf {
         self.inner
@@ -93,6 +115,11 @@ impl<H> PathHistory<H> {
         }
     }
 
+    /// Canonicalize with `soft-canonicalize`, resolving symlinks, `.`, and `..`.
+    ///
+    /// WHY: Canonicalization is the foundation of the security model — it guarantees
+    /// that the boundary check operates on the real, resolved path and cannot be
+    /// tricked by symlinks, short names, or relative components.
     pub fn canonicalize(self) -> Result<PathHistory<(H, Canonicalized)>> {
         let canon = soft_canonicalize(&self.inner)
             .map_err(|e| StrictPathError::path_resolution_error(self.inner.clone(), e))?;
@@ -116,6 +143,10 @@ impl<H> PathHistory<H> {
         })
     }
 
+    /// Verify the path exists on disk and transition to the `Exists` state.
+    ///
+    /// Used by `PathBoundary::try_new` to confirm the boundary directory is real
+    /// before storing it as the trusted root.
     pub fn verify_exists(self) -> Option<PathHistory<(H, Exists)>> {
         self.inner.exists().then_some(PathHistory {
             inner: self.inner,
@@ -125,6 +156,11 @@ impl<H> PathHistory<H> {
 }
 
 impl<H> PathHistory<(H, Canonicalized)> {
+    /// Prove this canonicalized path starts with the boundary root.
+    ///
+    /// WHY: This is the single gate that enforces the "no escape" invariant.
+    /// Only paths that pass this check become `StrictPath` values, so every
+    /// downstream consumer is guaranteed to hold a path within the boundary.
     #[inline]
     pub fn boundary_check(
         self,

@@ -47,8 +47,8 @@ fn test_different_marker_types_are_incompatible() {
 
     // Runtime check: their System paths differ as they live under different jails
     assert_ne!(
-        logo_file.strictpath_to_string_lossy(),
-        profile_file.strictpath_to_string_lossy()
+        logo_file.strictpath_display().to_string(),
+        profile_file.strictpath_display().to_string()
     );
 }
 
@@ -223,11 +223,12 @@ fn test_strict_path_change_marker_shared_boundary() {
     let write_path1: StrictPath<ReadWrite> = path1.change_marker();
 
     // path2 should still work with original marker
-    assert!(path2.strictpath_to_string_lossy().contains("file2.txt"));
+    assert!(path2.strictpath_display().to_string().contains("file2.txt"));
 
     // write_path1 should work with new marker
     assert!(write_path1
-        .strictpath_to_string_lossy()
+        .strictpath_display()
+        .to_string()
         .contains("file1.txt"));
 }
 
@@ -310,7 +311,7 @@ fn test_strict_path_change_marker_with_joins() {
 
     // Join should work on changed path
     let admin_sub = admin_data.strict_join("sub").unwrap();
-    assert!(admin_sub.strictpath_to_string_lossy().ends_with("sub"));
+    assert!(admin_sub.strictpath_ends_with("sub"));
 
     // Marker should be preserved in joined path
     fn requires_admin(_: StrictPath<AdminSpace>) {}
@@ -502,9 +503,10 @@ fn test_change_marker_with_multiple_references_to_boundary() {
 
     // Both should point to different locations but same root
     assert!(exclusive_path1
-        .strictpath_to_string_lossy()
+        .strictpath_display()
+        .to_string()
         .contains("file1.txt"));
-    assert!(path2.strictpath_to_string_lossy().contains("file2.txt"));
+    assert!(path2.strictpath_display().to_string().contains("file2.txt"));
 
     // Original boundary should still be usable
     let path3 = shared_dir.strict_join("shared/file3.txt").unwrap();
@@ -528,6 +530,6 @@ fn test_change_marker_memory_safety() {
         let path3: StrictPath<Type1> = path2.change_marker();
 
         // Verify path is still valid
-        assert!(!path3.strictpath_to_string_lossy().is_empty());
+        assert!(!path3.strictpath_display().to_string().is_empty());
     }
 }

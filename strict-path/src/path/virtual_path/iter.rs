@@ -1,18 +1,21 @@
+//! `VirtualReadDir` iterator for `VirtualPath`.
+//!
+//! Wraps `std::fs::ReadDir` and re-validates each directory entry through `virtual_join`,
+//! so callers get `VirtualPath` values directly. This prevents a listing from exposing
+//! raw `DirEntry` paths that would require the caller to re-validate manually.
 use super::VirtualPath;
 
 // ============================================================
 // VirtualReadDir — Iterator for validated virtual directory entries
 // ============================================================
 
-/// SUMMARY:
 /// Iterator over directory entries that yields validated `VirtualPath` values.
 ///
-/// DETAILS:
 /// Created by `VirtualPath::virtual_read_dir()`. Each iteration automatically validates
 /// the directory entry through `virtual_join()`, so you get `VirtualPath` values directly
 /// instead of raw `std::fs::DirEntry` that would require manual re-validation.
 ///
-/// EXAMPLE:
+/// # Examples
 /// ```rust
 /// # use strict_path::{VirtualRoot, VirtualPath};
 /// # let temp = tempfile::tempdir()?;
@@ -28,9 +31,9 @@ use super::VirtualPath;
 /// }
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
-pub struct VirtualReadDir<'a, Marker> {
+pub struct VirtualReadDir<'vpath, Marker> {
     pub(super) inner: std::fs::ReadDir,
-    pub(super) parent: &'a VirtualPath<Marker>,
+    pub(super) parent: &'vpath VirtualPath<Marker>,
 }
 
 impl<Marker> std::fmt::Debug for VirtualReadDir<'_, Marker> {

@@ -1,9 +1,10 @@
-## strict-path-rs — Copilot instructions (single source: AGENTS.md)
+## strict-path-rs — Copilot instructions (single source: AGENTS.md + .agents/)
 
-This repository uses `AGENTS.md` as the single source of truth for AI agents. To avoid duplication, this file is a thin pointer with only quickstart links.
+This repository uses `AGENTS.md` as the hub with `.agents/*.md` satellite files for topic-specific depth.
 
 Read next (authoritative guidance)
-- `AGENTS.md` — operational guidance, security model, CI workflows, demos policy
+- `AGENTS.md` — hub with critical guardrails and satellite index
+- `.agents/*.md` — topic-specific depth (design decisions, coding standards, API usage, docs, CI, agent behavior)
 - `LLM_CONTEXT_FULL.md` — usage-first API cheatsheet for `PathBoundary`/`StrictPath`/`VirtualRoot`/`VirtualPath`
 - `strict-path/src/lib.rs` docs and `strict-path/examples/` — compilable examples and doctests
 

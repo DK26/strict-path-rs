@@ -1,8 +1,9 @@
 //! # strict-path
 //!
-//! **Handle paths from external or unknown sources securely.** Uses Rust's type system to
-//! mathematically prove paths stay within defined boundaries—no escapes in any shape or form,
-//! symlinks included. API is minimal, restrictive, and explicit to prevent human and LLM API misuse.
+//! **Secure path handling for untrusted input.** Prevents directory traversal, symlink escapes,
+//! and [19+ real-world CVE attack patterns](https://dk26.github.io/strict-path-rs/security_methodology.html).
+//! If a `StrictPath` value exists, the path is proven to be inside its boundary — by construction,
+//! not by string checks.
 //!
 //! This crate performs full normalization/canonicalization and boundary enforcement with:
 //! - Safe symlink/junction handling (including cycle detection)
@@ -106,6 +107,10 @@
 //! > **Trade-off:** Security is prioritized above performance. This crate verifies paths on disk
 //! > and follows symlinks for validation. If your use case doesn't involve symlinks and you need
 //! > maximum performance, a lexical-only solution may be a better fit.
+//!
+//! > **Scope:** Validation happens at join-time (canonicalization + boundary check). Filesystem
+//! > changes between validation and I/O are outside scope (TOCTOU) — the same limitation as SQL
+//! > prepared statements, which prevent injection but don't protect against concurrent schema changes.
 //!
 //! **[→ Read attack surface analysis](https://dk26.github.io/strict-path-rs/security_methodology.html#12-coverage-what-we-protect-against)**
 //!
