@@ -110,6 +110,65 @@ fn fuzz_strict_join_security_invariant() {
     }
 }
 
+#[test]
+fn fuzz_strict_with_extension_never_panics() {
+    // Regression for F1: `Path::with_extension` panics if the argument contains
+    // a path separator. Our `strictpath_with_extension` must reject such input
+    // via validation instead of panicking.
+    let temp = tempfile::tempdir().unwrap();
+    let sandbox = PathBoundary::<()>::try_new(temp.path()).unwrap();
+    let base = sandbox.strict_join("file.txt").unwrap();
+
+    let extensions = [
+        "bak",
+        "",
+        "evil/../../escape",
+        "a/b",
+        "a\\b",
+        "with nul\0byte",
+        "leading.",
+        "..",
+        ".hidden",
+        "tar.gz",
+    ];
+
+    let mut rng = Lcg::new(0xF1F1F1F1);
+    for _ in 0..1000 {
+        let idx = rng.next_range(extensions.len());
+        let ext = extensions[idx];
+        // Must return Result, never panic.
+        let _ = base.strictpath_with_extension(ext);
+    }
+}
+
+#[cfg(feature = "virtual-path")]
+#[test]
+fn fuzz_virtual_with_extension_never_panics() {
+    let temp = tempfile::tempdir().unwrap();
+    let vroot = VirtualRoot::<()>::try_new(temp.path()).unwrap();
+    let base = vroot.virtual_join("file.txt").unwrap();
+
+    let extensions = [
+        "bak",
+        "",
+        "evil/../../escape",
+        "a/b",
+        "a\\b",
+        "with nul\0byte",
+        "leading.",
+        "..",
+        ".hidden",
+        "tar.gz",
+    ];
+
+    let mut rng = Lcg::new(0xF2F2F2F2);
+    for _ in 0..1000 {
+        let idx = rng.next_range(extensions.len());
+        let ext = extensions[idx];
+        let _ = base.virtualpath_with_extension(ext);
+    }
+}
+
 #[cfg(feature = "virtual-path")]
 #[test]
 fn fuzz_virtual_join_clamping_invariant() {

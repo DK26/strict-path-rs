@@ -466,21 +466,31 @@ impl<Marker> std::fmt::Debug for PathBoundary<Marker> {
 impl<Marker: Default> std::str::FromStr for PathBoundary<Marker> {
     type Err = crate::StrictPathError;
 
-    /// Parse a PathBoundary from a string path for universal ergonomics.
+    /// Parse a `PathBoundary` from a string path, validating that it already
+    /// exists as a directory.
     ///
-    /// Creates the directory if it doesn't exist, enabling seamless integration
-    /// with any string-parsing context (clap, config files, environment variables, etc.):
+    /// WHY VALIDATE-ONLY: When `PathBoundary` is parsed from untrusted input
+    /// (serde deserialization of a config file, a CLI flag, an environment
+    /// variable), the string controls which directory on disk is created. A
+    /// `FromStr` that eagerly calls `create_dir_all` would let an attacker who
+    /// controls that string touch any directory the process has write access
+    /// to. `from_str` intentionally does not create anything; use
+    /// [`PathBoundary::try_new_create`] explicitly when directory creation is
+    /// the desired side effect.
+    ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let data_dir: PathBoundary<()> = "./data".parse()?;
+    /// # let tmp = tempfile::tempdir()?;
+    /// # let p = tmp.path().to_string_lossy().to_string();
+    /// let data_dir: PathBoundary<()> = p.parse()?;
     /// assert!(data_dir.exists());
     /// # Ok(())
     /// # }
     /// ```
     #[inline]
     fn from_str(path: &str) -> std::result::Result<Self, Self::Err> {
-        Self::try_new_create(path)
+        Self::try_new(path)
     }
 }
 

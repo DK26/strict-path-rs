@@ -46,7 +46,7 @@ This is the same principle behind SQL prepared statements: instead of escaping e
 
 ```toml
 [dependencies]
-strict-path = "0.2"  # 1 dependency (soft-canonicalize), zero transitive — part of this project
+strict-path = "0.2"  # every dependency closes a security gap — see "Zero Idle Dependencies" below
 ```
 
 ```rust
@@ -207,11 +207,25 @@ let sys_file = sys_boundary.strict_join("config.toml")?;
 
 ---
 
-### vs `soft-canonicalize`
+### 🔒 Zero Idle Dependencies
 
-**Compared with manual soft-canonicalize path validations:**
+Every runtime dependency exists to close a specific security gap. Each is audited, tested against attack payloads, and covered by `cargo audit` in CI.
+
+| Crate | Platforms | Security role |
+|---|---|---|
+| [`soft-canonicalize`](https://crates.io/crates/soft-canonicalize) | All | Canonicalization engine — symlink resolution, 8.3 short-name expansion, cycle detection, null-byte rejection. Maintained as part of this project. |
+| [`dunce`](https://crates.io/crates/dunce) | Windows | Strips `\\?\` / `\\.\` verbatim prefixes via `std::path::Prefix` pattern matching — no lossy UTF-8 round-trip, refuses to strip when unsafe (reserved names, >260 chars, trailing dots). Zero transitive deps. |
+| [`junction`](https://crates.io/crates/junction) | Windows (opt-in `junctions` feature) | NTFS junction creation and inspection for built-in junction helpers. |
+
+On Unix the total runtime tree is **2 crates** (`soft-canonicalize` + `proc-canonicalize`). On Windows it adds `dunce` (zero transitive deps). No idle dependencies — if a crate is in the tree, it has a security job.
+
+<details>
+<summary><strong>vs manual <code>soft-canonicalize</code></strong></summary>
+
 - `soft-canonicalize` = low-level path resolution engine (returns `PathBuf`)
 - `strict-path` = high-level security API (returns `StrictPath<Marker>` with compile-time guarantees: fit for LLM era)
+
+</details>
 
 ---
 

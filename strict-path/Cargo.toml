@@ -31,8 +31,13 @@ app-path = "1.1.2"
 [target.'cfg(windows)'.dev-dependencies]
 junction = "1.4.2"
 
-# Optional Windows junction support for the library API
+# Windows-specific runtime dependencies.
+# `dunce` strips verbatim (`\\?\`) and device (`\\.\`) prefixes correctly —
+# pattern-matches `std::path::Prefix` variants, preserves the raw `OsStr` (no
+# lossy UTF-8 round-trip), and declines to strip when the target would be
+# unsafe (reserved names, >260 chars, trailing dots, etc.).
 [target.'cfg(windows)'.dependencies]
+dunce = "1.0"
 junction = { version = "1.4.2", optional = true }
 
 [features]

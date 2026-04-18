@@ -1,3 +1,11 @@
+// SCOPE NOTE: This Kani harness proves the component-array clamping invariant
+// against a mock component enum (`MockComponent`). It does NOT prove the full
+// `canonicalize_and_enforce_restriction_boundary` pipeline — the real pipeline
+// depends on `soft-canonicalize` and OS-level symlink resolution, which are
+// outside Kani's reach. Treat this as a structural proof of the virtualization
+// algorithm (no ParentDir/RootDir survives clamping), not an end-to-end
+// security proof. End-to-end guarantees come from the test suites in
+// `src/path/tests/` and `src/validator/tests/`.
 #[cfg(kani)]
 mod verification {
     #[derive(Copy, Clone, Debug, kani::Arbitrary)]
