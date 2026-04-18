@@ -253,15 +253,16 @@ Note: We intentionally do not expose separate helpers for "symlink metadata" or 
 We maintain a systematic approach to understanding and defending against path-related vulnerabilities:
 
 **Research activities:**
-- **CVE database analysis**: Study of documented path-related vulnerabilities across software ecosystems
+- **CVE database analysis**: Continuous monitoring of documented path-related vulnerabilities across software ecosystems
+- **AI-assisted vulnerability research**: New CVE patterns are systematically analyzed using AI tools to identify novel attack vectors and edge cases that manual review might miss — every finding is verified against the canonicalization engine and codified as a regression test
 - **Security advisory analysis**: Analysis of how attacks work and why existing solutions failed
 - **Historical attack validation**: Testing our defenses against known attack patterns
 - **Comparative analysis**: Study of similar libraries and their security approaches
 
 **Validation process:**
-- Attack patterns are tested against our validation logic during development
-- Gaps identified in research inform security improvements
-- Security enhancements are implemented with careful consideration of compatibility
+- Attack patterns are reproduced and tested against our validation logic
+- AI-generated attack hypotheses are verified through concrete test cases before any claims are made
+- Gaps identified in research inform security improvements to both `strict-path` and the underlying `soft-canonicalize` engine
 - Relevant findings contribute to the broader security community understanding
 
 ## 4. Open-Source Transparency for Rapid Issue Detection
