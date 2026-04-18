@@ -28,6 +28,7 @@ mod proc_magic_symlink_vpath;
 mod read_dir_and_conversions;
 mod rename;
 mod security;
+mod security_canonicalization_proof;
 mod security_input_encoding;
 mod security_io;
 mod security_symlink_escape;

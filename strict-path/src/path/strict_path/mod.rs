@@ -43,6 +43,10 @@ pub(super) fn strip_verbatim_prefix(path: &Path) -> std::borrow::Cow<'_, Path> {
 /// accessors are prefixed with `strictpath_` to avoid confusion.
 #[derive(Clone)]
 #[must_use = "a StrictPath is boundary-validated and ready for I/O — use .strict_join() to compose child paths, built-in I/O helpers (.read(), .write(), .create_file()), or pass to functions accepting &StrictPath<Marker>"]
+#[doc(alias = "jailed_path")]
+#[doc(alias = "safe_path")]
+#[doc(alias = "sanitized_path")]
+#[doc(alias = "sandboxed_path")]
 pub struct StrictPath<Marker = ()> {
     path: PathHistory<((Raw, Canonicalized), BoundaryChecked)>,
     boundary: Arc<crate::PathBoundary<Marker>>,

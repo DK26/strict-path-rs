@@ -5,6 +5,8 @@
 //! If a `StrictPath` value exists, the path is proven to be inside its boundary — by construction,
 //! not by string checks.
 //!
+//! Also known as: path jailing, path sandboxing, chroot-like path restriction, path sanitization.
+//!
 //! This crate performs full normalization/canonicalization and boundary enforcement with:
 //! - Safe symlink/junction handling (including cycle detection)
 //! - Windows-specific quirks (8.3 short names, UNC and verbatim prefixes, ADS)

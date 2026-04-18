@@ -14,6 +14,10 @@ use std::path::Path;
 /// Provide a user‑facing virtual root that produces `VirtualPath` values clamped to a boundary.
 #[derive(Clone)]
 #[must_use = "a VirtualRoot is validated and ready to enforce virtual path restrictions — call .virtual_join() to validate untrusted input, .into_virtualpath() to get the root path, or pass to functions that accept &VirtualRoot<Marker>"]
+#[doc(alias = "jail")]
+#[doc(alias = "chroot")]
+#[doc(alias = "sandbox")]
+#[doc(alias = "contain")]
 pub struct VirtualRoot<Marker = ()> {
     pub(crate) root: PathBoundary<Marker>,
     pub(crate) _marker: PhantomData<Marker>,

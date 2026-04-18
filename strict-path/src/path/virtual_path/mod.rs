@@ -28,6 +28,9 @@ use std::path::{Path, PathBuf};
 /// `StrictPath` with `unvirtual()` for system‑facing I/O.
 #[derive(Clone)]
 #[must_use = "a VirtualPath is boundary-validated and user-facing — use .virtualpath_display() for safe user output, .virtual_join() to compose paths, or .as_unvirtual() for system-facing I/O"]
+#[doc(alias = "jailed_path")]
+#[doc(alias = "sandboxed_path")]
+#[doc(alias = "contained_path")]
 pub struct VirtualPath<Marker = ()> {
     pub(crate) inner: StrictPath<Marker>,
     pub(crate) virtual_path: PathBuf,

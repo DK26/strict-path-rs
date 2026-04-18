@@ -31,11 +31,22 @@ You strip `..` and check for `/`. But attackers have a dozen other vectors:
 
 **How it works:** `strict-path` resolves the path on disk — follows symlinks, expands short names, normalizes encoding — then proves the resolved path is inside the boundary. The input string is irrelevant. Only where the path *actually leads* matters.
 
+<details>
+<summary><strong>Why canonicalization beats string blocklists</strong></summary>
+
+String-matching libraries maintain lists of dangerous patterns — `..`, `%2e%2e`, `%c0%ae` (overlong UTF-8), `&#46;` (HTML entities), full-width Unicode dots, zero-width characters, and dozens more. Every new encoding trick requires a new blocklist entry, and a single miss is a bypass.
+
+`strict-path` doesn't play that game. It asks the OS to resolve the path, then checks where it landed. URL-encoded `%2e%2e` isn't decoded — it's a literal directory name containing percent signs. Overlong UTF-8 sequences, HTML entities, code-page homoglyphs (¥→`\` in CP932, ₩→`\` in CP949) — none of these matter because the OS never interprets them as path separators or traversal sequences. The canonicalized result either falls inside the boundary or it doesn't.
+
+This is the same principle behind SQL prepared statements: instead of escaping every dangerous character (and inevitably missing one), you separate code from data structurally. `strict-path` separates *path resolution* from *path text*, making the entire class of encoding-bypass attacks irrelevant by design.
+
+</details>
+
 ## ⚡ Get Secure in 30 Seconds
 
 ```toml
 [dependencies]
-strict-path = "0.2"
+strict-path = "0.2"  # 1 dependency (soft-canonicalize), zero transitive — part of this project
 ```
 
 ```rust
@@ -57,6 +68,7 @@ If the input resolves outside the boundary — by *any* mechanism — `strict_jo
 - 🛡️ **Built-in I/O** — `read()`, `write()`, `create_dir_all()`, `read_dir()` — no need to drop to `std::fs`
 - 📐 **Compile-time markers** — `StrictPath<UserUploads>` vs `StrictPath<SystemConfig>` can't be mixed up
 - ⚡ **Dual modes** — `StrictPath` (detect & reject escapes) or `VirtualPath` (clamp & contain)
+- 🔒 **Thread-safe** — all types are `Send + Sync`; share across threads and async tasks
 - 🤖 **LLM-ready** — doc comments and [context files](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md) designed for AI agents with function calling
 
 **Why the API looks the way it does:**

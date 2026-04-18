@@ -83,6 +83,11 @@ pub(crate) fn canonicalize_and_enforce_restriction_boundary<Marker>(
 /// # }
 /// ```
 #[must_use = "a PathBoundary is validated and ready to enforce path restrictions — call .strict_join() to validate untrusted input, .into_strictpath() to get the boundary path, or pass to functions that accept &PathBoundary<Marker>"]
+#[doc(alias = "jail")]
+#[doc(alias = "chroot")]
+#[doc(alias = "sandbox")]
+#[doc(alias = "sanitize")]
+#[doc(alias = "boundary")]
 pub struct PathBoundary<Marker = ()> {
     path: Arc<PathHistory<((Raw, Canonicalized), Exists)>>,
     _marker: PhantomData<Marker>,
