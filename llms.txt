@@ -16,7 +16,6 @@
 
 ## Optional
 
-- [LLM API Quick Reference](https://raw.githubusercontent.com/DK26/strict-path-rs/main/LLM_API_REFERENCE.md): Compact method-level API reference
 - [Tutorial: Mathematical Security](https://dk26.github.io/strict-path-rs/tutorial/overview.html): 6-chapter progressive guide — boundaries, markers, authorization, virtual paths
 - [Axum Web Service Tutorial](https://dk26.github.io/strict-path-rs/axum_tutorial/overview.html): Build a secure web service with strict-path + Axum
 - [Daily Usage Patterns](https://dk26.github.io/strict-path-rs/ergonomics/daily_patterns.html): Common workflows, chaining, error handling, database paths

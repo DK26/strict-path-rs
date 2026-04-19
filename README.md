@@ -31,11 +31,22 @@ You strip `..` and check for `/`. But attackers have a dozen other vectors:
 
 **How it works:** `strict-path` resolves the path on disk — follows symlinks, expands short names, normalizes encoding — then proves the resolved path is inside the boundary. The input string is irrelevant. Only where the path *actually leads* matters.
 
+<details>
+<summary><strong>Why canonicalization beats string blocklists</strong></summary>
+
+String-matching libraries maintain lists of dangerous patterns — `..`, `%2e%2e`, `%c0%ae` (overlong UTF-8), `&#46;` (HTML entities), full-width Unicode dots, zero-width characters, and dozens more. Every new encoding trick requires a new blocklist entry, and a single miss is a bypass.
+
+`strict-path` doesn't play that game. It asks the OS to resolve the path, then checks where it landed. URL-encoded `%2e%2e` isn't decoded — it's a literal directory name containing percent signs. Overlong UTF-8 sequences, HTML entities, code-page homoglyphs (¥→`\` in CP932, ₩→`\` in CP949) — none of these matter because the OS never interprets them as path separators or traversal sequences. The canonicalized result either falls inside the boundary or it doesn't.
+
+This is the same principle behind SQL prepared statements: instead of escaping every dangerous character (and inevitably missing one), you separate code from data structurally. `strict-path` separates *path resolution* from *path text*, making the entire class of encoding-bypass attacks irrelevant by design.
+
+</details>
+
 ## ⚡ Get Secure in 30 Seconds
 
 ```toml
 [dependencies]
-strict-path = "0.2"
+strict-path = "0.2"  # every dependency closes a security gap — see "Zero Idle Dependencies" below
 ```
 
 ```rust
@@ -57,13 +68,14 @@ If the input resolves outside the boundary — by *any* mechanism — `strict_jo
 - 🛡️ **Built-in I/O** — `read()`, `write()`, `create_dir_all()`, `read_dir()` — no need to drop to `std::fs`
 - 📐 **Compile-time markers** — `StrictPath<UserUploads>` vs `StrictPath<SystemConfig>` can't be mixed up
 - ⚡ **Dual modes** — `StrictPath` (detect & reject escapes) or `VirtualPath` (clamp & contain)
+- 🔒 **Thread-safe** — all types are `Send + Sync`; share across threads and async tasks
 - 🤖 **LLM-ready** — doc comments and [context files](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md) designed for AI agents with function calling
 
 **Why the API looks the way it does:**
 
 This crate combines Rust's type system with Python's "one obvious way to do it" philosophy to build an API that **LLMs and humans physically cannot misuse** — wrong code doesn't compile, and the compiler itself teaches you the fix.
 
-- **No `AsRef<Path>`, no `Deref`** — if `StrictPath` implemented these, any code could silently call `std::fs::read(path)` and skip the boundary check entirely. There is no "quick shortcut" that compiles yet bypasses security. The type system rules it out.
+- **No `AsRef<Path>`, no `Deref`** — if `StrictPath` implemented these, anything could call `.join()` on it and build a new path that bypasses boundary validation entirely. That one method on `Path` undoes everything `strict_join()` enforces. The type system makes it unreachable.
 - **`interop_path()` returns `&OsStr`, not `&Path`** — `Path` has `.join()` and `.parent()`, which let you build new unvalidated paths. `OsStr` has none of that — it's a one-way exit to third-party crates with no way to accidentally re-enter path manipulation.
 - **One method per operation** — every operation has exactly one method. An LLM scanning the API can't pick the wrong overload because there isn't one. No aliases, no convenience wrappers, no "which one is the secure version?" Even the weakest model gets it right on the first try.
 - **`#[must_use]` with instructions, not just warnings** — the compiler becomes the documentation. When an LLM generates code and forgets to handle a `strict_join()` result, it doesn't get a generic "unused Result" — it gets a message like *"always handle the Result to detect path traversal attacks"*. The LLM reads the compiler output, self-corrects, and gets it right on the next pass. No docs lookup needed.
@@ -195,11 +207,25 @@ let sys_file = sys_boundary.strict_join("config.toml")?;
 
 ---
 
-### vs `soft-canonicalize`
+### 🔒 Zero Idle Dependencies
 
-**Compared with manual soft-canonicalize path validations:**
+Every runtime dependency exists to close a specific security gap. Each is audited, tested against attack payloads, and covered by `cargo audit` in CI.
+
+| Crate | Platforms | Security role |
+|---|---|---|
+| [`soft-canonicalize`](https://crates.io/crates/soft-canonicalize) | All | Canonicalization engine — symlink resolution, 8.3 short-name expansion, cycle detection, null-byte rejection. Maintained as part of this project. |
+| [`dunce`](https://crates.io/crates/dunce) | Windows | Strips `\\?\` / `\\.\` verbatim prefixes via `std::path::Prefix` pattern matching — no lossy UTF-8 round-trip, refuses to strip when unsafe (reserved names, >260 chars, trailing dots). Zero transitive deps. |
+| [`junction`](https://crates.io/crates/junction) | Windows (opt-in `junctions` feature) | NTFS junction creation and inspection for built-in junction helpers. |
+
+On Unix the total runtime tree is **2 crates** (`soft-canonicalize` + `proc-canonicalize`). On Windows it adds `dunce` (zero transitive deps). No idle dependencies — if a crate is in the tree, it has a security job.
+
+<details>
+<summary><strong>vs manual <code>soft-canonicalize</code></strong></summary>
+
 - `soft-canonicalize` = low-level path resolution engine (returns `PathBuf`)
 - `strict-path` = high-level security API (returns `StrictPath<Marker>` with compile-time guarantees: fit for LLM era)
+
+</details>
 
 ---
 

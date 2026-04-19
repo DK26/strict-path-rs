@@ -11,22 +11,20 @@ pub struct VirtualPathDisplay<'vpath, Marker>(pub(super) &'vpath VirtualPath<Mar
 
 impl<'vpath, Marker> fmt::Display for VirtualPathDisplay<'vpath, Marker> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Ensure leading slash and normalize to forward slashes for display
-        let s_lossy = self.0.virtual_path.to_string_lossy();
-        let s_norm: std::borrow::Cow<'_, str> = {
-            #[cfg(windows)]
-            {
-                std::borrow::Cow::Owned(s_lossy.replace('\\', "/"))
+        // Sanitize each Normal component at display time so that virtual_path
+        // stores raw OS names (preserving correct navigation via virtual_join).
+        use std::path::Component;
+        let mut parts: Vec<String> = Vec::new();
+        for comp in self.0.virtual_path.components() {
+            if let Component::Normal(name) = comp {
+                let s = name.to_string_lossy();
+                parts.push(super::sanitize_display_component(&s));
             }
-            #[cfg(not(windows))]
-            {
-                std::borrow::Cow::Borrowed(&s_lossy)
-            }
-        };
-        if s_norm.starts_with('/') {
-            write!(f, "{s_norm}")
+        }
+        if parts.is_empty() {
+            write!(f, "/")
         } else {
-            write!(f, "/{s_norm}")
+            write!(f, "/{}", parts.join("/"))
         }
     }
 }

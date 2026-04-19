@@ -8,6 +8,7 @@
         "benches",
         "demos",
         ".github",
+        ".agents",
         "strict-path/sandbox",
         "strict-path/tenant_data",
         "strict-path/vlink_demo",
@@ -28,7 +29,8 @@
         "ci-check-demos.sh",
         "context7.json",
         "llms.txt",
-        "LLM_USER.md"
+        "LLM_USER.md",
+        "LLM_API_REFERENCE.md"
     ],
     "rules": [
         "Always validate untrusted paths via strict_join() or virtual_join() before any filesystem I/O",

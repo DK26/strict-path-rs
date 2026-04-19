@@ -18,21 +18,19 @@ use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Strip the Windows verbatim `\\?\` prefix from a path if present.
+/// Strip the Windows verbatim `\\?\` (and DOS device `\\.\`) prefix from a path.
 ///
-/// The `junction` crate does not handle verbatim prefix paths correctly - it creates
-/// broken junctions that return ERROR_INVALID_NAME (123) when accessed.
+/// The `junction` crate does not handle verbatim/device-namespace paths correctly —
+/// it creates broken junctions that return ERROR_INVALID_NAME (123) when accessed.
 /// This helper strips the prefix so junction creation works correctly.
 ///
+/// Delegates to `dunce::simplified`, which pattern-matches `std::path::Prefix`
+/// variants (no lossy UTF-8 round-trip) and refuses to strip when the target
+/// would be unsafe — reserved device names (`COM1`, `NUL`, ...), paths longer
+/// than `MAX_PATH`, and names ending in a dot/space.
 #[cfg(all(windows, feature = "junctions"))]
 pub(super) fn strip_verbatim_prefix(path: &Path) -> std::borrow::Cow<'_, Path> {
-    use std::borrow::Cow;
-    let s = path.as_os_str().to_string_lossy();
-    if let Some(rest) = s.strip_prefix(r"\\?\") {
-        Cow::Owned(PathBuf::from(rest))
-    } else {
-        Cow::Borrowed(path)
-    }
+    std::borrow::Cow::Borrowed(dunce::simplified(path))
 }
 
 /// Hold a validated, system-facing filesystem path guaranteed to be within a `PathBoundary`.
@@ -43,6 +41,10 @@ pub(super) fn strip_verbatim_prefix(path: &Path) -> std::borrow::Cow<'_, Path> {
 /// accessors are prefixed with `strictpath_` to avoid confusion.
 #[derive(Clone)]
 #[must_use = "a StrictPath is boundary-validated and ready for I/O — use .strict_join() to compose child paths, built-in I/O helpers (.read(), .write(), .create_file()), or pass to functions accepting &StrictPath<Marker>"]
+#[doc(alias = "jailed_path")]
+#[doc(alias = "safe_path")]
+#[doc(alias = "sanitized_path")]
+#[doc(alias = "sandboxed_path")]
 pub struct StrictPath<Marker = ()> {
     path: PathHistory<((Raw, Canonicalized), BoundaryChecked)>,
     boundary: Arc<crate::PathBoundary<Marker>>,
@@ -381,11 +383,18 @@ impl<Marker> StrictPath<Marker> {
     /// ```
     #[must_use = "strictpath_parent() returns Result<Option> — handle the error, then match Some(parent) for traversal or None at the boundary root"]
     pub fn strictpath_parent(&self) -> Result<Option<Self>> {
+        // WHY: If `self` is the boundary root itself, `Path::parent()` returns
+        // the *filesystem* parent (one level above the boundary). Passing that
+        // to `strict_join` correctly rejects it with `PathEscapesBoundary`, but
+        // from the caller's perspective "parent of the root" is semantically
+        // `None`, not an error. Detect the root case explicitly so the
+        // documented contract holds and downstream link/copy/rename fallbacks
+        // that pattern-match `Ok(None)` are actually reachable.
+        if self.path.as_ref() == self.boundary.path() {
+            return Ok(None);
+        }
         match self.path.parent() {
-            Some(p) => match self.boundary.strict_join(p) {
-                Ok(p) => Ok(Some(p)),
-                Err(e) => Err(e),
-            },
+            Some(p) => self.boundary.strict_join(p).map(Some),
             None => Ok(None),
         }
     }
@@ -442,7 +451,10 @@ impl<Marker> StrictPath<Marker> {
                 self.boundary.path().to_path_buf(),
             ));
         }
-        let new_systempath = system_path.with_extension(extension);
+        // WHY: `Path::with_extension` panics when the extension contains a
+        // path separator. Untrusted callers must get an `Err`, never a crash.
+        let new_systempath =
+            crate::path::with_validated_extension(system_path, extension.as_ref())?;
         self.boundary.strict_join(new_systempath)
     }
 

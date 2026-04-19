@@ -4,7 +4,6 @@
 //! Keeping I/O separate from path composition makes it easy to audit: all boundary enforcement
 //! happens in `mod.rs`; this file only performs reads, writes, and directory operations.
 use super::{iter::StrictOpenOptions, StrictPath};
-use crate::StrictPathError;
 
 impl<Marker> StrictPath<Marker> {
     /// Create or truncate the file at this strict path and return a writable handle.
@@ -165,13 +164,11 @@ impl<Marker> StrictPath<Marker> {
     /// ```
     pub fn create_parent_dir(&self) -> std::io::Result<()> {
         match self.strictpath_parent() {
+            // At the boundary root, `strictpath_parent()` returns Ok(None).
+            // The boundary directory already exists (enforced by try_new), so
+            // there is nothing to create.
             Ok(Some(parent)) => parent.create_dir(),
             Ok(None) => Ok(()),
-            // Ok(()): At the boundary root, the "parent" would escape the
-            // boundary, but there is nothing to create — the boundary dir already
-            // exists.  Returning an error here would force every caller to handle
-            // a case that never requires action.
-            Err(StrictPathError::PathEscapesBoundary { .. }) => Ok(()),
             Err(e) => Err(std::io::Error::other(e)),
         }
     }
@@ -197,9 +194,6 @@ impl<Marker> StrictPath<Marker> {
         match self.strictpath_parent() {
             Ok(Some(parent)) => parent.create_dir_all(),
             Ok(None) => Ok(()),
-            // Ok(()): Same rationale as create_parent_dir — boundary root's
-            // parent escapes, but the boundary itself already exists; no action needed.
-            Err(StrictPathError::PathEscapesBoundary { .. }) => Ok(()),
             Err(e) => Err(std::io::Error::other(e)),
         }
     }

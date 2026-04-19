@@ -14,6 +14,10 @@ use std::path::Path;
 /// Provide a user‑facing virtual root that produces `VirtualPath` values clamped to a boundary.
 #[derive(Clone)]
 #[must_use = "a VirtualRoot is validated and ready to enforce virtual path restrictions — call .virtual_join() to validate untrusted input, .into_virtualpath() to get the root path, or pass to functions that accept &VirtualRoot<Marker>"]
+#[doc(alias = "jail")]
+#[doc(alias = "chroot")]
+#[doc(alias = "sandbox")]
+#[doc(alias = "contain")]
 pub struct VirtualRoot<Marker = ()> {
     pub(crate) root: PathBoundary<Marker>,
     pub(crate) _marker: PhantomData<Marker>,
@@ -466,23 +470,29 @@ impl<Marker> PartialOrd<std::path::PathBuf> for VirtualRoot<Marker> {
 impl<Marker: Default> std::str::FromStr for VirtualRoot<Marker> {
     type Err = crate::StrictPathError;
 
-    /// Parse a VirtualRoot from a string path for universal ergonomics.
+    /// Parse a `VirtualRoot` from a string path, validating that it already
+    /// exists as a directory.
     ///
-    /// Creates the directory if it doesn't exist, enabling seamless integration
-    /// with any string-parsing context (clap, config files, environment variables, etc.):
+    /// WHY VALIDATE-ONLY: `VirtualRoot` defines the sandbox for every
+    /// downstream `VirtualPath`. When its source string comes from untrusted
+    /// input (serde, CLI, env var), a `FromStr` that auto-created directories
+    /// would let the attacker pick any writable target as the sandbox — the
+    /// exact footgun the crate warns against elsewhere. `from_str` is
+    /// validate-only; use [`VirtualRoot::try_new_create`] explicitly when
+    /// creating the directory is intended.
+    ///
     /// ```rust
     /// # use strict_path::VirtualRoot;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let temp_dir = tempfile::tempdir()?;
-    /// let virtual_path = temp_dir.path().join("virtual_dir");
-    /// let vroot: VirtualRoot<()> = virtual_path.to_string_lossy().parse()?;
-    /// assert!(virtual_path.exists());
+    /// let vroot: VirtualRoot<()> = temp_dir.path().to_string_lossy().parse()?;
+    /// assert!(vroot.exists());
     /// # Ok(())
     /// # }
     /// ```
     #[inline]
     fn from_str(path: &str) -> std::result::Result<Self, Self::Err> {
-        Self::try_new_create(path)
+        Self::try_new(path)
     }
 }
 

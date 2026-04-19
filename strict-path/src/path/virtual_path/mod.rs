@@ -28,9 +28,47 @@ use std::path::{Path, PathBuf};
 /// `StrictPath` with `unvirtual()` for system‑facing I/O.
 #[derive(Clone)]
 #[must_use = "a VirtualPath is boundary-validated and user-facing — use .virtualpath_display() for safe user output, .virtual_join() to compose paths, or .as_unvirtual() for system-facing I/O"]
+#[doc(alias = "jailed_path")]
+#[doc(alias = "sandboxed_path")]
+#[doc(alias = "contained_path")]
 pub struct VirtualPath<Marker = ()> {
     pub(crate) inner: StrictPath<Marker>,
     pub(crate) virtual_path: PathBuf,
+}
+
+/// Replace dangerous Unicode characters with `_` for safe Display output.
+///
+/// WHY: `virtualpath_display` is the one API surface whose output the crate
+/// actively encourages embedding in user-facing channels (HTTP responses,
+/// logs, terminal prints). The following categories are injection primitives:
+///   - C0 controls (< 0x20): `\n`/`\r` CRLF splitting, `\x1b` ANSI escapes, NUL
+///   - DEL (0x7F): terminal erase behavior on some emulators
+///   - C1 controls (0x80–0x9F): U+0085 NEL acts as newline in HTTP/XML/log parsers
+///   - U+2028/U+2029 (Line/Paragraph Separator): ECMAScript line terminators
+///   - Unicode directional overrides (U+202A–U+202E, U+2066–U+2069, U+200E/U+200F):
+///     visually reverse filename characters, enabling extension-spoofing attacks
+///   - `;` (semicolon): shell command separator — display output may feed a downstream shell reader
+fn sanitize_display_component(component: &str) -> String {
+    let mut out = String::with_capacity(component.len());
+    for ch in component.chars() {
+        let cp = ch as u32;
+        let needs_replace = ch == ';'
+            || cp < 0x20           // C0 controls (NUL through US)
+            || cp == 0x7F          // DEL
+            || (0x80..=0x9F).contains(&cp)  // C1 controls (NEL U+0085, CSI U+009B, etc.)
+            || cp == 0x2028        // LINE SEPARATOR  — ECMAScript line terminator
+            || cp == 0x2029        // PARAGRAPH SEPARATOR — ECMAScript line terminator
+            || cp == 0x200E        // LEFT-TO-RIGHT MARK
+            || cp == 0x200F        // RIGHT-TO-LEFT MARK
+            || (0x202A..=0x202E).contains(&cp)  // LRE, RLE, PDF, LRO, RLO (directional embedding/override)
+            || (0x2066..=0x2069).contains(&cp); // LRI, RLI, FSI, PDI (directional isolate)
+        if needs_replace {
+            out.push('_');
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 /// Re-validate a canonicalized path against the boundary after virtual-space manipulation.
@@ -72,22 +110,16 @@ impl<Marker> VirtualPath<Marker> {
             system_path: &std::path::Path,
             restriction: &crate::PathBoundary<Marker>,
         ) -> std::path::PathBuf {
-            use std::ffi::OsString;
             use std::path::Component;
 
             // WHY: Windows canonicalization adds a `\\?\` verbatim prefix that breaks
-            // `strip_prefix` comparisons between system_path and jail_norm. Remove it
-            // so prefix-based derivation of the virtual path works correctly.
+            // `strip_prefix` comparisons between system_path and jail_norm. `dunce`
+            // strips it via `std::path::Prefix` matching (no lossy UTF-8 round-trip)
+            // and declines to strip when doing so would be unsafe (reserved device
+            // names, >MAX_PATH, trailing dots). On non-Windows it is a no-op.
             #[cfg(windows)]
             fn strip_verbatim(p: &std::path::Path) -> std::path::PathBuf {
-                let s = p.as_os_str().to_string_lossy();
-                if let Some(trimmed) = s.strip_prefix("\\\\?\\") {
-                    return std::path::PathBuf::from(trimmed);
-                }
-                if let Some(trimmed) = s.strip_prefix("\\\\.\\") {
-                    return std::path::PathBuf::from(trimmed);
-                }
-                std::path::PathBuf::from(s.to_string())
+                dunce::simplified(p).to_path_buf()
             }
 
             #[cfg(not(windows))]
@@ -100,20 +132,13 @@ impl<Marker> VirtualPath<Marker> {
 
             // Fast path: strip the boundary prefix directly. This works when both
             // paths share a common prefix after verbatim normalization.
+            // Raw components are stored; sanitization happens at display time in
+            // VirtualPathDisplay::fmt so that virtual_join navigation remains correct.
             if let Ok(stripped) = system_norm.strip_prefix(&jail_norm) {
                 let mut cleaned = std::path::PathBuf::new();
                 for comp in stripped.components() {
                     if let Component::Normal(name) = comp {
-                        let s = name.to_string_lossy();
-                        // WHY: Newlines and semicolons in path components can
-                        // enable log injection and HTTP header injection when
-                        // the virtual path appears in user-facing output.
-                        let cleaned_s = s.replace(['\n', ';'], "_");
-                        if cleaned_s == s {
-                            cleaned.push(name);
-                        } else {
-                            cleaned.push(OsString::from(cleaned_s));
-                        }
+                        cleaned.push(name);
                     }
                 }
                 return cleaned;
@@ -158,13 +183,7 @@ impl<Marker> VirtualPath<Marker> {
             let mut vb = std::path::PathBuf::new();
             for c in strictpath_comps {
                 if let Component::Normal(name) = c {
-                    let s = name.to_string_lossy();
-                    let cleaned = s.replace(['\n', ';'], "_");
-                    if cleaned == s {
-                        vb.push(name);
-                    } else {
-                        vb.push(OsString::from(cleaned));
-                    }
+                    vb.push(name);
                 }
             }
             vb
@@ -372,7 +391,10 @@ impl<Marker> VirtualPath<Marker> {
             ));
         }
 
-        let candidate = self.virtual_path.with_extension(extension);
+        // WHY: `Path::with_extension` panics when the extension contains a
+        // path separator. Untrusted callers must get an `Err`, never a crash.
+        let candidate =
+            crate::path::with_validated_extension(&self.virtual_path, extension.as_ref())?;
         let anchored = crate::validator::path_history::PathHistory::new(candidate)
             .canonicalize_anchored(self.inner.boundary())?;
         let validated_path = clamp(self.inner.boundary(), anchored)?;
