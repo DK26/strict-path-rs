@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-20
+
+### Fixed
+- **Display sanitizer coverage (F2, F6)**: `sanitize_display_component` now replaces C0 controls, DEL, C1 controls (U+0080–U+009F including NEL), ECMAScript line terminators (U+2028/U+2029), Unicode directional overrides/marks (U+202A–U+202E, U+2066–U+2069, U+200E/U+200F), and `;` — prevents CRLF header splitting, ANSI escape injection, log line spoofing, and bidirectional text attacks.
+- **`with_extension` panic DoS (F1)**: `Path::with_extension` panics on extensions containing path separators. Added `validate_extension()` to reject separators and NUL bytes with `Err` instead of crashing the process.
+- **`strictpath_parent` at boundary root (F3)**: Returned `Err(PathEscapesBoundary)` instead of `Ok(None)`, making fallback arms in `strict_rename`, `strict_copy`, `strict_symlink`, `strict_hard_link`, and `strict_junction` dead code. Now correctly returns `Ok(None)`.
+- **`FromStr` side effects (F4)**: `PathBoundary`/`VirtualRoot` `FromStr` called `try_new_create`, letting attacker-controlled strings create arbitrary directories. Changed to `try_new` (validate-only).
+- **Verbatim prefix stripping (F5)**: Replaced hand-rolled `to_string_lossy` + `strip_prefix("\\\\?\\")` with `dunce::simplified`, which pattern-matches `std::path::Prefix` variants without lossy UTF-8 round-trip and refuses to strip when unsafe (reserved names, >MAX_PATH, trailing dots). Also handles `\\\\.\\` prefixes the old code missed.
+- **Virtual path display vs storage mismatch (F7)**: `compute_virtual` stored sanitized component names in `virtual_path`, causing `virtual_join` and `virtualpath_parent` to navigate to the wrong system path when a directory name contains a sanitized character. Moved sanitization from storage time to display time (`VirtualPathDisplay::fmt`), so navigation always resolves against real filesystem names while `virtualpath_display()` remains injection-safe.
+
+### Added
+- `dunce` 1.0 as a Windows-only runtime dependency (zero transitive deps) for safe verbatim prefix handling.
+- `security_audit_findings.rs`, `security_audit_findings_f6.rs`, `security_audit_findings_f7.rs` regression tests for all 7 audit findings.
+- `security_canonicalization_proof.rs` — 337-line proof test module covering overlong UTF-8, URL encoding, HTML entities, Unicode homoglyphs, protocol schemes, whitespace injection, tilde/env-var expansion, and multi-layer combinations.
+- Fuzz tests for `with_extension` (1000 iterations per path type).
+- `#[doc(alias)]` on all four core types (`StrictPath`, `VirtualPath`, `PathBoundary`, `VirtualRoot`) for common search terms (jailed_path, chroot, sandbox, etc.).
+- Kani verification scope note clarifying structural vs end-to-end proof.
+
+### Changed
+- Cargo.toml keywords updated (`filesystem` → `sanitization`).
+
+### Documentation
+- README: "Zero Idle Dependencies" section documenting the security role of every runtime dependency.
+- README: Canonicalization-vs-blocklists rationale expanded.
+- Fixed no-`AsRef`/`Deref` bullet to name the actual threat (`.join()`).
+
 ## [0.2.0] - 2026-04-14
 
 ### Breaking Changes
