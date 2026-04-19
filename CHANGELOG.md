@@ -7,13 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-04-22
+
+### Reverted
+- **`FromStr` restored to `try_new_create`**: v0.2.1 changed `FromStr` to call
+  `try_new` (existing directory required). This is rolled back — parsing a
+  `PathBoundary` or `VirtualRoot` from a string again creates the directory if
+  missing, then canonicalizes and validates. This keeps typed fields in clap /
+  config structs working without boilerplate. To require an existing directory,
+  call `try_new` by name.
+
+### Removed
+- `LLM_API_REFERENCE.md` and `LLM_USER.md` — consolidated into
+  `LLM_CONTEXT_FULL.md` and `LLM_CONTEXT.md`.
+
 ## [0.2.1] - 2026-04-20
 
 ### Fixed
 - **Display sanitizer coverage (F2, F6)**: `sanitize_display_component` now replaces C0 controls, DEL, C1 controls (U+0080–U+009F including NEL), ECMAScript line terminators (U+2028/U+2029), Unicode directional overrides/marks (U+202A–U+202E, U+2066–U+2069, U+200E/U+200F), and `;` — prevents CRLF header splitting, ANSI escape injection, log line spoofing, and bidirectional text attacks.
 - **`with_extension` panic DoS (F1)**: `Path::with_extension` panics on extensions containing path separators. Added `validate_extension()` to reject separators and NUL bytes with `Err` instead of crashing the process.
 - **`strictpath_parent` at boundary root (F3)**: Returned `Err(PathEscapesBoundary)` instead of `Ok(None)`, making fallback arms in `strict_rename`, `strict_copy`, `strict_symlink`, `strict_hard_link`, and `strict_junction` dead code. Now correctly returns `Ok(None)`.
-- **`FromStr` side effects (F4)**: `PathBoundary`/`VirtualRoot` `FromStr` called `try_new_create`, letting attacker-controlled strings create arbitrary directories. Changed to `try_new` (validate-only).
+- **`FromStr` bootstrap change (F4)**: `PathBoundary` / `VirtualRoot`
+  parsing was changed to call `try_new` (validate-only) instead of
+  `try_new_create`. Superseded in `0.2.2`, which returned `FromStr` to
+  `try_new_create`.
 - **Verbatim prefix stripping (F5)**: Replaced hand-rolled `to_string_lossy` + `strip_prefix("\\\\?\\")` with `dunce::simplified`, which pattern-matches `std::path::Prefix` variants without lossy UTF-8 round-trip and refuses to strip when unsafe (reserved names, >MAX_PATH, trailing dots). Also handles `\\\\.\\` prefixes the old code missed.
 - **Virtual path display vs storage mismatch (F7)**: `compute_virtual` stored sanitized component names in `virtual_path`, causing `virtual_join` and `virtualpath_parent` to navigate to the wrong system path when a directory name contains a sanitized character. Moved sanitization from storage time to display time (`VirtualPathDisplay::fmt`), so navigation always resolves against real filesystem names while `virtualpath_display()` remains injection-safe.
 
@@ -27,6 +44,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Cargo.toml keywords updated (`filesystem` → `sanitization`).
+
+### Dependencies
+- **`soft-canonicalize` 0.5.5 → 0.5.6** (security):
+  - Fixed `anchored_canonicalize` escape via absolute `..` symlink targets — extracted `normalize_and_clamp_to_anchor` so every clamp site uses the same logic.
+  - NUL-byte detection now always path-aware — `soft_canon_detail()` consistently returns `"path contains null byte"` instead of stdlib's generic `InvalidInput`.
+  - Forward-slash UNC rejection — `is_incomplete_unc` now detects `//server` and mixed-separator variants.
+  - Windows: `simple_normalize_path` preserves `VerbatimDisk` prefix (previously silently dropped it, breaking anchored clamp checks).
+  - Windows: Fixed `anchored_canonicalize` `..` pop skipped on `Disk` vs `VerbatimDisk` prefix mismatch.
+- **`proc-canonicalize` 0.1.2 → 0.1.3** (transitive via `soft-canonicalize`; security):
+  - Fixed namespace-boundary bypass via `..` in PID prefix — paths like `/proc/<PID>/../<PID>/root` previously evaded detection and returned `/`, silently dropping the namespace boundary. Scanner now lexically normalizes before boundary detection.
+  - Performance: eliminated per-iteration heap allocations in the indirect-symlink scanner.
 
 ### Documentation
 - README: "Zero Idle Dependencies" section documenting the security role of every runtime dependency.

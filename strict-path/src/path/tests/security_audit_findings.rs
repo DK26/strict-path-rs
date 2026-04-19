@@ -270,47 +270,45 @@ fn f3_strict_rename_at_boundary_root_does_not_emit_bogus_escape_error() {
 }
 
 // ---------------------------------------------------------------------------
-// F4 — FromStr must validate, not create
+// FromStr bootstraps: creates the target directory if missing, then validates.
+// See `.agents/design-decisions.md` for the rationale.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn f4_pathboundary_from_str_does_not_create_directory() {
+fn f4_pathboundary_from_str_creates_missing_directory() {
     let td = tempfile::tempdir().unwrap();
-    let phantom = td.path().join("never-should-be-created-by-parse");
-    assert!(!phantom.exists(), "precondition: directory does not exist");
+    let target = td.path().join("created-by-parse");
+    assert!(!target.exists(), "precondition: directory does not exist");
 
-    let parsed: std::result::Result<PathBoundary, _> = phantom.to_string_lossy().parse();
+    let parsed: PathBoundary = target
+        .to_string_lossy()
+        .parse()
+        .expect("FromStr should create the missing directory and validate");
 
     assert!(
-        parsed.is_err(),
-        "FromStr for PathBoundary must reject non-existent paths (not silently \
-         create them)"
+        target.exists(),
+        "FromStr forwards to try_new_create — missing directory must be created"
     );
-    assert!(
-        !phantom.exists(),
-        "FromStr must not materialize a directory — this would be a filesystem \
-         side effect from parsing untrusted input"
-    );
+    assert!(parsed.exists());
 }
 
 #[cfg(feature = "virtual-path")]
 #[test]
-fn f4_virtualroot_from_str_does_not_create_directory() {
+fn f4_virtualroot_from_str_creates_missing_directory() {
     let td = tempfile::tempdir().unwrap();
-    let phantom = td.path().join("never-should-be-created-by-parse-vroot");
-    assert!(!phantom.exists(), "precondition: directory does not exist");
+    let target = td.path().join("created-by-parse-vroot");
+    assert!(!target.exists(), "precondition: directory does not exist");
 
-    let parsed: std::result::Result<VirtualRoot, _> = phantom.to_string_lossy().parse();
+    let parsed: VirtualRoot = target
+        .to_string_lossy()
+        .parse()
+        .expect("FromStr should create the missing sandbox directory and validate");
 
     assert!(
-        parsed.is_err(),
-        "FromStr for VirtualRoot must reject non-existent paths"
+        target.exists(),
+        "FromStr forwards to try_new_create — missing sandbox must be created"
     );
-    assert!(
-        !phantom.exists(),
-        "FromStr must not materialize the sandbox — an attacker-controlled \
-         string could otherwise pick any writable directory as the sandbox"
-    );
+    assert!(parsed.exists());
 }
 
 #[test]

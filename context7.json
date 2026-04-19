@@ -28,9 +28,7 @@
         "ci-check-demos.ps1",
         "ci-check-demos.sh",
         "context7.json",
-        "llms.txt",
-        "LLM_USER.md",
-        "LLM_API_REFERENCE.md"
+        "llms.txt"
     ],
     "rules": [
         "Always validate untrusted paths via strict_join() or virtual_join() before any filesystem I/O",

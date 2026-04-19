@@ -145,6 +145,35 @@ fn readme_typical_workflow_virtual_links_example() -> Result<(), Box<dyn std::er
 }
 
 #[test]
+fn readme_marker_authorization_example() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::{PathBoundary, StrictPath};
+
+    struct PublicAssets;
+    struct UserUploads;
+
+    fn serve_public_asset(_file: &StrictPath<PublicAssets>) { /* safe to stream */
+    }
+
+    let temp_dir = tempfile::tempdir()?.keep();
+
+    let assets: crate::PathBoundary<PublicAssets> =
+        PathBoundary::<PublicAssets>::try_new_create(temp_dir.join("assets"))?;
+    let uploads: crate::PathBoundary<UserUploads> =
+        PathBoundary::<UserUploads>::try_new_create(temp_dir.join("uploads"))?;
+
+    let requested_css = "style.css";
+    let uploaded_avatar = "avatar.jpg";
+
+    let css: StrictPath<PublicAssets> = assets.strict_join(requested_css)?;
+    let _avatar: StrictPath<UserUploads> = uploads.strict_join(uploaded_avatar)?;
+
+    serve_public_asset(&css);
+    // serve_public_asset(&_avatar); // would be: compile error (wrong marker)
+
+    Ok(())
+}
+
+#[test]
 fn readme_interop_path_example() -> Result<(), Box<dyn std::error::Error>> {
     use crate::StrictPath;
 

@@ -73,7 +73,7 @@ If the input resolves outside the boundary — by *any* mechanism — `strict_jo
 
 **Why the API looks the way it does:**
 
-This crate combines Rust's type system with Python's "one obvious way to do it" philosophy to build an API that **LLMs and humans physically cannot misuse** — wrong code doesn't compile, and the compiler itself teaches you the fix.
+This crate combines Rust's type system with Python's "one obvious way to do it" philosophy to build an API where **LLMs and humans naturally reach for the correct pattern** — wrong code either doesn't compile, or the compiler tells you exactly what to do instead.
 
 - **No `AsRef<Path>`, no `Deref`** — if `StrictPath` implemented these, anything could call `.join()` on it and build a new path that bypasses boundary validation entirely. That one method on `Path` undoes everything `strict_join()` enforces. The type system makes it unreachable.
 - **`interop_path()` returns `&OsStr`, not `&Path`** — `Path` has `.join()` and `.parent()`, which let you build new unvalidated paths. `OsStr` has none of that — it's a one-way exit to third-party crates with no way to accidentally re-enter path manipulation.
@@ -140,7 +140,7 @@ https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md
 
 ### Archive Extraction (Zip Slip Prevention)
 
-`PathBoundary` is a special type that represents a boundary for paths. It is optional, and could be used to express parts in our code where we expect a path to represent a boundary path:
+`PathBoundary` names the trust anchor explicitly: it holds the canonicalized boundary directory and can be passed by name in function signatures. Every path produced via `strict_join` is proven to stay within it. Naming the boundary in the signature makes the security contract compile-time-visible — the type itself proves the caller provided a vetted anchor.
 
 ```rust
 use strict_path::PathBoundary;
@@ -168,7 +168,7 @@ fn extract_archive(
 ```rust
 use strict_path::VirtualRoot;
 
-// No path-traversal or symlinks, could escape a tenant. 
+// No path-traversal or symlinks can escape the tenant root.
 // Everything is clamped to the virtual root, including symlink resolutions.
 fn handle_file_request(tenant_id: &str, requested_path: &str) -> std::io::Result<Vec<u8>> {
     let tenant_root = VirtualRoot::try_new_create(format!("./tenants/{tenant_id}"))?;
@@ -184,23 +184,30 @@ fn handle_file_request(tenant_id: &str, requested_path: &str) -> std::io::Result
 
 ## 🧠 **Compile-Time Safety with Markers**
 
-`StrictPath<Marker>` enables **domain separation and authorization** at compile time:
+`StrictPath<Marker>` enables **domain separation and authorization** at compile time.
+The example below gives a function that only accepts public assets — handing it a
+user-uploaded file is a compile error, not a runtime check:
 
 ```rust
-struct UserFiles;
-struct SystemFiles;
+use strict_path::{PathBoundary, StrictPath};
 
-fn process_user(f: &StrictPath<UserFiles>) -> Vec<u8> { f.read().unwrap() }
+struct PublicAssets;
+struct UserUploads;
 
-let user_boundary = PathBoundary::<UserFiles>::try_new_create("./data/users")?;
-let sys_boundary = PathBoundary::<SystemFiles>::try_new_create("./system")?;
+fn serve_public_asset(file: &StrictPath<PublicAssets>) { /* safe to stream to any caller */ }
 
-let user_input = get_filename_from_request();
-let user_file = user_boundary.strict_join(user_input)?;
-process_user(&user_file); // ✅ OK - correct marker type
+let assets  = PathBoundary::<PublicAssets>::try_new_create("./assets")?;
+let uploads = PathBoundary::<UserUploads>::try_new_create("./uploads")?;
 
-let sys_file = sys_boundary.strict_join("config.toml")?;
-// process_user(&sys_file); // ❌ Compile error - wrong marker type!
+// Untrusted input from request parameters, form data, database, etc.
+let requested_css   = "style.css";   // From request: /static/style.css
+let uploaded_avatar = "avatar.jpg";  // From form: <input type="file">
+
+let css:    StrictPath<PublicAssets> = assets.strict_join(requested_css)?;
+let avatar: StrictPath<UserUploads>  = uploads.strict_join(uploaded_avatar)?;
+
+serve_public_asset(&css);       // ✅ OK — PublicAssets matches
+// serve_public_asset(&avatar); // ❌ Compile error — UserUploads is not PublicAssets
 ```
 
 > 📖 **[Complete Marker Tutorial →](https://dk26.github.io/strict-path-rs/tutorial/chapter3_markers.html)** - Authorization patterns, permission matrices, `change_marker()` usage
@@ -238,7 +245,7 @@ Compose with standard Rust crates for complete solutions:
 | **tempfile** | Secure temp directories | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#temporary-directories-tempfile) |
 | **dirs**     | OS standard directories | [Guide](https://dk26.github.io/strict-path-rs/os_directories.html)                          |
 | **app-path** | Application directories | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#portable-application-paths-app-path) |
-| **serde**    | Safe deserialization    | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#deserializing-boundaries-with-fromstr) |
+| **serde**    | Config bootstrap        | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#initializing-from-configuration) |
 | **Axum**     | Web server extractors   | [Tutorial](https://dk26.github.io/strict-path-rs/axum_tutorial/overview.html)               |
 | **Archives** | ZIP/TAR extraction      | [Guide](https://dk26.github.io/strict-path-rs/examples/archive_extraction.html)             |
 

@@ -259,10 +259,11 @@ impl<Marker> PathBoundary<Marker> {
 
     /// Consume this boundary and substitute a new marker type.
     ///
-    /// Mirrors [`crate::StrictPath::change_marker`] and [`crate::VirtualPath::change_marker`], enabling
-    /// marker transformation after authorization checks. Use this when encoding proven
-    /// authorization into the type system (e.g., after validating a user's permissions).
-    /// The consumption makes marker changes explicit during code review.
+    /// Mirrors [`crate::StrictPath::change_marker`] (and `VirtualPath::change_marker`
+    /// when using `VirtualPath`), enabling marker transformation after authorization
+    /// checks. Use this when encoding proven authorization into the type system
+    /// (e.g., after validating a user's permissions). The consumption makes marker
+    /// changes explicit during code review.
     ///
     /// # Examples
     ///
@@ -463,26 +464,23 @@ impl<Marker> std::fmt::Debug for PathBoundary<Marker> {
     }
 }
 
-impl<Marker: Default> std::str::FromStr for PathBoundary<Marker> {
+impl<Marker> std::str::FromStr for PathBoundary<Marker> {
     type Err = crate::StrictPathError;
 
-    /// Parse a `PathBoundary` from a string path, validating that it already
-    /// exists as a directory.
+    /// Forwards to [`try_new_create`](Self::try_new_create): creates the
+    /// target directory if missing, then canonicalizes and validates it as a
+    /// directory.
     ///
-    /// WHY VALIDATE-ONLY: When `PathBoundary` is parsed from untrusted input
-    /// (serde deserialization of a config file, a CLI flag, an environment
-    /// variable), the string controls which directory on disk is created. A
-    /// `FromStr` that eagerly calls `create_dir_all` would let an attacker who
-    /// controls that string touch any directory the process has write access
-    /// to. `from_str` intentionally does not create anything; use
-    /// [`PathBoundary::try_new_create`] explicitly when directory creation is
-    /// the desired side effect.
+    /// Untrusted per-request paths (filenames, archive entries, CLI
+    /// free-form args) are not `FromStr` input — validate those via
+    /// [`strict_join`](Self::strict_join) on a pre-constructed boundary.
     ///
     /// ```rust
     /// # use strict_path::PathBoundary;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let tmp = tempfile::tempdir()?;
-    /// # let p = tmp.path().to_string_lossy().to_string();
+    /// # let p = tmp.path().join("data_dir");
+    /// # let p = p.to_string_lossy().into_owned();
     /// let data_dir: PathBoundary<()> = p.parse()?;
     /// assert!(data_dir.exists());
     /// # Ok(())
@@ -490,7 +488,7 @@ impl<Marker: Default> std::str::FromStr for PathBoundary<Marker> {
     /// ```
     #[inline]
     fn from_str(path: &str) -> std::result::Result<Self, Self::Err> {
-        Self::try_new(path)
+        Self::try_new_create(path)
     }
 }
 
