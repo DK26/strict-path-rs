@@ -28,6 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Cargo.toml keywords updated (`filesystem` → `sanitization`).
 
+### Dependencies
+- **`soft-canonicalize` 0.5.5 → 0.5.6** (security):
+  - Fixed `anchored_canonicalize` escape via absolute `..` symlink targets — extracted `normalize_and_clamp_to_anchor` so every clamp site uses the same logic.
+  - NUL-byte detection now always path-aware — `soft_canon_detail()` consistently returns `"path contains null byte"` instead of stdlib's generic `InvalidInput`.
+  - Forward-slash UNC rejection — `is_incomplete_unc` now detects `//server` and mixed-separator variants.
+  - Windows: `simple_normalize_path` preserves `VerbatimDisk` prefix (previously silently dropped it, breaking anchored clamp checks).
+  - Windows: Fixed `anchored_canonicalize` `..` pop skipped on `Disk` vs `VerbatimDisk` prefix mismatch.
+- **`proc-canonicalize` 0.1.2 → 0.1.3** (transitive via `soft-canonicalize`; security):
+  - Fixed namespace-boundary bypass via `..` in PID prefix — paths like `/proc/<PID>/../<PID>/root` previously evaded detection and returned `/`, silently dropping the namespace boundary. Scanner now lexically normalizes before boundary detection.
+  - Performance: eliminated per-iteration heap allocations in the indirect-symlink scanner.
+
 ### Documentation
 - README: "Zero Idle Dependencies" section documenting the security role of every runtime dependency.
 - README: Canonicalization-vs-blocklists rationale expanded.
