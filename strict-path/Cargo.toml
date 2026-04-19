@@ -18,7 +18,7 @@ categories = ["filesystem", "development-tools", "web-programming::http-server"]
 exclude = ["../demos/**"]
 
 [dependencies]
-soft-canonicalize = { version = "0.5.5", features = ["anchored"] }
+soft-canonicalize = { version = "0.5.6", features = ["anchored"] }
 
 [dev-dependencies]
 tempfile = { version = "3.27.0", default-features = false }

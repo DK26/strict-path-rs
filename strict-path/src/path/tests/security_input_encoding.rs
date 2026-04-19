@@ -22,7 +22,7 @@ fn test_mixed_separators_and_encoded_inputs() {
         ("a//b////c", "/a/b/c"),
         ("./././d", "/d"),
         ("b/%2e%2e/c", "/b/%2e%2e/c"), // percent-encoded is not decoded by us
-        ("\u{202E}rtl.txt", "/\u{202E}rtl.txt"),
+        ("\u{202E}rtl.txt", "/_rtl.txt"),
     ];
     if cfg!(windows) {
         cases.insert(0, ("a\\b/../c.txt", "/a/c.txt"));

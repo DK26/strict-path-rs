@@ -279,8 +279,7 @@ fn f4_pathboundary_from_str_does_not_create_directory() {
     let phantom = td.path().join("never-should-be-created-by-parse");
     assert!(!phantom.exists(), "precondition: directory does not exist");
 
-    let parsed: std::result::Result<PathBoundary, _> =
-        phantom.to_string_lossy().parse();
+    let parsed: std::result::Result<PathBoundary, _> = phantom.to_string_lossy().parse();
 
     assert!(
         parsed.is_err(),
@@ -301,8 +300,7 @@ fn f4_virtualroot_from_str_does_not_create_directory() {
     let phantom = td.path().join("never-should-be-created-by-parse-vroot");
     assert!(!phantom.exists(), "precondition: directory does not exist");
 
-    let parsed: std::result::Result<VirtualRoot, _> =
-        phantom.to_string_lossy().parse();
+    let parsed: std::result::Result<VirtualRoot, _> = phantom.to_string_lossy().parse();
 
     assert!(
         parsed.is_err(),

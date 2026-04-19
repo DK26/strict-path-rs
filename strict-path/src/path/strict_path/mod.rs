@@ -453,7 +453,8 @@ impl<Marker> StrictPath<Marker> {
         }
         // WHY: `Path::with_extension` panics when the extension contains a
         // path separator. Untrusted callers must get an `Err`, never a crash.
-        let new_systempath = crate::path::with_validated_extension(system_path, extension.as_ref())?;
+        let new_systempath =
+            crate::path::with_validated_extension(system_path, extension.as_ref())?;
         self.boundary.strict_join(new_systempath)
     }
 

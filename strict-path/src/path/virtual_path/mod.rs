@@ -36,25 +36,32 @@ pub struct VirtualPath<Marker = ()> {
     pub(crate) virtual_path: PathBuf,
 }
 
-/// Replace C0 / DEL control bytes and `;` with `_` for safe Display output.
+/// Replace dangerous Unicode characters with `_` for safe Display output.
 ///
 /// WHY: `virtualpath_display` is the one API surface whose output the crate
 /// actively encourages embedding in user-facing channels (HTTP responses,
-/// logs, terminal prints). Every byte below 0x20 and the DEL byte is a known
-/// injection primitive in one of those channels:
-///   - `\n`, `\r` — CRLF header splitting, log-line splitting
-///   - `\x1b` — ANSI escape sequences (screen clear, cursor control, fake prompts)
-///   - `\t`, `\x08`, `\x0c` — layout mangling that can hide characters
-///   - NUL, other C0 — terminal quirks and tool-specific parser glitches
-///   - `\x7f` (DEL) — terminal erase behavior on some emulators
-/// `;` is kept in the list because shell display of the path may feed into a
-/// downstream command line reader.
+/// logs, terminal prints). The following categories are injection primitives:
+///   - C0 controls (< 0x20): `\n`/`\r` CRLF splitting, `\x1b` ANSI escapes, NUL
+///   - DEL (0x7F): terminal erase behavior on some emulators
+///   - C1 controls (0x80–0x9F): U+0085 NEL acts as newline in HTTP/XML/log parsers
+///   - U+2028/U+2029 (Line/Paragraph Separator): ECMAScript line terminators
+///   - Unicode directional overrides (U+202A–U+202E, U+2066–U+2069, U+200E/U+200F):
+///     visually reverse filename characters, enabling extension-spoofing attacks
+///   - `;` (semicolon): shell command separator — display output may feed a downstream shell reader
 fn sanitize_display_component(component: &str) -> String {
     let mut out = String::with_capacity(component.len());
     for ch in component.chars() {
+        let cp = ch as u32;
         let needs_replace = ch == ';'
-            || ch == '\x7f'
-            || (ch as u32) < 0x20;
+            || cp < 0x20           // C0 controls (NUL through US)
+            || cp == 0x7F          // DEL
+            || (0x80..=0x9F).contains(&cp)  // C1 controls (NEL U+0085, CSI U+009B, etc.)
+            || cp == 0x2028        // LINE SEPARATOR  — ECMAScript line terminator
+            || cp == 0x2029        // PARAGRAPH SEPARATOR — ECMAScript line terminator
+            || cp == 0x200E        // LEFT-TO-RIGHT MARK
+            || cp == 0x200F        // RIGHT-TO-LEFT MARK
+            || (0x202A..=0x202E).contains(&cp)  // LRE, RLE, PDF, LRO, RLO (directional embedding/override)
+            || (0x2066..=0x2069).contains(&cp); // LRI, RLI, FSI, PDI (directional isolate)
         if needs_replace {
             out.push('_');
         } else {
@@ -103,7 +110,6 @@ impl<Marker> VirtualPath<Marker> {
             system_path: &std::path::Path,
             restriction: &crate::PathBoundary<Marker>,
         ) -> std::path::PathBuf {
-            use std::ffi::OsString;
             use std::path::Component;
 
             // WHY: Windows canonicalization adds a `\\?\` verbatim prefix that breaks
@@ -126,17 +132,13 @@ impl<Marker> VirtualPath<Marker> {
 
             // Fast path: strip the boundary prefix directly. This works when both
             // paths share a common prefix after verbatim normalization.
+            // Raw components are stored; sanitization happens at display time in
+            // VirtualPathDisplay::fmt so that virtual_join navigation remains correct.
             if let Ok(stripped) = system_norm.strip_prefix(&jail_norm) {
                 let mut cleaned = std::path::PathBuf::new();
                 for comp in stripped.components() {
                     if let Component::Normal(name) = comp {
-                        let s = name.to_string_lossy();
-                        let cleaned_s = sanitize_display_component(&s);
-                        if cleaned_s == s {
-                            cleaned.push(name);
-                        } else {
-                            cleaned.push(OsString::from(cleaned_s));
-                        }
+                        cleaned.push(name);
                     }
                 }
                 return cleaned;
@@ -181,13 +183,7 @@ impl<Marker> VirtualPath<Marker> {
             let mut vb = std::path::PathBuf::new();
             for c in strictpath_comps {
                 if let Component::Normal(name) = c {
-                    let s = name.to_string_lossy();
-                    let cleaned = sanitize_display_component(&s);
-                    if cleaned == s {
-                        vb.push(name);
-                    } else {
-                        vb.push(OsString::from(cleaned));
-                    }
+                    vb.push(name);
                 }
             }
             vb

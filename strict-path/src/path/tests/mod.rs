@@ -29,6 +29,10 @@ mod read_dir_and_conversions;
 mod rename;
 mod security;
 mod security_audit_findings;
+#[cfg(feature = "virtual-path")]
+mod security_audit_findings_f6;
+#[cfg(feature = "virtual-path")]
+mod security_audit_findings_f7;
 mod security_canonicalization_proof;
 mod security_input_encoding;
 mod security_io;
