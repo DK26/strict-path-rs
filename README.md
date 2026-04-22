@@ -65,43 +65,6 @@ third_party::process(file.interop_path()); // &OsStr (implements AsRef<Path>)
 
 If the input resolves outside the boundary — by *any* mechanism — `strict_join` returns `Err`.
 
-> **Is this overkill for my use case?** If you accept paths from users, config files, archives, databases, or AI agents — no, this is the minimum.
-> If all your paths are hardcoded constants — use `std::path`. See [choosing canonicalized vs lexical](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html).
-
-## 🎯 What It Is *Not*
-
-- Not a sandbox or chroot — your process still has whatever filesystem access the OS grants it.
-- Not a replacement for filesystem permissions, SELinux/AppArmor, or `openat2(RESOLVE_BENEATH)`. Compose with those where you have them.
-- Not a URL or shell-argument sanitizer — different injection class, different tool.
-- Not a performance-tuned lexical normalizer — canonicalization touches the disk. If your paths are hardcoded constants and you need nanoseconds, use `std::path` instead.
-
-> 📖 **New to strict-path?** Start with the **[Tutorial: Chapter 1 — The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/chapter1_basic_promise.html)**
-
-## 🧰 What You Get Beyond Path Validation
-
-- 🛡️ **Built-in I/O** — `read()`, `write()`, `create_dir_all()`, `read_dir()` — no need to drop to `std::fs`
-- 📐 **Compile-time markers** — `StrictPath<UserUploads>` vs `StrictPath<SystemConfig>` can't be mixed up
-- ⚡ **Dual modes** — `StrictPath` (detect & reject escapes) or `VirtualPath` (clamp & contain)
-- 🔒 **Thread-safe** — all types are `Send + Sync`; share across threads and async tasks
-- 🤖 **LLM-ready** — doc comments and [context files](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md) designed for AI agents with function calling
-
-<details>
-<summary><strong>Why the API looks the way it does (design notes for security reviewers and LLM integrators)</strong></summary>
-
-<br>
-
-This crate combines Rust's type system with Python's "one obvious way to do it" philosophy to build an API where **LLMs and humans naturally reach for the correct pattern** — wrong code either doesn't compile, or the compiler tells you exactly what to do instead.
-
-- **No `AsRef<Path>`, no `Deref`** — if `StrictPath` implemented these, anything could call `.join()` on it and build a new path that bypasses boundary validation entirely. That one method on `Path` undoes everything `strict_join()` enforces. The type system makes it unreachable.
-- **`interop_path()` returns `&OsStr`, not `&Path`** — `Path` has `.join()` and `.parent()`, which let you build new unvalidated paths. `OsStr` has none of that — it's a one-way exit to third-party crates with no way to accidentally re-enter path manipulation.
-- **One method per operation** — every operation has exactly one method. An LLM scanning the API can't pick the wrong overload because there isn't one. No aliases, no convenience wrappers, no "which one is the secure version?" Even the weakest model gets it right on the first try.
-- **`#[must_use]` with instructions, not just warnings** — the compiler becomes the documentation. When an LLM generates code and forgets to handle a `strict_join()` result, it doesn't get a generic "unused Result" — it gets a message like *"always handle the Result to detect path traversal attacks"*. The LLM reads the compiler output, self-corrects, and gets it right on the next pass. No docs lookup needed.
-- **Doc comments explain *why*, not just *what*** — every non-trivial function documents the reasoning behind the code, what attack a check prevents, or what invariant it enforces. An LLM working with just the source file can reason about design intent without any external context.
-
-</details>
-
-> 📖 **[Security Methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 📚 **[Built-in I/O Methods →](https://dk26.github.io/strict-path-rs/best_practices/common_operations.html)** | 📚 **[Anti-Patterns →](https://dk26.github.io/strict-path-rs/anti_patterns.html)**
-
 ## 🎯 When to Use What
 
 **The trigger is the *origin of the path string*.** Is the string something your code produced, or did it come from outside?
@@ -123,7 +86,17 @@ This crate combines Rust's type system with Python's "one obvious way to do it" 
 - Container-like plugins
 - *Any case where you want freedom of operation under complete isolation.*
 
-> 📖 **[Complete Decision Matrix →](https://dk26.github.io/strict-path-rs/best_practices.html)** | 📚 **[More Examples →](https://dk26.github.io/strict-path-rs/examples/overview.html)**
+<details>
+<summary><strong>What <code>strict-path</code> is NOT</strong></summary>
+
+- Not a sandbox or chroot — your process still has whatever filesystem access the OS grants it.
+- Not a replacement for filesystem permissions, SELinux/AppArmor, or `openat2(RESOLVE_BENEATH)`. Compose with those where you have them.
+- Not a URL or shell-argument sanitizer — different injection class, different tool.
+- Not a performance-tuned lexical normalizer — canonicalization touches the disk. If every path is a hardcoded constant and you need nanoseconds, `std::path` is the right tool.
+
+</details>
+
+> 📖 **[Tutorial: Chapter 1 — The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/chapter1_basic_promise.html)** · 📖 **[Complete Decision Matrix →](https://dk26.github.io/strict-path-rs/best_practices.html)** · 📚 **[More Examples →](https://dk26.github.io/strict-path-rs/examples/overview.html)**
 
 ---
 
@@ -131,7 +104,7 @@ This crate combines Rust's type system with Python's "one obvious way to do it" 
 
 ### Archive Extraction (Zip Slip Prevention)
 
-`PathBoundary` names the trust anchor explicitly: it holds the canonicalized boundary directory and can be passed by name in function signatures. Every path produced via `strict_join` is proven to stay within it. Naming the boundary in the signature makes the security contract compile-time-visible — the type itself proves the caller provided a vetted anchor.
+Pass `PathBoundary` by name in the function signature — the type itself proves the caller supplied a vetted directory, and every `strict_join` stays inside it.
 
 ```rust
 use strict_path::PathBoundary;
@@ -169,8 +142,6 @@ fn handle_file_request(tenant_id: &str, requested_path: &str) -> std::io::Result
 }
 ```
 
----
-
 ## 🧠 Compile-Time Safety with Markers
 
 `StrictPath<Marker>` enables **domain separation and authorization** at compile time — handing a user-uploaded file to a function that only accepts public assets is a compile error, not a runtime check:
@@ -195,7 +166,29 @@ serve_public_asset(&css);       // ✅ OK — PublicAssets matches
 
 > 📖 **[Complete Marker Tutorial →](https://dk26.github.io/strict-path-rs/tutorial/chapter3_markers.html)** — authorization patterns, permission matrices, `change_marker()` usage.
 
----
+## 🧰 What You Get Beyond Path Validation
+
+- 🛡️ **Built-in I/O** — `read()`, `write()`, `create_dir_all()`, `read_dir()` — no need to drop to `std::fs`
+- 📐 **Compile-time markers** — `StrictPath<UserUploads>` vs `StrictPath<SystemConfig>` can't be mixed up
+- 🔒 **Thread-safe** — all types are `Send + Sync`; share across threads and async tasks
+- 🤖 **LLM-ready** — doc comments and [context files](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md) designed for AI agents with function calling
+
+<details>
+<summary><strong>Why the API looks the way it does (design notes for security reviewers and LLM integrators)</strong></summary>
+
+<br>
+
+This crate combines Rust's type system with Python's "one obvious way to do it" philosophy to build an API where **LLMs and humans naturally reach for the correct pattern** — wrong code either doesn't compile, or the compiler tells you exactly what to do instead.
+
+- **No `AsRef<Path>`, no `Deref`** — if `StrictPath` implemented these, anything could call `.join()` on it and build a new path that bypasses boundary validation entirely. That one method on `Path` undoes everything `strict_join()` enforces. The type system makes it unreachable.
+- **`interop_path()` returns `&OsStr`, not `&Path`** — `Path` has `.join()` and `.parent()`, which let you build new unvalidated paths. `OsStr` has none of that — it's a one-way exit to third-party crates with no way to accidentally re-enter path manipulation.
+- **One method per operation** — every operation has exactly one method. An LLM scanning the API can't pick the wrong overload because there isn't one. No aliases, no convenience wrappers, no "which one is the secure version?" Even the weakest model gets it right on the first try.
+- **`#[must_use]` with instructions, not just warnings** — the compiler becomes the documentation. When an LLM generates code and forgets to handle a `strict_join()` result, it doesn't get a generic "unused Result" — it gets a message like *"always handle the Result to detect path traversal attacks"*. The LLM reads the compiler output, self-corrects, and gets it right on the next pass. No docs lookup needed.
+- **Doc comments explain *why*, not just *what*** — every non-trivial function documents the reasoning behind the code, what attack a check prevents, or what invariant it enforces. An LLM working with just the source file can reason about design intent without any external context.
+
+</details>
+
+> 📖 **[Security Methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)** · 📚 **[Built-in I/O Methods →](https://dk26.github.io/strict-path-rs/best_practices/common_operations.html)** · 📚 **[Anti-Patterns →](https://dk26.github.io/strict-path-rs/anti_patterns.html)**
 
 ## 🔒 Zero Idle Dependencies
 
@@ -217,8 +210,6 @@ On Unix the total runtime tree is **2 crates** (`soft-canonicalize` + `proc-cano
 
 </details>
 
----
-
 ## 🔌 Ecosystem Integration
 
 Compose with standard Rust crates for complete solutions:
@@ -233,8 +224,6 @@ Compose with standard Rust crates for complete solutions:
 | **Archives** | ZIP / TAR extraction    | [Guide](https://dk26.github.io/strict-path-rs/examples/archive_extraction.html)             |
 
 > 📚 **[Complete Integration Guide →](https://dk26.github.io/strict-path-rs/ecosystem_integration.html)**
-
----
 
 <details>
 <summary>🤖 <strong>LLM / AI Agent Integration</strong></summary>
@@ -256,8 +245,6 @@ https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md
 ```
 
 </details>
-
----
 
 ## 📚 Learn More
 
