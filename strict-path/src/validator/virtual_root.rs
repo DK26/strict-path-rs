@@ -467,32 +467,31 @@ impl<Marker> PartialOrd<std::path::PathBuf> for VirtualRoot<Marker> {
     }
 }
 
-impl<Marker: Default> std::str::FromStr for VirtualRoot<Marker> {
+impl<Marker> std::str::FromStr for VirtualRoot<Marker> {
     type Err = crate::StrictPathError;
 
-    /// Parse a `VirtualRoot` from a string path, validating that it already
-    /// exists as a directory.
+    /// Forwards to [`try_new_create`](Self::try_new_create): creates the
+    /// target directory if missing, then canonicalizes and validates it as a
+    /// directory.
     ///
-    /// WHY VALIDATE-ONLY: `VirtualRoot` defines the sandbox for every
-    /// downstream `VirtualPath`. When its source string comes from untrusted
-    /// input (serde, CLI, env var), a `FromStr` that auto-created directories
-    /// would let the attacker pick any writable target as the sandbox — the
-    /// exact footgun the crate warns against elsewhere. `from_str` is
-    /// validate-only; use [`VirtualRoot::try_new_create`] explicitly when
-    /// creating the directory is intended.
+    /// Untrusted per-request paths (archive entries, user-supplied virtual
+    /// paths) are not `FromStr` input — validate those via
+    /// [`virtual_join`](Self::virtual_join) on a pre-constructed root.
     ///
     /// ```rust
     /// # use strict_path::VirtualRoot;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let temp_dir = tempfile::tempdir()?;
-    /// let vroot: VirtualRoot<()> = temp_dir.path().to_string_lossy().parse()?;
+    /// # let temp_dir = tempfile::tempdir()?;
+    /// # let p = temp_dir.path().join("sandbox");
+    /// # let p = p.to_string_lossy().into_owned();
+    /// let vroot: VirtualRoot<()> = p.parse()?;
     /// assert!(vroot.exists());
     /// # Ok(())
     /// # }
     /// ```
     #[inline]
     fn from_str(path: &str) -> std::result::Result<Self, Self::Err> {
-        Self::try_new(path)
+        Self::try_new_create(path)
     }
 }
 

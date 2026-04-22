@@ -25,7 +25,7 @@ struct Cli {
     #[arg(short, long)]
     archive: PathBuf,
 
-    /// Output directory for extraction
+    /// Output directory for extraction (created if missing via FromStr)
     #[arg(short, long)]
     output: VirtualRoot<ExtractionOutput>,
 
@@ -65,14 +65,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🔒 Secure Archive Extractor");
     println!("Archive: {}", cli.archive.display());
-    println!("Output: {}", cli.output);
+    println!("Output: {}", cli.output.as_unvirtual().strictpath_display());
 
     // Validate input archive exists and is readable
     if !cli.archive.exists() {
         return Err(format!("Archive file not found: {}", cli.archive.display()).into());
     }
-
-    // cli.output is already a VirtualRoot thanks to FromStr integration!
 
     // Detect archive format if not specified
     let format = match &cli.format {

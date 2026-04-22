@@ -164,7 +164,11 @@
 //! - `tempfile` — RAII temporary directories via `tempfile::tempdir()` → `PathBoundary::try_new()`
 //! - `dirs` — OS standard directories via `dirs::config_dir()` → `PathBoundary::try_new_create()`
 //! - `app-path` — Portable app paths via `AppPath::with("subdir")` → `PathBoundary::try_new_create()`
-//! - `serde` — `PathBoundary`/`VirtualRoot` implement `FromStr` for automatic deserialization
+//! - `serde` — declare typed `PathBoundary<Marker>` / `VirtualRoot<Marker>`
+//!   fields in your config struct. `FromStr` forwards to `try_new_create`, so
+//!   wiring through serde's own mechanisms (e.g. `deserialize_with`) is a
+//!   user-side integration choice. Runtime `Cli`/`Config` structs should never
+//!   hold raw `PathBuf` for boundary fields.
 //!
 //! **[→ See Ecosystem Integration Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html)**
 //!

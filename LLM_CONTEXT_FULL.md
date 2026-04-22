@@ -4,10 +4,11 @@
 
 This document contains a full mapping and explanation of the API, compressed to be efficient with tokens.
 
-- `PathBoundary` — defines the containment boundary; validates input into `StrictPath`
-- `StrictPath` — paths strictly validated to stay within the boundary
-- `VirtualRoot` — defines a virtual sandbox; validates input into `VirtualPath` (feature: `virtual-path`)
-- `VirtualPath` — paths clamped within a virtual root (user sees `/` as their root)
+- `StrictPath` — the safety-carrying path type: every value has been proven inside its boundary
+- `PathBoundary` — trust anchor / factory that produces `StrictPath` instances via `strict_join`
+- `VirtualPath` — peer containment-semantics path type; user sees `/` as their root (feature: `virtual-path`)
+- `VirtualRoot` — trust anchor / factory that produces `VirtualPath` instances via `virtual_join` (feature: `virtual-path`)
+- Two invariants, two types: anchors prove the boundary directory is valid; paths prove a specific resolved location is inside that boundary.
 - Every operation is STRICTLY validated. No exceptions, no escapes.
 
 **API Philosophy:** Minimal, restrictive, explicit—designed to prevent human and LLM API misuse.
@@ -781,9 +782,21 @@ let boundary = PathBoundary::try_new_create(&app_path)?;
 ```
 
 **Serialization** (`serde`):
-- `PathBoundary` and `VirtualRoot` implement `FromStr`, enabling automatic deserialization
-- Serialize paths as display strings: `boundary.strictpath_display().to_string()`
-- For untrusted path fields, deserialize as `String` and validate manually via `boundary.strict_join()`
+- Runtime `Cli`/`Config` structs hold typed `PathBoundary<Marker>` /
+  `VirtualRoot<Marker>` fields. **Never raw `PathBuf`.** The typed field IS the
+  ingestion boundary.
+- `FromStr` forwards to `try_new_create` (creates if missing, then canonicalizes
+  and validates). clap `#[arg]` fields of the typed form work directly via
+  `FromStr`.
+- Boundary/root types do not implement `Deserialize`. Serde wiring is a
+  user-side integration choice (serde's own `deserialize_with`, `serde_with`,
+  or user-defined wrappers).
+- In hand-written code, prefer named constructors (`try_new` / `try_new_create`)
+  over `.parse()` so policy is visible at the call site.
+- Serialize paths as display strings: `boundary.strictpath_display().to_string()`.
+- Untrusted per-request path strings (filenames, archive entries, HTTP body
+  fields) stay as `String` and are validated via `boundary.strict_join()` at the
+  use site — those are not `FromStr` input.
 
 See the mdBook [Ecosystem Integration Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html) for comprehensive patterns.
 
@@ -841,15 +854,15 @@ Equality/Ordering/Hashing
 ## Traits at a glance
 - PathBoundary<Marker>
 	- Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash
-	- AsRef<Path>
-	- FromStr (when `Marker: Default`) → creates directory if missing
+	- FromStr (when `Marker: Default`) → constructs from an existing directory (calls `try_new`; does not create)
 	- Cross-type equality: PartialEq<VirtualRoot<Marker>>, PartialEq<Path>, PartialEq<PathBuf>, PartialEq<&Path>
+	- No `AsRef<Path>` / `Deref`: pass `.interop_path()` (`&OsStr`) to third-party APIs that want `AsRef<Path>`.
 
 - VirtualRoot<Marker>
 	- Clone, Debug, Display, Eq, PartialEq, Ord, PartialOrd, Hash
-	- AsRef<Path>
-	- FromStr (when `Marker: Default`) → creates directory if missing
+	- FromStr (when `Marker: Default`) → constructs from an existing directory (calls `try_new`; does not create)
 	- Cross-type equality: PartialEq<PathBoundary<Marker>>, PartialEq<Path>, PartialEq<PathBuf>, PartialEq<&Path>
+	- No `AsRef<Path>` / `Deref`: use `.interop_path()` for third-party APIs.
 
 - StrictPath<Marker>
 	- Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash

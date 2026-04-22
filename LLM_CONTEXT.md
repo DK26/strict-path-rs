@@ -4,7 +4,7 @@
 
 This document provides a "Context7" style explanation on how to use this crate (fewer tokens than LLM_CONTEXT_FULL.md).
 
-- Core types: `PathBoundary<Marker>`, `StrictPath<Marker>`; with feature `virtual-path`: `VirtualRoot<Marker>`, `VirtualPath<Marker>`.
+- Core types: `StrictPath<Marker>` is the safety-carrying path type — every value has been proven inside its boundary. `PathBoundary<Marker>` is the trust anchor / factory that produces `StrictPath` instances via `strict_join`. With feature `virtual-path`: `VirtualPath<Marker>` is the peer containment-semantics path type; `VirtualRoot<Marker>` is its anchor / factory.
 - Golden rule: "Restrict every external path." Validate user/LLM/config/archive input using `strict_join` or `virtual_join` before touching the filesystem.
 - Interop vs display: use `.interop_path()` only for third‑party APIs requiring `AsRef<Path>`; use `*_display()` for human‑readable output.
 - Trade‑off: Security > performance. Verifies paths on disk and follows symlinks. For symlink‑free + max performance, consider lexical solutions.
@@ -156,7 +156,7 @@ Use ecosystem crates directly with `PathBoundary` for maximum flexibility:
 - `tempfile` — RAII temporary directories: `tempfile::tempdir()` → `PathBoundary::try_new()`
 - `dirs` — OS standard directories: `dirs::config_dir()` → `PathBoundary::try_new_create()`
 - `app-path` — Portable app paths: `AppPath::with("subdir")` → `PathBoundary::try_new_create()`
-- `serde` — `PathBoundary`/`VirtualRoot` implement `FromStr` for automatic deserialization; serialize paths as display strings
+- `serde` — declare typed `PathBoundary<Marker>` / `VirtualRoot<Marker>` fields directly in your config struct. `FromStr` forwards to `try_new_create`; wire it to serde using serde's own mechanisms (`deserialize_with`, `serde_with`, user-defined wrappers). Serialize paths as display strings.
 
 ## Decision guide (what to use when)
 
@@ -242,9 +242,20 @@ let boundary = PathBoundary::try_new_create(&app_path)?;
 ```
 
 **Serialization** (`serde`):
-- `PathBoundary`/`VirtualRoot` implement `FromStr`, enabling automatic deserialization
-- Serialize paths as display strings: `boundary.strictpath_display().to_string()`
-- For untrusted path fields, deserialize as `String` and validate manually via `boundary.strict_join()`
+- Runtime `Cli`/`Config` structs hold typed `PathBoundary<Marker>` /
+  `VirtualRoot<Marker>` fields — **never** raw `PathBuf`. The typed field IS
+  the ingestion boundary.
+- `FromStr` forwards to `try_new_create`. clap `#[arg]` fields of the typed
+  form work directly via `FromStr`.
+- Boundary/root types do not implement `Deserialize`. Serde wiring is a
+  user-side integration choice (serde's own `deserialize_with`, `serde_with`,
+  user-defined wrappers).
+- In hand-written code, prefer named constructors (`try_new` / `try_new_create`)
+  over `.parse()` so policy is visible at the call site.
+- Serialize paths as display strings: `boundary.strictpath_display().to_string()`.
+- Untrusted per-request path strings (filenames, archive entries, HTTP body
+  fields) stay as `String` and are validated via `boundary.strict_join()` at
+  the use site.
 
 ## Critical behaviors
 
@@ -404,33 +415,17 @@ fn save_user_file(user_root_fs: &str, user_path: &str, data: &[u8]) -> std::io::
 }
 ```
 
-## Serde and config (safe deserialization)
+## Serde and config
 
-```rust
-use serde::Deserialize;
-use strict_path::PathBoundary;
-
-#[derive(Deserialize)]
-struct AppConfig {
-  // PathBoundary implements FromStr, enabling automatic deserialization
-  upload_dir: PathBoundary,
-  // Validate untrusted path fields manually
-  user_paths: Vec<String>,
-}
-
-fn load_config(json: &str) -> Result<(), Box<dyn std::error::Error>> {
-  let config: AppConfig = serde_json::from_str(json)?;
-  
-  // Boundaries are ready to use
-  for path_str in &config.user_paths {
-    match config.upload_dir.strict_join(path_str) {
-      Ok(safe_path) => safe_path.write(b"data")?,
-      Err(e) => eprintln!("Blocked: {}", e),
-    }
-  }
-  Ok(())
-}
-```
+- Runtime `Cli`/`Config` structs declare typed `PathBoundary<Marker>` /
+  `VirtualRoot<Marker>` fields. Raw `PathBuf` in these structs is the
+  anti-pattern — it erases the type-system guarantee.
+- `FromStr` forwards to `try_new_create`. Wire it to serde using serde's own
+  mechanisms; this crate neither ships nor prescribes a specific adapter.
+- clap `#[arg]` fields of the typed form work out of the box via `FromStr`.
+- Untrusted per-request path strings (filenames, archive entries, HTTP body
+  fields) are validated against a pre-constructed boundary via
+  `boundary.strict_join(…)` — they are not `FromStr` input.
 
 ## OS/app/temp recipes (feature‑gated)
 

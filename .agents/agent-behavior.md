@@ -11,7 +11,8 @@ Agents may only run **read-only** git commands.
 
 **Banned**: `git add`, `git commit`, `git restore`, `git reset`, `git stash`,
 `git merge`, `git rebase`, `git push`, `git pull`, `git fetch`, `git rm`, `git mv`,
-`git tag`, `git branch -d`
+`git tag`, `git branch -d`, `git branch <name>` (create), `git switch -c`,
+`git checkout -b`
 
 If you need to modify git state, ask the user.
 

@@ -66,10 +66,26 @@ Name by domain/purpose, NEVER by type:
 
 ## Serde Guidelines
 
-- `PathBoundary`/`VirtualRoot` implement `FromStr` → automatic deserialization.
-- Serialize: `boundary.strictpath_display().to_string()` or `vpath.virtualpath_display()`.
-- Config structs: deserialize untrusted paths as `String`, validate via `strict_join`/`virtual_join`.
-- Never add `Deserialize` for `StrictPath`/`VirtualPath` — they need runtime boundary context.
+- Runtime `Cli` / `Config` fields are typed `PathBoundary<Marker>` /
+  `VirtualRoot<Marker>` — never raw `PathBuf`. The typed field IS the
+  ingestion boundary.
+- `FromStr` forwards to `try_new_create` (creates if missing, then
+  canonicalizes and validates). clap `#[arg]` fields of the typed form
+  work directly via `FromStr`.
+- Boundary/root types do not implement `Deserialize`. Wiring them to
+  serde is the caller's integration choice (serde's own `deserialize_with`,
+  `serde_with`, user-defined wrappers). Do not teach serde mechanisms in
+  crate docs — point to the `FromStr` contract and let users pick.
+- In hand-written code, prefer named constructors (`try_new` /
+  `try_new_create`) over `.parse()` so the policy is visible at the call
+  site. `FromStr` exists for framework-invoked contexts.
+- Serialize paths as display strings: `boundary.strictpath_display().to_string()`
+  or `vpath.virtualpath_display()`.
+- Untrusted per-request path segments (filenames, archive entries, HTTP
+  body fields) stay as `String` and are validated at the use site via
+  `strict_join` / `virtual_join` — they are not `FromStr` input.
+- Never add `Deserialize` for `StrictPath` / `VirtualPath` — they need
+  runtime boundary context to be meaningful.
 
 ## Symlinks vs Junctions in Tests (Windows)
 

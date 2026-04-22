@@ -30,3 +30,4 @@ Cargo.lock
 
 # Agents
 .claude
+.codex
