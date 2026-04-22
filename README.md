@@ -30,7 +30,7 @@ You strip `..` and check for `/`. But attackers have a dozen other vectors:
 | Null byte injection | ❌ Truncation varies | ✅ Blocked |
 | Mixed separators: `..\../etc` | ❌ Often missed | ✅ Normalized & blocked |
 
-**How it works:** `strict-path` resolves the path on disk — follows symlinks, expands short names, normalizes encoding — then proves the resolved path is inside the boundary. The input string is irrelevant. Only where the path *actually leads* matters.
+**How it works:** `strict-path` resolves the path on disk — follows symlinks, expands short names, normalizes encoding — then checks whether the resolved path is inside the boundary. If it isn't, you get an `Err`. The input string is irrelevant. Only where the path *actually leads* matters.
 
 <details>
 <summary><strong>Why canonicalization beats string blocklists</strong></summary>
@@ -104,7 +104,7 @@ If the input resolves outside the boundary — by *any* mechanism — `strict_jo
 
 ### Archive Extraction (Zip Slip Prevention)
 
-Take `PathBoundary` as a function parameter when the boundary is reused — every `strict_join` on it produces a `StrictPath` pinned inside that directory, so the function body doesn't have to re-validate.
+`PathBoundary` in the signature names the legal boundary for this operation — the directory that joined paths must stay inside.
 
 ```rust
 use strict_path::PathBoundary;
@@ -144,7 +144,7 @@ fn handle_file_request(tenant_id: &str, requested_path: &str) -> std::io::Result
 
 ## 🧠 Compile-Time Safety with Markers
 
-`StrictPath<Marker>` enables **domain separation and authorization** at compile time — handing a user-uploaded file to a function that only accepts public assets is a compile error, not a runtime check:
+Tag a `StrictPath` with a marker type so a function can only accept paths from the boundary you meant. Mixing them up is a compile error:
 
 ```rust
 use strict_path::{PathBoundary, StrictPath};
@@ -180,11 +180,11 @@ serve_public_asset(&css);       // ✅ OK — PublicAssets matches
 
 This crate combines Rust's type system with Python's "one obvious way to do it" philosophy to build an API where **LLMs and humans naturally reach for the correct pattern** — wrong code either doesn't compile, or the compiler tells you exactly what to do instead.
 
-- **No `AsRef<Path>`, no `Deref`** — if `StrictPath` implemented these, anything could call `.join()` on it and build a new path that bypasses boundary validation entirely. That one method on `Path` undoes everything `strict_join()` enforces. The type system makes it unreachable.
-- **`interop_path()` returns `&OsStr`, not `&Path`** — `Path` has `.join()` and `.parent()`, which let you build new unvalidated paths. `OsStr` has none of that — it's a one-way exit to third-party crates with no way to accidentally re-enter path manipulation.
-- **One method per operation** — every operation has exactly one method. An LLM scanning the API can't pick the wrong overload because there isn't one. No aliases, no convenience wrappers, no "which one is the secure version?" Even the weakest model gets it right on the first try.
-- **`#[must_use]` with instructions, not just warnings** — the compiler becomes the documentation. When an LLM generates code and forgets to handle a `strict_join()` result, it doesn't get a generic "unused Result" — it gets a message like *"always handle the Result to detect path traversal attacks"*. The LLM reads the compiler output, self-corrects, and gets it right on the next pass. No docs lookup needed.
-- **Doc comments explain *why*, not just *what*** — every non-trivial function documents the reasoning behind the code, what attack a check prevents, or what invariant it enforces. An LLM working with just the source file can reason about design intent without any external context.
+- **No `AsRef<Path>`, no `Deref`** — implementing either would let anything call `.join()` on a `StrictPath` and build a new path that skips boundary validation. Not implementing them closes that accidental path.
+- **`interop_path()` returns `&OsStr`, not `&Path`** — `&Path` carries `.join()` and `.parent()`, which would let callers build new unvalidated paths from a validated one. `&OsStr` doesn't; it's a one-way exit to third-party APIs with no accidental re-entry into path manipulation.
+- **One method per operation** — there is a single entry point for each operation (e.g. `strict_join` for joining). No aliases, no convenience wrappers, no "which one is the secure version?". The wrong-overload failure mode doesn't exist because there are no overloads.
+- **`#[must_use]` with instructions** — the `must_use` messages don't just say "unused Result", they say what to do (e.g. handle the result to detect traversal). When a caller — human or model — loops on compiler output, the message itself teaches the API.
+- **Doc comments explain *why*, not just *what*** — non-trivial functions document what attack the check prevents or what invariant it enforces, so a reader working from source alone has the reasoning on hand.
 
 </details>
 
@@ -192,7 +192,7 @@ This crate combines Rust's type system with Python's "one obvious way to do it" 
 
 ## 🔒 Zero Idle Dependencies
 
-Every runtime dependency exists to close a specific security gap. Each is audited, tested against attack payloads, and covered by `cargo audit` in CI.
+Every dependency in the default tree earns its place by closing a specific gap in cross-platform path resolution. Each is covered by `cargo audit` in CI, and the canonicalization engine has direct tests against the CVE payloads listed above.
 
 | Crate | Platforms | Security role |
 |---|---|---|
@@ -205,8 +205,8 @@ On Unix the total runtime tree is **2 crates** (`soft-canonicalize` + `proc-cano
 <details>
 <summary><strong>vs manual <code>soft-canonicalize</code></strong></summary>
 
-- `soft-canonicalize` = low-level path resolution engine (returns `PathBuf`)
-- `strict-path` = high-level security API (returns `StrictPath<Marker>` with compile-time guarantees, fit for the LLM era)
+- `soft-canonicalize` = low-level path resolution engine (returns `PathBuf` — unchecked against a boundary)
+- `strict-path` = higher-level API on top of it: returns `StrictPath<Marker>`, which carries a checked boundary and a compile-time marker so paths from different trust zones can't be passed to the same function by mistake
 
 </details>
 
