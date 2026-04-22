@@ -104,7 +104,7 @@ If the input resolves outside the boundary — by *any* mechanism — `strict_jo
 
 ### Archive Extraction (Zip Slip Prevention)
 
-Pass `PathBoundary` by name in the function signature — the type itself proves the caller supplied a vetted directory, and every `strict_join` stays inside it.
+Take `PathBoundary` as a function parameter when the boundary is reused — every `strict_join` on it produces a `StrictPath` pinned inside that directory, so the function body doesn't have to re-validate.
 
 ```rust
 use strict_path::PathBoundary;
