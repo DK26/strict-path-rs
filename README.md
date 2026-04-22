@@ -7,11 +7,12 @@
 [![Security Audit](https://github.com/DK26/strict-path-rs/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/DK26/strict-path-rs/actions/workflows/audit.yml)
 [![Kani Verified](https://github.com/DK26/strict-path-rs/actions/workflows/kani.yml/badge.svg?branch=main)](https://github.com/DK26/strict-path-rs/actions/workflows/kani.yml)
 [![Protected CVEs](https://img.shields.io/badge/protected%20CVEs-19%2B-brightgreen.svg)](https://github.com/DK26/strict-path-rs/blob/main/strict-path/src/path/tests/cve_2025_11001.rs)
+[![MSRV 1.76](https://img.shields.io/badge/MSRV-1.76-orange.svg)](https://github.com/DK26/strict-path-rs/blob/main/strict-path/Cargo.toml)
 [![Type-State Police](https://img.shields.io/badge/protected%20by-Type--State%20Police-blue.svg)](https://github.com/DK26/strict-path-rs)
 
-**Secure path handling for untrusted input.** Paths from users, config files, archives, or AI agents can't escape the directory you put them in — regardless of symlinks, encoding tricks, or platform quirks. [19+ real-world CVEs covered](https://dk26.github.io/strict-path-rs/security_methodology.html#12-coverage-what-we-protect-against).
+**The moment a path string enters your program from outside your code — an HTTP request, a config file, an archive entry, a database row, an LLM tool call — reach for `strict-path`.** It pins that string to a directory you chose, so it can't escape via symlinks, encoding tricks, or platform quirks. [19+ real-world CVEs covered](https://dk26.github.io/strict-path-rs/security_methodology.html#12-coverage-what-we-protect-against).
 
-> Prepared statements prevent SQL injection. `strict-path` prevents path injection.
+> Prepared statements prevent SQL injection. `strict-path` prevents path injection. Same rule: **data from outside never gets to act as structure.**
 
 ## 🔍 Why String Checking Isn't Enough
 
@@ -46,7 +47,7 @@ This is the same principle behind SQL prepared statements: instead of escaping e
 
 ```toml
 [dependencies]
-strict-path = "0.2"  # every dependency closes a security gap — see "Zero Idle Dependencies" below
+strict-path = "0.2"
 ```
 
 ```rust
@@ -64,14 +65,30 @@ third_party::process(file.interop_path()); // &OsStr (implements AsRef<Path>)
 
 If the input resolves outside the boundary — by *any* mechanism — `strict_join` returns `Err`.
 
-**What you get beyond path validation:**
+> **Is this overkill for my use case?** If you accept paths from users, config files, archives, databases, or AI agents — no, this is the minimum.
+> If all your paths are hardcoded constants — use `std::path`. See [choosing canonicalized vs lexical](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html).
+
+## 🎯 What It Is *Not*
+
+- Not a sandbox or chroot — your process still has whatever filesystem access the OS grants it.
+- Not a replacement for filesystem permissions, SELinux/AppArmor, or `openat2(RESOLVE_BENEATH)`. Compose with those where you have them.
+- Not a URL or shell-argument sanitizer — different injection class, different tool.
+- Not a performance-tuned lexical normalizer — canonicalization touches the disk. If your paths are hardcoded constants and you need nanoseconds, use `std::path` instead.
+
+> 📖 **New to strict-path?** Start with the **[Tutorial: Chapter 1 — The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/chapter1_basic_promise.html)**
+
+## 🧰 What You Get Beyond Path Validation
+
 - 🛡️ **Built-in I/O** — `read()`, `write()`, `create_dir_all()`, `read_dir()` — no need to drop to `std::fs`
 - 📐 **Compile-time markers** — `StrictPath<UserUploads>` vs `StrictPath<SystemConfig>` can't be mixed up
 - ⚡ **Dual modes** — `StrictPath` (detect & reject escapes) or `VirtualPath` (clamp & contain)
 - 🔒 **Thread-safe** — all types are `Send + Sync`; share across threads and async tasks
 - 🤖 **LLM-ready** — doc comments and [context files](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md) designed for AI agents with function calling
 
-**Why the API looks the way it does:**
+<details>
+<summary><strong>Why the API looks the way it does (design notes for security reviewers and LLM integrators)</strong></summary>
+
+<br>
 
 This crate combines Rust's type system with Python's "one obvious way to do it" philosophy to build an API where **LLMs and humans naturally reach for the correct pattern** — wrong code either doesn't compile, or the compiler tells you exactly what to do instead.
 
@@ -80,63 +97,37 @@ This crate combines Rust's type system with Python's "one obvious way to do it" 
 - **One method per operation** — every operation has exactly one method. An LLM scanning the API can't pick the wrong overload because there isn't one. No aliases, no convenience wrappers, no "which one is the secure version?" Even the weakest model gets it right on the first try.
 - **`#[must_use]` with instructions, not just warnings** — the compiler becomes the documentation. When an LLM generates code and forgets to handle a `strict_join()` result, it doesn't get a generic "unused Result" — it gets a message like *"always handle the Result to detect path traversal attacks"*. The LLM reads the compiler output, self-corrects, and gets it right on the next pass. No docs lookup needed.
 - **Doc comments explain *why*, not just *what*** — every non-trivial function documents the reasoning behind the code, what attack a check prevents, or what invariant it enforces. An LLM working with just the source file can reason about design intent without any external context.
-- **[Context7](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md) and [LLM context files](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md)** — machine-readable API references that ship with the crate, sized for different context windows. Critical mistakes front-loaded so an LLM agent hits the important stuff first.
-
-> **Is this overkill for my use case?** If you accept paths from users, config files, archives, databases, or AI agents — no, this is the minimum.
-> If all your paths are hardcoded constants — use `std::path`. See [choosing canonicalized vs lexical](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html).
-
-> 📖 **New to strict-path?** Start with the **[Tutorial: Chapter 1 - The Basic Promise →](https://dk26.github.io/strict-path-rs/tutorial/chapter1_basic_promise.html)**
-
-<details>
-<summary>🤖 <strong>LLM / AI Agent Integration</strong></summary>
-
-<br>
-
-Our doc comments and [LLM_CONTEXT_FULL.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md) are designed for LLMs with function calling — enabling AI agents to use this crate safely for file operations.
-
-**LLM agent prompt (copy/paste):**
-``` 
-Fetch and follow this reference (single source of truth):
-https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md
-```
-
-**Context7 style:**
-```
-Fetch and follow this reference (single source of truth):
-https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md
-```
 
 </details>
 
 > 📖 **[Security Methodology →](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 📚 **[Built-in I/O Methods →](https://dk26.github.io/strict-path-rs/best_practices/common_operations.html)** | 📚 **[Anti-Patterns →](https://dk26.github.io/strict-path-rs/anti_patterns.html)**
 
-## 🎯 **StrictPath vs VirtualPath: When to Use What**
+## 🎯 When to Use What
 
-### Which type should I use?
+**The trigger is the *origin of the path string*.** Is the string something your code produced, or did it come from outside?
 
-- **Path/PathBuf** (std): When the path comes from a safe source within your control, not external input.
-- **StrictPath**: When you want to restrict paths to a specific boundary and error if they escape.
-- **VirtualPath**: When you want to provide path freedom under isolation.
+- **`Path` / `PathBuf`** (std) — the string is **yours**: a hardcoded constant, or assembled entirely from values your own code produced. There's no external input to validate.
+- **`StrictPath`** — the string came from **outside** (HTTP request, config file, archive entry, DB row, env var, LLM tool call, …) and an escape attempt is an **error** you want to know about. Log it, deny the request, abort the operation. Silently substituting a different file would hide the problem.
+- **`VirtualPath`** — the string came from **outside**, and an escape attempt should be **clamped**. The caller is navigating a sandbox you gave them (their own "/"), and `..` off the top just lands them back at their root.
 
-**Choose StrictPath (90% of cases):**
+**Choose `StrictPath` (≈ 90% of cases):**
 - Archive extraction, config loading
 - File uploads to shared storage (admin panels, CMS assets, single-tenant apps)
-- LLM/AI agent file operations
+- LLM / AI agent file operations
 - Shared system resources (logs, cache, assets)
-- **Any case where escaping a path boundary, is considered malicious**
+- *Any case where escaping a path boundary is considered malicious.*
 
-**Choose VirtualPath (10% of cases):**
-- Multi-tenant file uploads (SaaS per-user storage, isolated user directories)
-- Multi-tenant isolation (per-user filesystem views)
+**Choose `VirtualPath` (≈ 10% of cases):**
+- Multi-tenant file storage (SaaS per-user directories, isolated views)
 - Malware analysis sandboxes
 - Container-like plugins
-- **Any case where you would like to allow freedom of operations under complete isolation**
+- *Any case where you want freedom of operation under complete isolation.*
 
 > 📖 **[Complete Decision Matrix →](https://dk26.github.io/strict-path-rs/best_practices.html)** | 📚 **[More Examples →](https://dk26.github.io/strict-path-rs/examples/overview.html)**
 
 ---
 
-## 🚀 **More Real-World Examples**
+## 🚀 Real-World Examples
 
 ### Archive Extraction (Zip Slip Prevention)
 
@@ -148,8 +139,8 @@ use strict_path::PathBoundary;
 // Prevents CVE-2018-1000178 (Zip Slip) automatically (https://snyk.io/research/zip-slip-vulnerability)
 fn extract_archive(
     extraction_dir: PathBoundary,
-    archive_entries: impl IntoIterator<Item=(String, Vec<u8>)>) -> std::io::Result<()> {
-
+    archive_entries: impl IntoIterator<Item = (String, Vec<u8>)>,
+) -> std::io::Result<()> {
     for (entry_path, data) in archive_entries {
         // Malicious paths like "../../../etc/passwd" → Err(PathEscapesBoundary)
         let safe_file = extraction_dir.strict_join(&entry_path)?;
@@ -160,8 +151,7 @@ fn extract_archive(
 }
 ```
 
-> The equivalent `PathBoundary` for `VirtualPath` type is the `VirtualRoot` type.
-
+> The equivalent of `PathBoundary` for `VirtualPath` is the `VirtualRoot` type.
 
 ### Multi-Tenant Isolation
 
@@ -172,7 +162,7 @@ use strict_path::VirtualRoot;
 // Everything is clamped to the virtual root, including symlink resolutions.
 fn handle_file_request(tenant_id: &str, requested_path: &str) -> std::io::Result<Vec<u8>> {
     let tenant_root = VirtualRoot::try_new_create(format!("./tenants/{tenant_id}"))?;
-    
+
     // "../../other_tenant/secrets.txt" → clamped to "/other_tenant/secrets.txt" in THIS tenant
     let user_file = tenant_root.virtual_join(requested_path)?;
     user_file.read()
@@ -181,12 +171,9 @@ fn handle_file_request(tenant_id: &str, requested_path: &str) -> std::io::Result
 
 ---
 
+## 🧠 Compile-Time Safety with Markers
 
-## 🧠 **Compile-Time Safety with Markers**
-
-`StrictPath<Marker>` enables **domain separation and authorization** at compile time.
-The example below gives a function that only accepts public assets — handing it a
-user-uploaded file is a compile error, not a runtime check:
+`StrictPath<Marker>` enables **domain separation and authorization** at compile time — handing a user-uploaded file to a function that only accepts public assets is a compile error, not a runtime check:
 
 ```rust
 use strict_path::{PathBoundary, StrictPath};
@@ -199,22 +186,18 @@ fn serve_public_asset(file: &StrictPath<PublicAssets>) { /* safe to stream to an
 let assets  = PathBoundary::<PublicAssets>::try_new_create("./assets")?;
 let uploads = PathBoundary::<UserUploads>::try_new_create("./uploads")?;
 
-// Untrusted input from request parameters, form data, database, etc.
-let requested_css   = "style.css";   // From request: /static/style.css
-let uploaded_avatar = "avatar.jpg";  // From form: <input type="file">
-
-let css:    StrictPath<PublicAssets> = assets.strict_join(requested_css)?;
-let avatar: StrictPath<UserUploads>  = uploads.strict_join(uploaded_avatar)?;
+let css:    StrictPath<PublicAssets> = assets.strict_join("style.css")?;
+let avatar: StrictPath<UserUploads>  = uploads.strict_join("avatar.jpg")?;
 
 serve_public_asset(&css);       // ✅ OK — PublicAssets matches
 // serve_public_asset(&avatar); // ❌ Compile error — UserUploads is not PublicAssets
 ```
 
-> 📖 **[Complete Marker Tutorial →](https://dk26.github.io/strict-path-rs/tutorial/chapter3_markers.html)** - Authorization patterns, permission matrices, `change_marker()` usage
+> 📖 **[Complete Marker Tutorial →](https://dk26.github.io/strict-path-rs/tutorial/chapter3_markers.html)** — authorization patterns, permission matrices, `change_marker()` usage.
 
 ---
 
-### 🔒 Zero Idle Dependencies
+## 🔒 Zero Idle Dependencies
 
 Every runtime dependency exists to close a specific security gap. Each is audited, tested against attack payloads, and covered by `cargo audit` in CI.
 
@@ -230,13 +213,13 @@ On Unix the total runtime tree is **2 crates** (`soft-canonicalize` + `proc-cano
 <summary><strong>vs manual <code>soft-canonicalize</code></strong></summary>
 
 - `soft-canonicalize` = low-level path resolution engine (returns `PathBuf`)
-- `strict-path` = high-level security API (returns `StrictPath<Marker>` with compile-time guarantees: fit for LLM era)
+- `strict-path` = high-level security API (returns `StrictPath<Marker>` with compile-time guarantees, fit for the LLM era)
 
 </details>
 
 ---
 
-## 🔌 **Ecosystem Integration**
+## 🔌 Ecosystem Integration
 
 Compose with standard Rust crates for complete solutions:
 
@@ -247,18 +230,41 @@ Compose with standard Rust crates for complete solutions:
 | **app-path** | Application directories | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#portable-application-paths-app-path) |
 | **serde**    | Config bootstrap        | [Guide](https://dk26.github.io/strict-path-rs/ecosystem_integration.html#initializing-from-configuration) |
 | **Axum**     | Web server extractors   | [Tutorial](https://dk26.github.io/strict-path-rs/axum_tutorial/overview.html)               |
-| **Archives** | ZIP/TAR extraction      | [Guide](https://dk26.github.io/strict-path-rs/examples/archive_extraction.html)             |
+| **Archives** | ZIP / TAR extraction    | [Guide](https://dk26.github.io/strict-path-rs/examples/archive_extraction.html)             |
 
 > 📚 **[Complete Integration Guide →](https://dk26.github.io/strict-path-rs/ecosystem_integration.html)**
 
 ---
 
-## 📚 **Learn More**
+<details>
+<summary>🤖 <strong>LLM / AI Agent Integration</strong></summary>
 
-📖 **[API Docs](https://docs.rs/strict-path)** | 📚 **[User Guide](https://dk26.github.io/strict-path-rs/)** | 📚 **[Anti-Patterns](https://dk26.github.io/strict-path-rs/anti_patterns.html)** | 📖 **[Security Methodology](https://dk26.github.io/strict-path-rs/security_methodology.html)** | 🧭 **[Canonicalized vs Lexical](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)** | 🛠️ **[`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)**
+<br>
+
+Our doc comments and [LLM_CONTEXT_FULL.md](https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md) are designed for LLMs with function calling — enabling AI agents to use this crate safely for file operations.
+
+**LLM agent prompt (copy/paste):**
+```
+Fetch and follow this reference (single source of truth):
+https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT_FULL.md
+```
+
+**Context7 style:**
+```
+Fetch and follow this reference (single source of truth):
+https://github.com/DK26/strict-path-rs/blob/main/LLM_CONTEXT.md
+```
+
+</details>
 
 ---
 
-## 📄 **License**
+## 📚 Learn More
+
+📖 **[API Docs](https://docs.rs/strict-path)** · 📚 **[User Guide](https://dk26.github.io/strict-path-rs/)** · 📚 **[Anti-Patterns](https://dk26.github.io/strict-path-rs/anti_patterns.html)** · 📖 **[Security Methodology](https://dk26.github.io/strict-path-rs/security_methodology.html)** · 🧭 **[Canonicalized vs Lexical](https://dk26.github.io/strict-path-rs/ergonomics/choosing_canonicalized_vs_lexical_solution.html)** · 🛠️ **[`soft-canonicalize`](https://github.com/DK26/soft-canonicalize-rs)**
+
+**MSRV:** Rust 1.76 · **Releases:** [CHANGELOG.md](CHANGELOG.md)
+
+## 📄 License
 
 MIT OR Apache-2.0
