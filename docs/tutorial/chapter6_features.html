@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-91577c49.js";
+            window.path_to_searchindex_js = "../searchindex-7ae872e7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8fc2f710.js"></script>
@@ -232,14 +232,14 @@ fn setup_portable_app() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt;
     let app_dir = app_path.get_app_dir();
 
     // Establish boundary
-    let boundary = PathBoundary::try_new_create(&amp;app_dir)?;
+    let app_data_dir = PathBoundary::try_new_create(&amp;app_dir)?;
 
     // Safe config access
-    let config = boundary.strict_join("config/settings.ini")?;
+    let config = app_data_dir.strict_join("config/settings.ini")?;
     config.create_parent_dir_all()?;
     config.write(b"[settings]\nportable=true\n")?;
 
-    println!("App directory: {}", boundary.strictpath_display());
+    println!("App directory: {}", app_data_dir.strictpath_display());
 
     Ok(())
 }
@@ -258,63 +258,46 @@ fn setup_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 
     // App-specific subdirectory boundary
     let app_config = config_base.join("myapp");
-    let boundary = PathBoundary::try_new_create(&amp;app_config)?;
+    let app_config_dir = PathBoundary::try_new_create(&amp;app_config)?;
 
     // Cross-platform locations:
     // Linux:   ~/.config/myapp/
     // Windows: C:\Users\Alice\AppData\Roaming\myapp\
     // macOS:   ~/Library/Application Support/myapp/
 
-    let settings = boundary.strict_join("settings.toml")?;
+    let settings = app_config_dir.strict_join("settings.toml")?;
     settings.write(b"[app]\nversion = '1.0'\n")?;
 
     Ok(())
 }
 <span class="boring">}</span></code></pre>
 <hr>
-<h3 id="serialization-serde-via-fromstr"><a class="header" href="#serialization-serde-via-fromstr">Serialization (<code>serde</code> via <code>FromStr</code>)</a></h3>
-<p><code>PathBoundary</code> and <code>VirtualRoot</code> implement <code>FromStr</code>, so they deserialize automatically:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::PathBoundary;
-use serde::Deserialize;
+<h3 id="config-with-serde--typed-fields-are-the-ingestion-boundary"><a class="header" href="#config-with-serde--typed-fields-are-the-ingestion-boundary">Config with <code>serde</code> — Typed Fields Are The Ingestion Boundary</a></h3>
+<p>Runtime <code>Config</code> structs declare typed <code>PathBoundary&lt;Marker&gt;</code> /
+<code>VirtualRoot&lt;Marker&gt;</code> fields directly — never raw <code>PathBuf</code>. The typed
+field <strong>is</strong> the ingestion boundary; raw <code>PathBuf</code> erases the type-system
+guarantee.</p>
+<p><code>FromStr</code> forwards to <code>try_new_create</code>: string input becomes a
+fully-constructed, canonicalized, validated boundary. Per-field policy
+variation (some fields must already exist, others bootstrap) is expressed
+at the serde wiring layer using whatever mechanism fits your project
+(<code>deserialize_with</code>, <code>serde_with</code>, a wrapper type). This crate commits to
+the <code>FromStr</code> contract; the serde glue is yours.</p>
+<pre><code class="language-rust ignore">struct UploadDir;
+struct DataDir;
 
-#[derive(Deserialize)]
 struct AppConfig {
-    // Deserializes via FromStr automatically
-    upload_dir: PathBoundary,
-    data_dir: PathBoundary,
-
-    // Validate these manually
-    user_paths: Vec&lt;String&gt;,
-}
-
-fn load_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let json = r#"{
-        "upload_dir": "./uploads",
-        "data_dir": "./data",
-        "user_paths": ["file1.txt", "../../etc/passwd"]
-    }"#;
-
-    let config: AppConfig = serde_json::from_str(json)?;
-
-    // Boundaries are ready to use
-    for path_str in &amp;config.user_paths {
-        match config.upload_dir.strict_join(path_str) {
-            Ok(safe_path) =&gt; {
-                safe_path.write(b"uploaded")?;
-                println!("✓ {}", safe_path.strictpath_display());
-            }
-            Err(e) =&gt; {
-                eprintln!("✗ Blocked '{}': {}", path_str, e);
-            }
-        }
-    }
-
-    Ok(())
-}
-<span class="boring">}</span></code></pre>
-<p><strong>Key insight</strong>: Explicit validation is a feature, not a bug. Security operations should be visible.</p>
+    upload_dir: PathBoundary&lt;UploadDir&gt;,     // policy: bootstrap ok
+    data_dir: PathBoundary&lt;DataDir&gt;,         // policy: must already exist
+    user_paths: Vec&lt;String&gt;,                  // per-request path strings
+}</code></pre>
+<p>Per-request path strings (entries from HTTP bodies, archive entries, CLI
+free-form args) stay as <code>String</code> and are validated against a
+pre-constructed boundary via <code>boundary.strict_join(…)</code> at the use site.</p>
+<p><strong>Key insight</strong>: The typed field <em>is</em> the ingestion boundary. Raw
+<code>PathBuf</code> in runtime <code>Config</code>/<code>Cli</code> structs erases the type-system
+guarantee — nothing stops a later reader (or refactor) from passing the
+unvalidated path around.</p>
 <hr>
 <h2 id="real-world-application"><a class="header" href="#real-world-application">Real-World Application</a></h2>
 <p>Combining all integrations:</p>
@@ -328,9 +311,8 @@ struct AppConfig;
 struct UserFiles;
 struct TempProcessing;
 
-#[derive(Deserialize)]
 struct Config {
-    config_dir: PathBoundary&lt;AppConfig&gt;,
+    config_dir: PathBoundary&lt;AppConfig&gt;,   // serde-wire via your chosen mechanism
 }
 
 struct Application {
@@ -378,10 +360,10 @@ impl Application {
 <hr>
 <h2 id="why-no-feature-flags"><a class="header" href="#why-no-feature-flags">Why No Feature Flags?</a></h2>
 <p><strong>Previous approach (deprecated):</strong></p>
-<pre><code class="language-toml">strict-path = { version = "0.1", features = ["tempfile", "dirs", "app-path", "serde"] }
+<pre><code class="language-toml">strict-path = { version = "0.2", features = ["tempfile", "dirs", "app-path", "serde"] }
 </code></pre>
 <p><strong>New approach (recommended):</strong></p>
-<pre><code class="language-toml">strict-path = "0.1"
+<pre><code class="language-toml">strict-path = "0.2"
 tempfile = "3.0"
 dirs = "5.0"
 app-path = "1.0"
@@ -395,6 +377,7 @@ app-path = "1.0"
 <li>✅ <strong>Visible security</strong> - Validation is explicit in code</li>
 </ol>
 <p><strong>Trade-off</strong>: One extra line of code for explicit, secure integration.</p>
+<hr>
 <hr>
 <h2 id="complete-integration-guide"><a class="header" href="#complete-integration-guide">Complete Integration Guide</a></h2>
 <p>For comprehensive examples, patterns, and best practices, see:</p>
@@ -414,7 +397,7 @@ app-path = "1.0"
 ✅ <strong>Explicit validation</strong> — Security operations are visible
 ✅ <strong>Full control</strong> — No feature coupling or version constraints
 ✅ <strong>One extra line</strong> — Small cost for explicit security
-✅ <strong>FromStr support</strong> — Boundaries deserialize automatically</p>
+✅ <strong>Typed ingestion boundary</strong> — <code>PathBoundary&lt;Marker&gt;</code> / <code>VirtualRoot&lt;Marker&gt;</code> in runtime config, never raw <code>PathBuf</code></p>
 <h2 id="the-final-complete-guarantee"><a class="header" href="#the-final-complete-guarantee">The Final Complete Guarantee</a></h2>
 <blockquote>
 <p><strong>By combining all chapters, you achieve:</strong></p>
@@ -453,21 +436,20 @@ app-path = "1.0"
 </span><span class="boring">fn main() {
 </span>// Temporary directories
 let temp = tempfile::tempdir()?;
-let boundary = PathBoundary::try_new(temp.path())?;
+let temp_dir = PathBoundary::try_new(temp.path())?;
 
 // Portable app paths
 let app_dir = app_path::AppPath::new("MyApp").get_app_dir();
-let boundary = PathBoundary::try_new(&amp;app_dir)?;
+let app_data_dir = PathBoundary::try_new(&amp;app_dir)?;
 
 // OS directories
 let config = dirs::config_dir().ok_or("No config")?;
-let boundary = PathBoundary::try_new_create(config.join("myapp"))?;
+let app_config_dir = PathBoundary::try_new_create(config.join("myapp"))?;
 
-// Deserialization (FromStr)
-#[derive(Deserialize)]
+// Config: typed boundary fields; raw PathBuf is the anti-pattern
 struct Config {
-    boundary: PathBoundary,  // Automatic via FromStr
-    user_path: String,        // Manual validation
+    data_dir: PathBoundary,      // FromStr =&gt; try_new_create for deserialization
+    user_path: String,            // per-request path; validate via strict_join later
 }
 <span class="boring">}</span></code></pre>
 <p><strong><a href="./overview.html">← Back to Tutorial Overview</a></strong></p>

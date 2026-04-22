@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-91577c49.js";
+            window.path_to_searchindex_js = "searchindex-7ae872e7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8fc2f710.js"></script>
@@ -372,6 +372,9 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 <li>The type system prevents using unvalidated paths</li>
 </ul>
 <h2 id="common-patterns"><a class="header" href="#common-patterns">Common Patterns</a></h2>
+<blockquote>
+<p><strong>Library authors</strong>: The patterns below show <code>&amp;StrictPath</code> in internal helper signatures. If you are writing a library with a public API, accept standard types (<code>&amp;str</code>, <code>&amp;Path</code>) in your public surface and validate internally — so downstream users don’t need to depend on <code>strict-path</code> directly. Expose these types only when the library’s purpose benefits from it.</p>
+</blockquote>
 <h3 id="web-file-upload"><a class="header" href="#web-file-upload">Web File Upload</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {

@@ -162,28 +162,20 @@ The safe file operations handle parent directory creation automatically.
 
 ## Integration with Serde
 
-For more complex deserialization scenarios, use the `serde` feature:
+Declare typed `PathBoundary<Marker>` fields directly on the runtime config
+— never raw `PathBuf`. The typed field **is** the ingestion boundary.
+`FromStr` forwards to `try_new_create`, so wiring it to serde is a
+one-liner in whichever style fits your project (`deserialize_with`,
+`serde_with`, wrapper type). Per-request filenames stay as `String` and
+are validated against a pre-constructed boundary via `strict_join`.
 
-```rust
-use strict_path::{PathBoundary, StrictPath, serde_ext::WithBoundary};
-use serde::Deserialize;
+```rust,ignore
+struct ConfigFiles;
 
-#[derive(Deserialize)]
 struct AppConfig {
     name: String,
-    
-    // Deserialize with validation through boundary
-    #[serde(deserialize_with = "deserialize_config_file")]
-    config_file: StrictPath<ConfigFiles>,
-}
-
-fn deserialize_config_file<'de, D>(deserializer: D) -> Result<StrictPath<ConfigFiles>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let config_dir = PathBoundary::<ConfigFiles>::try_new("./config")?;
-    let path_str = String::deserialize(deserializer)?;
-    config_dir.strict_join(&path_str).map_err(serde::de::Error::custom)
+    config_dir: PathBoundary<ConfigFiles>,   // typed ingestion boundary
+    config_file: String,                      // per-request; validate at use via strict_join
 }
 ```
 

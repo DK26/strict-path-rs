@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-91577c49.js";
+            window.path_to_searchindex_js = "../searchindex-7ae872e7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8fc2f710.js"></script>
@@ -372,8 +372,8 @@ fn validate_path(path: &amp;str) -&gt; Result&lt;PathBuf, Error&gt; {
 </span>use strict_path::PathBoundary;
 
 // One line replaces all the complexity above
-let boundary = PathBoundary::try_new("./safe")?;
-let safe_path = boundary.strict_join(user_input)?; // ✅ All attacks blocked
+let safe_dir = PathBoundary::try_new("./safe")?;
+let safe_path = safe_dir.strict_join(user_input)?; // ✅ All attacks blocked
 <span class="boring">}</span></code></pre>
 <p><strong>The trade-off</strong>: Learn one crate’s API vs. implementing (and maintaining) dozens of validation checks.</p>
 <hr>

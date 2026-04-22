@@ -8,7 +8,7 @@ This page shows how to integrate `strict-path` with the `dirs` crate for cross-p
 
 ```toml
 [dependencies]
-strict-path = "0.1"
+strict-path = "0.2"
 dirs = "5.0"  # Add dirs directly
 ```
 
@@ -343,7 +343,7 @@ let file = app_config_dir.strict_join(user_input)?;
 
 The previous feature-based approach:
 ```toml
-strict-path = { version = "0.1", features = ["dirs"] }
+strict-path = { version = "0.2", features = ["dirs"] }
 ```
 
 Provided methods like `PathBoundary::try_new_os_config()`, but this couples `strict-path` to the `dirs` crate version and hides the integration.

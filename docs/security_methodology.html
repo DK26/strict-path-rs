@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-91577c49.js";
+            window.path_to_searchindex_js = "searchindex-7ae872e7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8fc2f710.js"></script>
@@ -206,8 +206,8 @@
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Attack attempt: ../../sensitive.doc:stream
-let boundary = PathBoundary::try_new("./archive_extract")?;
-match boundary.strict_join("../../sensitive.doc:stream") {
+let archive_extract_dir = PathBoundary::try_new("./archive_extract")?;
+match archive_extract_dir.strict_join("../../sensitive.doc:stream") {
     Ok(_) =&gt; unreachable!("Never succeeds"),
     Err(e) =&gt; println!("🛡️ ADS attack blocked: {e}"),
 }
@@ -223,8 +223,8 @@ match boundary.strict_join("../../sensitive.doc:stream") {
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Validation and resolution happen atomically
-let boundary = PathBoundary::try_new("./workspace")?;
-let safe_path = boundary.strict_join("config.toml")?; // Resolves symlinks NOW
+let workspace_dir = PathBoundary::try_new("./workspace")?;
+let safe_path = workspace_dir.strict_join("config.toml")?; // Resolves symlinks NOW
 safe_path.read_to_string()?; // Uses already-resolved path, no race
 <span class="boring">}</span></code></pre>
 <h4 id="cve-2019-9855-libreoffice-windows-83-short-name-bypass"><a class="header" href="#cve-2019-9855-libreoffice-windows-83-short-name-bypass">CVE-2019-9855: LibreOffice Windows 8.3 Short Name Bypass</a></h4>
@@ -238,8 +238,8 @@ safe_path.read_to_string()?; // Uses already-resolved path, no race
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Attack attempt using short name: ../PROGRA~1/system.dll
-let boundary = PathBoundary::try_new("C:/Users/Alice/Documents")?;
-match boundary.strict_join("../PROGRA~1/system.dll") {
+let documents_dir = PathBoundary::try_new("C:/Users/Alice/Documents")?;
+match documents_dir.strict_join("../PROGRA~1/system.dll") {
     Ok(_) =&gt; unreachable!("Short name attack blocked"),
     Err(e) =&gt; println!("🛡️ 8.3 attack blocked: {e}"),
 }

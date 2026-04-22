@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-91577c49.js";
+            window.path_to_searchindex_js = "../searchindex-7ae872e7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8fc2f710.js"></script>
@@ -449,9 +449,9 @@ fn write_file(path: &amp;StrictPath&lt;(UserFiles, ReadWrite)&gt;, content: &amp
 }
 
 // Usage:
-let boundary: PathBoundary&lt;(UserFiles, ReadOnly)&gt; = 
+let uploads_dir: PathBoundary&lt;(UserFiles, ReadOnly)&gt; = 
     PathBoundary::try_new("./uploads")?;
-let file_ro = boundary.strict_join("document.txt")?;
+let file_ro = uploads_dir.strict_join("document.txt")?;
 
 // Can't write yet - read-only marker
 // write_file(&amp;file_ro, b"data")?;  // ❌ Compile error!

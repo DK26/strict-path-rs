@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-91577c49.js";
+            window.path_to_searchindex_js = "../searchindex-7ae872e7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8fc2f710.js"></script>
@@ -206,8 +206,8 @@
 // ❌ BAD: Reconstructing boundary for every file
 fn process_files(base_path: &amp;str, filenames: &amp;[String]) -&gt; std::io::Result&lt;()&gt; {
     for name in filenames {
-        let boundary = PathBoundary::try_new(base_path)?; // Repeated canonicalization!
-        let file = boundary.strict_join(name)?;
+        let files_dir = PathBoundary::try_new(base_path)?; // Repeated canonicalization!
+        let file = files_dir.strict_join(name)?;
         file.write(b"data")?;
     }
     Ok(())
@@ -380,8 +380,8 @@ fn deserialize_with_seed(
 fn slow_approach(files: &amp;[String]) -&gt; std::io::Result&lt;()&gt; {
     // ❌ SLOW: Canonicalizes base path 1000 times
     for name in files {
-        let boundary = PathBoundary::try_new("./data")?; // Filesystem call every time!
-        let _file = boundary.strict_join(name)?;
+        let data_dir = PathBoundary::try_new("./data")?; // Filesystem call every time!
+        let _file = data_dir.strict_join(name)?;
     }
     Ok(())
 }
@@ -393,10 +393,10 @@ fn slow_approach(files: &amp;[String]) -&gt; std::io::Result&lt;()&gt; {
 
 fn fast_approach(files: &amp;[String]) -&gt; std::io::Result&lt;()&gt; {
     // ✅ FAST: Canonicalizes base path once, reuses for all joins
-    let boundary = PathBoundary::try_new("./data")?; // Single filesystem call
+    let data_dir = PathBoundary::try_new("./data")?; // Single filesystem call
     
     for name in files {
-        let _file = boundary.strict_join(name)?; // Reuses canonical state
+        let _file = data_dir.strict_join(name)?; // Reuses canonical state
     }
     
     Ok(())
@@ -412,14 +412,14 @@ fn benchmark_comparison() -&gt; std::io::Result&lt;()&gt; {
     
     // Slow: ~1000 canonicalization calls
     for name in &amp;files {
-        let boundary = PathBoundary::try_new("./data")?;
-        let _ = boundary.strict_join(name)?;
+        let data_dir = PathBoundary::try_new("./data")?;
+        let _ = data_dir.strict_join(name)?;
     }
     
     // Fast: 1 canonicalization call + 1000 cheap joins
-    let boundary = PathBoundary::try_new("./data")?;
+    let data_dir = PathBoundary::try_new("./data")?;
     for name in &amp;files {
-        let _ = boundary.strict_join(name)?;
+        let _ = data_dir.strict_join(name)?;
     }
     
     Ok(())
@@ -459,13 +459,13 @@ mod tests {
         // Create test boundary
         let temp_dir = std::env::temp_dir().join("test_uploads");
         std::fs::create_dir_all(&amp;temp_dir)?;
-        let boundary = PathBoundary::try_new(&amp;temp_dir)?;
+        let upload_dir = PathBoundary::try_new(&amp;temp_dir)?;
         
         // Test with injected boundary
-        save_user_data(&amp;boundary, "test.txt", b"data")?;
+        save_user_data(&amp;upload_dir, "test.txt", b"data")?;
         
         // Verify
-        let file = boundary.strict_join("test.txt")?;
+        let file = upload_dir.strict_join("test.txt")?;
         assert_eq!(file.read()?, b"data");
         
         // Cleanup
@@ -475,10 +475,10 @@ mod tests {
     
     #[test]
     fn test_rejects_escapes() {
-        let boundary = PathBoundary::try_new(".").unwrap();
+        let test_dir = PathBoundary::try_new(".").unwrap();
         
         // Verify security properties
-        assert!(save_user_data(&amp;boundary, "../../../etc/passwd", b"data").is_err());
+        assert!(save_user_data(&amp;test_dir, "../../../etc/passwd", b"data").is_err());
     }
 }
 <span class="boring">}</span></code></pre>

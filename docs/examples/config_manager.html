@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-91577c49.js";
+            window.path_to_searchindex_js = "../searchindex-7ae872e7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8fc2f710.js"></script>
@@ -339,30 +339,19 @@ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 </table>
 </div>
 <h2 id="integration-with-serde"><a class="header" href="#integration-with-serde">Integration with Serde</a></h2>
-<p>For more complex deserialization scenarios, use the <code>serde</code> feature:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::{PathBoundary, StrictPath, serde_ext::WithBoundary};
-use serde::Deserialize;
+<p>Declare typed <code>PathBoundary&lt;Marker&gt;</code> fields directly on the runtime config
+— never raw <code>PathBuf</code>. The typed field <strong>is</strong> the ingestion boundary.
+<code>FromStr</code> forwards to <code>try_new_create</code>, so wiring it to serde is a
+one-liner in whichever style fits your project (<code>deserialize_with</code>,
+<code>serde_with</code>, wrapper type). Per-request filenames stay as <code>String</code> and
+are validated against a pre-constructed boundary via <code>strict_join</code>.</p>
+<pre><code class="language-rust ignore">struct ConfigFiles;
 
-#[derive(Deserialize)]
 struct AppConfig {
     name: String,
-    
-    // Deserialize with validation through boundary
-    #[serde(deserialize_with = "deserialize_config_file")]
-    config_file: StrictPath&lt;ConfigFiles&gt;,
-}
-
-fn deserialize_config_file&lt;'de, D&gt;(deserializer: D) -&gt; Result&lt;StrictPath&lt;ConfigFiles&gt;, D::Error&gt;
-where
-    D: serde::Deserializer&lt;'de&gt;,
-{
-    let boundary = PathBoundary::&lt;ConfigFiles&gt;::try_new("./config")?;
-    let path_str = String::deserialize(deserializer)?;
-    boundary.strict_join(&amp;path_str).map_err(serde::de::Error::custom)
-}
-<span class="boring">}</span></code></pre>
+    config_dir: PathBoundary&lt;ConfigFiles&gt;,   // typed ingestion boundary
+    config_file: String,                      // per-request; validate at use via strict_join
+}</code></pre>
 <h2 id="os-specific-config-locations"><a class="header" href="#os-specific-config-locations">OS-Specific Config Locations</a></h2>
 <p>For platform-specific config directories, use the <code>dirs</code> feature:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]

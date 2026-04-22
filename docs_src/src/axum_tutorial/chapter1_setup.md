@@ -27,7 +27,7 @@ tower = "0.4"
 tower-http = { version = "0.5", features = ["fs", "trace"] }
 
 # Security and paths
-strict-path = { version = "0.1", features = ["serde"] }
+strict-path = { version = "0.2", features = ["serde"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

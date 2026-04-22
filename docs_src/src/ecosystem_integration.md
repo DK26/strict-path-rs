@@ -13,7 +13,7 @@
 - [Temporary Directories (tempfile)](#temporary-directories-tempfile)
 - [Portable Application Paths (app-path)](#portable-application-paths-app-path)
 - [OS Standard Directories (dirs)](#os-standard-directories-dirs)
-- [Serialization & Deserialization (serde)](#serialization--deserialization-serde)
+- [Initializing from Configuration (serde)](#initializing-from-configuration)
 - [Third-Party Crate Integration Patterns](#third-party-crate-integration-patterns)
 
 ---
@@ -366,45 +366,33 @@ fn access_user_content() -> Result<(), Box<dyn std::error::Error>> {
 
 ---
 
-## Serialization & Deserialization (serde)
+## Initializing from Configuration
 
-For JSON, TOML, YAML, and other formats, use `FromStr` trait with manual validation — giving you explicit control over path validation.
+Runtime `Config` structs declare typed `PathBoundary<Marker>` /
+`VirtualRoot<Marker>` fields — never raw `PathBuf`. The typed field **is**
+the ingestion boundary. `FromStr` forwards to `try_new_create`, so string
+input parses into a fully-constructed, canonicalized, validated boundary.
 
-### Deserializing Boundaries with FromStr
+Downstream code then receives `&PathBoundary<Marker>` values with
+type-level proof the directory was constructed through a vetted path.
+There is nowhere in the program between "config value" and "use" that a
+reader could pass an unvalidated path.
 
-`PathBoundary` and `VirtualRoot` implement `FromStr`, so they deserialize automatically with serde:
+How you wire `FromStr` to your chosen config format is a serde-side
+integration question — use `deserialize_with`, `serde_with`, a small
+wrapper type, or any other serde-native approach. This crate commits to
+the `FromStr` contract and the typed-field principle; the glue is yours.
 
-```rust
-use strict_path::PathBoundary;
-use serde::Deserialize;
+If a specific field must already exist (deployment artifact — e.g. a
+`public_assets` directory shipped in the package), route that field
+through `try_new` instead of `FromStr` at the adapter layer. The typed
+field stays the same.
 
-#[derive(Deserialize)]
-struct AppConfig {
-    // Deserializes via FromStr automatically
-    upload_dir: PathBoundary,
-    data_dir: PathBoundary,
-}
+### Handling Per-Request Paths
 
-fn load_config() -> Result<(), Box<dyn std::error::Error>> {
-    let json = r#"{
-        "upload_dir": "./uploads",
-        "data_dir": "./data"
-    }"#;
-
-    let config: AppConfig = serde_json::from_str(json)?;
-
-    // Boundaries are ready to use
-    let file = config.upload_dir.strict_join("user/file.txt")?;
-    file.create_parent_dir_all()?;
-    file.write(b"content")?;
-
-    Ok(())
-}
-```
-
-### Explicit Path Validation Pattern
-
-For paths within boundaries, deserialize as `String` and validate explicitly:
+For paths within an existing boundary (filenames, relative paths from an
+HTTP request, etc.), deserialize as `String` and validate against your
+boundary at the point of use:
 
 ```rust
 use strict_path::PathBoundary;
@@ -412,16 +400,19 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct UploadRequest {
-    boundary: PathBoundary,
-    user_paths: Vec<String>, // Validate these manually
+    // Request-scoped paths are plain strings; validate against a
+    // trusted boundary established at startup (not from the request).
+    user_paths: Vec<String>,
 }
 
-fn handle_upload(json: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn handle_upload(
+    boundary: &PathBoundary,
+    json: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let request: UploadRequest = serde_json::from_str(json)?;
 
-    // Explicit validation - security-conscious and visible
     for path_str in &request.user_paths {
-        match request.boundary.strict_join(path_str) {
+        match boundary.strict_join(path_str) {
             Ok(safe_path) => {
                 safe_path.create_parent_dir_all()?;
                 safe_path.write(b"uploaded")?;
@@ -485,46 +476,26 @@ async fn upload_file(
 }
 ```
 
-### Config File Pattern
+### Config Shape at a Glance
 
-```rust
-use strict_path::PathBoundary;
-use serde::Deserialize;
+A typical server config declares typed boundary fields directly:
 
-#[derive(Deserialize)]
-struct ServerConfig {
-    // Boundaries deserialize via FromStr
-    public_assets: PathBoundary<PublicAssets>,
-    user_uploads: PathBoundary<UserUploads>,
-
-    // Other config
-    port: u16,
-    host: String,
-}
-
+```rust,ignore
 struct PublicAssets;
 struct UserUploads;
 
-fn load_server_config() -> Result<(), Box<dyn std::error::Error>> {
-    let toml_str = r#"
-        public_assets = "./public"
-        user_uploads = "./uploads"
-        port = 8080
-        host = "127.0.0.1"
-    "#;
-
-    let config: ServerConfig = toml::from_str(toml_str)?;
-
-    // Use boundaries immediately
-    let favicon = config.public_assets.strict_join("favicon.ico")?;
-    println!("Favicon: {}", favicon.strictpath_display());
-
-    let user_file = config.user_uploads.strict_join("user123/file.txt")?;
-    user_file.create_parent_dir_all()?;
-
-    Ok(())
+struct ServerConfig {
+    public_assets: PathBoundary<PublicAssets>,   // policy: must already exist
+    user_uploads: PathBoundary<UserUploads>,     // policy: bootstrap ok
+    port: u16,
+    host: String,
 }
 ```
+
+Wiring each field to TOML/JSON/YAML is a serde-side concern — route the
+`user_uploads` field through `FromStr` (bootstrap) and `public_assets`
+through `try_new` (must-already-exist) using whichever serde mechanism
+fits your project.
 
 ### Serializing Paths
 
@@ -740,11 +711,10 @@ let app_data_dir = PathBoundary::try_new_create(&app_path)?;
 let config = dirs::config_dir().ok_or("No config dir")?;
 let app_config_dir = PathBoundary::try_new_create(config.join("myapp"))?;
 
-// Deserialization (FromStr)
-#[derive(Deserialize)]
-struct Config {
-    data_dir: PathBoundary,  // Automatic via FromStr
-    user_path: String,        // Manual validation
+// Config: typed boundary fields; raw PathBuf is the anti-pattern
+struct AppConfig {
+    data_dir: PathBoundary,     // FromStr => try_new_create for deserialization
+    user_path: String,           // per-request path; validate via strict_join later
 }
 ```
 

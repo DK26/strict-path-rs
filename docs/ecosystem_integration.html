@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-91577c49.js";
+            window.path_to_searchindex_js = "searchindex-7ae872e7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8fc2f710.js"></script>
@@ -192,7 +192,7 @@
 <li><a href="#temporary-directories-tempfile">Temporary Directories (tempfile)</a></li>
 <li><a href="#portable-application-paths-app-path">Portable Application Paths (app-path)</a></li>
 <li><a href="#os-standard-directories-dirs">OS Standard Directories (dirs)</a></li>
-<li><a href="#serialization--deserialization-serde">Serialization &amp; Deserialization (serde)</a></li>
+<li><a href="#initializing-from-configuration">Initializing from Configuration (serde)</a></li>
 <li><a href="#third-party-crate-integration-patterns">Third-Party Crate Integration Patterns</a></li>
 </ul>
 <hr>
@@ -263,14 +263,14 @@ use tempfile::TempDir;
 #[test]
 fn test_file_processing() {
     let temp = tempfile::tempdir().unwrap();
-    let boundary = PathBoundary::try_new(temp.path()).unwrap();
+    let test_dir = PathBoundary::try_new(temp.path()).unwrap();
 
     // Setup test files
-    let input = boundary.strict_join("input.txt").unwrap();
+    let input = test_dir.strict_join("input.txt").unwrap();
     input.write(b"test data").unwrap();
 
     // Run your code
-    process_file(&amp;boundary, "input.txt").unwrap();
+    process_file(&amp;test_dir, "input.txt").unwrap();
 
     // Verify results
     let output = boundary.strict_join("output.txt").unwrap();
@@ -330,17 +330,17 @@ fn setup_portable_app() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt;
     let app_dir = AppPath::with("MyPortableApp");
 
     // Establish boundary for the app directory
-    let boundary = PathBoundary::try_new_create(app_dir)?;
+    let app_data_dir = PathBoundary::try_new_create(app_dir)?;
 
     // Safe operations within app directory
-    let config = boundary.strict_join("config/settings.ini")?;
+    let config = app_data_dir.strict_join("config/settings.ini")?;
     config.create_parent_dir_all()?;
     config.write(b"[settings]\nportable=true\n")?;
 
-    let data = boundary.strict_join("data/userfiles")?;
+    let data = app_data_dir.strict_join("data/userfiles")?;
     data.create_dir_all()?;
 
-    println!("App directory: {}", boundary.strictpath_display());
+    println!("App directory: {}", app_data_dir.strictpath_display());
 
     Ok(())
 }
@@ -357,13 +357,13 @@ fn setup_app_with_override() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt
     let env_var = "MY_APP_DATA_DIR";
     let app_path = AppPath::with_override("MyApp", Some(env_var));
 
-    let boundary = PathBoundary::try_new_create(app_path)?;
+    let app_data_dir = PathBoundary::try_new_create(app_path)?;
 
-    println!("Using app directory: {}", boundary.strictpath_display());
+    println!("Using app directory: {}", app_data_dir.strictpath_display());
     // In production: /path/to/exe/MyApp
     // In CI with MY_APP_DATA_DIR=/tmp/ci-test: /tmp/ci-test
 
-    let log_file = boundary.strict_join("logs/app.log")?;
+    let log_file = app_data_dir.strict_join("logs/app.log")?;
     log_file.create_parent_dir_all()?;
     log_file.write(b"Application started\n")?;
 
@@ -430,14 +430,14 @@ fn setup_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 
     // Create app-specific subdirectory boundary
     let app_config = config_base.join("myapp");
-    let boundary = PathBoundary::try_new_create(&amp;app_config)?;
+    let app_config_dir = PathBoundary::try_new_create(&amp;app_config)?;
 
     // Platform-specific locations:
     // Linux:   ~/.config/myapp/
     // Windows: C:\Users\Alice\AppData\Roaming\myapp\
     // macOS:   ~/Library/Application Support/myapp/
 
-    let settings = boundary.strict_join("settings.toml")?;
+    let settings = app_config_dir.strict_join("settings.toml")?;
     settings.write(b"[app]\nversion = '1.0'\n")?;
 
     Ok(())
@@ -498,11 +498,11 @@ fn use_standard_dirs() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; 
 fn access_user_content() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     // Downloads directory
     if let Some(downloads) = dirs::download_dir() {
-        let boundary = PathBoundary::try_new(&amp;downloads)?;
+        let downloads_dir = PathBoundary::try_new(&amp;downloads)?;
 
         // Safe access to user-selected file
         let user_input = "report.pdf"; // From file picker or CLI
-        let file = boundary.strict_join(user_input)?;
+        let file = downloads_dir.strict_join(user_input)?;
 
         if file.exists() {
             let data = file.read()?;
@@ -512,9 +512,9 @@ fn access_user_content() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt
 
     // Documents directory
     if let Some(documents) = dirs::document_dir() {
-        let boundary = PathBoundary::try_new(&amp;documents)?;
+        let documents_dir = PathBoundary::try_new(&amp;documents)?;
 
-        let export = boundary.strict_join("exports/data.csv")?;
+        let export = documents_dir.strict_join("exports/data.csv")?;
         export.create_parent_dir_all()?;
         export.write(b"col1,col2\nval1,val2\n")?;
 
@@ -525,40 +525,27 @@ fn access_user_content() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt
 }
 <span class="boring">}</span></code></pre>
 <hr>
-<h2 id="serialization--deserialization-serde"><a class="header" href="#serialization--deserialization-serde">Serialization &amp; Deserialization (serde)</a></h2>
-<p>For JSON, TOML, YAML, and other formats, use <code>FromStr</code> trait with manual validation — giving you explicit control over path validation.</p>
-<h3 id="deserializing-boundaries-with-fromstr"><a class="header" href="#deserializing-boundaries-with-fromstr">Deserializing Boundaries with FromStr</a></h3>
-<p><code>PathBoundary</code> and <code>VirtualRoot</code> implement <code>FromStr</code>, so they deserialize automatically with serde:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::PathBoundary;
-use serde::Deserialize;
-
-#[derive(Deserialize)]
-struct AppConfig {
-    // Deserializes via FromStr automatically
-    upload_dir: PathBoundary,
-    data_dir: PathBoundary,
-}
-
-fn load_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let json = r#"{
-        "upload_dir": "./uploads",
-        "data_dir": "./data"
-    }"#;
-
-    let config: AppConfig = serde_json::from_str(json)?;
-
-    // Boundaries are ready to use
-    let file = config.upload_dir.strict_join("user/file.txt")?;
-    file.create_parent_dir_all()?;
-    file.write(b"content")?;
-
-    Ok(())
-}
-<span class="boring">}</span></code></pre>
-<h3 id="explicit-path-validation-pattern"><a class="header" href="#explicit-path-validation-pattern">Explicit Path Validation Pattern</a></h3>
-<p>For paths within boundaries, deserialize as <code>String</code> and validate explicitly:</p>
+<h2 id="initializing-from-configuration"><a class="header" href="#initializing-from-configuration">Initializing from Configuration</a></h2>
+<p>Runtime <code>Config</code> structs declare typed <code>PathBoundary&lt;Marker&gt;</code> /
+<code>VirtualRoot&lt;Marker&gt;</code> fields — never raw <code>PathBuf</code>. The typed field <strong>is</strong>
+the ingestion boundary. <code>FromStr</code> forwards to <code>try_new_create</code>, so string
+input parses into a fully-constructed, canonicalized, validated boundary.</p>
+<p>Downstream code then receives <code>&amp;PathBoundary&lt;Marker&gt;</code> values with
+type-level proof the directory was constructed through a vetted path.
+There is nowhere in the program between “config value” and “use” that a
+reader could pass an unvalidated path.</p>
+<p>How you wire <code>FromStr</code> to your chosen config format is a serde-side
+integration question — use <code>deserialize_with</code>, <code>serde_with</code>, a small
+wrapper type, or any other serde-native approach. This crate commits to
+the <code>FromStr</code> contract and the typed-field principle; the glue is yours.</p>
+<p>If a specific field must already exist (deployment artifact — e.g. a
+<code>public_assets</code> directory shipped in the package), route that field
+through <code>try_new</code> instead of <code>FromStr</code> at the adapter layer. The typed
+field stays the same.</p>
+<h3 id="handling-per-request-paths"><a class="header" href="#handling-per-request-paths">Handling Per-Request Paths</a></h3>
+<p>For paths within an existing boundary (filenames, relative paths from an
+HTTP request, etc.), deserialize as <code>String</code> and validate against your
+boundary at the point of use:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use strict_path::PathBoundary;
@@ -566,16 +553,19 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct UploadRequest {
-    boundary: PathBoundary,
-    user_paths: Vec&lt;String&gt;, // Validate these manually
+    // Request-scoped paths are plain strings; validate against a
+    // trusted boundary established at startup (not from the request).
+    user_paths: Vec&lt;String&gt;,
 }
 
-fn handle_upload(json: &amp;str) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+fn handle_upload(
+    boundary: &amp;PathBoundary,
+    json: &amp;str,
+) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let request: UploadRequest = serde_json::from_str(json)?;
 
-    // Explicit validation - security-conscious and visible
     for path_str in &amp;request.user_paths {
-        match request.boundary.strict_join(path_str) {
+        match boundary.strict_join(path_str) {
             Ok(safe_path) =&gt; {
                 safe_path.create_parent_dir_all()?;
                 safe_path.write(b"uploaded")?;
@@ -637,46 +627,21 @@ async fn upload_file(
     }
 }
 <span class="boring">}</span></code></pre>
-<h3 id="config-file-pattern"><a class="header" href="#config-file-pattern">Config File Pattern</a></h3>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use strict_path::PathBoundary;
-use serde::Deserialize;
-
-#[derive(Deserialize)]
-struct ServerConfig {
-    // Boundaries deserialize via FromStr
-    public_assets: PathBoundary&lt;PublicAssets&gt;,
-    user_uploads: PathBoundary&lt;UserUploads&gt;,
-
-    // Other config
-    port: u16,
-    host: String,
-}
-
-struct PublicAssets;
+<h3 id="config-shape-at-a-glance"><a class="header" href="#config-shape-at-a-glance">Config Shape at a Glance</a></h3>
+<p>A typical server config declares typed boundary fields directly:</p>
+<pre><code class="language-rust ignore">struct PublicAssets;
 struct UserUploads;
 
-fn load_server_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let toml_str = r#"
-        public_assets = "./public"
-        user_uploads = "./uploads"
-        port = 8080
-        host = "127.0.0.1"
-    "#;
-
-    let config: ServerConfig = toml::from_str(toml_str)?;
-
-    // Use boundaries immediately
-    let favicon = config.public_assets.strict_join("favicon.ico")?;
-    println!("Favicon: {}", favicon.strictpath_display());
-
-    let user_file = config.user_uploads.strict_join("user123/file.txt")?;
-    user_file.create_parent_dir_all()?;
-
-    Ok(())
-}
-<span class="boring">}</span></code></pre>
+struct ServerConfig {
+    public_assets: PathBoundary&lt;PublicAssets&gt;,   // policy: must already exist
+    user_uploads: PathBoundary&lt;UserUploads&gt;,     // policy: bootstrap ok
+    port: u16,
+    host: String,
+}</code></pre>
+<p>Wiring each field to TOML/JSON/YAML is a serde-side concern — route the
+<code>user_uploads</code> field through <code>FromStr</code> (bootstrap) and <code>public_assets</code>
+through <code>try_new</code> (must-already-exist) using whichever serde mechanism
+fits your project.</p>
 <h3 id="serializing-paths"><a class="header" href="#serializing-paths">Serializing Paths</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -684,12 +649,12 @@ fn load_server_config() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt;
 use serde_json::json;
 
 fn serialize_paths() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-    let boundary = PathBoundary::try_new_create("./data")?;
-    let file = boundary.strict_join("config/settings.json")?;
+    let data_dir = PathBoundary::try_new_create("./data")?;
+    let file = data_dir.strict_join("config/settings.json")?;
 
     // Serialize to JSON using display methods
     let response = json!({
-        "boundary": boundary.strictpath_display().to_string(),
+        "data_dir": data_dir.strictpath_display().to_string(),
         "file": file.strictpath_display().to_string(),
         "file_name": file.strictpath_file_name()
             .unwrap()
@@ -763,12 +728,12 @@ archive.append_data(&amp;mut header, path_str, content.as_slice())?;
 </span><span class="boring">fn main() {
 </span>// ✅ OK: WalkDir only reads, doesn't write or follow user input
 use walkdir::WalkDir;
-let boundary = PathBoundary::try_new("./data")?;
-for entry in WalkDir::new(boundary.interop_path()) {
+let data_dir = PathBoundary::try_new("./data")?;
+for entry in WalkDir::new(data_dir.interop_path()) {
     let entry = entry?;
     // Re-validate each discovered path before operations
-    if let Ok(relative) = entry.path().strip_prefix(boundary.interop_path()) {
-        let safe_path = boundary.strict_join(relative)?;
+    if let Ok(relative) = entry.path().strip_prefix(data_dir.interop_path()) {
+        let safe_path = data_dir.strict_join(relative)?;
         // Now safe to use
     }
 }
@@ -867,22 +832,21 @@ fn list_files(boundary: &amp;PathBoundary) -&gt; std::io::Result&lt;Vec&lt;Strin
 </span><span class="boring">fn main() {
 </span>// Temporary directories
 let temp = tempfile::tempdir()?;
-let boundary = PathBoundary::try_new(temp.path())?;
+let temp_dir = PathBoundary::try_new(temp.path())?;
 
 // Portable app paths
 use app_path::AppPath;
 let app_path = AppPath::with("MyApp");  // Relative to executable directory
-let boundary = PathBoundary::try_new_create(&amp;app_path)?;
+let app_data_dir = PathBoundary::try_new_create(&amp;app_path)?;
 
 // OS directories
 let config = dirs::config_dir().ok_or("No config dir")?;
-let boundary = PathBoundary::try_new_create(config.join("myapp"))?;
+let app_config_dir = PathBoundary::try_new_create(config.join("myapp"))?;
 
-// Deserialization (FromStr)
-#[derive(Deserialize)]
-struct Config {
-    boundary: PathBoundary,  // Automatic via FromStr
-    user_path: String,        // Manual validation
+// Config: typed boundary fields; raw PathBuf is the anti-pattern
+struct AppConfig {
+    data_dir: PathBoundary,     // FromStr =&gt; try_new_create for deserialization
+    user_path: String,           // per-request path; validate via strict_join later
 }
 <span class="boring">}</span></code></pre>
 <hr>

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-91577c49.js";
+            window.path_to_searchindex_js = "searchindex-7ae872e7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8fc2f710.js"></script>
@@ -439,10 +439,10 @@ assert_eq!(
 </span>use strict_path::StrictPath;
 
 // StrictPath follows symlinks and validates targets
-let boundary = StrictPath::with_boundary_create("./system_root")?;
+let system_root_dir = StrictPath::with_boundary_create("./system_root")?;
 
 // If "system_root/config_link" symlinks to "/etc/app.conf":
-let config = boundary.strict_join("config_link");
+let config = system_root_dir.strict_join("config_link");
 // ❌ Error if target is outside boundary
 // ✅ OK if target resolves to path inside boundary
 <span class="boring">}</span></code></pre>
@@ -468,6 +468,9 @@ println!("System: {}", config.as_unvirtual().strictpath_display());
 <p><strong>Use for:</strong> Multi-tenant systems, archive extraction, sandboxed environments, container-like semantics</p>
 <p><strong>Key Insight:</strong> In a virtual filesystem, absolute paths (whether from user input or symlink targets) are <em>always</em> relative to the virtual root. This makes <code>VirtualPath</code> perfect for untrusted inputs where you want graceful containment rather than explicit rejection.</p>
 <h2 id="common-patterns-summary"><a class="header" href="#common-patterns-summary">Common Patterns Summary</a></h2>
+<blockquote>
+<p><strong>Library authors</strong>: The patterns below apply to <strong>applications</strong> and <strong>library internals</strong>. If you are writing a library with a public API, consider accepting standard types in your public surface and validating internally — see the <a href="./ergonomics/signatures.html">Function Signatures</a> page for details.</p>
+</blockquote>
 <ol>
 <li><strong>Validate once, use everywhere</strong>: Create typed paths at boundaries, pass typed paths to functions</li>
 <li><strong>Encode intent in signatures</strong>: Function parameters should clearly show what domains they work with</li>

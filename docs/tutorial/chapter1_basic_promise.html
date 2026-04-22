@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-91577c49.js";
+            window.path_to_searchindex_js = "../searchindex-7ae872e7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8fc2f710.js"></script>
@@ -324,10 +324,10 @@ fn file_operations() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Create boundary
-let boundary = StrictPath::with_boundary_create("./safe_dir")?;
+let safe_dir = StrictPath::with_boundary_create("./safe_dir")?;
 
 // Validate untrusted input
-let safe_path = boundary.strict_join(untrusted_filename)?;
+let safe_path = safe_dir.strict_join(untrusted_filename)?;
 
 // Perform I/O
 safe_path.write(data)?;

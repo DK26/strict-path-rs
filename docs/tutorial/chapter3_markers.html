@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-91577c49.js";
+            window.path_to_searchindex_js = "../searchindex-7ae872e7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8fc2f710.js"></script>
@@ -512,11 +512,11 @@ process_user_file(&amp;config_file);   // ❌ Compile error!
 struct MyDomain;
 
 // Create typed boundary
-let boundary: StrictPath&lt;MyDomain&gt; = 
+let typed_dir: StrictPath&lt;MyDomain&gt; = 
     StrictPath::with_boundary_create("./path")?;
 
 // Paths inherit marker
-let file = boundary.strict_join("file.txt")?;  // StrictPath&lt;MyDomain&gt;
+let file = typed_dir.strict_join("file.txt")?;  // StrictPath&lt;MyDomain&gt;
 
 // Functions enforce domain
 fn process(path: &amp;StrictPath&lt;MyDomain&gt;) { ... }
