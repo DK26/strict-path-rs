@@ -3,6 +3,7 @@
 //! Exposes the crate-wide error enum `StrictPathError`, which captures boundary creation
 //! failures, path resolution errors, and boundary escape attempts. These errors are surfaced
 //! by public constructors and join operations throughout the crate.
+use crate::sanitize::sanitize_untrusted_display_text;
 use std::error::Error;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -14,10 +15,10 @@ const MAX_ERROR_PATH_LEN: usize = 256;
 
 // Internal helper: render error-friendly path display (truncate long values).
 pub(crate) fn truncate_path_display(path: &Path, max_len: usize) -> String {
-    let path_str = path.to_string_lossy();
+    let path_str = sanitize_untrusted_display_text(&path.to_string_lossy());
     let char_count = path_str.chars().count();
     if char_count <= max_len {
-        return path_str.into_owned();
+        return path_str;
     }
     let keep = max_len.saturating_sub(5) / 2;
     let start: String = path_str.chars().take(keep).collect();
@@ -86,9 +87,10 @@ impl fmt::Display for StrictPathError {
                 restriction,
                 source,
             } => {
+                let source_display = sanitize_untrusted_display_text(&source.to_string());
                 write!(
                     f,
-                    "Invalid PathBoundary: '{}' is not a valid boundary directory ({source}). \
+                    "Invalid PathBoundary: '{}' is not a valid boundary directory ({source_display}). \
                      Ensure the path points to an existing directory, or use try_new_create() to auto-create it.",
                     truncate_path_display(restriction, MAX_ERROR_PATH_LEN)
                 )
@@ -108,9 +110,10 @@ impl fmt::Display for StrictPathError {
                 )
             }
             StrictPathError::PathResolutionError { path, source } => {
+                let source_display = sanitize_untrusted_display_text(&source.to_string());
                 write!(
                     f,
-                    "Cannot resolve path: '{}' ({source}). \
+                    "Cannot resolve path: '{}' ({source_display}). \
                      Ensure the target exists and is accessible, or create parent directories first.",
                     truncate_path_display(path, MAX_ERROR_PATH_LEN)
                 )
