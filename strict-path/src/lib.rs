@@ -188,6 +188,7 @@
 
 pub mod error;
 pub mod path;
+mod sanitize;
 pub mod validator;
 
 // Public exports

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-05-02
+
+### Fixed
+- **Error display sanitizer**: `StrictPathError` Display now scrubs the same
+  injection characters as `virtualpath_display()` from path text and
+  `io::Error` source strings before they enter error messages: C0/C1 controls,
+  DEL, U+2028/U+2029, Unicode directional overrides/marks, and `;`. The
+  sanitizer is now shared via `crate::sanitize`.
+
+### Documentation
+- README clarified how canonicalization/path resolution and boundary checks
+  interact.
+- README expanded guidance on `PathBoundary` usage, limitations, and what the
+  crate guarantees.
+
 ## [0.2.2] - 2026-04-22
 
 ### Reverted

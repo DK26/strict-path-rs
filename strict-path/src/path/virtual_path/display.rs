@@ -18,7 +18,7 @@ impl<'vpath, Marker> fmt::Display for VirtualPathDisplay<'vpath, Marker> {
         for comp in self.0.virtual_path.components() {
             if let Component::Normal(name) = comp {
                 let s = name.to_string_lossy();
-                parts.push(super::sanitize_display_component(&s));
+                parts.push(crate::sanitize::sanitize_untrusted_display_text(&s));
             }
         }
         if parts.is_empty() {

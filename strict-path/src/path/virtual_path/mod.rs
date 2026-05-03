@@ -36,41 +36,6 @@ pub struct VirtualPath<Marker = ()> {
     pub(crate) virtual_path: PathBuf,
 }
 
-/// Replace dangerous Unicode characters with `_` for safe Display output.
-///
-/// WHY: `virtualpath_display` is the one API surface whose output the crate
-/// actively encourages embedding in user-facing channels (HTTP responses,
-/// logs, terminal prints). The following categories are injection primitives:
-///   - C0 controls (< 0x20): `\n`/`\r` CRLF splitting, `\x1b` ANSI escapes, NUL
-///   - DEL (0x7F): terminal erase behavior on some emulators
-///   - C1 controls (0x80–0x9F): U+0085 NEL acts as newline in HTTP/XML/log parsers
-///   - U+2028/U+2029 (Line/Paragraph Separator): ECMAScript line terminators
-///   - Unicode directional overrides (U+202A–U+202E, U+2066–U+2069, U+200E/U+200F):
-///     visually reverse filename characters, enabling extension-spoofing attacks
-///   - `;` (semicolon): shell command separator — display output may feed a downstream shell reader
-fn sanitize_display_component(component: &str) -> String {
-    let mut out = String::with_capacity(component.len());
-    for ch in component.chars() {
-        let cp = ch as u32;
-        let needs_replace = ch == ';'
-            || cp < 0x20           // C0 controls (NUL through US)
-            || cp == 0x7F          // DEL
-            || (0x80..=0x9F).contains(&cp)  // C1 controls (NEL U+0085, CSI U+009B, etc.)
-            || cp == 0x2028        // LINE SEPARATOR  — ECMAScript line terminator
-            || cp == 0x2029        // PARAGRAPH SEPARATOR — ECMAScript line terminator
-            || cp == 0x200E        // LEFT-TO-RIGHT MARK
-            || cp == 0x200F        // RIGHT-TO-LEFT MARK
-            || (0x202A..=0x202E).contains(&cp)  // LRE, RLE, PDF, LRO, RLO (directional embedding/override)
-            || (0x2066..=0x2069).contains(&cp); // LRI, RLI, FSI, PDI (directional isolate)
-        if needs_replace {
-            out.push('_');
-        } else {
-            out.push(ch);
-        }
-    }
-    out
-}
-
 /// Re-validate a canonicalized path against the boundary after virtual-space manipulation.
 ///
 /// Every virtual mutation (join, parent, with_*) produces a candidate in virtual space that

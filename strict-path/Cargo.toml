@@ -1,6 +1,6 @@
 [package]
 name = "strict-path"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 # Minimum supported Rust version (MSRV)
 rust-version = "1.76"
@@ -29,7 +29,7 @@ app-path = "1.1.2"
 
 # Windows test helper: junctions for symlink tests when admin privileges unavailable
 [target.'cfg(windows)'.dev-dependencies]
-junction = "1.4.2"
+junction = "2.0.0"
 
 # Windows-specific runtime dependencies.
 # `dunce` strips verbatim (`\\?\`) and device (`\\.\`) prefixes correctly —
@@ -38,7 +38,7 @@ junction = "1.4.2"
 # unsafe (reserved names, >260 chars, trailing dots, etc.).
 [target.'cfg(windows)'.dependencies]
 dunce = "1.0"
-junction = { version = "1.4.2", optional = true }
+junction = { version = "2.0.0", optional = true }
 
 [features]
 # Opt-in virtual filesystem support (VirtualRoot, VirtualPath)
